@@ -1,0 +1,265 @@
+<resources>
+    <string name="app_name">Speculonic</string>
+    <string name="discover">发现</string>
+    <string name="library">媒体库</string>
+    <string name="settings">设置</string>
+    <string name="recently_added">最近添加</string>
+    <string name="random_albums">随机专辑</string>
+    <string name="most_played">最常播放</string>
+    <string name="artists">艺术家</string>
+    <string name="albums">专辑</string>
+    <string name="playlists">歌单</string>
+    <string name="folders">文件夹</string>
+    <string name="favorite_songs">收藏曲目</string>
+    <string name="favorite_albums">收藏专辑</string>
+    <string name="view_all">查看全部</string>
+    <string name="server_configuration">服务器配置</string>
+    <string name="server_url">服务器地址</string>
+    <string name="username">用户名</string>
+    <string name="password">密码</string>
+    <string name="data_management">数据与存储</string>
+    <string name="metadata_sync">元数据同步</string>
+    <string name="playback_cache">播放缓存</string>
+    <string name="persistent_storage">持久化存储</string>
+    <string name="maintenance_tools">维护与工具</string>
+    <string name="used_space">已用空间: %1$s</string>
+    <string name="save_configuration">保存配置</string>
+    <string name="unknown_artist">未知艺术家</string>
+    <string name="no_lyrics">未找到歌词</string>
+    <string name="pure_music">纯音乐，请欣赏</string>
+
+    <string name="language">语言</string>
+    <string name="system_default">系统默认</string>
+    <string name="english">English</string>
+    <string name="chinese">简体中文</string>
+    <string name="play">播放</string>
+
+    <string name="search">搜索</string>
+    <string name="search_hint">搜索艺术家、专辑、歌曲…</string>
+    <string name="songs">歌曲</string>
+
+    <string name="favorite">收藏</string>
+    <string name="sleep_timer">睡眠定时器</string>
+
+    <string name="cancel_timer">取消定时</string>
+    <string name="queue">播放队列</string>
+    <string name="download">下载</string>
+    <string name="remove_download">移除下载</string>
+    <string name="download_all">下载全部</string>
+    <string name="download_channel_name">下载服务</string>
+    <string name="download_channel_description">后台下载服务</string>
+    <string name="unlimited">不限制</string>
+    <string name="mobile_play_allowed">允许计费网络播放</string>
+    <string name="view_logs">查看日志</string>
+    <string name="logs">日志</string>
+    <string name="clear_logs">清除</string>
+    <string name="close">关闭</string>
+    <string name="offline_mode">离线模式</string>
+    <string name="advanced">高级</string>
+    <string name="play_all">播放全部</string>
+    <string name="shuffle">随机播放</string>
+    <string name="song_details">歌曲详情</string>
+    <string name="add_to_playlist">添加到歌单</string>
+    <string name="caching_in_background">正在优化缓存…</string>
+    <string name="not_playing">未在播放</string>
+    <string name="not_playing_artist">Speculonic</string>
+
+    <string name="setup_server">配置服务器</string>
+    <string name="test_connection">测试连接</string>
+    <string name="delete_server">删除服务器</string>
+    <string name="confirm_delete_server">您确定要删除此服务器配置吗？</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+    <string name="confirm">确认</string>
+    <string name="appearance">外观</string>
+    <string name="network">网络</string>
+    <string name="server">服务器</string>
+    <string name="log_level">日志记录级别</string>
+
+    <string name="theme_mode">主题模式</string>
+    <string name="light">浅色</string>
+    <string name="dark">深色</string>
+    <string name="system">系统</string>
+    <string name="color_mode">取色模式</string>
+    <string name="album_cover">专辑封面</string>
+    <string name="system_color">系统颜色</string>
+    <string name="player_background_mode">播放器背景</string>
+    <string name="player_background_mode_glow_gradient">微光渐变</string>
+    <string name="player_background_mode_gaussian_blur">高斯模糊</string>
+
+    
+    <string name="persistent_storage_saf">持久化存储 (SAF)</string>
+    <string name="not_configured">未配置</string>
+    <string name="configure_saf">配置 SAF 目录</string>
+    <string name="saf_permission_expired">SAF 目录授权已过期，请重新配置目录。</string>
+    <string name="reset">重置</string>
+    <string name="external_usage">外部占用: %1$s</string>
+    <string name="scan_local_files">扫描本地文件</string>
+    <string name="verify_cache">校验缓存一致性</string>
+    <string name="verify_description">深度比对本地文件与服务器元数据。</string>
+    <string name="max_internal_cache">最大内部缓存空间</string>
+    <string name="clear_internal_cache">清除内部缓存</string>
+    <string name="mobile_data_warning">计费网络警告</string>
+    <string name="mobile_verify_confirm">当前处于计费网络。校验过程可能会消耗流量，是否继续？</string>
+    <string name="verify_anyway">坚持校验</string>
+    <string name="clear_cache_confirm">确定要清除内部缓存吗？SAF 目录中的文件和元数据将被保留。</string>
+    <string name="clear">清除</string>
+
+    
+    <string name="first_sync_title">首次同步</string>
+    <string name="first_sync_message">服务器配置成功！建议立即执行一次全量元数据同步，是否现在开始？</string>
+    <string name="sync_now">立即同步</string>
+    <string name="sync_later">稍后</string>
+    <string name="first_sync_loading">正在进行首次元数据同步，请稍候…</string>
+    <string name="no_content_available">暂无内容。</string>
+
+    
+    <string name="safety_guard_title">安全保护</string>
+    <string name="safety_guard_message">安全保护已触发：服务器返回的歌曲数量远低于本地基数，同步已中止以防止误删。如果您确实在服务器端删除了大量歌曲，请点击“强制同步”。</string>
+    <string name="force_sync">强制同步</string>
+    <string name="background_sync">后台自动同步</string>
+    <string name="background_sync_description">即使 APP 未打开也执行同步（需要充电且处于 WIFI 环境）。</string>
+    <string name="force_full_sync">强制全量同步</string>
+    <string name="force_full_sync_description">忽略服务器时间戳，执行完整的元数据重建。</string>
+    <string name="silent_cache">静默缓存</string>
+    <string name="silent_cache_description">播放 5 秒后自动将歌曲下载至持久存储。</string>
+    <string name="silent_cache_channel_name">静默缓存</string>
+    <string name="silent_cache_channel_description">后台静默缓存服务</string>
+    <string name="silent_cache_warning_title">关闭静默缓存？</string>
+    <string name="silent_cache_warning_message">关闭后，收听过的歌曲将不会自动保存到本地，下次收听相同歌曲时将重新消耗网络流量。是否确认关闭？</string>
+    <string name="sync_progress_status">当前状态：%1$s</string>
+    <string name="sync_progress_warning">此操作可能耗时较长，请保持应用在前台运行。</string>
+
+    
+    <string name="title">标题</string>
+    <string name="artist">艺术家</string>
+    <string name="album">专辑</string>
+    <string name="duration">时长</string>
+    <string name="file_format">文件格式</string>
+    <string name="bitrate">比特率</string>
+    <string name="file_size">文件大小</string>
+    <string name="path">路径</string>
+    <string name="select_playlist">选择歌单</string>
+    <string name="add_to_playlist_success">已成功添加到歌单</string>
+    <string name="add_to_playlist_error">添加到歌单失败</string>
+    <string name="song_already_in_playlist">歌曲已在歌单中</string>
+    <string name="remove_from_playlist">从歌单中移除</string>
+    <string name="remove_from_playlist_success">已成功从歌单中移除</string>
+    <string name="remove_from_playlist_error">从歌单中移除失败</string>
+    <string name="create_playlist">创建歌单</string>
+    <string name="playlist_name">歌单名称</string>
+    <string name="delete_playlist">删除歌单</string>
+    <string name="confirm_delete_playlist">确定要删除这个歌单吗？</string>
+
+    <plurals name="songs_count">
+        <item quantity="other">%1$d 首歌曲</item>
+    </plurals>
+    <plurals name="albums_count">
+        <item quantity="other">%1$d 张专辑</item>
+    </plurals>
+    <string name="playback_mode">播放模式</string>
+
+    <string name="after_time">在 %1$s 之后</string>
+    <plurals name="after_songs">
+        <item quantity="other">在 %1$d 首歌曲之后</item>
+    </plurals>
+    <string name="end_of_playlist">在播放列表末尾</string>
+    <string name="all_songs">所有歌曲</string>
+    <string name="set_minutes">设置分钟数</string>
+    <string name="set_song_count">设置歌曲数目</string>
+    <string name="bluetooth_lyrics">推送蓝牙歌词</string>
+    <string name="bluetooth_lyrics_description">在车载设备上将当前歌词显示为歌曲标题</string>
+    <string name="bluetooth_car_device_names">车载蓝牙设备名单</string>
+    <string name="bluetooth_car_device_names_description">在应用无法自动识别您的车机时手动添加设备名称。</string>
+    <string name="bluetooth_car_audio">车载蓝牙音频</string>
+    <string name="identify_car_bluetooth">识别车载设备蓝牙</string>
+    <string name="identify_car_bluetooth_description">连接到车载蓝牙时，启用增强的兼容性和同步功能。</string>
+    <string name="sync_playback_state">主动同步播放状态</string>
+    <string name="sync_playback_state_description">在车机连接时，即使应用处于后台或暂停状态，也会唤醒并向车机同步歌曲信息。</string>
+    <string name="bluetooth_lyrics_hide_progress_bar">隐藏进度条以避免闪烁</string>
+    <string name="bluetooth_lyrics_hide_progress_bar_description">避免部分车机进度条频繁变化导致闪烁。开启这个选项会将播放器引擎伪装为播放电台直播流，此时无法查看和拖拽进度条。</string>
+    <string name="add_device_name">添加设备名称</string>
+    <string name="device_name_placeholder">例如: My Car BT</string>
+
+
+    
+    <string name="scanning_local_files">正在扫描本地文件: %1$s</string>
+    <string name="verifying_binary_consistency">正在校验二进制一致性: %1$s</string>
+    <string name="sync_preparing">准备中…</string>
+    <string name="sync_scanning_orphans">正在扫描本地孤立文件…</string>
+    <string name="sync_completed">同步完成</string>
+    <string name="stop_and_scan">停止播放并开始扫描…</string>
+
+    
+    <string name="notification_permission_title">通知权限</string>
+    <string name="notification_permission_message">Speculonic 需要通知权限才能在锁屏和通知栏显示播放控制器。这可以让您在不打开应用的情况下控制音乐播放。</string>
+    <string name="go_to_settings">去授权</string>
+    <string name="dont_remind_me">不再提醒</string>
+    <string name="error_invalid_url">URL 必须以 http:// 或 https:// 开头</string>
+    <string name="trust_all_certificates">信任所有 SSL 证书</string>
+    <string name="trust_all_certificates_description">跳过证书验证，适用于使用自签名或私有 CA 证书的自托管服务器。请仅在信任您的服务器时启用。</string>
+    <string name="warning_title">警告</string>
+    <string name="trust_all_certs_warning_message">开启此选项后将不再验证服务器的 SSL/TLS 证书，容易受到中间人攻击。请仅在连接信任的家用网络或自建服务器时使用。是否继续？</string>
+
+    <string name="server_offline_toast">已离线：服务器无法连接</string>
+    <string name="pref_show_offline_toast_title">断网提示</string>
+    <string name="pref_show_offline_toast_summary">当检测到服务器连续连接失败时，弹出断网提示</string>
+    <string name="cancel_downloads">取消全部</string>
+    <string name="downloading_progress">正在下载 (第 %1$d/%2$d 首)</string>
+    <string name="confirm_cancel_all_downloads_title">取消下载</string>
+    <string name="confirm_cancel_all_downloads_message">确定要取消所有排队中的下载任务吗？</string>
+    <string name="confirm_download_all_title">全部下载</string>
+    <string name="confirm_download_all_message">确定要将列表中的全部歌曲加入离线下载吗？</string>
+    <string name="confirm_force_sync_title">确认强制全量同步</string>
+    <string name="confirm_force_sync_message">强制全量同步将无视本地数据的新旧状态，重新拉取所有元数据，可能需要较长时间并消耗较多流量。确定要继续吗？</string>
+    <string name="sync_cover_art_title">同步专辑封面</string>
+    <string name="sync_cover_art_message">元数据同步已完成。是否现在下载所有专辑封面？(可能需要较长时间并消耗较多流量)</string>
+    <string name="sync_now_action">立即同步</string>
+    <string name="sync_later_action">以后再说</string>
+    <string name="delete_server_warning">此操作将同时彻底销毁本地所有已同步的音乐数据和缓存（SAF 导出的文件不会被影响）。此操作不可逆！</string>
+    <string name="sync_cover_art_preparing">正在准备同步专辑封面...</string>
+    <string name="sync_cover_art_completed">封面同步完成</string>
+    <string name="song_info">歌曲信息</string>
+    <string name="pinned_playlists">钉选歌单</string>
+    <string name="general_info">一般信息</string>
+    <string name="metadata_tab">元数据</string>
+    <string name="id">ID</string>
+    <string name="artist_id">艺术家 ID</string>
+    <string name="album_id">专辑 ID</string>
+    <string name="track">音轨号</string>
+    <string name="year">年份</string>
+    <string name="genre">流派</string>
+    <string name="content_type">内容类型 (MIME)</string>
+    <string name="starred_status">已收藏</string>
+    <string name="md5">MD5</string>
+    <string name="physical_path">物理路径</string>
+    <string name="sha_1">SHA-1</string>
+    <string name="calculating">计算中...</string>
+    <string name="not_available_not_cached">不可用 (未缓存)</string>
+    <string name="remote_tab">云端比对</string>
+    <string name="failed_to_fetch_remote">获取云端数据失败</string>
+    <string name="loading_local_data">正在加载本地数据...</string>
+    <string name="no_remote_data">暂无云端数据。</string>
+    <string name="data_synchronized">本地与云端数据完全同步。</string>
+    <string name="differences_found">发现以下差异：</string>
+    <string name="local_label">本地</string>
+    <string name="remote_label">云端</string>
+    <string name="suffix_label">文件格式后缀</string>
+    <string name="tag_format">标签格式版本</string>
+    <string name="container_format_and_version">底层容器格式与版本</string>
+    <string name="inconsistency_dialog_title">校验结果</string>
+    <string name="inconsistency_dialog_success">校验完成，所有缓存文件均与服务器保持一致。</string>
+    <string name="inconsistency_dialog_hint">如确实修改了远程服务器数据, 可以尝试先进行一次全量同步。</string>
+    <string name="inconsistency_dialog_found">发现 %1$d 个不一致的文件，请选择处理方式：</string>
+    <string name="inconsistency_reason_missing">文件丢失</string>
+    <string name="inconsistency_reason_mismatch">文件内容不一致</string>
+    <string name="inconsistency_reason_orphaned">未知的孤立文件</string>
+    <string name="redownload">重新下载</string>
+
+    
+    <string name="about">关于</string>
+    <string name="app_description">基于 OpenSubsonic API 的开源音乐客户端</string>
+    <string name="version">版本号</string>
+    <string name="license">开源协议</string>
+    <string name="github_repository">GitHub 仓库</string>
+</resources>

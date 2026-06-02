@@ -1,0 +1,17 @@
+*.iml
+.gradle
+/local.properties
+.idea/
+.DS_Store
+/build
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+keystore/
+app/release/
+GEMINI.md
+/docs
+
+# 本地非开源扩展构建脚本
+local.gradle.kts

@@ -1,0 +1,41 @@
+[
+  {
+    "id": 1,
+    "messages": {
+      "zh": [
+        {"speaker": "ヤチヨ", "message": "八百代们! 我所有的神明们, 今晚玩的开心吗?"}
+      ],
+      "en": [
+        {"speaker": "ヤチヨ", "message": "Yaoyoro! All my gods and goddesses, are you having a good time tonight"}
+      ]
+    }
+  },
+  {
+    "id": 2,
+    "messages": {
+      "zh": [
+        {"speaker": "ヤチヨ", "message": "彩叶, 喜欢❤️❤️❤️❤️❤️❤️❤️❤️"},
+        {"speaker": "かぐや", "message": "混蛋, 她是我的!"},
+        {"speaker": "彩葉", "message": "喂!"}
+      ],
+      "en": [
+        {"speaker": "Yachiyo", "message": "Iroha, Love ❤️❤️❤️❤️❤️❤️❤️❤️"},
+        {"speaker": "Kaguya", "message": "Hey bitch, she is my girl!"},
+        {"speaker": "Iroha", "message": "Kora!"}
+      ]
+    }
+  },
+  {
+    "id": 3,
+    "messages": {
+      "zh": [
+        {"speaker": "かぐや", "message": "彩叶, 相信我, 我可以的!"},
+        {"speaker": "彩葉", "message": "要是你搞砸了, 我就不管你了哦."}
+      ],
+      "en": [
+        {"speaker": "Kaguya", "message": "Iroha, trust me, I can do this!"},
+        {"speaker": "Iroha", "message": "If you screw up, I'll just leave you behind."}
+      ]
+    }
+  }
+]

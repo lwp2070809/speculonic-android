@@ -1,0 +1,358 @@
+package de.lwp2070809.speculonic.ui
+
+import de.lwp2070809.speculonic.R
+import android.Manifest
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.annotation.StringRes
+import androidx.compose.animation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
+import androidx.compose.material3.windowsizeclass.WindowSizeClass
+import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
+import androidx.compose.runtime.*
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
+import androidx.hilt.navigation.compose.hiltViewModel
+import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.playback.PlaybackController
+import de.lwp2070809.speculonic.ui.components.MiniPlayer
+import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
+import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
+import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.navigation.AppNavDisplay
+import de.lwp2070809.speculonic.ui.navigation.AppRoute
+import de.lwp2070809.speculonic.ui.navigation.Navigator
+import de.lwp2070809.speculonic.ui.navigation.rememberNavigationState
+import de.lwp2070809.speculonic.ui.screens.player.NowPlayingViewModel
+import de.lwp2070809.speculonic.ui.screens.search.SearchScreen
+import de.lwp2070809.speculonic.ui.screens.search.SearchViewModel
+import de.lwp2070809.speculonic.ui.screens.settings.ServerConfigDialog
+import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainScreen(
+    windowSizeClass: WindowSizeClass,
+    preferencesManager: PreferencesManager,
+    playbackController: PlaybackController,
+    isOnline: Boolean,
+    isEffectivelyOnline: Boolean,
+    repository: SubsonicRepository,
+    initialShowNowPlaying: Boolean = false,
+    onNowPlayingShown: () -> Unit = {}
+) {
+    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = preferencesManager.getServerUrlSync())
+    val username by preferencesManager.username.collectAsState(initial = "")
+    val password by preferencesManager.password.collectAsState(initial = "")
+
+    val settingsViewModel: de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel = hiltViewModel()
+    val settingsUiState by settingsViewModel.uiState.collectAsState()
+    val isSyncing by settingsViewModel.isSyncing.collectAsState()
+
+    val stableRepository = remember(repository) { repository }
+    val stablePlaybackController = remember(playbackController) { playbackController }
+
+    CompositionLocalProvider(
+        LocalSubsonicRepository provides stableRepository,
+        LocalPlaybackController provides stablePlaybackController
+    ) {
+        MainContent(
+            windowSizeClass = windowSizeClass,
+            preferencesManager = preferencesManager,
+            isOnline = isOnline,
+            isEffectivelyOnline = isEffectivelyOnline,
+            serverUrl = serverUrl,
+            initialShowNowPlaying = initialShowNowPlaying,
+            onNowPlayingShown = onNowPlayingShown,
+            settingsViewModel = settingsViewModel,
+            isSyncing = isSyncing,
+            settingsUiState = settingsUiState
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MainContent(
+    windowSizeClass: WindowSizeClass,
+    preferencesManager: PreferencesManager,
+    isOnline: Boolean,
+    isEffectivelyOnline: Boolean,
+    serverUrl: String?,
+    initialShowNowPlaying: Boolean,
+    onNowPlayingShown: () -> Unit,
+    settingsViewModel: SettingsViewModel,
+    isSyncing: Boolean,
+    settingsUiState: de.lwp2070809.speculonic.ui.screens.settings.SettingsUiState
+) {
+    val context = LocalContext.current
+    val repository = LocalSubsonicRepository.current
+    val playbackController = LocalPlaybackController.current
+    
+    
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val permissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) {}
+        LaunchedEffect(Unit) {
+            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    
+    val topLevelRoutes = setOf(AppRoute.Discover, AppRoute.Library, AppRoute.Settings)
+    val navigationState = rememberNavigationState(
+        startRoute = AppRoute.Discover,
+        topLevelRoutes = topLevelRoutes
+    )
+    val navigator = remember(navigationState) { Navigator(navigationState) }
+    
+    var showNowPlaying by remember { mutableStateOf(false) }
+    var showSearch by remember { mutableStateOf(false) }
+    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val topBarState = remember { TopBarState() }
+
+    LaunchedEffect(initialShowNowPlaying) {
+        if (initialShowNowPlaying) {
+            showNowPlaying = true
+            onNowPlayingShown()
+        }
+    }
+
+
+    
+    
+    
+
+    var showServerSetupDialog by remember { mutableStateOf(false) }
+    LaunchedEffect(serverUrl) {
+        if (serverUrl.isNullOrBlank()) {
+            showServerSetupDialog = true
+        }
+    }
+
+    LaunchedEffect(repository) {
+        if (!serverUrl.isNullOrBlank()) {
+            repository.ping()
+        }
+    }
+
+    
+    val searchViewModel: SearchViewModel = hiltViewModel(key = "search_$serverUrl")
+    val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_$serverUrl")
+
+    data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: ImageVector)
+    val navItems = listOf(
+        NavItem(AppRoute.Discover, R.string.discover, Icons.Default.Home),
+        NavItem(AppRoute.Library, R.string.library, Icons.Default.LibraryMusic),
+        NavItem(AppRoute.Settings, R.string.settings, Icons.Default.Settings)
+    )
+    val currentRoute = navigationState.getRetainedKeys().lastOrNull()
+
+
+
+    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
+
+    
+    val primaryColor = MaterialTheme.colorScheme.primary
+    val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+    val transparentColor = androidx.compose.ui.graphics.Color.Transparent
+    
+    val customItemColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.itemColors(
+        navigationBarItemColors = NavigationBarItemDefaults.colors(
+            selectedIconColor = primaryColor,
+            selectedTextColor = primaryColor,
+            indicatorColor = transparentColor,
+            unselectedIconColor = unselectedColor,
+            unselectedTextColor = unselectedColor
+        ),
+        navigationRailItemColors = NavigationRailItemDefaults.colors(
+            selectedIconColor = primaryColor,
+            selectedTextColor = primaryColor,
+            indicatorColor = transparentColor,
+            unselectedIconColor = unselectedColor,
+            unselectedTextColor = unselectedColor
+        )
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                MainTopBar(
+                    currentRoute = currentRoute,
+                    topBarState = topBarState,
+                    onBackClick = { navigator.goBack() },
+                    onSearchClick = { showSearch = true }
+                )
+            }
+        ) { innerPadding ->
+            androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold(
+                modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                navigationSuiteItems = {
+                    navItems.forEach { item ->
+                        val isSelected = navigationState.topLevelRoute == item.route
+                        item(
+                            icon = { Icon(item.icon, contentDescription = null) },
+                            label = { Text(androidx.compose.ui.res.stringResource(item.title)) },
+                            selected = isSelected,
+                            onClick = { navigator.navigate(item.route) },
+                            colors = customItemColors
+                        )
+                    }
+                }
+            ) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    AppNavDisplay(
+                        navigator = navigator,
+                        navigationState = navigationState,
+                        topBarState = topBarState,
+                        isOnline = isOnline,
+                        isEffectivelyOnline = isEffectivelyOnline,
+                        onShowSearch = { showSearch = true },
+                        settingsViewModel = settingsViewModel,
+                        modifier = Modifier.weight(1f)
+                    )
+                    
+                    MiniPlayer(
+                        onPlayPause = { playbackController.togglePlayPause() },
+                        onSkipPrevious = { playbackController.skipToPrevious() },
+                        onSkipNext = { playbackController.skipToNext() },
+                        onClick = { showNowPlaying = true }
+                    )
+                }
+            }
+        }
+
+        
+        AnimatedVisibility(
+            visible = showSearch,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut()
+        ) {
+            Surface(
+                modifier = Modifier.fillMaxSize(),
+                color = MaterialTheme.colorScheme.background
+            ) {
+                SearchScreen(
+                    viewModel = searchViewModel,
+                    isOnline = isOnline,
+                    isEffectivelyOnline = isEffectivelyOnline,
+                    onAlbumClick = { albumId ->
+                        navigator.navigate(AppRoute.AlbumDetail(albumId))
+                        showSearch = false
+                    },
+                    onArtistClick = { artistId ->
+                        navigator.navigate(AppRoute.ArtistDetail(artistId))
+                        showSearch = false
+                    },
+                    onClose = { showSearch = false }
+                )
+            }
+        }
+
+        
+        AnimatedVisibility(
+            visible = showNowPlaying,
+            enter = slideInVertically { it } + fadeIn(),
+            exit = slideOutVertically { it } + fadeOut(),
+            modifier = Modifier.fillMaxSize()
+        ) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                androidx.activity.compose.BackHandler {
+                    showNowPlaying = false
+                }
+                de.lwp2070809.speculonic.ui.screens.player.NowPlayingScreen(
+                    viewModel = nowPlayingViewModel, isExpanded = isExpanded, onCollapse = { showNowPlaying = false }
+                )
+            }
+        }
+
+        
+        de.lwp2070809.speculonic.ui.components.SyncProgressOverlay(
+            isVisible = isSyncing && settingsUiState.syncProgress != null,
+            progressText = settingsUiState.syncProgress
+        )
+
+        
+        if (settingsUiState.showCoverArtSyncConfirm) {
+            AlertDialog(
+                onDismissRequest = { settingsViewModel.cancelCoverArtSync() },
+                title = { Text(androidx.compose.ui.res.stringResource(R.string.sync_cover_art_title)) },
+                text = { Text(androidx.compose.ui.res.stringResource(R.string.sync_cover_art_message)) },
+                confirmButton = {
+                    TextButton(onClick = { settingsViewModel.startCoverArtSync() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.sync_now_action))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { settingsViewModel.cancelCoverArtSync() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.sync_later_action))
+                    }
+                }
+            )
+        }
+
+        if (settingsUiState.showFirstSyncConfirm) {
+            AlertDialog(
+                onDismissRequest = { settingsViewModel.cancelFirstSync() },
+                title = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_title)) },
+                text = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_message)) },
+                confirmButton = {
+                    TextButton(onClick = { settingsViewModel.performFullSync() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.sync_now))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { settingsViewModel.cancelFirstSync() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.sync_later))
+                    }
+                }
+            )
+        }
+
+        if (settingsUiState.showSafetyGuardConfirm) {
+            AlertDialog(
+                onDismissRequest = { settingsViewModel.cancelSafetyGuard() },
+                title = { Text(androidx.compose.ui.res.stringResource(R.string.safety_guard_title)) },
+                text = { Text(settingsUiState.safetyGuardMessage ?: androidx.compose.ui.res.stringResource(R.string.safety_guard_message)) },
+                confirmButton = {
+                    TextButton(onClick = { settingsViewModel.confirmSafetyGuard() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.force_sync), color = MaterialTheme.colorScheme.error)
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { settingsViewModel.cancelSafetyGuard() }) {
+                        Text(androidx.compose.ui.res.stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+        
+        if (showServerSetupDialog) {
+            ServerConfigDialog(
+                initialUrl = "",
+                initialUser = "",
+                initialPass = "",
+                viewModel = settingsViewModel,
+                showCancelButton = false,
+                onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
+                onSave = { url, user, pass ->
+                    settingsViewModel.updateServerUrl(url)
+                    settingsViewModel.updateUsername(user)
+                    settingsViewModel.updatePassword(pass)
+                    settingsViewModel.saveSettings()
+                    showServerSetupDialog = false
+                }
+            )
+        }
+    }
+
+}
