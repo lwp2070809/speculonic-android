@@ -17,12 +17,12 @@ The project is built on the philosophy of treating the application as a local mi
 
 ## Roadmap
 
-* Provide Github Action builds
-* Publish on F-Droid
-* Fix low-priority code defects
-* Refactor tablet UI layout
-* Provide Android X86 builds
-* Deliver compatibility updates within 3 months of new Android API releases
+- [ ] Provide Github Action builds
+- [ ] Publish on F-Droid
+- [ ] Fix low-priority code defects
+- [ ] Refactor tablet UI layout
+- [ ] Provide Android X86 builds
+- [x] Deliver compatibility updates within 3 months of new Android API releases
 
 ## License & Distribution Guidelines
 
@@ -48,14 +48,14 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 * **车辆互联适配**: 高精度嗅探车机蓝牙广播与设备指纹, 劫持底层 AVRCP 协议, 将歌曲实时同步歌词投送到车载屏幕.
 * **主题系统**: 支持深色主题. 播放界面可根据当前曲目封面执行动态色彩提取与对比度校验, 提供高斯模糊和微光渐变两种美观的播放器背景.
 
-## 开发路线图 (Roadmap)
+## 开发路线图
 
-* 提供 Github Action 构建
-* 上架 F-Droid
-* 修复一些低优先级代码缺陷
-* 重构平板电脑的 UI
-* 提供 Android X86 版本
-* 在 Android 新 API 版本发布 3 个月内提供适配
+- [ ] 提供 Github Action 构建
+- [ ] 上架 F-Droid
+- [ ] 修复一些低优先级代码缺陷
+- [ ] 重构平板电脑的 UI
+- [ ] 提供 Android X86 版本
+- [x] 在 Android 新 API 版本发布 3 个月内提供适配
 
 ## 开源协议与分发许可
 
