@@ -83,7 +83,9 @@ class PreferencesManager(private val context: Context) {
         val BLUETOOTH_CAR_DEVICE_NAMES = androidx.datastore.preferences.core.stringSetPreferencesKey("bluetooth_car_device_names")
         
         val SKIP_SILENCE_ENABLED = booleanPreferencesKey("skip_silence_enabled")
-        val REPLAY_GAIN_ENABLED = booleanPreferencesKey("replay_gain_enabled")
+        val PLAYBACK_SPEED = androidx.datastore.preferences.core.floatPreferencesKey("playback_speed")
+        val BUFFER_STRATEGY = androidx.datastore.preferences.core.intPreferencesKey("buffer_strategy")
+
 
         val NOTIFICATION_REMINDER_ENABLED = booleanPreferencesKey("notification_reminder_enabled")
         val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
@@ -248,7 +250,9 @@ class PreferencesManager(private val context: Context) {
     val carBluetoothEnabled: Flow<Boolean> = context.dataStore.data.map { it[CAR_BLUETOOTH_ENABLED] ?: false }
     val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }
     val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }
-    val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[REPLAY_GAIN_ENABLED] ?: false }
+    val playbackSpeed: Flow<Float> = context.dataStore.data.map { it[PLAYBACK_SPEED] ?: 1.0f }
+    val bufferStrategy: Flow<Int> = context.dataStore.data.map { it[BUFFER_STRATEGY] ?: 0 }
+
     val bluetoothLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_ENABLED] ?: false }
     val bluetoothLyricsHideProgressBar: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR] ?: false }
     val bluetoothCarDeviceNames: Flow<Set<String>> = context.dataStore.data.map { it[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet() }
@@ -466,11 +470,18 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    suspend fun saveReplayGainEnabled(enabled: Boolean) {
+    suspend fun savePlaybackSpeed(speed: Float) {
         context.dataStore.edit { preferences ->
-            preferences[REPLAY_GAIN_ENABLED] = enabled
+            preferences[PLAYBACK_SPEED] = speed
         }
     }
+
+    suspend fun saveBufferStrategy(strategy: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[BUFFER_STRATEGY] = strategy
+        }
+    }
+
 
     suspend fun saveBluetoothLyricsEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->

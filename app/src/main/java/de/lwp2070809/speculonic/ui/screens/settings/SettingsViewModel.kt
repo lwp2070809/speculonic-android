@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -61,7 +62,9 @@ data class SettingsUiState(
     val carBluetoothEnabled: Boolean = false,
     val syncPlaybackState: Boolean = false,
     val skipSilenceEnabled: Boolean = false,
-    val replayGainEnabled: Boolean = false,
+    val playbackSpeed: Float = 1.0f,
+    val bufferStrategy: Int = 0,
+
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
     val bluetoothCarDeviceNames: Set<String> = emptySet(),
@@ -173,9 +176,10 @@ class SettingsViewModel @Inject constructor(
             
             val playbackGroup = combine(
                 preferencesManager.skipSilenceEnabled,
-                preferencesManager.replayGainEnabled
-            ) { skipSilence, replayGain ->
-                PlaybackPrefs(skipSilence, replayGain)
+                preferencesManager.playbackSpeed,
+                preferencesManager.bufferStrategy
+            ) { skipSilence, speed, buffer ->
+                PlaybackPrefs(skipSilence, speed, buffer)
             }
 
             val group3 = combine(
@@ -214,7 +218,9 @@ class SettingsViewModel @Inject constructor(
                     carBluetoothEnabled = g4.third.bluetooth.carEnabled,
                     syncPlaybackState = g4.third.bluetooth.syncState,
                     skipSilenceEnabled = g4.third.playback.skipSilence,
-                    replayGainEnabled = g4.third.playback.replayGain,
+                    playbackSpeed = g4.third.playback.playbackSpeed,
+                    bufferStrategy = g4.third.playback.bufferStrategy,
+
                     bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
                     bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
                     bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
@@ -268,7 +274,7 @@ class SettingsViewModel @Inject constructor(
         val lyricsEnabled: Boolean, val hideProgress: Boolean, val deviceNames: Set<String>
     )
     private data class PlaybackPrefs(
-        val skipSilence: Boolean, val replayGain: Boolean
+        val skipSilence: Boolean, val playbackSpeed: Float, val bufferStrategy: Int
     )
     private data class PrefsGroup3(
         val silentCacheEnabled: Boolean,
@@ -386,7 +392,9 @@ class SettingsViewModel @Inject constructor(
     
     fun updateSyncPlaybackState(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSyncPlaybackState(enabled) } }
     fun updateSkipSilenceEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSkipSilenceEnabled(enabled) } }
-    fun updateReplayGainEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveReplayGainEnabled(enabled) } }
+    fun updatePlaybackSpeed(speed: Float) { viewModelScope.launch { preferencesManager.savePlaybackSpeed(speed) } }
+    fun updateBufferStrategy(strategy: Int) { viewModelScope.launch { preferencesManager.saveBufferStrategy(strategy) } }
+
     fun updateBluetoothLyricsEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsEnabled(enabled) } }
     fun updateBluetoothLyricsHideProgressBar(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsHideProgressBar(enabled) } }
 

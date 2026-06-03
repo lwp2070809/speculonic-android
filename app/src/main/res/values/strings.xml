@@ -36,8 +36,12 @@
     <string name="bluetooth_audio">Bluetooth Audio</string>
     <string name="skip_silence">Skip Silence</string>
     <string name="skip_silence_description">Automatically skip silent parts of the audio</string>
-    <string name="replay_gain">ReplayGain</string>
-    <string name="replay_gain_description">Normalize volume across different tracks</string>
+    <string name="playback_speed">Playback Speed</string>
+    <string name="buffer_strategy">Buffer Strategy</string>
+    <string name="buffer_strategy_data_saver">Data Saver</string>
+    <string name="buffer_strategy_balanced">Balanced</string>
+    <string name="buffer_strategy_anti_stutter">Stable Playback</string>
+
 
     <string name="search">Search</string>
     <string name="search_hint">Search artists, albums, songs…</string>

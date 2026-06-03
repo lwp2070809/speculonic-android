@@ -8,6 +8,7 @@ import android.media.AudioManager
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
@@ -173,6 +174,7 @@ class PlaybackService : MediaSessionService() {
                         val username = uName
                         val password = pWord
                         val maxCacheSize = data[PreferencesManager.MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024)
+                        val bufferStrategy = data[PreferencesManager.BUFFER_STRATEGY] ?: 1
                     }
                 }
 
@@ -191,6 +193,7 @@ class PlaybackService : MediaSessionService() {
 
                 val realPlayer = PlayerBuilder(this@PlaybackService).build(
                     maxCacheSize = config.maxCacheSize,
+                    bufferStrategy = config.bufferStrategy,
                     checkRestriction = { isMetered && !mobilePlayAllowed }
                 )
                 
@@ -243,6 +246,26 @@ class PlaybackService : MediaSessionService() {
         }
         
         serviceScope.launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
+        
+        serviceScope.launch {
+            prefs.skipSilenceEnabled.collect { skip ->
+                val player = mediaSession?.player
+                if (player is BluetoothCarManager.CarDisguisePlayer) {
+                    val wrapped = player.wrappedPlayer
+                    if (wrapped is ExoPlayer) {
+                        wrapped.skipSilenceEnabled = skip
+                    }
+                } else if (player is ExoPlayer) {
+                    player.skipSilenceEnabled = skip
+                }
+            }
+        }
+        
+        serviceScope.launch {
+            prefs.playbackSpeed.collect { speed ->
+                mediaSession?.player?.playbackParameters = PlaybackParameters(speed)
+            }
+        }
         
         serviceScope.launch {
             prefs.bluetoothLyricsEnabled.collect {

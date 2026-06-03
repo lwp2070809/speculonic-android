@@ -36,8 +36,12 @@
     <string name="bluetooth_audio">蓝牙音频</string>
     <string name="skip_silence">跳过静音</string>
     <string name="skip_silence_description">自动跳过音频中的静音部分</string>
-    <string name="replay_gain">播放增益</string>
-    <string name="replay_gain_description">在不同曲目之间平衡音量大小</string>
+    <string name="playback_speed">播放倍速</string>
+    <string name="buffer_strategy">缓冲策略</string>
+    <string name="buffer_strategy_data_saver">节省流量</string>
+    <string name="buffer_strategy_balanced">平衡</string>
+    <string name="buffer_strategy_anti_stutter">稳定播放</string>
+
 
     <string name="search">搜索</string>
     <string name="search_hint">搜索艺术家、专辑、歌曲…</string>
