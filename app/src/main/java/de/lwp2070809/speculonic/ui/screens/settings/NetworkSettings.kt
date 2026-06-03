@@ -42,7 +42,7 @@ fun NetworkSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(vertical = 16.dp)) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_play_allowed)) },
             trailingContent = {
