@@ -21,6 +21,7 @@ sealed interface AppRoute : NavKey {
     @Serializable data object SettingsNetwork : AppRoute
     @Serializable data object SettingsAdvanced : AppRoute
     @Serializable data object SettingsAbout : AppRoute
+    @Serializable data object SettingsBluetooth : AppRoute
     
     @Serializable
     data class AlbumDetail(val albumId: String) : AppRoute

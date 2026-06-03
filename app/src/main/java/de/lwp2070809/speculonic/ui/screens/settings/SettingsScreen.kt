@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Bluetooth
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.NetworkCheck
@@ -58,6 +59,11 @@ fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
             title = stringResource(R.string.play),
             icon = Icons.Default.PlayArrow,
             onClick = { onNavigate(AppRoute.SettingsPlayback) }
+        )
+        SettingsCategoryItem(
+            title = stringResource(R.string.bluetooth_audio),
+            icon = Icons.Default.Bluetooth,
+            onClick = { onNavigate(AppRoute.SettingsBluetooth) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.appearance),

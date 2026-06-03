@@ -82,6 +82,9 @@ class PreferencesManager(private val context: Context) {
         val BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR = booleanPreferencesKey("bluetooth_lyrics_hide_progress_bar")
         val BLUETOOTH_CAR_DEVICE_NAMES = androidx.datastore.preferences.core.stringSetPreferencesKey("bluetooth_car_device_names")
         
+        val SKIP_SILENCE_ENABLED = booleanPreferencesKey("skip_silence_enabled")
+        val REPLAY_GAIN_ENABLED = booleanPreferencesKey("replay_gain_enabled")
+
         val NOTIFICATION_REMINDER_ENABLED = booleanPreferencesKey("notification_reminder_enabled")
         val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
         val USE_GAUSSIAN_BLUR_BACKGROUND = booleanPreferencesKey("use_gaussian_blur_background")
@@ -238,12 +241,14 @@ class PreferencesManager(private val context: Context) {
     val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }
     val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }
     val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }
-    val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: true }
+    val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: false }
     val lastSleepTimerMinutes: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_MINUTES] ?: 30 }
     val lastSleepTimerSongCount: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }
     
     val carBluetoothEnabled: Flow<Boolean> = context.dataStore.data.map { it[CAR_BLUETOOTH_ENABLED] ?: false }
-    val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: true }
+    val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }
+    val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }
+    val replayGainEnabled: Flow<Boolean> = context.dataStore.data.map { it[REPLAY_GAIN_ENABLED] ?: false }
     val bluetoothLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_ENABLED] ?: false }
     val bluetoothLyricsHideProgressBar: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR] ?: false }
     val bluetoothCarDeviceNames: Flow<Set<String>> = context.dataStore.data.map { it[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet() }
@@ -452,6 +457,18 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveSyncPlaybackState(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[SYNC_PLAYBACK_STATE] = enabled
+        }
+    }
+
+    suspend fun saveSkipSilenceEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[SKIP_SILENCE_ENABLED] = enabled
+        }
+    }
+
+    suspend fun saveReplayGainEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[REPLAY_GAIN_ENABLED] = enabled
         }
     }
 

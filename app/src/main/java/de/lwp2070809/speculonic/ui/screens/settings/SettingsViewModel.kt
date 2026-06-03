@@ -59,7 +59,9 @@ data class SettingsUiState(
     val silentCacheEnabled: Boolean = true,
     
     val carBluetoothEnabled: Boolean = false,
-    val syncPlaybackState: Boolean = true,
+    val syncPlaybackState: Boolean = false,
+    val skipSilenceEnabled: Boolean = false,
+    val replayGainEnabled: Boolean = false,
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
     val bluetoothCarDeviceNames: Set<String> = emptySet(),
@@ -168,13 +170,21 @@ class SettingsViewModel @Inject constructor(
             ) { carEnabled, syncState, lyricsEnabled, hideProgress, deviceNames ->
                 BluetoothPrefs(carEnabled, syncState, lyricsEnabled, hideProgress, deviceNames)
             }
+            
+            val playbackGroup = combine(
+                preferencesManager.skipSilenceEnabled,
+                preferencesManager.replayGainEnabled
+            ) { skipSilence, replayGain ->
+                PlaybackPrefs(skipSilence, replayGain)
+            }
 
             val group3 = combine(
                 preferencesManager.silentCacheEnabled,
                 preferencesManager.playerBackgroundMode,
-                bluetoothGroup
-            ) { silentCacheEnabled, backgroundMode, bluetooth ->
-                PrefsGroup3(silentCacheEnabled, backgroundMode, bluetooth)
+                bluetoothGroup,
+                playbackGroup
+            ) { silentCacheEnabled, backgroundMode, bluetooth, playback ->
+                PrefsGroup3(silentCacheEnabled, backgroundMode, bluetooth, playback)
             }
 
             val group4 = combine(
@@ -203,6 +213,8 @@ class SettingsViewModel @Inject constructor(
                     
                     carBluetoothEnabled = g4.third.bluetooth.carEnabled,
                     syncPlaybackState = g4.third.bluetooth.syncState,
+                    skipSilenceEnabled = g4.third.playback.skipSilence,
+                    replayGainEnabled = g4.third.playback.replayGain,
                     bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
                     bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
                     bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
@@ -255,10 +267,14 @@ class SettingsViewModel @Inject constructor(
         val carEnabled: Boolean, val syncState: Boolean,
         val lyricsEnabled: Boolean, val hideProgress: Boolean, val deviceNames: Set<String>
     )
+    private data class PlaybackPrefs(
+        val skipSilence: Boolean, val replayGain: Boolean
+    )
     private data class PrefsGroup3(
         val silentCacheEnabled: Boolean,
         val backgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode,
-        val bluetooth: BluetoothPrefs
+        val bluetooth: BluetoothPrefs,
+        val playback: PlaybackPrefs
     )
 
     fun updateServerUrl(url: String) { 
@@ -369,6 +385,8 @@ class SettingsViewModel @Inject constructor(
     }
     
     fun updateSyncPlaybackState(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSyncPlaybackState(enabled) } }
+    fun updateSkipSilenceEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSkipSilenceEnabled(enabled) } }
+    fun updateReplayGainEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveReplayGainEnabled(enabled) } }
     fun updateBluetoothLyricsEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsEnabled(enabled) } }
     fun updateBluetoothLyricsHideProgressBar(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsHideProgressBar(enabled) } }
 

@@ -199,6 +199,13 @@ fun AppNavDisplay(
             )
         }
 
+        entry<AppRoute.SettingsBluetooth> {
+            de.lwp2070809.speculonic.ui.screens.settings.BluetoothSettings(
+                viewModel = settingsViewModel,
+                topBarState = topBarState
+            )
+        }
+
         entry<AppRoute.SettingsAbout> {
             
             de.lwp2070809.speculonic.ui.screens.settings.AboutSettings(
