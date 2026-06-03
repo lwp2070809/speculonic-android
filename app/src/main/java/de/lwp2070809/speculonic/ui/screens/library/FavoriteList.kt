@@ -82,7 +82,7 @@ fun FavoriteList(
                         },
                         onShuffle = {
                             val mediaItems = songs.map { it.toMediaItem(repository) }
-                            playbackController.play(mediaItems, 0, shuffle = true, queueTitle = "Favorite")
+                            playbackController.play(mediaItems, if (mediaItems.isNotEmpty()) mediaItems.indices.random() else 0, shuffle = true, queueTitle = "Favorite")
                         },
                         onDownloadAll = onDownloadAllClick,
                         isOnline = isOnline,

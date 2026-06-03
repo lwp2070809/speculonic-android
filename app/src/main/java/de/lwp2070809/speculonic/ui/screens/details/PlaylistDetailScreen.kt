@@ -121,7 +121,7 @@ fun PlaylistDetailScreen(
                                 },
                                 onShuffle = {
                                     val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
-                                    playbackController.play(mediaItems, 0, shuffle = true, queueTitle = uiState.playlist?.name)
+                                    playbackController.play(mediaItems, if (mediaItems.isNotEmpty()) mediaItems.indices.random() else 0, shuffle = true, queueTitle = uiState.playlist?.name)
                                 },
                                 onDownloadAll = {
                                     uiState.songs.forEach { song ->
