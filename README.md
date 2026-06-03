@@ -15,6 +15,24 @@ The project is built on the philosophy of treating the application as a local mi
 * **Car Connectivity**: Detects car bluetooth profiles and device fingerprints, hijacking the underlying AVRCP protocol to push real-time scrolling lyrics to car dashboards.
 * **Theme System**: Supports dark theme. The playback UI performs dynamic color extraction and contrast checks from the current album art, providing Gaussian-blurred and glow-gradient dynamic backgrounds.
 
+## Requirements
+
+* **Android Version**: Android 12.0 (API 31) or higher.
+  > Note: The current version still supports Android 10.0 (API 29), but compatibility updates are no longer provided. We plan to bump `minSdk` to 31 and remove compatibility code for older Android versions after version 1.0.0.
+
+## Build
+
+Ensure you have JDK 17 installed and the `JAVA_HOME` environment variable configured correctly.
+
+* **Windows**:
+  ```cmd
+  gradlew.bat assembleDebug
+  ```
+* **Linux / macOS**:
+  ```bash
+  ./gradlew assembleDebug
+  ```
+
 ## Roadmap
 
 - [ ] Provide Github Action builds
@@ -43,10 +61,28 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 ## 功能特性
 
-* **Android原生开发**: 基于 Android 原生Jetpack Compose和kotlin技术构建. 支持手机端与平板/大屏的响应式自适应布局. 播放引擎为 ExoPlayer.
+* **Android原生开发**: 基于 Android 原生Jetpack Compose和kotlin技术构建. 支持手机端与平板电脑的响应式自适应布局. 播放引擎为ExoPlayer.
 * **Subsonic本地镜像**: 提供增量Subsonic元数据同步机制, 并持久化到本地数据库. 内置数据一致性校验, 能分析并修复已缓存音乐文件与远程Subsonic服务器中数据的差异.
-* **车辆互联适配**: 高精度嗅探车机蓝牙广播与设备指纹, 劫持底层 AVRCP 协议, 将歌曲实时同步歌词投送到车载屏幕.
+* **车辆互联适配**: 可以嗅探车机蓝牙广播与设备指纹来判断是否连接到车载蓝牙音频; 劫持底层 AVRCP 协议, 将歌曲实时同步歌词投送到车载屏幕.
 * **主题系统**: 支持深色主题. 播放界面可根据当前曲目封面执行动态色彩提取与对比度校验, 提供高斯模糊和微光渐变两种美观的播放器背景.
+
+## 系统要求
+
+* **Android 版本**: Android 12.0 (API 31) 及以上.
+  > 注意: 当前版本依然支持 Android 10.0 (API 29), 但已不再提供适配. 计划在 1.0.0 版本后将 `minSdk` 调整为 31, 并移除旧版本 Android 的兼容性适配代码.
+
+## 本地构建
+
+请确保已安装 JDK 17 并配置好 `JAVA_HOME` 环境变量.
+
+* **Windows**:
+  ```cmd
+  gradlew.bat assembleDebug
+  ```
+* **Linux / macOS**:
+  ```bash
+  ./gradlew assembleDebug
+  ```
 
 ## 开发路线图
 
