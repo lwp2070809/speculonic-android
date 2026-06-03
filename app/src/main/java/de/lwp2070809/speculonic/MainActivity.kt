@@ -42,7 +42,9 @@ import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.PaletteUtils
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -64,7 +66,15 @@ class MainActivity : AppCompatActivity() {
             val context = LocalContext.current
             val lifecycleOwner = LocalLifecycleOwner.current
             val playbackController = remember { PlaybackController.getInstance(context) }
-            val playbackState by playbackController.playbackState.collectAsState()
+            val isPlayingState by remember(playbackController) {
+                playbackController.playbackState.map { it.isPlaying }.distinctUntilChanged()
+            }.collectAsState(initial = playbackController.playbackState.value.isPlaying)
+            val currentSongIdState by remember(playbackController) {
+                playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+            }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+            val artworkUriState by remember(playbackController) {
+                playbackController.playbackState.map { it.artworkUri }.distinctUntilChanged()
+            }.collectAsState(initial = playbackController.playbackState.value.artworkUri)
             val scope = rememberCoroutineScope()
             
             val networkMonitor = remember { de.lwp2070809.speculonic.util.ConnectivityManagerNetworkMonitor(context) }
@@ -189,8 +199,8 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
 
-                LaunchedEffect(playbackState.isPlaying) {
-                    if (playbackState.isPlaying) {
+                LaunchedEffect(isPlayingState) {
+                    if (isPlayingState) {
                         val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
                             context,
                             android.Manifest.permission.POST_NOTIFICATIONS
@@ -219,7 +229,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             
-            val artworkUri = remember { derivedStateOf { playbackState.artworkUri } }
+            val artworkUri = remember { derivedStateOf { artworkUriState } }
             val savedSeedColorLight by preferencesManager.lastSeedColorLight.collectAsState(initial = null)
             val savedSeedColorDark by preferencesManager.lastSeedColorDark.collectAsState(initial = null)
             var activeSeedColor by remember { mutableStateOf<Color?>(null) }
@@ -255,7 +265,7 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 val uri = artworkUri.value
-                val isPlaybackReady = playbackState.currentSongId.isNotEmpty()
+                val isPlaybackReady = currentSongIdState.isNotEmpty()
 
                 if (uri != null) {
                     val color = PaletteUtils.getSeedColorAsync(

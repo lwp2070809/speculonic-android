@@ -28,6 +28,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,7 +55,12 @@ fun MiniPlayer(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    val playbackState by playbackController.playbackState.collectAsState()
+    
+    val artworkId by remember(playbackController) { playbackController.playbackState.map { it.artworkId }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.artworkId)
+    val artworkUri by remember(playbackController) { playbackController.playbackState.map { it.artworkUri }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.artworkUri)
+    val currentSongTitle by remember(playbackController) { playbackController.playbackState.map { it.currentSongTitle }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.currentSongTitle)
+    val currentArtist by remember(playbackController) { playbackController.playbackState.map { it.currentArtist }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.currentArtist)
+    val isPlaying by remember(playbackController) { playbackController.playbackState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.isPlaying)
     
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -73,11 +80,11 @@ fun MiniPlayer(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 
-                if (playbackState.artworkUri != null || playbackState.artworkId != null) {
+                if (artworkUri != null || artworkId != null) {
                     val context = LocalContext.current
-                    val model = remember(playbackState.artworkId, playbackState.artworkUri) {
+                    val model = remember(artworkId, artworkUri) {
                         repository.buildCoverArtRequest(
-                            id = playbackState.artworkId,
+                            id = artworkId,
                             context = context,
                             preferLocal = true
                         )
@@ -110,7 +117,7 @@ fun MiniPlayer(
                 
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = playbackState.currentSongTitle.ifEmpty {
+                        text = currentSongTitle.ifEmpty {
                             stringResource(R.string.not_playing)
                         },
                         style = MaterialTheme.typography.bodyMedium,
@@ -120,7 +127,7 @@ fun MiniPlayer(
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = playbackState.currentArtist.ifEmpty {
+                        text = currentArtist.ifEmpty {
                             stringResource(R.string.not_playing_artist)
                         },
                         style = MaterialTheme.typography.bodySmall,
@@ -142,8 +149,8 @@ fun MiniPlayer(
                     }
                     IconButton(onClick = onPlayPause) {
                         Icon(
-                            imageVector = if (playbackState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
                         )
@@ -159,17 +166,23 @@ fun MiniPlayer(
                 }
             }
             
-            val progress = if (playbackState.duration > 0) {
-                playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()
-            } else 0f
-            
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier.fillMaxWidth(),
-                color = MaterialTheme.colorScheme.primary,
-                trackColor = MaterialTheme.colorScheme.surfaceVariant,
-                strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
-            )
+            MiniPlayerProgressBar(playbackController)
         }
     }
+}
+
+@Composable
+private fun MiniPlayerProgressBar(playbackController: de.lwp2070809.speculonic.playback.PlaybackController) {
+    val playbackState by playbackController.playbackState.collectAsState()
+    val progress = if (playbackState.duration > 0) {
+        playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()
+    } else 0f
+    
+    LinearProgressIndicator(
+        progress = { progress },
+        modifier = Modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primary,
+        trackColor = MaterialTheme.colorScheme.surfaceVariant,
+        strokeCap = androidx.compose.ui.graphics.StrokeCap.Round
+    )
 }

@@ -58,7 +58,7 @@ fun SongListItem(
         playbackController.playbackState
             .map { it.currentSongId }
             .distinctUntilChanged()
-    }.collectAsState(initial = "")
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
     val isCurrent = currentSongId == song.id
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
