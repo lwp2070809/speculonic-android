@@ -93,19 +93,26 @@ jobs:
           keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
+      - name: Prepare APK outputs
+        run: |
+          SIGNED_APK=$(find app/build/outputs/apk/release/ -name "*-signed.apk")
+          if [ -n "$SIGNED_APK" ]; then
+            mv "$SIGNED_APK" app/build/outputs/apk/release/speculonic-release.apk
+            rm -f app/build/outputs/apk/release/app-release-unsigned.apk
+            rm -f app/build/outputs/apk/release/app-release-unsigned-aligned.apk
+          else
+            mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/speculonic-release-unsigned.apk
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: release-apk
-          path: |
-            app/build/outputs/apk/release/*-signed.apk
-            app/build/outputs/apk/release/*.apk
+          path: app/build/outputs/apk/release/speculonic-release*.apk
 
       - if: ${{ github.event.inputs.publish_release == 'true' }}
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.release_tag || format('v0.9.0-build{0}', github.run_number) }}
           name: ${{ github.event.inputs.release_title || format('Manual Build {0}', github.run_number) }}
-          files: |
-            app/build/outputs/apk/release/*-signed.apk
-            app/build/outputs/apk/release/*.apk
+          files: app/build/outputs/apk/release/speculonic-release*.apk
           generate_release_notes: true
