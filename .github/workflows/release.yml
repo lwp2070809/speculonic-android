@@ -22,6 +22,10 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -36,7 +40,9 @@ jobs:
         with:
           java-version: '17'
           distribution: 'temurin'
-          cache: gradle
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - env:
           URL_KAGUYA_1: ${{ secrets.EASTER_EGG_URL_KAGUYA_1 }}
@@ -68,6 +74,12 @@ jobs:
       - run: ./gradlew detekt
 
       - run: ./gradlew assembleRelease
+
+      - name: Get build-tools version
+        run: |
+          BUILD_TOOL_VERSION=$(ls $ANDROID_HOME/build-tools/ | tail -n 1)
+          echo "Detected build-tools version: $BUILD_TOOL_VERSION"
+          echo "BUILD_TOOLS_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
 
       - env:
           SIGNING_KEY_VAL: ${{ secrets.SIGNING_KEY }}
