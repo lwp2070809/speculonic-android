@@ -54,24 +54,22 @@ class UpdateManager(
 
             val response = httpClient.newCall(request).execute()
             if (response.isSuccessful) {
-                val responseBody = response.body?.string()
-                if (responseBody != null) {
-                    val json = Json { ignoreUnknownKeys = true }
-                    val release = json.parseToJsonElement(responseBody).jsonObject
-                    val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
-                    val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
-                    val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""
-                    
-                    preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
-                    
-                    val currentVersion = BuildConfig.VERSION_NAME
-                    if (isNewerVersion(currentVersion, tagName)) {
-                        LogManager.i("UpdateCheck: Found new version $tagName (current: $currentVersion)")
-                        return@withContext UpdateResult.UpdateAvailable(tagName, releaseUrl, releaseNotes)
-                    } else {
-                        LogManager.i("UpdateCheck: Already up to date (current: $currentVersion, latest: $tagName)")
-                        return@withContext UpdateResult.NoUpdate
-                    }
+                val responseBody = response.body.string()
+                val json = Json { ignoreUnknownKeys = true }
+                val release = json.parseToJsonElement(responseBody).jsonObject
+                val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
+                val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
+                val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""
+                
+                preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
+                
+                val currentVersion = BuildConfig.VERSION_NAME
+                if (isNewerVersion(currentVersion, tagName)) {
+                    LogManager.i("UpdateCheck: Found new version $tagName (current: $currentVersion)")
+                    return@withContext UpdateResult.UpdateAvailable(tagName, releaseUrl, releaseNotes)
+                } else {
+                    LogManager.i("UpdateCheck: Already up to date (current: $currentVersion, latest: $tagName)")
+                    return@withContext UpdateResult.NoUpdate
                 }
             }
             return@withContext UpdateResult.Error("Failed to fetch latest release")
