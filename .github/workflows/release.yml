@@ -97,10 +97,16 @@ jobs:
 
       - name: Extract Tag Message
         run: |
-          TAG_MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }})
+          # Force fetch the specific tag to ensure we have the annotated tag object, not just a lightweight tag created by checkout
+          git fetch origin refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }} --force
+          
+          # Extract the tag message and strip the PGP signature if present
+          TAG_MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }} | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
+          
           if [ -z "$TAG_MSG" ]; then
             TAG_MSG=$(git log -1 --pretty=%B)
           fi
+          
           echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
           echo "$TAG_MSG" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
