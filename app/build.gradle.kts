@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -17,6 +20,21 @@ android {
         targetSdk = 36
         versionCode = 1
         versionName = "0.9.0"
+
+        val localProperties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            FileInputStream(localPropertiesFile).use { stream -> localProperties.load(stream) }
+        }
+        val envGithubRepo = System.getenv("GITHUB_REPO")
+        val propGithubRepo = project.findProperty("githubRepo")?.toString()
+        val localPropGithubRepo = localProperties.getProperty("githubRepo")
+
+        val githubRepo = envGithubRepo ?: propGithubRepo ?: localPropGithubRepo ?: ""
+        val updateCheckEnabled = githubRepo.isNotEmpty()
+        
+        buildConfigField("boolean", "UPDATE_CHECK_ENABLED", updateCheckEnabled.toString())
+        buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

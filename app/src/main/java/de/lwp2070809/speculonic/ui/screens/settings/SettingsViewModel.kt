@@ -98,7 +98,8 @@ data class SettingsUiState(
     val showCoverArtSyncConfirm: Boolean = false,
     val showForceSyncConfirm: Boolean = false,
     val trustAllCertificates: Boolean = false,
-    val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR
+    val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
+    val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED
 )
 
 @HiltViewModel
@@ -194,9 +195,10 @@ class SettingsViewModel @Inject constructor(
             val group4 = combine(
                 preferencesManager.trustAllCertificates,
                 preferencesManager.showOfflineToast,
+                preferencesManager.updateCheckInterval,
                 group3
-            ) { trustAllCertificates, showOfflineToast, g3 ->
-                Triple(trustAllCertificates, showOfflineToast, g3)
+            ) { trustAllCertificates, showOfflineToast, updateCheckInterval, g3 ->
+                PrefsGroup4(trustAllCertificates, showOfflineToast, updateCheckInterval, g3)
             }
 
             combine(group1, group2, group4) { g1, g2, g4 ->
@@ -207,7 +209,7 @@ class SettingsViewModel @Inject constructor(
                     cacheLocation = g1.cacheLocation,
                     maxCacheSize = g1.maxCacheSize,
                     mobilePlayAllowed = g2.mobilePlayAllowed,
-                    showOfflineToast = g4.second,
+                    showOfflineToast = g4.showOfflineToast,
                     backgroundSyncEnabled = g2.backgroundSyncEnabled,
                     logLevel = g2.logLevel,
                     themeMode = g2.themeMode,
@@ -235,7 +237,8 @@ class SettingsViewModel @Inject constructor(
                     interactiveScanStatus = _uiState.value.interactiveScanStatus,
                     showInconsistencyDialog = _uiState.value.showInconsistencyDialog,
                     inconsistentItems = _uiState.value.inconsistentItems,
-                    trustAllCertificates = g4.first,
+                    trustAllCertificates = g4.trustAllCertificates,
+                    updateCheckInterval = g4.updateCheckInterval,
                     isSaving = _uiState.value.isSaving,
                     isRefreshing = _uiState.value.isRefreshing,
                     isScanning = _uiState.value.isScanning,
@@ -281,6 +284,13 @@ class SettingsViewModel @Inject constructor(
         val backgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode,
         val bluetooth: BluetoothPrefs,
         val playback: PlaybackPrefs
+    )
+
+    private data class PrefsGroup4(
+        val trustAllCertificates: Boolean,
+        val showOfflineToast: Boolean,
+        val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval,
+        val third: PrefsGroup3
     )
 
     fun updateServerUrl(url: String) { 
@@ -370,6 +380,18 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showSilentCacheConfirm = false)
     }
 
+
+    fun updateBluetoothCarDeviceNames(deviceNames: Set<String>) {
+        viewModelScope.launch {
+            preferencesManager.saveBluetoothCarDeviceNames(deviceNames)
+        }
+    }
+
+    fun updateUpdateCheckInterval(interval: de.lwp2070809.speculonic.data.UpdateCheckInterval) {
+        viewModelScope.launch {
+            preferencesManager.saveUpdateCheckInterval(interval)
+        }
+    }
 
     fun updateTrustAllCertificates(trust: Boolean) {
         viewModelScope.launch {

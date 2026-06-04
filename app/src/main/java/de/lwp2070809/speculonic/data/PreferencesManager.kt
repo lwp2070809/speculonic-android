@@ -33,6 +33,10 @@ enum class PlayerBackgroundMode {
     GLOW_GRADIENT, GAUSSIAN_BLUR
 }
 
+enum class UpdateCheckInterval {
+    STARTUP, DAILY, WEEKLY, DISABLED
+}
+
 
 class PreferencesManager(private val context: Context) {
 
@@ -100,6 +104,8 @@ class PreferencesManager(private val context: Context) {
         
         val SERVER_CAPABILITIES_JSON = stringPreferencesKey("server_capabilities_json")
         val LAST_PING_TIME = longPreferencesKey("last_ping_time")
+        val UPDATE_CHECK_INTERVAL = stringPreferencesKey("update_check_interval")
+        val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
     }
 
     
@@ -287,6 +293,22 @@ class PreferencesManager(private val context: Context) {
 
     val showOfflineToast: Flow<Boolean> = context.dataStore.data.map { it[SHOW_OFFLINE_TOAST] ?: true }
     val lastCacheScanTime: Flow<Long> = context.dataStore.data.map { it[LAST_CACHE_SCAN_TIME] ?: 0L }
+
+    val updateCheckInterval: Flow<UpdateCheckInterval> = context.dataStore.data.map { preferences ->
+        val defaultInterval = if (de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED) {
+            UpdateCheckInterval.WEEKLY
+        } else {
+            UpdateCheckInterval.DISABLED
+        }
+        val intervalName = preferences[UPDATE_CHECK_INTERVAL] ?: defaultInterval.name
+        try {
+            UpdateCheckInterval.valueOf(intervalName)
+        } catch (e: Exception) {
+            defaultInterval
+        }
+    }
+
+    val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }
 
     suspend fun saveLastSeedColor(color: Int?, isDark: Boolean) {
         context.dataStore.edit { preferences ->
@@ -605,6 +627,18 @@ class PreferencesManager(private val context: Context) {
     fun setLastPingTimeSync(time: Long) {
         context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
             .edit().putLong("last_ping_time", time).apply()
+    }
+
+    suspend fun saveUpdateCheckInterval(interval: UpdateCheckInterval) {
+        context.dataStore.edit { preferences ->
+            preferences[UPDATE_CHECK_INTERVAL] = interval.name
+        }
+    }
+
+    suspend fun saveLastUpdateCheckTime(time: Long) {
+        context.dataStore.edit { preferences ->
+            preferences[LAST_UPDATE_CHECK_TIME] = time
+        }
     }
 }
 

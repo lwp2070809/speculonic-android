@@ -53,6 +53,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var repository: SubsonicRepository
 
+    @Inject
+    lateinit var updateManager: de.lwp2070809.speculonic.data.UpdateManager
+
     private var showNowPlayingTrigger by mutableStateOf(false)
     private var showCancelDownloadsDialogTrigger by mutableStateOf(false)
 
@@ -102,6 +105,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            var updateResult by remember { mutableStateOf<de.lwp2070809.speculonic.data.UpdateManager.UpdateResult?>(null) }
+
             LaunchedEffect(Unit) {
                 
                 launch {
@@ -111,6 +116,13 @@ class MainActivity : AppCompatActivity() {
 
                 DownloadTracker.init(context)
                 MetadataSyncWorker.schedule(context)
+                
+                launch {
+                    val result = updateManager.checkForUpdates(manual = false)
+                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
+                        updateResult = result
+                    }
+                }
                 
                 
                 
@@ -342,6 +354,28 @@ class MainActivity : AppCompatActivity() {
                             }
                         }
                     )
+                }
+                updateResult?.let { result ->
+                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
+                        androidx.compose.material3.AlertDialog(
+                            onDismissRequest = { updateResult = null },
+                            title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_available_title)) },
+                            text = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_available_message, result.version, result.releaseNotes)) },
+                            confirmButton = {
+                                androidx.compose.material3.TextButton(onClick = {
+                                    updateManager.openBrowser(result.url)
+                                    updateResult = null
+                                }) {
+                                    androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_now))
+                                }
+                            },
+                            dismissButton = {
+                                androidx.compose.material3.TextButton(onClick = { updateResult = null }) {
+                                    androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_later))
+                                }
+                            }
+                        )
+                    }
                 }
 
                 MainScreen(

@@ -9,6 +9,8 @@ import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import dagger.hilt.android.qualifiers.ApplicationContext
+import de.lwp2070809.speculonic.data.UpdateManager
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.serialization.json.Json
@@ -24,12 +26,18 @@ import java.security.KeyStore
 import java.security.SecureRandom
 import java.security.cert.X509Certificate
 import java.util.concurrent.TimeUnit
+import javax.inject.Qualifier
 import javax.inject.Singleton
+
 import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 import javax.net.ssl.TrustManagerFactory
 import javax.net.ssl.X509TrustManager
+
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class GithubHttpClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -362,6 +370,27 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return okHttpClientInstance
+    }
+
+    @Provides
+    @Singleton
+    @GithubHttpClient
+    fun provideGithubOkHttpClient(): OkHttpClient {
+        return OkHttpClient.Builder()
+            .connectTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
+            .readTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
+            .writeTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideUpdateManager(
+        @ApplicationContext context: android.content.Context,
+        preferencesManager: de.lwp2070809.speculonic.data.PreferencesManager,
+        @GithubHttpClient okHttpClient: OkHttpClient
+    ): UpdateManager {
+        return UpdateManager(context, preferencesManager, okHttpClient)
     }
 
     

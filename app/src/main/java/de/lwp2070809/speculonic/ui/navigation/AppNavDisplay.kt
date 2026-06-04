@@ -209,6 +209,7 @@ fun AppNavDisplay(
         entry<AppRoute.SettingsAbout> {
             
             de.lwp2070809.speculonic.ui.screens.settings.AboutSettings(
+                viewModel = settingsViewModel,
                 topBarState = topBarState,
                 onBackClick = { navigator.goBack() }
             )

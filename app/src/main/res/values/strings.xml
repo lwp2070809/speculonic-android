@@ -273,4 +273,14 @@
     <string name="version">Version</string>
     <string name="license">License</string>
     <string name="github_repository">GitHub Repository</string>
+
+    <string name="check_for_updates">Check for Updates</string>
+    <string name="update_check_startup">On Startup</string>
+    <string name="update_check_daily">Daily</string>
+    <string name="update_check_weekly">Weekly</string>
+    <string name="update_check_disabled">Disabled</string>
+    <string name="update_available_title">Update Available</string>
+    <string name="update_available_message">A new version (%1$s) of Speculonic is available.\n\n%2$s</string>
+    <string name="update_now">Update Now</string>
+    <string name="update_later">Later</string>
 </resources>

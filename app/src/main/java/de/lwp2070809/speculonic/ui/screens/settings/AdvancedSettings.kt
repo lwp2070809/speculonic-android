@@ -128,6 +128,7 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         }
 
+
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedButton(

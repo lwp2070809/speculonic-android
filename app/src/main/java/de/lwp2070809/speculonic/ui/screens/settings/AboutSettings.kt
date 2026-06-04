@@ -20,12 +20,27 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutSettings(topBarState: TopBarState, onBackClick: () -> Unit) {
+fun AboutSettings(viewModel: SettingsViewModel, topBarState: TopBarState, onBackClick: () -> Unit) {
+    val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val title = stringResource(R.string.about)
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
@@ -77,6 +92,56 @@ fun AboutSettings(topBarState: TopBarState, onBackClick: () -> Unit) {
         )
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        
+        if (de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED) {
+            var expandedUpdateCheck by remember { mutableStateOf(false) }
+            val updateCheckIntervals = de.lwp2070809.speculonic.data.UpdateCheckInterval.entries
+
+            ExposedDropdownMenuBox(
+                expanded = expandedUpdateCheck,
+                onExpandedChange = { expandedUpdateCheck = !expandedUpdateCheck },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)
+            ) {
+                OutlinedTextField(
+                    value = when (uiState.updateCheckInterval) {
+                        de.lwp2070809.speculonic.data.UpdateCheckInterval.STARTUP -> stringResource(R.string.update_check_startup)
+                        de.lwp2070809.speculonic.data.UpdateCheckInterval.DAILY -> stringResource(R.string.update_check_daily)
+                        de.lwp2070809.speculonic.data.UpdateCheckInterval.WEEKLY -> stringResource(R.string.update_check_weekly)
+                        de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED -> stringResource(R.string.update_check_disabled)
+                    },
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text(stringResource(R.string.check_for_updates)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedUpdateCheck) },
+                    colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                )
+                ExposedDropdownMenu(
+                    expanded = expandedUpdateCheck,
+                    onDismissRequest = { expandedUpdateCheck = false }
+                ) {
+                    updateCheckIntervals.forEach { interval ->
+                        val textRes = when (interval) {
+                            de.lwp2070809.speculonic.data.UpdateCheckInterval.STARTUP -> R.string.update_check_startup
+                            de.lwp2070809.speculonic.data.UpdateCheckInterval.DAILY -> R.string.update_check_daily
+                            de.lwp2070809.speculonic.data.UpdateCheckInterval.WEEKLY -> R.string.update_check_weekly
+                            de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED -> R.string.update_check_disabled
+                        }
+                        DropdownMenuItem(
+                            text = { Text(stringResource(textRes)) },
+                            onClick = {
+                                viewModel.updateUpdateCheckInterval(interval)
+                                expandedUpdateCheck = false
+                            },
+                            contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                        )
+                    }
+                }
+            }
+            HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
+        }
 
         
         ListItem(
