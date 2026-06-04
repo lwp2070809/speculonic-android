@@ -20,6 +20,15 @@ The project is built on the philosophy of treating the application as a local mi
 * **Android Version**: Android 12.0 (API 31) or higher.
   > Note: The current version still supports Android 10.0 (API 29), but compatibility updates are no longer provided. We plan to bump `minSdk` to 31 and remove compatibility code for older Android versions after version 1.0.0.
 
+## Roadmap
+
+- [x] Provide Github Action builds
+- [ ] Publish on F-Droid
+- [ ] Fix low-priority code defects
+- [ ] Refactor tablet UI layout
+- [ ] Provide Android X86 builds
+- [x] Deliver compatibility updates within 3 months of new Android API releases
+
 ## Build
 
 Ensure you have JDK 17 installed and the `JAVA_HOME` environment variable configured correctly.
@@ -33,14 +42,11 @@ Ensure you have JDK 17 installed and the `JAVA_HOME` environment variable config
   ./gradlew assembleDebug
   ```
 
-## Roadmap
+## Build Variants
 
-- [ ] Provide Github Action builds
-- [ ] Publish on F-Droid
-- [ ] Fix low-priority code defects
-- [ ] Refactor tablet UI layout
-- [ ] Provide Android X86 builds
-- [x] Deliver compatibility updates within 3 months of new Android API releases
+The GitHub Actions build artifacts include a GitHub-based update checker and an easter egg feature, both of which are injected at build time through environment variables. The corresponding workflow definitions and build logs are publicly available for audit and verification.
+
+Locally built versions from the source code, as well as future F-Droid releases, do not contain these features. Their contents can be independently verified by reviewing the source code and reproducing the build process.
 
 ## License & Distribution Guidelines
 
@@ -71,6 +77,15 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 * **Android 版本**: Android 12.0 (API 31) 及以上.
   > 注意: 当前版本依然支持 Android 10.0 (API 29), 但已不再提供适配. 计划在 1.0.0 版本后将 `minSdk` 调整为 31, 并移除旧版本 Android 的兼容性适配代码.
 
+## 开发路线图
+
+- [x] 提供 Github Action 构建
+- [ ] 上架 F-Droid
+- [ ] 修复一些低优先级代码缺陷
+- [ ] 重构平板电脑的 UI
+- [ ] 提供 Android X86 版本
+- [x] 在 Android 新 API 版本发布 3 个月内提供适配
+
 ## 本地构建
 
 请确保已安装 JDK 17 并配置好 `JAVA_HOME` 环境变量.
@@ -84,14 +99,9 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
   ./gradlew assembleDebug
   ```
 
-## 开发路线图
+## 版本差异
 
-- [ ] 提供 Github Action 构建
-- [ ] 上架 F-Droid
-- [ ] 修复一些低优先级代码缺陷
-- [ ] 重构平板电脑的 UI
-- [ ] 提供 Android X86 版本
-- [x] 在 Android 新 API 版本发布 3 个月内提供适配
+Github Actions打包发布的版本将通过环境变量的形式, 注入基于Github的更新检测机制以及彩蛋机制. 您可以检查workflow脚本和构建日志进行审计. 您下载代码并执行本地构建的版本, 以及未来将提供的F-Droid版本, 则绝对不包含上述内容.
 
 ## 开源协议与分发许可
 

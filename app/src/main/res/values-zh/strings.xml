@@ -275,7 +275,7 @@
     <string name="check_for_updates">检查更新</string>
     <string name="update_check_startup">启动时</string>
     <string name="update_check_daily">每日</string>
-    <string name="update_check_weekly">每 7 日</string>
+    <string name="update_check_weekly">每周</string>
     <string name="update_check_disabled">禁用</string>
     <string name="update_available_title">发现新版本</string>
     <string name="update_available_message">Speculonic 的新版本 (%1$s) 已发布。\n\n%2$s</string>
