@@ -1,5 +1,9 @@
 # Speculonic
 
+**Download Latest**
+
+[![GitHub Release](https://img.shields.io/github/v/release/lwp2070809/speculonic-android)](https://github.com/lwp2070809/speculonic-android/releases/latest)
+
 [简体中文](#简体中文)
 
 ---
@@ -56,6 +60,12 @@ If you distribute a modified version of this software:
 * You must comply with the AGPLv3 license requirements;
 * You must clearly indicate significant modifications made to the codebase;
 * You may not use the Speculonic name, logo, icon, or official branding assets without explicit, prior written permission from the copyright holder.
+
+## Screenshot
+
+| Home | Player | Settings |
+|------|---------|---------|
+| ![](screenshot/discover.png) | ![](screenshot/player.png) | ![](screenshot/settings.png) |
 
 ---
 
