@@ -1,0 +1,97 @@
+name: Android Release Build
+
+on:
+  workflow_dispatch:
+    inputs:
+      publish_release:
+        description: 'Publish Release'
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: 'Release Tag'
+        required: false
+        default: ''
+        type: string
+      release_title:
+        description: 'Release Title'
+        required: false
+        default: 'Manual Release Build'
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    env:
+      GITHUB_REPO: ${{ github.repository }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - env:
+          URL_KAGUYA_1: ${{ secrets.EASTER_EGG_URL_KAGUYA_1 }}
+          URL_KAGUYA_2: ${{ secrets.EASTER_EGG_URL_KAGUYA_2 }}
+          URL_YACHIYO_1: ${{ secrets.EASTER_EGG_URL_YACHIYO_1 }}
+          URL_YACHIYO_2: ${{ secrets.EASTER_EGG_URL_YACHIYO_2 }}
+        run: |
+          echo "easterEggUrl.kaguya_1=${URL_KAGUYA_1}" >> local.properties
+          echo "easterEggUrl.kaguya_2=${URL_KAGUYA_2}" >> local.properties
+          echo "easterEggUrl.yachiyo_1=${URL_YACHIYO_1}" >> local.properties
+          echo "easterEggUrl.yachiyo_2=${URL_YACHIYO_2}" >> local.properties
+
+      - env:
+          LOCAL_GRADLE_KTS_CONTENT: ${{ vars.LOCAL_GRADLE_KTS }}
+        run: |
+          if [ -n "$LOCAL_GRADLE_KTS_CONTENT" ]; then
+            printf "%s\n" "$LOCAL_GRADLE_KTS_CONTENT" > local.gradle.kts
+            echo "=========================================================="
+            echo "   AUDIT LOG: local.gradle.kts"
+            echo "=========================================================="
+            cat local.gradle.kts
+            echo "=========================================================="
+          else
+            echo "// Stub" > local.gradle.kts
+          fi
+
+      - run: chmod +x gradlew
+
+      - run: ./gradlew detekt
+
+      - run: ./gradlew assembleRelease
+
+      - if: ${{ secrets.SIGNING_KEY != '' }}
+        id: sign_app
+        uses: r0adkll/sign-android-release@v1
+        with:
+          releaseDirectory: app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
+          alias: ${{ secrets.ALIAS }}
+          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-apk
+          path: |
+            app/build/outputs/apk/release/*-signed.apk
+            app/build/outputs/apk/release/*.apk
+
+      - if: ${{ github.event.inputs.publish_release == 'true' }}
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.release_tag || format('v0.9.0-build{0}', github.run_number) }}
+          name: ${{ github.event.inputs.release_title || format('Manual Build {0}', github.run_number) }}
+          files: |
+            app/build/outputs/apk/release/*-signed.apk
+            app/build/outputs/apk/release/*.apk
+          generate_release_notes: true
