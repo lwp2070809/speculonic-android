@@ -32,6 +32,7 @@ jobs:
 
     env:
       GITHUB_REPO: ${{ github.repository }}
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
       - uses: actions/checkout@v4
@@ -81,25 +82,22 @@ jobs:
           echo "Detected build-tools version: $BUILD_TOOL_VERSION"
           echo "BUILD_TOOLS_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
 
-      - env:
+      - name: Sign APK
+        env:
           SIGNING_KEY_VAL: ${{ secrets.SIGNING_KEY }}
         if: ${{ env.SIGNING_KEY_VAL != '' }}
-        id: sign_app
-        uses: r0adkll/sign-android-release@v1
-        with:
-          releaseDirectory: app/build/outputs/apk/release
-          signingKeyBase64: ${{ secrets.SIGNING_KEY }}
-          alias: ${{ secrets.SIGNING_KEY_ALIAS }}
-          keyStorePassword: ${{ secrets.KEY_STORE_PASSWORD }}
-          keyPassword: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          echo "${{ secrets.SIGNING_KEY }}" | base64 -d > release.keystore
+          $ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/zipalign -v 4 app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/speculonic-release-aligned.apk
+          $ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION/apksigner sign --ks release.keystore --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" --ks-pass pass:"${{ secrets.KEY_STORE_PASSWORD }}" --key-pass pass:"${{ secrets.KEY_PASSWORD }}" --out app/build/outputs/apk/release/speculonic-release.apk app/build/outputs/apk/release/speculonic-release-aligned.apk
+          rm -f release.keystore
+          rm -f app/build/outputs/apk/release/speculonic-release-aligned.apk
+          rm -f app/build/outputs/apk/release/app-release-unsigned.apk
 
       - name: Prepare APK outputs
         run: |
-          SIGNED_APK=$(find app/build/outputs/apk/release/ -name "*-signed.apk")
-          if [ -n "$SIGNED_APK" ]; then
-            mv "$SIGNED_APK" app/build/outputs/apk/release/speculonic-release.apk
-            rm -f app/build/outputs/apk/release/app-release-unsigned.apk
-            rm -f app/build/outputs/apk/release/app-release-unsigned-aligned.apk
+          if [ -f app/build/outputs/apk/release/speculonic-release.apk ]; then
+            echo "Release APK is signed and ready."
           else
             mv app/build/outputs/apk/release/app-release-unsigned.apk app/build/outputs/apk/release/speculonic-release-unsigned.apk
           fi
