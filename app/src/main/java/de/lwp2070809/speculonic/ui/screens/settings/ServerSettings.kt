@@ -108,11 +108,11 @@ fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             initialPass = uiState.password,
             viewModel = viewModel,
             onDismiss = { showEditDialog = false },
-            onSave = { url, user, pass ->
+            onSave = { url, user, pass, syncCoverArt ->
                 viewModel.updateServerUrl(url)
                 viewModel.updateUsername(user)
                 viewModel.updatePassword(pass)
-                if (viewModel.saveSettings()) {
+                if (viewModel.saveSettings(syncCoverArt)) {
                     showEditDialog = false
                 }
             }
@@ -150,7 +150,7 @@ fun ServerConfigDialog(
     viewModel: SettingsViewModel,
     showCancelButton: Boolean = true,
     onDismiss: () -> Unit,
-    onSave: (String, String, String) -> Unit
+    onSave: (String, String, String, Boolean) -> Unit
 ) {
     var url by remember { mutableStateOf(initialUrl) }
     var user by remember { mutableStateOf(initialUser) }
@@ -158,12 +158,19 @@ fun ServerConfigDialog(
     val uiState by viewModel.uiState.collectAsState()
     var trustAllCerts by remember { mutableStateOf(uiState.trustAllCertificates) }
     var showTrustAllWarning by remember { mutableStateOf(false) }
+    var syncCoverArt by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.server_configuration)) },
         text = {
             Column {
+                Text(
+                    text = stringResource(R.string.sync_metadata_data_warning),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
                 OutlinedTextField(
                     value = url,
                     onValueChange = { 
@@ -201,6 +208,29 @@ fun ServerConfigDialog(
                 
                 
                 HorizontalDivider()
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.sync_cover_art_option_title),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        Text(
+                            text = stringResource(R.string.sync_cover_art_option_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Switch(
+                        checked = syncCoverArt,
+                        onCheckedChange = { syncCoverArt = it }
+                    )
+                }
                 Spacer(modifier = Modifier.height(8.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -275,7 +305,7 @@ fun ServerConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(url, user, pass) },
+                onClick = { onSave(url, user, pass, syncCoverArt) },
                 enabled = url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()
             ) {
                 Text(stringResource(R.string.save_configuration))

@@ -450,7 +450,7 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = false)
     }
 
-    fun saveSettings(): Boolean {
+    fun saveSettings(syncCoverArt: Boolean = false): Boolean {
         val url = _uiState.value.serverUrl
         if (!validateUrl(url)) {
             _uiState.value = _uiState.value.copy(urlError = context.getString(de.lwp2070809.speculonic.R.string.error_invalid_url))
@@ -476,9 +476,13 @@ class SettingsViewModel @Inject constructor(
             preferencesManager.saveServerSettings(url, user, pass)
             
             
-            if (!repository.hasLocalData()) {
-                if (isUnmeteredNetwork()) performFullSync(isForced = true)
-                else _uiState.value = _uiState.value.copy(showFirstSyncConfirm = true)
+            if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {
+                if (url.isNotEmpty()) {
+                    if (syncCoverArt) {
+                        showPendingCoverArtSyncNotification()
+                    }
+                    performFullSync(isForced = true, isFromServerSave = true, syncCoverArt = syncCoverArt)
+                }
             }
             _uiState.value = _uiState.value.copy(isSaving = false)
         }
@@ -494,15 +498,19 @@ class SettingsViewModel @Inject constructor(
         performFullSync(isForced = true) 
     }
 
-    fun performFullSync(ignoreSafetyGuard: Boolean = false, isForced: Boolean = false) {
-        _uiState.value = _uiState.value.copy(
-            showFirstSyncConfirm = false, 
-            showSafetyGuardConfirm = false,
-            isSyncing = true,
-            syncProgress = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
-        )
-        _isSyncing.value = true
-        _syncProgress.value = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
+    fun performFullSync(ignoreSafetyGuard: Boolean = false, isForced: Boolean = false, isFromServerSave: Boolean = false, syncCoverArt: Boolean = false) {
+        if (!isFromServerSave) {
+            _uiState.value = _uiState.value.copy(
+                showFirstSyncConfirm = false, 
+                showSafetyGuardConfirm = false,
+                isSyncing = true,
+                syncProgress = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
+            )
+            _isSyncing.value = true
+            _syncProgress.value = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
+        } else {
+            _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false)
+        }
         viewModelScope.launch(Dispatchers.IO) {
             var success = false
             try {
@@ -511,8 +519,10 @@ class SettingsViewModel @Inject constructor(
                     ignoreLastModified = isForced,
                     ignoreSafetyGuard = ignoreSafetyGuard,
                     onProgress = { status ->
-                        _syncProgress.value = status
-                        _uiState.value = _uiState.value.copy(syncProgress = status)
+                        if (!isFromServerSave) {
+                            _syncProgress.value = status
+                            _uiState.value = _uiState.value.copy(syncProgress = status)
+                        }
                     }
                 )
                 success = true
@@ -523,18 +533,27 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 LogManager.e("Settings: Initial sync failed", e)
             } finally {
-                val showConfirm = success && repository.isConfigured
-                if (!showConfirm) {
-                    _isSyncing.value = false
-                    _syncProgress.value = null
+                if (isFromServerSave) {
+                    if (success && repository.isConfigured && syncCoverArt) {
+                        startCoverArtSync()
+                    } else if (syncCoverArt) {
+                        val notificationManager = NotificationManagerCompat.from(context)
+                        notificationManager.cancel(1002)
+                    }
+                } else {
+                    val showConfirm = success && repository.isConfigured
+                    if (!showConfirm) {
+                        _isSyncing.value = false
+                        _syncProgress.value = null
+                        _uiState.value = _uiState.value.copy(
+                            isSyncing = false, 
+                            syncProgress = null
+                        )
+                    }
                     _uiState.value = _uiState.value.copy(
-                        isSyncing = false, 
-                        syncProgress = null
+                        showCoverArtSyncConfirm = showConfirm
                     )
                 }
-                _uiState.value = _uiState.value.copy(
-                    showCoverArtSyncConfirm = showConfirm
-                )
             }
         }
     }
@@ -789,6 +808,34 @@ class SettingsViewModel @Inject constructor(
         code.startsWith("en") -> "English"
         code.startsWith("zh") -> "简体中文"
         else -> "System"
+    }
+
+    private fun showPendingCoverArtSyncNotification() {
+        val notificationManager = NotificationManagerCompat.from(context)
+        val channelId = "cover_art_sync_channel"
+        val notificationId = 1002
+        
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            val channel = android.app.NotificationChannel(
+                channelId,
+                "Cover Art Sync",
+                android.app.NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Syncs cover art in the background"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+        
+        val builder = NotificationCompat.Builder(context, channelId)
+            .setSmallIcon(android.R.drawable.stat_sys_download)
+            .setContentTitle(context.getString(de.lwp2070809.speculonic.R.string.sync_cover_art_option_title))
+            .setContentText(context.getString(de.lwp2070809.speculonic.R.string.pending_cover_art_sync))
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setOngoing(true)
+            
+        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
+            notificationManager.notify(notificationId, builder.build())
+        }
     }
 }
 

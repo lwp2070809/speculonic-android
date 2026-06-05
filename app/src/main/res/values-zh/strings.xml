@@ -281,4 +281,9 @@
     <string name="update_available_message">Speculonic 的新版本 (%1$s) 已发布。\n\n%2$s</string>
     <string name="update_now">立即更新</string>
     <string name="update_later">稍后</string>
+
+    <string name="sync_metadata_data_warning">同步元数据可能消耗数十MB流量</string>
+    <string name="sync_cover_art_option_title">并同步专辑封面</string>
+    <string name="sync_cover_art_option_desc">可能消耗数百MB流量，建议在WiFi下进行</string>
+    <string name="pending_cover_art_sync">等待元数据同步完成后同步专辑封面</string>
 </resources>

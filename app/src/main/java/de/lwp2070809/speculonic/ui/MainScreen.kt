@@ -344,11 +344,11 @@ private fun MainContent(
                 viewModel = settingsViewModel,
                 showCancelButton = false,
                 onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
-                onSave = { url, user, pass ->
+                onSave = { url, user, pass, syncCoverArt ->
                     settingsViewModel.updateServerUrl(url)
                     settingsViewModel.updateUsername(user)
                     settingsViewModel.updatePassword(pass)
-                    settingsViewModel.saveSettings()
+                    settingsViewModel.saveSettings(syncCoverArt)
                     showServerSetupDialog = false
                 }
             )
