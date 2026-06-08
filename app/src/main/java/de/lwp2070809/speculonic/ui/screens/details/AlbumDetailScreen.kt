@@ -63,7 +63,7 @@ fun AlbumDetailScreen(
             actions = {
                 IconButton(
                     onClick = { viewModel.toggleStar() },
-                    enabled = isEffectivelyOnline || uiState.album != null
+                    enabled = isOnline && uiState.album != null
                 ) {
                     val isStarred = uiState.album?.starred != null
                     Icon(

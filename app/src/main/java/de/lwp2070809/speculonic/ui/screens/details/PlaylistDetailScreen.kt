@@ -216,7 +216,7 @@ fun PlaylistDetailScreen(
                                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                                 }
                                             },
-                                            enabled = isEffectivelyOnline
+                                            enabled = isOnline
                                         )
                                     }
                                 }
