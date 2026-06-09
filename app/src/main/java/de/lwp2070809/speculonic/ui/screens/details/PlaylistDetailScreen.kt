@@ -9,10 +9,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.PushPin
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.Download
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material.icons.outlined.PushPin
 import androidx.compose.material.icons.outlined.RemoveCircleOutline
@@ -168,56 +170,74 @@ fun PlaylistDetailScreen(
                                 downloadController.removeDownload(song.id)
                             },
                             trailingContentOverride = {
-                                Box {
-                                    IconButton(onClick = { showItemMenu = true }) {
-                                        Icon(Icons.Default.MoreVert, contentDescription = "More")
-                                    }
-                                    DropdownMenu(
-                                        expanded = showItemMenu,
-                                        onDismissRequest = { showItemMenu = false }
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
+                                    IconButton(
+                                        onClick = {
+                                            isStarred = !isStarred
+                                            scope.launch {
+                                                repository.starSong(song.id, isStarred)
+                                            }
+                                        },
+                                        enabled = isOnline
                                     ) {
-                                        if (isDownloaded) {
+                                        Icon(
+                                            imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                                            contentDescription = "Star",
+                                            tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                    Box {
+                                        IconButton(onClick = { showItemMenu = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                                        }
+                                        DropdownMenu(
+                                            expanded = showItemMenu,
+                                            onDismissRequest = { showItemMenu = false }
+                                        ) {
+                                            if (isDownloaded) {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.remove_download)) },
+                                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        downloadController.removeDownload(song.id)
+                                                    }
+                                                )
+                                            } else {
+                                                DropdownMenuItem(
+                                                    text = { Text(stringResource(R.string.download)) },
+                                                    leadingIcon = { Icon(Icons.Outlined.Download, contentDescription = null) },
+                                                    onClick = {
+                                                        showItemMenu = false
+                                                        downloadController.downloadSong(song)
+                                                    },
+                                                    enabled = isEffectivelyOnline
+                                                )
+                                            }
                                             DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.remove_download)) },
-                                                leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                                text = { Text(stringResource(R.string.song_details)) },
+                                                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
                                                 onClick = {
+                                                    showDetailDialog = true
                                                     showItemMenu = false
-                                                    downloadController.removeDownload(song.id)
                                                 }
                                             )
-                                        } else {
+                                            HorizontalDivider()
                                             DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.download)) },
-                                                leadingIcon = { Icon(Icons.Outlined.Download, contentDescription = null) },
+                                                text = { Text(stringResource(R.string.remove_from_playlist)) },
+                                                leadingIcon = { Icon(Icons.Outlined.RemoveCircleOutline, contentDescription = null) },
                                                 onClick = {
                                                     showItemMenu = false
-                                                    downloadController.downloadSong(song)
+                                                    scope.launch {
+                                                        val success = repository.removeFromPlaylist(uiState.playlist?.id ?: "", index)
+                                                        val msg = if (success) removeSuccessMsg else removeErrorMsg
+                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                                                    }
                                                 },
-                                                enabled = isEffectivelyOnline
+                                                enabled = isOnline
                                             )
                                         }
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.song_details)) },
-                                            leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
-                                            onClick = {
-                                                showDetailDialog = true
-                                                showItemMenu = false
-                                            }
-                                        )
-                                        HorizontalDivider()
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(R.string.remove_from_playlist)) },
-                                            leadingIcon = { Icon(Icons.Outlined.RemoveCircleOutline, contentDescription = null) },
-                                            onClick = {
-                                                showItemMenu = false
-                                                scope.launch {
-                                                    val success = repository.removeFromPlaylist(uiState.playlist?.id ?: "", index)
-                                                    val msg = if (success) removeSuccessMsg else removeErrorMsg
-                                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                                }
-                                            },
-                                            enabled = isOnline
-                                        )
                                     }
                                 }
                             }
