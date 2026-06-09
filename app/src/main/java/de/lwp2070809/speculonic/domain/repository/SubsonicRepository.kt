@@ -19,6 +19,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -32,7 +33,7 @@ class SubsonicRepository(
     private val preferencesManager: PreferencesManager,
     private val okHttpClient: OkHttpClient
 ) {
-    private val repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private var repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entityMapper = EntityMapper
     
     private data class Components(
@@ -86,14 +87,18 @@ class SubsonicRepository(
             }.collectLatest { (url, username, password) ->
                 
                 if (url != baseUrl || username != authManager.getAuthParams().first) {
-                    reconfigure(url, username, password)
+                    reconfigure(url, username, password.toCharArray())
                 }
             }
         }
     }
 
     @Synchronized
-    private fun reconfigure(url: String, user: String, pass: String) {
+    private fun reconfigure(url: String, user: String, pass: CharArray) {
+        components?.authManager?.clearPassword()
+        repositoryScope.cancel()
+        repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+
         val newAuthManager = AuthManager(user, pass)
         val newUrlBuilder = UrlBuilder(url, newAuthManager)
         val newApi = de.lwp2070809.speculonic.di.NetworkModule.provideSubsonicService(url)
@@ -284,7 +289,7 @@ class SubsonicRepository(
             
             val (u, t, s) = authManager.getAuthParams()
             val response = api.getOpenSubsonicExtensions(u, t, s)
-            val extensions = response.response.openSubsonicExtensions.map { it.name }.toSet()
+            val extensions = response.response.openSubsonicExtensions.map { it.name }.toList()
             serverCapabilities = serverCapabilities.copy(extensions = extensions)
         } catch (e: Exception) {
             LogManager.e("Failed to discover extensions", e)

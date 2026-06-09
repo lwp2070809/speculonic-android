@@ -325,7 +325,7 @@ class CacheSyncWorker @AssistedInject constructor(
 
                 if (baseUrl.isNotBlank() && user.isNotBlank()) {
                     val api = NetworkModule.provideSubsonicService(baseUrl)
-                    val authManager = AuthManager(user, pass)
+                    val authManager = AuthManager(user, pass.toCharArray())
 
                     val lyricsRepo = LyricsRepository(context, api, musicDao, authManager)
                     val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)

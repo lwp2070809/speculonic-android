@@ -51,6 +51,7 @@ class PlaylistRepository(
                                 name = playlist.name,
                                 comment = playlist.comment,
                                 owner = playlist.owner,
+                                `public` = playlist.public ?: false,
                                 songCount = finalCount,
                                 duration = playlist.duration ?: 0,
                                 coverArt = playlist.coverArt,
@@ -142,11 +143,11 @@ class PlaylistRepository(
     }
 
     suspend fun createPlaylist(name: String, songIds: List<String>? = null, hasLocalData: Boolean): Boolean {
-        val trimmedName = name.trim()
-        if (trimmedName.isEmpty() || trimmedName.length > 255) return false
+        val safeName = name.trim().take(100).replace(Regex("[\\p{Cntrl}]"), "")
+        if (safeName.isEmpty()) return false
         val (u, t, s) = authManager.getAuthParams()
         return try {
-            val response = api.createPlaylist(trimmedName, songIds, u, t, s)
+            val response = api.createPlaylist(safeName, songIds, u, t, s)
             val success = response.response.status == "ok"
             if (success) {
                 getPlaylists(forceRefresh = true, hasLocalData = hasLocalData)
@@ -163,8 +164,7 @@ class PlaylistRepository(
             val response = api.deletePlaylist(id, u, t, s)
             val success = response.response.status == "ok"
             if (success) {
-                musicDao.deletePlaylist(id)
-                musicDao.deletePlaylistSongs(id)
+                musicDao.deletePlaylistWithSongs(id)
             }
             success
         } catch (e: Exception) {

@@ -190,7 +190,7 @@ object DownloadTracker {
                 
                 if (baseUrl.isNotBlank() && user.isNotBlank()) {
                     val api = NetworkModule.provideSubsonicService(baseUrl)
-                    val authManager = AuthManager(user, pass)
+                    val authManager = AuthManager(user, pass.toCharArray())
                     
                     
                     val lyricsRepo = LyricsRepository(context, api, db.musicDao(), authManager)

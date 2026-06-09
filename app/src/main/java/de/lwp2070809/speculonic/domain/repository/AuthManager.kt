@@ -1,11 +1,12 @@
 package de.lwp2070809.speculonic.domain.repository
 
 import java.security.MessageDigest
+import java.util.Arrays
 import java.util.UUID
 
 class AuthManager(
     private val user: String,
-    private val pass: String
+    private val pass: CharArray
 ) {
     
     private var cachedParams: Triple<String, String, String>? = null
@@ -23,7 +24,7 @@ class AuthManager(
         }
 
         val s = UUID.randomUUID().toString().take(8)
-        val t = md5(pass + s)
+        val t = md5WithSalt(pass, s)
         val newParams = Triple(user, t, s)
         
         if (isForImageContent) {
@@ -34,8 +35,20 @@ class AuthManager(
         return newParams
     }
 
-    private fun md5(input: String): String {
+    fun clearPassword() {
+        Arrays.fill(pass, '0')
+    }
+
+    private fun md5WithSalt(passChars: CharArray, salt: String): String {
         val md = MessageDigest.getInstance("MD5")
-        return md.digest(input.toByteArray()).joinToString("") { "%02x".format(it) }
+        val passBytes = ByteArray(passChars.size)
+        for (i in passChars.indices) {
+            passBytes[i] = passChars[i].code.toByte()
+        }
+        val saltBytes = salt.toByteArray()
+        md.update(passBytes)
+        md.update(saltBytes)
+        Arrays.fill(passBytes, 0.toByte())
+        return md.digest().joinToString("") { "%02x".format(it) }
     }
 }

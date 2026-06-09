@@ -143,7 +143,7 @@ object EntityMapper {
             name = entity.name,
             comment = entity.comment,
             owner = entity.owner,
-            public = false,
+            `public` = entity.`public`,
             songCount = entity.songCount,
             duration = entity.duration,
             coverArt = entity.coverArt,

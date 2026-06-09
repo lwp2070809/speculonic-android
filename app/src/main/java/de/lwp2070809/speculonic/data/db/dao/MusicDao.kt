@@ -165,8 +165,14 @@ interface MusicDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertPlaylists(playlists: List<PlaylistEntity>)
 
-    @Query("DELETE FROM playlists WHERE id = :id")
-    suspend fun deletePlaylist(id: String)
+    @Query("DELETE FROM playlists WHERE id = :playlistId")
+    suspend fun deletePlaylist(playlistId: String)
+
+    @Transaction
+    suspend fun deletePlaylistWithSongs(playlistId: String) {
+        deletePlaylist(playlistId)
+        deletePlaylistSongs(playlistId)
+    }
 
     @Query("DELETE FROM playlists WHERE id NOT IN (:ids)")
     suspend fun deletePlaylistsNotIn(ids: List<String>)

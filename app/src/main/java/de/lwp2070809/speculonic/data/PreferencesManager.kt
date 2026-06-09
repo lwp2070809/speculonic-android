@@ -178,10 +178,11 @@ class PreferencesManager(private val context: Context) {
             ?: encryptedPrefs.getString(EncryptedKeys.ENC_USERNAME, null)?.also { encryptedCache[EncryptedKeys.ENC_USERNAME] = it }
             ?: ""
     }
-    fun getPasswordSync(): String {
-        return encryptedCache[EncryptedKeys.ENC_PASSWORD]
+    fun getPasswordSync(): CharArray {
+        val passStr = encryptedCache[EncryptedKeys.ENC_PASSWORD]
             ?: encryptedPrefs.getString(EncryptedKeys.ENC_PASSWORD, null)?.also { encryptedCache[EncryptedKeys.ENC_PASSWORD] = it }
             ?: ""
+        return passStr.toCharArray()
     }
 
     val cacheLocation: Flow<String> = context.dataStore.data.map { preferences ->

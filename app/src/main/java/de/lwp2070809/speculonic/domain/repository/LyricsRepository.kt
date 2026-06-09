@@ -11,9 +11,8 @@ import de.lwp2070809.speculonic.util.LyricLine
 import de.lwp2070809.speculonic.util.LyricsParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 
 class LyricsRepository(
     private val context: Context,
@@ -23,13 +22,9 @@ class LyricsRepository(
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
-    
     private val negativeCache = LruCache<String, Boolean>(200)
-    
     private val positiveCache = LruCache<String, Pair<String?, List<LyricLine>>>(50)
-    
-    
-    private val mutexMap = java.util.concurrent.ConcurrentHashMap<String, Mutex>()
+    private val activeFetches = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Pair<String?, List<LyricLine>>>>()
 
     suspend fun getLyricsData(
         songId: String, 
@@ -38,26 +33,29 @@ class LyricsRepository(
         hasSongLyricsExtension: Boolean
     ): Pair<String?, List<LyricLine>> {
         
-        
-        positiveCache.get(songId)?.let {
+        synchronized(positiveCache) {
+            positiveCache.get(songId)
+        }?.let {
             LogManager.d("LyricsRepository: Using positive memory cache for $songId")
             return it
         }
 
-        val mutex = mutexMap.getOrPut(songId) { Mutex() }
-        return try {
-            mutex.withLock {
-                
-                positiveCache.get(songId)?.let { return@withLock it }
-                
+        val deferred = activeFetches.computeIfAbsent(songId) {
+            repositoryScope.async {
                 val result = fetchLyricsDataInternal(songId, artist, title, hasSongLyricsExtension)
                 if (result.second.isNotEmpty() || !result.first.isNullOrBlank()) {
-                    positiveCache.put(songId, result)
+                    synchronized(positiveCache) {
+                        positiveCache.put(songId, result)
+                    }
                 }
                 result
             }
+        }
+        
+        try {
+            return deferred.await()
         } finally {
-            mutexMap.remove(songId)
+            activeFetches.remove(songId)
         }
     }
 
@@ -80,13 +78,11 @@ class LyricsRepository(
             }
         }
 
-        
         if (negativeCache.get(songId) == true) {
             LogManager.d("LyricsRepository: $songId is in negative cache, skipping network request")
             return Pair(null, emptyList())
         }
 
-        
         if (NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
             LogManager.d("LyricsRepository: Device is offline or server is unreachable. Blocking network lyrics request for $songId")
             return Pair(null, emptyList())
@@ -94,24 +90,22 @@ class LyricsRepository(
 
         val (u, t, s) = authManager.getAuthParams()
         
-        
-        
         try {
             val response = api.getLyricsBySongId(songId, u, t, s)
             val lyricsList = response.response.lyricsList
             val structured = lyricsList?.structuredLyrics?.firstOrNull()
             if (structured != null) {
                 val lines = LyricsParser.fromStructured(structured.line)
-                
                 val raw = LyricsParser.toLrcString(lines)
                 
-                if (song?.localUri != null && raw.isNotBlank()) {
-                    repositoryScope.launch {
-                        LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, raw)
+                if (lines.isNotEmpty()) {
+                    if (song?.localUri != null && raw.isNotBlank()) {
+                        repositoryScope.launch {
+                            LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, raw)
+                        }
                     }
+                    return Pair(raw, lines)
                 }
-                
-                return Pair(raw, lines)
             }
             
             val unstructured = lyricsList?.lyrics?.firstOrNull()?.content
@@ -132,7 +126,6 @@ class LyricsRepository(
             LogManager.e("Failed to get lyrics via getLyricsBySongId, falling back to legacy API", e)
         }
         
-        
         return try {
             val raw = api.getLyrics(artist, title, u, t, s).response.lyrics?.content
             val lines = LyricsParser.parse(raw)
@@ -147,7 +140,6 @@ class LyricsRepository(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            
             negativeCache.put(songId, true)
             Pair(null, emptyList())
         }

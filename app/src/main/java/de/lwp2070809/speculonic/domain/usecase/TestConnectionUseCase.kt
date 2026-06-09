@@ -10,7 +10,7 @@ class TestConnectionUseCase @Inject constructor() {
     suspend operator fun invoke(url: String, user: String, pass: String): Result<Unit> = withContext(Dispatchers.IO) {
         try {
             val service = NetworkModule.provideSubsonicService(url)
-            val authManager = AuthManager(user, pass)
+            val authManager = AuthManager(user, pass.toCharArray())
             val (u, t, s) = authManager.getAuthParams()
             val response = service.ping(u, t, s)
             if (response.response.status == "ok") {

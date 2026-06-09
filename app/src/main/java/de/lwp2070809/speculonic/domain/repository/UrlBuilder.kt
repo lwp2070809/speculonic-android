@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic.domain.repository
 
 import android.net.Uri
 import androidx.core.net.toUri
+import de.lwp2070809.speculonic.util.AppConstants
 
 
 class UrlBuilder(
@@ -15,8 +16,8 @@ class UrlBuilder(
             .appendQueryParameter("u", u)
             .appendQueryParameter("t", t)
             .appendQueryParameter("s", s)
-            .appendQueryParameter("v", "1.16.1")
-            .appendQueryParameter("c", "Speculonic")
+            .appendQueryParameter("v", AppConstants.SUBSONIC_API_VERSION)
+            .appendQueryParameter("c", AppConstants.SUBSONIC_CLIENT_ID)
             .appendQueryParameter("f", "json")
     }
 

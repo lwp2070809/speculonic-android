@@ -16,6 +16,7 @@ import de.lwp2070809.speculonic.network.model.SubsonicResponse
 import de.lwp2070809.speculonic.network.model.SubsonicSearchResponse
 import de.lwp2070809.speculonic.network.model.SubsonicSongResponse
 import de.lwp2070809.speculonic.network.model.SubsonicStarred2Response
+import de.lwp2070809.speculonic.util.AppConstants
 import retrofit2.http.GET
 import retrofit2.http.Query
 
@@ -25,8 +26,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -35,8 +36,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json",
         @Query("type") type: String = "newest",
         @Query("size") size: Int = 20,
@@ -50,8 +51,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicAlbumResponse>
 
@@ -61,8 +62,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicSongResponse>
 
@@ -72,8 +73,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicArtistResponse>
 
@@ -83,8 +84,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicArtistInfo2Response>
 
@@ -93,8 +94,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicPlaylistsResponse>
 
@@ -104,8 +105,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicPlaylistResponse>
 
@@ -114,8 +115,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicStarred2Response>
 
@@ -125,8 +126,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -136,8 +137,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -147,8 +148,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicDirectoryResponse>
 
@@ -159,8 +160,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicLyricsResponse>
 
@@ -169,8 +170,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json",
         @Query("musicFolderId") musicFolderId: String? = null
     ): SubsonicResponse<SubsonicIndexesResponse>
@@ -184,8 +185,8 @@ interface SubsonicService {
         @Query("artistCount") artistCount: Int = 20,
         @Query("albumCount") albumCount: Int = 20,
         @Query("songCount") songCount: Int = 100,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicSearchResponse>
 
@@ -198,8 +199,8 @@ interface SubsonicService {
         @Query("artistCount") artistCount: Int = 20,
         @Query("albumCount") albumCount: Int = 20,
         @Query("songCount") songCount: Int = 100,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): okhttp3.ResponseBody
 
@@ -210,8 +211,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -221,8 +222,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -237,8 +238,8 @@ interface SubsonicService {
         @Query("name") name: String? = null,
         @Query("comment") comment: String? = null,
         @Query("public") public: Boolean? = null,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
 
@@ -248,8 +249,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicOpenSubsonicExtensionsResponse>
 
@@ -259,8 +260,8 @@ interface SubsonicService {
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
-        @Query("v") v: String = "1.16.1",
-        @Query("c") c: String = "Speculonic",
+        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
+        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicLyricsListResponse>
 }
