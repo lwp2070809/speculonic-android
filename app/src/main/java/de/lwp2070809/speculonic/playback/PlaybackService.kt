@@ -186,16 +186,20 @@ class PlaybackService : MediaSessionService() {
                 cacheStrategyManager = CacheStrategyManager(this@PlaybackService, repository, prefs)
 
                 
-                withContext(Dispatchers.IO) {
-                    de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(this@PlaybackService)
-                    de.lwp2070809.speculonic.data.CacheManager.getDownloadCache(this@PlaybackService, config.maxCacheSize)
+                val (playbackCache, downloadCache) = withContext(Dispatchers.IO) {
+                    val pCache = de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(this@PlaybackService)
+                    val dCache = de.lwp2070809.speculonic.data.CacheManager.getDownloadCache(this@PlaybackService, config.maxCacheSize)
+                    Pair(pCache, dCache)
                 }
 
-                val realPlayer = PlayerBuilder(this@PlaybackService).build(
-                    maxCacheSize = config.maxCacheSize,
-                    bufferStrategy = config.bufferStrategy,
-                    checkRestriction = { isMetered && !mobilePlayAllowed }
-                )
+                val realPlayer = withContext(Dispatchers.Main) {
+                    PlayerBuilder(this@PlaybackService).build(
+                        playbackCache = playbackCache,
+                        downloadCache = downloadCache,
+                        bufferStrategy = config.bufferStrategy,
+                        checkRestriction = { isMetered && !mobilePlayAllowed }
+                    )
+                }
                 
                 val sessionPlayer = carAudioManager.CarDisguisePlayer(realPlayer)
                 

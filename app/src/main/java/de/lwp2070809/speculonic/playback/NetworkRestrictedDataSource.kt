@@ -18,14 +18,14 @@ class NetworkRestrictedDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         if (checkRestriction()) {
-            throw IOException("Network restricted: Metered network usage not allowed for non-cached content")
+            throw NetworkRestrictedException("Network restricted: Metered network usage not allowed for non-cached content")
         }
         return upstream.open(dataSpec)
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
         if (checkRestriction()) {
-            throw IOException("Network restricted: Metered network usage not allowed for non-cached content during playback")
+            throw NetworkRestrictedException("Network restricted: Metered network usage not allowed for non-cached content during playback")
         }
         return upstream.read(buffer, offset, length)
     }

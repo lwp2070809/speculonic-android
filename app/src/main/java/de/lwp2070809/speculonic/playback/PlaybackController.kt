@@ -141,7 +141,16 @@ class PlaybackController private constructor(context: Context) {
                     events.contains(Player.EVENT_PLAYBACK_STATE_CHANGED)) {
                     handleProgressTicker()
                 }
+            }
 
+            override fun onPlaybackStateChanged(playbackState: Int) {
+                super.onPlaybackStateChanged(playbackState)
+                if (playbackState == Player.STATE_ENDED) {
+                    if (_playbackState.value.isSleepTimerRunning && 
+                        _playbackState.value.sleepTimerMode == SleepTimerMode.END_OF_PLAYLIST) {
+                        pauseAndStopTimer()
+                    }
+                }
             }
 
             override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
@@ -420,8 +429,13 @@ class PlaybackController private constructor(context: Context) {
 
     fun skipToQueueItem(index: Int) {
         executeWhenReady { controller ->
-            controller.seekTo(index, 0L)
-            controller.play()
+            if (index >= 0 && index < controller.mediaItemCount) {
+                controller.seekTo(index, 0L)
+                controller.play()
+            } else if (controller.mediaItemCount > 0) {
+                controller.seekTo(controller.mediaItemCount - 1, 0L)
+                controller.play()
+            }
         }
     }
 

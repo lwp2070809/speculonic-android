@@ -19,7 +19,7 @@ android {
         minSdk = 29
         targetSdk = 36
         versionCode = 1
-        versionName = "0.9.3"
+        versionName = "0.9.4"
 
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
@@ -64,13 +64,20 @@ android {
 
     sourceSets {
         val hasLocalExtension = file("${rootDir}/local.gradle.kts").exists()
-        if (hasLocalExtension) {
-            getByName("debug") {
+        getByName("debug") {
+            if (hasLocalExtension) {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
-            getByName("release") {
+        }
+        getByName("release") {
+            if (hasLocalExtension) {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
+        }
+        
+        getByName("main") {
+            java.srcDir("build/generated/ksp/debug/java")
+            java.srcDir("build/generated/ksp/release/java")
         }
     }
 }
@@ -83,6 +90,7 @@ tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach 
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }
+
 
 dependencies {
     implementation(libs.androidx.core.ktx)

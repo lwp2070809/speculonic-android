@@ -47,12 +47,18 @@ class PlaybackErrorHandler(
             return
         }
 
-        val isNetworkRestricted = isMetered() && !mobilePlayAllowed()
+        val isNetworkRestricted = isMetered() && !mobilePlayAllowed() || error.cause is NetworkRestrictedException
         val isNetworkError = error.errorCode == PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED ||
                 error.errorCode == PlaybackException.ERROR_CODE_IO_BAD_HTTP_STATUS ||
                 error.errorCode == PlaybackException.ERROR_CODE_IO_UNSPECIFIED ||
                 error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
                 error.cause is IOException
+
+        if (error.cause is NetworkRestrictedException) {
+            serviceScope.launch(Dispatchers.Main) {
+                android.widget.Toast.makeText(context, de.lwp2070809.speculonic.R.string.network_restricted_error, android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
 
         if (isNetworkRestricted || isNetworkError) {
             val currentIndex = player.currentMediaItemIndex

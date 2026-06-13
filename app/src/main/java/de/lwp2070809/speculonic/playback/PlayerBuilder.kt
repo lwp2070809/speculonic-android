@@ -25,14 +25,11 @@ import de.lwp2070809.speculonic.di.NetworkModule
 class PlayerBuilder(private val context: Context) {
     
     fun build(
-        maxCacheSize: Long,
+        playbackCache: androidx.media3.datasource.cache.Cache,
+        downloadCache: androidx.media3.datasource.cache.Cache,
         bufferStrategy: Int = 1,
         checkRestriction: () -> Boolean
     ): ExoPlayer {
-        
-        
-        val playbackCache = CacheManager.getPlaybackCache(context)
-        val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
         
         val okHttpClient = NetworkModule.provideOkHttpClient()
         val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)

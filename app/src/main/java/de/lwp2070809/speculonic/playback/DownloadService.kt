@@ -27,8 +27,6 @@ class DownloadService : DownloadService(
     R.string.download_channel_description
 ) {
 
-    private var maxManualTaskCount = 0
-
     private val cancelReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
             if (intent.action == ACTION_CANCEL_ALL_DOWNLOADS) {
@@ -107,22 +105,8 @@ class DownloadService : DownloadService(
 
             
             val activeCount = activeDownloads.size
-            if (activeCount > maxManualTaskCount) {
-                maxManualTaskCount = activeCount
-            }
 
-            
-            val percentFloat = currentDownload.percentDownloaded
-            val progressPercent = if (percentFloat != -1f) percentFloat.toInt() else 0
-            val isPercentIndeterminate = percentFloat == -1f
-
-            
-            val displayTotalCount = maxManualTaskCount
-            val currentCompleted = maxManualTaskCount - activeCount
-            val displayIndex = if (currentCompleted + 1 <= displayTotalCount) currentCompleted + 1 else displayTotalCount
-
-            val progressTitle = getString(R.string.downloading_progress, displayIndex, displayTotalCount)
-            val contentText = "当前进度 ${progressPercent}%"
+            val progressTitle = getString(R.string.downloading_progress_simple, activeCount)
 
             val clickIntent = android.app.PendingIntent.getActivity(
                 this, 0,
@@ -145,9 +129,9 @@ class DownloadService : DownloadService(
             return NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(songTitle)
-                .setContentText("$progressTitle · $contentText")
+                .setContentText(progressTitle)
                 .setContentIntent(clickIntent)
-                .setProgress(100, progressPercent, isPercentIndeterminate || progressPercent == 0)
+                .setProgress(0, 0, true)
                 .setSilent(true)
                 .setOngoing(true)
                 .addAction(
@@ -157,8 +141,6 @@ class DownloadService : DownloadService(
                 )
                 .build()
         }
-
-        maxManualTaskCount = 0 
         
         
         if (visibleDownloads.isNotEmpty()) {

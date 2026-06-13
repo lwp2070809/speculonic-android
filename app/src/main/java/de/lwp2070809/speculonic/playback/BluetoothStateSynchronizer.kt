@@ -19,6 +19,10 @@ class BluetoothStateSynchronizer(
 ) {
     var syncPlaybackState = true
 
+    private var lastAudioStateCheckTime = 0L
+    private var lastIsInCall = false
+    private var lastIsOtherMusicActive = false
+
     
     fun syncPlaybackStateToBluetooth() {
         if (!deviceDetector.carBluetoothEnabled || !deviceDetector.isCarBluetoothConnected()) {
@@ -36,22 +40,28 @@ class BluetoothStateSynchronizer(
                 return
             }
 
+            val currentTime = System.currentTimeMillis()
+            var isInCall = lastIsInCall
+            var isOtherMusicActive = lastIsOtherMusicActive
             
-            val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
-            if (audioManager != null) {
-                
-                val mode = audioManager.mode
-                val isInCall = mode == AudioManager.MODE_IN_CALL || 
-                               mode == AudioManager.MODE_IN_COMMUNICATION || 
-                               mode == AudioManager.MODE_RINGTONE
-                
-                
-                val isOtherMusicActive = audioManager.isMusicActive
-                
-                if (isInCall || isOtherMusicActive) {
-                    LogManager.w("BluetoothStateSynchronizer: 检测到当前处于通话状态($isInCall)或其它音视频应用正在活跃播放($isOtherMusicActive)。为了防止粗暴抢占焦点，跳过 Play-Pause 状态同步。")
-                    return
+            if (currentTime - lastAudioStateCheckTime > 1000L) {
+                val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as? AudioManager
+                if (audioManager != null) {
+                    val mode = audioManager.mode
+                    isInCall = mode == AudioManager.MODE_IN_CALL || 
+                                   mode == AudioManager.MODE_IN_COMMUNICATION || 
+                                   mode == AudioManager.MODE_RINGTONE
+                    isOtherMusicActive = audioManager.isMusicActive
+                    
+                    lastIsInCall = isInCall
+                    lastIsOtherMusicActive = isOtherMusicActive
+                    lastAudioStateCheckTime = currentTime
                 }
+            }
+
+            if (isInCall || isOtherMusicActive) {
+                LogManager.w("BluetoothStateSynchronizer: 检测到当前处于通话状态($isInCall)或其它音视频应用正在活跃播放($isOtherMusicActive)。为了防止粗暴抢占焦点，跳过 Play-Pause 状态同步。")
+                return
             }
 
             

@@ -23,7 +23,7 @@ class DownloadController(
     private val context: Context,
     private val repository: SubsonicRepository
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO)
+    private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
     
     fun downloadSong(song: Song, isSilent: Boolean = false) {
@@ -53,22 +53,13 @@ class DownloadController(
             .build()
 
         try {
-            
-            
-            DownloadService.sendRemoveDownload(
-                context,
-                de.lwp2070809.speculonic.playback.DownloadService::class.java,
-                song.id,
-                false
-            )
-
             DownloadService.sendAddDownload(
                 context,
                 de.lwp2070809.speculonic.playback.DownloadService::class.java,
                 downloadRequest,
                 false
             )
-            LogManager.i("DownloadController: Remove & AddDownload intents sent for ${song.id}")
+            LogManager.i("DownloadController: AddDownload intent sent for ${song.id}")
         } catch (e: Exception) {
             LogManager.e("DownloadController: Failed to send download intents", e)
         }

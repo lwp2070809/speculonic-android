@@ -59,6 +59,9 @@
     <string name="download_channel_description">后台下载服务</string>
     <string name="unlimited">不限制</string>
     <string name="mobile_play_allowed">允许计费网络播放</string>
+    <string name="mobile_play_allowed_desc">开启后允许在移动网络下播放在线音乐</string>
+    <string name="network_restricted_error">播放已暂停：当前未允许使用移动网络播放。请连接 Wi-Fi 或在设置中开启移动数据播放。</string>
+    <string name="downloading_progress_simple">正在下载 (%1$d首未完成)</string>
     <string name="view_logs">查看日志</string>
     <string name="logs">日志</string>
     <string name="clear_logs">清除</string>

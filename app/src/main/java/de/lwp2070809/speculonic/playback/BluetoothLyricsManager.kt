@@ -8,6 +8,7 @@ import androidx.media3.session.MediaSession
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.util.LyricLine
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -50,15 +51,26 @@ class BluetoothLyricsManager(
             val realTitle = metadata.extras?.getString("realTitle") ?: metadata.title?.toString()
             val realArtist = metadata.extras?.getString("realArtist") ?: metadata.artist?.toString()
             
-            val (raw, lines) = repo.getLyricsData(
-                mediaItem.mediaId,
-                realArtist ?: "",
-                realTitle ?: ""
-            )
+            val result = kotlinx.coroutines.withTimeoutOrNull(6000L) {
+                repo.getLyricsData(
+                    mediaItem.mediaId,
+                    realArtist ?: "",
+                    realTitle ?: ""
+                )
+            }
+            
+            if (result == null) {
+                LogManager.w("BluetoothLyricsManager: Fetch lyrics timed out for ${mediaItem.mediaId}")
+                return@launch
+            }
+            
+            val (raw, lines) = result
             
             if (lines.isEmpty() && raw.isNullOrBlank()) {
                 val pureMusicStr = context.getString(R.string.pure_music)
                 currentLyricsLines = listOf(LyricLine(timeMs = 0L, content = pureMusicStr))
+                updateMediaSessionMetadata(pureMusicStr)
+                return@launch
             } else {
                 currentLyricsLines = lines
             }
@@ -139,27 +151,11 @@ class BluetoothLyricsManager(
         val realTitle = originalMetadata.extras?.getString("realTitle") ?: originalMetadata.title?.toString() ?: ""
         val realArtist = originalMetadata.extras?.getString("realArtist") ?: originalMetadata.artist?.toString() ?: ""
 
-        val newMetadata = if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
-            originalMetadata.buildUpon()
-                .setTitle(lyricLine)
-                .setArtist("$realTitle - $realArtist")
-                .setDurationMs(player.duration.takeIf { it > 0 } ?: originalMetadata.durationMs)
-                .build()
-        } else {
-            originalMetadata.buildUpon()
-                .setTitle(realTitle)
-                .setArtist(realArtist)
-                .setDurationMs(player.duration.takeIf { it > 0 } ?: originalMetadata.durationMs)
-                .build()
-        }
-
-        if (forceUpdate || newMetadata.title != originalMetadata.title || newMetadata.artist != originalMetadata.artist) {
-            serviceScope.launch(Dispatchers.Main) {
-                if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
-                    (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(lyricLine, "$realTitle - $realArtist")
-                } else {
-                    (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(null, null)
-                }
+        serviceScope.launch(Dispatchers.Main) {
+            if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
+                (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(lyricLine, "$realTitle - $realArtist")
+            } else {
+                (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(null, null)
             }
         }
     }

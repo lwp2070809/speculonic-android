@@ -59,6 +59,9 @@
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
+    <string name="mobile_play_allowed_desc">When enabled, music stream via mobile network if not cached</string>
+    <string name="network_restricted_error">Playback paused: Mobile network streaming is not allowed. Please connect to Wi-Fi or enable mobile data streaming in settings.</string>
+    <string name="downloading_progress_simple">Downloading (%1$d remaining)</string>
     <string name="view_logs">View Logs</string>
     <string name="logs">Logs</string>
     <string name="clear_logs">Clear</string>
