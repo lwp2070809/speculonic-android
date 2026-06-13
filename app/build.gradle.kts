@@ -137,9 +137,7 @@ dependencies {
     implementation(libs.androidx.security.crypto)
     ksp(libs.androidx.room.compiler)
     
-    
-    implementation("net.jthink:jaudiotagger:3.0.1")
-
+    implementation(libs.jaudiotagger)
     
     implementation(libs.google.hilt.android)
     ksp(libs.google.hilt.compiler)

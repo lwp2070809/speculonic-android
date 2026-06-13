@@ -67,8 +67,9 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
 
     
     override fun newImageLoader(context: Context): ImageLoader {
-        
-        val imageCacheLimit = 1024 * 1024 * 1024L 
+        val cacheDir = context.cacheDir
+        val usableSpace = cacheDir.usableSpace
+        val imageCacheLimit = (usableSpace * 0.05).toLong().coerceIn(256 * 1024 * 1024L, 1024 * 1024 * 1024L)
 
         return ImageLoader.Builder(context)
             .components {

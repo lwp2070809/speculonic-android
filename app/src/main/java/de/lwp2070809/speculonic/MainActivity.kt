@@ -57,6 +57,9 @@ class MainActivity : AppCompatActivity() {
     @Inject
     lateinit var updateManager: de.lwp2070809.speculonic.data.UpdateManager
 
+    @Inject
+    lateinit var networkMonitor: de.lwp2070809.speculonic.util.NetworkMonitor
+
     private var showNowPlayingTrigger by mutableStateOf(false)
     private var showCancelDownloadsDialogTrigger by mutableStateOf(false)
 
@@ -81,7 +84,7 @@ class MainActivity : AppCompatActivity() {
             }.collectAsState(initial = playbackController.playbackState.value.artworkUri)
             val scope = rememberCoroutineScope()
             
-            val networkMonitor = remember { de.lwp2070809.speculonic.util.ConnectivityManagerNetworkMonitor(context) }
+            val networkMonitor = remember { this@MainActivity.networkMonitor }
             val networkStatus by networkMonitor.networkStatus.collectAsState(initial = de.lwp2070809.speculonic.util.NetworkStatus(true, false))
             val isOnlineReal = networkStatus.isOnline
             val isMetered = networkStatus.isMetered
@@ -268,6 +271,8 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
+            val currentSurfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.toArgb()
+
             
             
             LaunchedEffect(artworkUri.value, colorMode, darkTheme) {
@@ -289,7 +294,8 @@ class MainActivity : AppCompatActivity() {
                         context = context,
                         uri = uri.toString(),
                         isDark = darkTheme,
-                        imageLoader = SingletonImageLoader.get(context)
+                        imageLoader = SingletonImageLoader.get(context),
+                        fallbackBackgroundColor = currentSurfaceColor
                     )
                     activeSeedColor = color
                     hasEvaluatedColor = true

@@ -328,32 +328,27 @@ object NetworkModule {
             DynamicSslTrustManager.trustAll || defaultHostnameVerifier.verify(hostname, session)
         }
 
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
         HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
         HttpsURLConnection.setDefaultHostnameVerifier(dynamicHostnameVerifier)
         LogManager.i("NetworkModule: 已设置全局 HttpsURLConnection 默认 SSLSocketFactory（DynamicSslTrustManager）")
 
+        val loggingInterceptor = okhttp3.logging.HttpLoggingInterceptor().apply {
+            level = if (de.lwp2070809.speculonic.BuildConfig.DEBUG) {
+                okhttp3.logging.HttpLoggingInterceptor.Level.BODY
+            } else {
+                okhttp3.logging.HttpLoggingInterceptor.Level.NONE
+            }
+        }
+
         OkHttpClient.Builder()
+            .addInterceptor(loggingInterceptor)
             .addInterceptor(SonicLogInterceptor())
             .addNetworkInterceptor(CacheOverrideInterceptor())
             .connectTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
-            
             .sslSocketFactory(sslContext.socketFactory, DynamicSslTrustManager)
-            
             .hostnameVerifier(dynamicHostnameVerifier)
-            
             .dns(ipv4PreferredDns)
             .build()
     }
@@ -370,6 +365,14 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return okHttpClientInstance
+    }
+
+    @Provides
+    @Singleton
+    fun provideNetworkMonitor(
+        @ApplicationContext context: android.content.Context
+    ): de.lwp2070809.speculonic.util.NetworkMonitor {
+        return de.lwp2070809.speculonic.util.ConnectivityManagerNetworkMonitor(context)
     }
 
     @Provides

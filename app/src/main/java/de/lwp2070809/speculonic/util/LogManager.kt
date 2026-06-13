@@ -34,10 +34,7 @@ object LogManager {
     
     private val isDirty = AtomicBoolean(false)
 
-    private var easterEggs: List<EasterEggGroup>? = null
-
-    private fun loadEasterEggs() {
-        if (easterEggs != null) return
+    private val easterEggs: List<EasterEggGroup> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         try {
             val jsonText = de.lwp2070809.speculonic.SpeculonicApp.instance.assets.open("easter_eggs.json").bufferedReader().use { it.readText() }
             val array = org.json.JSONArray(jsonText)
@@ -55,24 +52,22 @@ object LogManager {
                 }
                 list.add(EasterEggGroup(id, msgList))
             }
-            easterEggs = list
+            list
         } catch (e: Exception) {
             e.printStackTrace()
-            easterEggs = emptyList()
+            emptyList()
         }
     }
 
     private fun triggerEasterEggGroup(id: Int) {
-        loadEasterEggs()
-        val group = easterEggs?.find { it.id == id } ?: return
+        val group = easterEggs.find { it.id == id } ?: return
         group.messages.forEach { msg ->
             addLog(LogLevel.INFO, "${msg.speaker}: ${msg.message}", isEasterEgg = true)
         }
     }
 
     private fun triggerRandomEasterEgg() {
-        loadEasterEggs()
-        val available = easterEggs?.filter { it.id != 1 } ?: return
+        val available = easterEggs.filter { it.id != 1 }
         if (available.isEmpty()) return
         val group = available.random()
         group.messages.forEach { msg ->

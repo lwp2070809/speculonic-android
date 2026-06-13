@@ -26,6 +26,7 @@ securityCrypto = "1.1.0"
 paging = "3.3.6"
 pagingCompose = "3.3.6"
 hilt = "2.59.2"
+jaudiotagger = "3.0.1"
 
 [libraries]
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
@@ -70,7 +71,6 @@ androidx-media3-common = { group = "androidx.media3", name = "media3-common", ve
 androidx-media3-session = { group = "androidx.media3", name = "media3-session", version.ref = "media3" }
 androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
 androidx-media3-datasource-okhttp = { group = "androidx.media3", name = "media3-datasource-okhttp", version.ref = "media3" }
-androidx-media3-inspector = { group = "androidx.media3", name = "media3-inspector", version.ref = "media3" }
 androidx-palette = { group = "androidx.palette", name = "palette", version.ref = "palette" }
 androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
 work-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "workManager" }
@@ -78,6 +78,7 @@ androidx-room-runtime = { group = "androidx.room", name = "room-runtime", versio
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 
 google-hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 google-hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", version.ref = "hilt" }

@@ -18,11 +18,13 @@ import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.flow.first
 
 @OptIn(UnstableApi::class)
 class CoilBitmapLoader(
     private val context: Context,
-    private val scope: CoroutineScope
+    private val scope: CoroutineScope,
+    private val networkMonitor: NetworkMonitor
 ) : BitmapLoader {
 
     override fun supportsMimeType(mimeType: String): Boolean {
@@ -70,11 +72,7 @@ class CoilBitmapLoader(
                     requestBuilder.memoryCacheKey(if (size != null) "${stableKey}_$size" else stableKey)
                     requestBuilder.diskCachePolicy(coil3.request.CachePolicy.ENABLED)
 
-                    
-                    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-                    val activeNetwork = connectivityManager?.activeNetwork
-                    val capabilities = connectivityManager?.getNetworkCapabilities(activeNetwork)
-                    val isOnline = capabilities != null && capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                    val isOnline = networkMonitor.isOnline.first()
 
                     if (isOnline) {
                         requestBuilder.networkCachePolicy(coil3.request.CachePolicy.ENABLED)

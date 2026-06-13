@@ -54,6 +54,9 @@ class PlaybackService : MediaSessionService() {
     @Inject
     lateinit var db: AppDatabase
 
+    @Inject
+    lateinit var networkMonitor: de.lwp2070809.speculonic.util.NetworkMonitor
+
     private var mediaSession: MediaSession? = null
     private var cacheStrategyManager: CacheStrategyManager? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
@@ -91,7 +94,7 @@ class PlaybackService : MediaSessionService() {
             .setSessionActivity(pendingIntent)
             .setCallback(CustomCallback())
             .setSessionExtras(android.os.Bundle().apply { putString("queueTitle", null) })
-            .setBitmapLoader(CoilBitmapLoader(this, serviceScope))
+            .setBitmapLoader(CoilBitmapLoader(this, serviceScope, networkMonitor))
             .build()
         
         androidx.core.content.ContextCompat.registerReceiver(
@@ -233,7 +236,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun observeNetworkAndPreferences(prefs: PreferencesManager) {
-        val networkMonitor = ConnectivityManagerNetworkMonitor(this@PlaybackService)
+        val networkMonitor = this@PlaybackService.networkMonitor
         serviceScope.launch { networkMonitor.isMetered.collect { isMetered = it } }
         serviceScope.launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
         

@@ -11,24 +11,36 @@ import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Song
 
 @OptIn(UnstableApi::class)
-fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
-    
-    
-    val playbackUri = repository.buildStreamUrl(this.id).toUri()
-    
-    val coverArtUrl = this.coverArt?.let { repository.buildCoverArtUrl(it) }
+private fun buildMediaItemInternal(
+    id: String,
+    title: String,
+    artist: String?,
+    album: String?,
+    duration: Int?,
+    coverArt: String?,
+    repository: SubsonicRepository
+): MediaItem {
+    val playbackUri = repository.buildStreamUrl(id).toUri()
+    val coverArtUrl = coverArt?.let { repository.buildCoverArtUrl(it) }
 
     val extras = Bundle().apply {
-        putString("coverArtId", this@toMediaItem.coverArt)
-        putString("realTitle", this@toMediaItem.title)
-        putString("realArtist", this@toMediaItem.artist)
+        putString("coverArtId", coverArt)
+        putString("realTitle", title)
+        putString("realArtist", artist)
+    }
+
+    val rawDuration = duration?.toLong() ?: 0L
+    val durationMs = if (rawDuration < 0) {
+        androidx.media3.common.C.TIME_UNSET
+    } else {
+        rawDuration * 1000
     }
 
     val metadata = MediaMetadata.Builder()
-        .setTitle(this.title)
-        .setArtist(this.artist)
-        .setAlbumTitle(this.album)
-        .setDurationMs(this.duration?.toLong()?.times(1000) ?: 0L)
+        .setTitle(title)
+        .setArtist(artist)
+        .setAlbumTitle(album)
+        .setDurationMs(durationMs)
         .setArtworkUri(coverArtUrl?.toUri())
         .setExtras(extras)
         .setIsBrowsable(false)
@@ -36,40 +48,35 @@ fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(this.id)
+        .setMediaId(id)
         .setUri(playbackUri)
-        .setCustomCacheKey(this.id) 
+        .setCustomCacheKey(id)
         .setMediaMetadata(metadata)
         .build()
 }
 
 @OptIn(UnstableApi::class)
+fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
+    return buildMediaItemInternal(
+        id = this.id,
+        title = this.title,
+        artist = this.artist,
+        album = this.album,
+        duration = this.duration,
+        coverArt = this.coverArt,
+        repository = repository
+    )
+}
+
+@OptIn(UnstableApi::class)
 fun SongEntity.toMediaItem(repository: SubsonicRepository): MediaItem {
-    val playbackUri = repository.buildStreamUrl(this.id).toUri()
-
-    val coverArtUrl = this.coverArt?.let { repository.buildCoverArtUrl(it) }
-
-    val extras = Bundle().apply {
-        putString("coverArtId", this@toMediaItem.coverArt)
-        putString("realTitle", this@toMediaItem.title)
-        putString("realArtist", this@toMediaItem.artist)
-    }
-
-    val metadata = MediaMetadata.Builder()
-        .setTitle(this.title)
-        .setArtist(this.artist)
-        .setAlbumTitle(this.album)
-        .setDurationMs(this.duration?.toLong()?.times(1000) ?: 0L)
-        .setArtworkUri(coverArtUrl?.toUri())
-        .setExtras(extras)
-        .setIsBrowsable(false)
-        .setIsPlayable(true)
-        .build()
-
-    return MediaItem.Builder()
-        .setMediaId(this.id)
-        .setUri(playbackUri)
-        .setCustomCacheKey(this.id)
-        .setMediaMetadata(metadata)
-        .build()
+    return buildMediaItemInternal(
+        id = this.id,
+        title = this.title,
+        artist = this.artist,
+        album = this.album,
+        duration = this.duration,
+        coverArt = this.coverArt,
+        repository = repository
+    )
 }

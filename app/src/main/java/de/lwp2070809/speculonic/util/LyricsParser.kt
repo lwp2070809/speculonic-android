@@ -9,15 +9,14 @@ data class LyricLine(
 )
 
 object LyricsParser {
+    private val timeRegex = Regex("\\[\\s*(\\d+):(\\d+)(?:[:.,](\\d+))?\\s*\\]")
     
     fun parse(lrcContent: String?): List<LyricLine> {
         if (lrcContent.isNullOrBlank()) return emptyList()
 
         val lines = lrcContent.split("\n")
         val parsedLines = mutableListOf<LyricLine>()
-        
-        
-        val timeRegex = Regex("\\[\\s*(\\d+):(\\d+)(?:[:.,](\\d+))?\\s*\\]")
+
 
         for (line in lines) {
             val matches = timeRegex.findAll(line)

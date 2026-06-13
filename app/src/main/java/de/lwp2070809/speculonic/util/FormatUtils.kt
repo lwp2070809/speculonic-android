@@ -7,6 +7,7 @@ import kotlin.math.pow
 
 object FormatUtils {
     fun formatDuration(seconds: Int): String {
+        if (seconds <= 0) return "00:00"
         val mins = seconds / 60
         val secs = seconds % 60
         return if (mins >= 60) {
@@ -19,7 +20,7 @@ object FormatUtils {
     }
 
     fun formatDuration(millis: Long): String {
-        if (millis <= 0) return "0:00"
+        if (millis <= 0) return "00:00"
         return formatDuration((millis / 1000).toInt())
     }
 

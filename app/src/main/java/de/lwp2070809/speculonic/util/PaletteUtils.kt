@@ -28,20 +28,19 @@ object PaletteUtils {
         context: Context,
         uri: String,
         isDark: Boolean,
-        imageLoader: ImageLoader
+        imageLoader: ImageLoader,
+        fallbackBackgroundColor: Int
     ): Color? = withContext(Dispatchers.IO) {
         
         val uriObj = android.net.Uri.parse(uri)
         val id = uriObj.getQueryParameter("id")
-        val size = uriObj.getQueryParameter("size")
         val stableKey = if (id != null) {
             val baseUrl = uri.substringBefore("/rest/getCoverArt")
             val normalizedBaseUrl = CoverArtKeyUtils.normalizeBaseUrl(baseUrl)
             "cover_${normalizedBaseUrl.hashCode()}_$id"
         } else null
 
-        
-        val cacheKey = "${stableKey ?: uri}_${size ?: "original"}_$isDark"
+        val cacheKey = "${stableKey ?: uri}_${isDark}_$fallbackBackgroundColor"
         
         
         colorCache.get(cacheKey)?.let {
@@ -75,7 +74,7 @@ object PaletteUtils {
             if (result is SuccessResult) {
                 val bitmap = result.image.toBitmap()
                 val palette = Palette.from(bitmap).generate()
-                val color = extractSeedColor(palette, isDark)
+                val color = extractSeedColor(palette, isDark, fallbackBackgroundColor)
                 
                 if (color != null) {
                     colorCache.put(cacheKey, color)
@@ -95,10 +94,8 @@ object PaletteUtils {
     }
 
     
-    fun extractSeedColor(palette: Palette, isDark: Boolean): Color? {
-        
-        
-        val backgroundColor = if (isDark) 0xFF1C1B1F.toInt() else 0xFFFFFBFE.toInt()
+    fun extractSeedColor(palette: Palette, isDark: Boolean, fallbackBackgroundColor: Int): Color? {
+        val backgroundColor = fallbackBackgroundColor
         
         
         val swatches = if (isDark) {

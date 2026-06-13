@@ -63,9 +63,9 @@ class ConnectivityManagerNetworkMonitor(
             }
         }
 
-        connectivityManager.registerDefaultNetworkCallback(callback)
-
         channel.trySend(connectivityManager.isCurrentlyConnected(predicate))
+
+        connectivityManager.registerDefaultNetworkCallback(callback)
 
         awaitClose {
             debounceJob?.cancel()
@@ -113,13 +113,13 @@ class ConnectivityManagerNetworkMonitor(
             }
         }
 
-        connectivityManager.registerDefaultNetworkCallback(callback)
-
         val activeNetwork = connectivityManager.activeNetwork
         val caps = activeNetwork?.let { connectivityManager.getNetworkCapabilities(it) }
         val online = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false
         val metered = caps?.let { !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) } ?: false
         channel.trySend(NetworkStatus(online, metered))
+
+        connectivityManager.registerDefaultNetworkCallback(callback)
 
         awaitClose {
             debounceJob?.cancel()

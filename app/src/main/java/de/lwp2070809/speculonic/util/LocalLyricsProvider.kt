@@ -98,6 +98,7 @@ object LocalLyricsProvider {
                 val lrcPath = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(physicalPath)
                 val lrcFile = java.io.File(lrcPath)
                 val tempFile = java.io.File(lrcPath + ".tmp")
+                tempFile.parentFile?.mkdirs()
                 tempFile.writeText(lrcContent)
                 if (tempFile.renameTo(lrcFile)) {
                     LogManager.i("LocalLyricsProvider: Saved companion .lrc file to local storage (atomic)")
