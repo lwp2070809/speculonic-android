@@ -9,6 +9,7 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.scheduler.Requirements
 import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.util.LogManager
+
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.withLock
@@ -17,6 +18,7 @@ import java.util.concurrent.Executors
 @OptIn(UnstableApi::class)
 object DownloadManagerHelper {
     private var downloadManager: DownloadManager? = null
+    private var downloadExecutor: java.util.concurrent.ExecutorService? = null
 
     
     fun getDownloadManager(context: Context): DownloadManager {
@@ -67,7 +69,8 @@ object DownloadManagerHelper {
         val databaseProvider = CacheManager.getDatabaseProvider(context)
         
         
-        val downloadExecutor = Executors.newFixedThreadPool(4)
+        val newExecutor = Executors.newFixedThreadPool(4)
+        downloadExecutor = newExecutor
         
         LogManager.i("Initializing DownloadManager for Persistent Track with Cascade Read. mobilePlayAllowed=$mobilePlayAllowed")
         
@@ -76,7 +79,7 @@ object DownloadManagerHelper {
             databaseProvider,
             downloadCache,
             upstreamDataSourceFactory,
-            downloadExecutor
+            newExecutor
         ).apply {
             maxParallelDownloads = 5 
             
@@ -139,13 +142,19 @@ object DownloadManagerHelper {
     }
 
     
-    fun reset() {
+    fun release() {
         kotlinx.coroutines.runBlocking {
             mutex.withLock {
-                LogManager.i("Resetting DownloadManagerHelper.")
+                LogManager.i("Releasing DownloadManagerHelper resources.")
                 downloadManager?.release()
                 downloadManager = null
+                downloadExecutor?.shutdown()
+                downloadExecutor = null
             }
         }
+    }
+    
+    fun reset() {
+        release()
     }
 }

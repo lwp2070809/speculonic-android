@@ -148,14 +148,19 @@ class PreferencesManager(private val context: Context) {
                     encryptedCache[encKey] = encValue
                     encValue
                 } else {
-                    
-                    val oldValue = preferences[dsKey] ?: ""
-                    if (oldValue.isNotEmpty()) {
-                        encryptedPrefs.edit().putString(encKey, oldValue).apply()
-                        encryptedCache[encKey] = oldValue
-                        
+                    val isMigrated = encryptedPrefs.getBoolean("migrated_$encKey", false)
+                    if (isMigrated) {
+                        ""
+                    } else {
+                        val oldValue = preferences[dsKey] ?: ""
+                        if (oldValue.isNotEmpty()) {
+                            encryptedPrefs.edit().putString(encKey, oldValue).putBoolean("migrated_$encKey", true).apply()
+                            encryptedCache[encKey] = oldValue
+                        } else {
+                            encryptedPrefs.edit().putBoolean("migrated_$encKey", true).apply()
+                        }
+                        oldValue
                     }
-                    oldValue
                 }
             }
         }

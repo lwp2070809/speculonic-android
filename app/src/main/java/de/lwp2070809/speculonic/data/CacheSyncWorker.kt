@@ -364,17 +364,17 @@ class CacheSyncWorker @AssistedInject constructor(
                 md5 = song.md5
             )
 
-            val localUri = try {
+            val localUriResult = try {
                 CacheExporter.exportToSaf(context, songModel, lyrics, coverArtBytes, cacheDataSourceFactory)
             } catch (e: SecurityException) {
                 LogManager.e("CacheSync: SAF permission expired during migration", e)
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.saf_permission_expired), Toast.LENGTH_LONG).show()
                 }
-                null
+                kotlin.Result.failure(e)
             }
 
-            if (localUri != null) {
+            localUriResult.onSuccess { localUri ->
                 musicDao.updateSongLocalUri(song.id, localUri)
                 LogManager.i("CacheSync: Migrated ${song.title} to SAF successfully.")
 
@@ -386,6 +386,11 @@ class CacheSyncWorker @AssistedInject constructor(
                     } catch (e: Exception) {
                         LogManager.e("CacheSync: Failed to clean playback cache for migrated ${song.title}", e)
                     }
+                }
+            }.onFailure {
+                LogManager.e("CacheSync: Migration failed for ${song.title}: ${it.message}")
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -22,6 +22,7 @@ object EntityMapper {
         isStarred: Boolean? = null,
         lastUpdated: Long? = null
     ): SongEntity {
+        require(song.id.isNotBlank()) { "Song ID cannot be blank" }
         val serverStarredTime = song.starred?.let { parseIsoTime(it) }
         val finalStarred = isStarred ?: (song.starred != null)
         
@@ -82,6 +83,7 @@ object EntityMapper {
     }
 
     fun albumToEntity(album: Album, existing: AlbumEntity? = null, isStarred: Boolean? = null): AlbumEntity {
+        require(album.id.isNotBlank()) { "Album ID cannot be blank" }
         val serverStarredTime = album.starred?.let { parseIsoTime(it) }
         val finalStarred = isStarred ?: (album.starred != null)
         

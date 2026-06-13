@@ -221,7 +221,7 @@ object DownloadTracker {
                 LogManager.e("DownloadTracker: Failed to fetch additional metadata for export", e)
             }
 
-            val localUri = try {
+            val localUriResult = try {
                 CacheExporter.exportToSaf(
                     context,
                     song,
@@ -234,10 +234,10 @@ object DownloadTracker {
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.saf_permission_expired), Toast.LENGTH_LONG).show()
                 }
-                null
+                kotlin.Result.failure(e)
             }
 
-            if (localUri != null) {
+            localUriResult.onSuccess { localUri ->
                 db.musicDao().updateSongCacheStatus(download.request.id, localUri, true)
                 LogManager.i("DownloadTracker: Song ${download.request.id} exported to SAF and database status marked: $localUri")
                 
@@ -250,6 +250,11 @@ object DownloadTracker {
                     } catch (e: Exception) {
                         LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
                     }
+                }
+            }.onFailure {
+                LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
                 }
             }
         }

@@ -2,7 +2,7 @@
   "formatVersion": 1,
   "database": {
     "version": 19,
-    "identityHash": "540d66fc9f40476ee64237a56680a37f",
+    "identityHash": "f1fead6c1912c72ba6e8a7aa52155770",
     "entities": [
       {
         "tableName": "artists",
@@ -291,7 +291,38 @@
           "columnNames": [
             "id"
           ]
-        }
+        },
+        "indices": [
+          {
+            "name": "index_songs_albumId_track",
+            "unique": false,
+            "columnNames": [
+              "albumId",
+              "track"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_albumId_track` ON `${TABLE_NAME}` (`albumId`, `track`)"
+          },
+          {
+            "name": "index_songs_artistId_title",
+            "unique": false,
+            "columnNames": [
+              "artistId",
+              "title"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_artistId_title` ON `${TABLE_NAME}` (`artistId`, `title`)"
+          },
+          {
+            "name": "index_songs_starred",
+            "unique": false,
+            "columnNames": [
+              "starred"
+            ],
+            "orders": [],
+            "createSql": "CREATE INDEX IF NOT EXISTS `index_songs_starred` ON `${TABLE_NAME}` (`starred`)"
+          }
+        ]
       },
       {
         "tableName": "playlists",
@@ -463,7 +494,7 @@
     ],
     "setupQueries": [
       "CREATE TABLE IF NOT EXISTS room_master_table (id INTEGER PRIMARY KEY,identity_hash TEXT)",
-      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, '540d66fc9f40476ee64237a56680a37f')"
+      "INSERT OR REPLACE INTO room_master_table (id,identity_hash) VALUES(42, 'f1fead6c1912c72ba6e8a7aa52155770')"
     ]
   }
 }

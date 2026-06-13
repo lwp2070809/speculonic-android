@@ -43,6 +43,7 @@ object CacheExporter {
         }
     }
 
+
     
     fun invalidateCache() {
         cachedRootDoc = null
@@ -55,15 +56,15 @@ object CacheExporter {
         lyrics: String? = null,
         coverArtBytes: ByteArray? = null,
         cacheDataSourceFactory: CacheDataSource.Factory
-    ): String? = withContext(Dispatchers.IO) {
+    ): Result<String> = withContext(Dispatchers.IO) {
         val preferencesManager = PreferencesManager.getInstance(context)
-        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext null
+        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext Result.failure(Exception("SAF未配置"))
         
-        val cache = cacheDataSourceFactory.cache ?: return@withContext null
+        val cache = cacheDataSourceFactory.cache ?: return@withContext Result.failure(Exception("缓存实例缺失"))
         val cachedSpans = cache.getCachedSpans(song.id)
         if (cachedSpans.isEmpty()) {
             LogManager.i("CacheExporter: Song ${song.id} has no cached spans. Skipping export.")
-            return@withContext null
+            return@withContext Result.failure(Exception("缓存文件不完整"))
         }
 
         var contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(song.id))
@@ -73,7 +74,7 @@ object CacheExporter {
 
         if (contentLength <= 0) {
             LogManager.e("CacheExporter: Could not determine content length for ${song.id}")
-            return@withContext null
+            return@withContext Result.failure(Exception("无法获取文件长度"))
         }
 
         try {
@@ -82,7 +83,7 @@ object CacheExporter {
             
             if (rootDoc == null) {
                 LogManager.e("CacheExporter: Failed to access SAF directory: $targetSafUriString")
-                return@withContext null
+                return@withContext Result.failure(Exception("无法访问目标文件夹"))
             }
             
             val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
@@ -97,7 +98,7 @@ object CacheExporter {
             
             if (docFile == null) {
                 LogManager.e("CacheExporter: Could not create file in SAF: $finalFileName")
-                return@withContext null
+                return@withContext Result.failure(Exception("无法创建目标文件"))
             }
 
             
@@ -139,10 +140,10 @@ object CacheExporter {
             }
             
             LogManager.i("CacheExporter: Bit-perfect export complete for ${song.id}")
-            return@withContext docFile.uri.toString()
+            return@withContext Result.success(docFile.uri.toString())
         } catch (e: Exception) {
             LogManager.e("CacheExporter: Export failed for ${song.id}", e)
-            null
+            Result.failure(e)
         }
     }
 }

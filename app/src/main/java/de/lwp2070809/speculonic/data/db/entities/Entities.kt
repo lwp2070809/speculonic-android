@@ -36,7 +36,14 @@ data class AlbumListItemEntity(
     val orderIndex: Int
 )
 
-@Entity(tableName = "songs")
+@Entity(
+    tableName = "songs",
+    indices = [
+        Index(value = ["albumId", "track"]),
+        Index(value = ["artistId", "title"]),
+        Index(value = ["starred"])
+    ]
+)
 data class SongEntity(
     @PrimaryKey val id: String,
     val parent: String? = null,
