@@ -45,6 +45,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -91,10 +92,14 @@ class MainActivity : AppCompatActivity() {
             val mobilePlayAllowed by preferencesManager.mobilePlayAllowed.collectAsState(initial = true)
             val notificationReminderEnabled by preferencesManager.notificationReminderEnabled.collectAsState(initial = true)
 
-            
-            val isEffectivelyOnline = remember(isOnlineReal, isMetered, mobilePlayAllowed) {
-                isOnlineReal && (!isMetered || mobilePlayAllowed)
-            }
+            val isEffectivelyOnline by remember(networkMonitor, preferencesManager) {
+                combine(
+                    networkMonitor.networkStatus,
+                    preferencesManager.mobilePlayAllowed
+                ) { status, allowed ->
+                    status.isOnline && (!status.isMetered || allowed)
+                }.distinctUntilChanged()
+            }.collectAsState(initial = true)
 
             var showCancelDownloadsDialog by remember { mutableStateOf(false) }
 

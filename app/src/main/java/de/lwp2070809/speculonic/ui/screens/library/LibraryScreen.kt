@@ -2,14 +2,23 @@ package de.lwp2070809.speculonic.ui.screens.library
 
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
@@ -22,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -69,6 +79,10 @@ fun LibraryScreen(
             viewModel.setSelectedTabIndex(pagerState.currentPage)
         }
     }
+
+    val isLibraryEmpty = uiState.albums.isEmpty() && 
+                         uiState.artists.isEmpty() && 
+                         uiState.playlists.isEmpty()
 
     Column(modifier = Modifier.fillMaxSize()) {
         PrimaryScrollableTabRow(
@@ -129,37 +143,67 @@ fun LibraryScreen(
                     }
 
                     Box(modifier = Modifier.weight(1f)) {
-                        HorizontalPager(
-                            state = pagerState,
-                            modifier = Modifier.fillMaxSize(),
-                            beyondViewportPageCount = 3
-                        ) { page ->
-                            when (page) {
-                                0 -> AlbumGrid(
-                                    albums = uiState.albums,
-                                    onAlbumClick = onAlbumClick
+                        if (isLibraryEmpty && !uiState.isRefreshing && !uiState.isSyncing) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LibraryMusic,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(72.dp),
+                                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
                                 )
-                                1 -> PlaylistList(
-                                    playlists = uiState.playlists, 
-                                    onPlaylistClick = onPlaylistClick,
-                                    onCreatePlaylist = { viewModel.createPlaylist(it) },
-                                    onDeletePlaylist = { viewModel.deletePlaylist(it) },
-                                    isOnline = isOnline,
-                                    isEffectivelyOnline = isEffectivelyOnline
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = stringResource(R.string.no_content_available),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
-                                2 -> allSongsPaged?.let { songsPaged ->
-                                    AllSongsList(
-                                        songsPaged = songsPaged,
+                                Spacer(modifier = Modifier.height(24.dp))
+                                Button(
+                                    onClick = { viewModel.refreshQuickly() },
+                                    modifier = Modifier.fillMaxWidth(0.7f)
+                                ) {
+                                    Text(stringResource(R.string.sync_now))
+                                }
+                            }
+                        } else {
+                            HorizontalPager(
+                                state = pagerState,
+                                modifier = Modifier.fillMaxSize(),
+                                beyondViewportPageCount = 3
+                            ) { page ->
+                                when (page) {
+                                    0 -> AlbumGrid(
+                                        albums = uiState.albums,
+                                        onAlbumClick = onAlbumClick
+                                    )
+                                    1 -> PlaylistList(
+                                        playlists = uiState.playlists, 
+                                        onPlaylistClick = onPlaylistClick,
+                                        onCreatePlaylist = { viewModel.createPlaylist(it) },
+                                        onDeletePlaylist = { viewModel.deletePlaylist(it) },
                                         isOnline = isOnline,
                                         isEffectivelyOnline = isEffectivelyOnline
                                     )
-                                }
-                                3 -> ArtistsList(
-                                    artists = uiState.artists, 
-                                    onArtistClick = { artist ->
-                                        onArtistClick(artist.id)
+                                    2 -> allSongsPaged?.let { songsPaged ->
+                                        AllSongsList(
+                                            songsPaged = songsPaged,
+                                            isOnline = isOnline,
+                                            isEffectivelyOnline = isEffectivelyOnline
+                                        )
                                     }
-                                ) 
+                                    3 -> ArtistsList(
+                                        artists = uiState.artists, 
+                                        onArtistClick = { artist ->
+                                            onArtistClick(artist.id)
+                                        }
+                                    ) 
+                                }
                             }
                         }
                     }

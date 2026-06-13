@@ -113,7 +113,7 @@ private fun MainContent(
         startRoute = AppRoute.Discover,
         topLevelRoutes = topLevelRoutes
     )
-    val navigator = remember(navigationState) { Navigator(navigationState) }
+    val navigator = remember(navigationState, context) { Navigator(navigationState, context) }
     
     var showNowPlaying by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
@@ -185,6 +185,7 @@ private fun MainContent(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
+            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
             topBar = {
                 MainTopBar(
                     currentRoute = currentRoute,

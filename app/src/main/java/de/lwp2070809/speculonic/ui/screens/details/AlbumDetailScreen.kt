@@ -33,6 +33,8 @@ import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.toMediaItem
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -47,6 +49,9 @@ fun AlbumDetailScreen(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
+    val currentSongId by remember(playbackController) {
+        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -141,18 +146,19 @@ fun AlbumDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.songs) { index, song ->
+                    itemsIndexed(uiState.songs, key = { _, song -> song.id }) { index, song ->
                         SongListItem(
                             song = song,
+                            isCurrent = song.id == currentSongId,
                             isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
+                            isEffectivelyOnline = isEffectivelyOnline,
                             onClick = {
                                 val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
                                 playbackController.play(mediaItems, index, queueTitle = uiState.album?.name)
                             },
                             onStarClick = { star ->
                                 scope.launch {
-                                    repository.starSong(song.id, star)
+                                     repository.starSong(song.id, star)
                                 }
                             },
                             onDownloadClick = {

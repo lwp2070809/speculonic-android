@@ -96,7 +96,11 @@ fun SleepTimerOptionsView(
             onDismiss = { showTimeDialog = false },
             onConfirm = { 
                 val minutes = it.toIntOrNull() ?: lastMinutes
-                onModeSelected(SleepTimerMode.TIME, minutes, 0)
+                if (minutes == 0) {
+                    onCancelTimer()
+                } else {
+                    onModeSelected(SleepTimerMode.TIME, minutes, 0)
+                }
                 showTimeDialog = false
             }
         )
@@ -109,7 +113,11 @@ fun SleepTimerOptionsView(
             onDismiss = { showSongsDialog = false },
             onConfirm = { 
                 val count = it.toIntOrNull() ?: lastSongCount
-                onModeSelected(SleepTimerMode.SONG_COUNT, 0, count)
+                if (count == 0) {
+                    onCancelTimer()
+                } else {
+                    onModeSelected(SleepTimerMode.SONG_COUNT, 0, count)
+                }
                 showSongsDialog = false
             }
         )

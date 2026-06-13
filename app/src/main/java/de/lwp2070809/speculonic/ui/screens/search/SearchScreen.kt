@@ -54,6 +54,8 @@ import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.toMediaItem
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -68,10 +70,13 @@ fun SearchScreen(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
+    val currentSongId by remember(playbackController) {
+        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+
     val context = LocalContext.current
     val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
-    
     
     BackHandler(onBack = onClose)
 
@@ -82,7 +87,6 @@ fun SearchScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        
         Row(
             modifier = Modifier
                 .statusBarsPadding()
@@ -96,7 +100,12 @@ fun SearchScreen(
             OutlinedTextField(
                 value = uiState.query,
                 onValueChange = { viewModel.onQueryChange(it) },
-                placeholder = { Text(stringResource(R.string.search_hint)) },
+                placeholder = { 
+                    Text(
+                        text = if (isOnline) stringResource(R.string.search_hint) 
+                               else stringResource(R.string.search_offline_warning)
+                    ) 
+                },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
                 enabled = isOnline,
@@ -120,13 +129,14 @@ fun SearchScreen(
                         Icons.Default.WifiOff,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = stringResource(R.string.offline_mode),
+                        text = stringResource(R.string.search_offline_warning),
                         style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.padding(horizontal = 24.dp)
                     )
                 }
             } else {
@@ -137,7 +147,6 @@ fun SearchScreen(
                         bottom = navigationBarsPadding + 80.dp
                     )
                 ) {
-                    
                     if (uiState.results.artist.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.artists)) }
                         items(uiState.results.artist) { artist ->
@@ -147,7 +156,6 @@ fun SearchScreen(
                         }
                     }
 
-                    
                     if (uiState.results.album.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.albums)) }
                         items(uiState.results.album) { album ->
@@ -157,12 +165,12 @@ fun SearchScreen(
                         }
                     }
 
-                    
                     if (uiState.results.song.isNotEmpty()) {
                         item { SectionHeader(stringResource(R.string.songs)) }
                         items(uiState.results.song) { song ->
                             SongListItem(
                                 song = song,
+                                isCurrent = song.id == currentSongId,
                                 isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 onClick = {

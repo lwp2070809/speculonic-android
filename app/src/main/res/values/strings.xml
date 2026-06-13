@@ -291,4 +291,5 @@
     <string name="sync_cover_art_option_title">And sync cover art</string>
     <string name="sync_cover_art_option_desc">May consume hundreds of MB of data, WiFi recommended.</string>
     <string name="pending_cover_art_sync">Waiting for metadata sync to complete before syncing cover art.</string>
+    <string name="search_offline_warning">Search is disabled in offline mode.</string>
 </resources>

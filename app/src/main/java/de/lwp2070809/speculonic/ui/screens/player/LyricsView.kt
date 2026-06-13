@@ -56,39 +56,14 @@ fun LyricsView(
     val isDragged by listState.interactionSource.collectIsDraggedAsState()
     var lastUserInteractionTime by remember { mutableLongStateOf(0L) }
 
-    
-    var internalPosition by remember { mutableLongStateOf(currentPosition) }    
-    
-    LaunchedEffect(currentPosition) {
-        internalPosition = currentPosition
-    }
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    
-    LaunchedEffect(isPlaying, lifecycleOwner) {
-        if (isPlaying) {
-            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.RESUMED) {
-                while (true) {
-                    delay(50)
-                    internalPosition += 50
-                }
-            }
-        }
-    }
-
-    
     var wasDragged by remember { mutableStateOf(false) }
     
-    
-    val currentLineIndex = remember(lyricsLines, internalPosition) {
+    val currentLineIndex = remember(lyricsLines, currentPosition) {
         if (lyricsLines.isEmpty()) {
             0
         } else {
-            var index = lyricsLines.binarySearch { it.timeMs.compareTo(internalPosition) }
+            var index = lyricsLines.binarySearch { it.timeMs.compareTo(currentPosition) }
             if (index < 0) {
-                
-                
                 index = -index - 2
             }
             if (index < 0) 0 else index
@@ -116,7 +91,8 @@ fun LyricsView(
                         val focalPoint = (viewHeightPx * 0.33f).toInt()
                         val targetItem = visibleItems.find { item ->
                             item.offset <= focalPoint && (item.offset + item.size) >= focalPoint
-                        }
+                        } ?: visibleItems.minByOrNull { kotlin.math.abs(it.offset + it.size / 2 - focalPoint) }
+                        
                         targetItem?.let {
                             if (it.index in lyricsLines.indices) {
                                 onSeek(lyricsLines[it.index].timeMs)
@@ -167,7 +143,10 @@ fun LyricsView(
                 contentPadding = PaddingValues(top = maxHeight / 3, bottom = maxHeight / 2),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                itemsIndexed(lyricsLines) { index, line ->
+                itemsIndexed(
+                    items = lyricsLines,
+                    key = { _, line -> line.timeMs.hashCode() + line.content.hashCode() }
+                ) { index, line ->
                     val isCurrent = index == currentLineIndex
                     
                     val color by animateColorAsState(

@@ -72,15 +72,16 @@ fun ArtistsList(
 
     var collapsedGroups by remember { mutableStateOf(emptySet<String>()) }
     
-    val flatListItems = remember(sortedArtists, collapsedGroups) {
-        val list = mutableListOf<ArtistListItem>()
-        
-        val grouped = sortedArtists.groupBy { artist ->
+    val groupedArtists = remember(sortedArtists) {
+        sortedArtists.groupBy { artist ->
             val firstChar = artist.name.trim().take(1).uppercase()
             if (firstChar.isEmpty()) "#" else firstChar
         }
-        
-        grouped.forEach { (char, artistList) ->
+    }
+
+    val flatListItems = remember(groupedArtists, collapsedGroups) {
+        val list = mutableListOf<ArtistListItem>()
+        groupedArtists.forEach { (char, artistList) ->
             val isCollapsed = collapsedGroups.contains(char)
             list.add(ArtistListItem.Header(char, artistList.size, isCollapsed))
             if (!isCollapsed) {

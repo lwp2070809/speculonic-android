@@ -38,6 +38,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
     
+    @Volatile
     private var isUsingEphemeralData = false
 
     init {

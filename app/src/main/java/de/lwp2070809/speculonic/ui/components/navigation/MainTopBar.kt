@@ -30,19 +30,9 @@ fun MainTopBar(
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
-    val isTopLevel = currentRoute?.let { 
-        it is AppRoute.Discover || 
-        it is AppRoute.Library || 
-        it is AppRoute.Settings
-    } ?: false
-
-    val isDefaultTopBarRoute = currentRoute?.let { 
-        it is AppRoute.Discover || 
-        it is AppRoute.Library || 
-        it is AppRoute.Settings ||
-        it is AppRoute.FavoriteSongs ||
-        it is AppRoute.FavoriteAlbums
-    } ?: false
+    val appRoute = currentRoute as? AppRoute
+    val isTopLevel = appRoute?.isTopLevel ?: false
+    val isDefaultTopBarRoute = appRoute?.isDefaultTopBar ?: false
     
     TopAppBar(
         title = { 
@@ -50,11 +40,7 @@ fun MainTopBar(
             val titleText = when {
                 isTopLevel -> appName
                 isDefaultTopBarRoute -> {
-                    val titleRes = when (currentRoute) {
-                        is AppRoute.FavoriteSongs -> R.string.favorite_songs
-                        is AppRoute.FavoriteAlbums -> R.string.favorite_albums
-                        else -> null
-                    }
+                    val titleRes = appRoute.defaultTitleRes
                     titleRes?.let { stringResource(it) } ?: ""
                 }
                 topBarState.title.isNotEmpty() -> topBarState.title

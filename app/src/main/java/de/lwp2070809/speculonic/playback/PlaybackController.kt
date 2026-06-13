@@ -441,7 +441,22 @@ class PlaybackController private constructor(context: Context) {
 
     fun removeFromQueue(index: Int) {
         executeWhenReady { controller ->
-            controller.removeMediaItem(index)
+            if (index in 0 until controller.mediaItemCount) {
+                if (index == controller.currentMediaItemIndex) {
+                    if (controller.mediaItemCount == 1) {
+                        controller.stop()
+                        controller.clearMediaItems()
+                    } else if (index == controller.mediaItemCount - 1) {
+                        controller.seekTo(0, 0L)
+                        controller.removeMediaItem(index)
+                    } else {
+                        controller.seekToNext()
+                        controller.removeMediaItem(index)
+                    }
+                } else {
+                    controller.removeMediaItem(index)
+                }
+            }
         }
     }
 

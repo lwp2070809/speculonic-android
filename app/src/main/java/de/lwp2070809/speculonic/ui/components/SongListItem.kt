@@ -34,15 +34,13 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.PlaylistAddResult
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.map
 
 @Composable
 fun SongListItem(
     song: Song,
+    isCurrent: Boolean,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     onClick: () -> Unit,
@@ -53,18 +51,10 @@ fun SongListItem(
     trailingContentOverride: @Composable (() -> Unit)? = null
 ) {
     val repository = LocalSubsonicRepository.current
-    val playbackController = LocalPlaybackController.current
-    val currentSongId by remember(playbackController) {
-        playbackController.playbackState
-            .map { it.currentSongId }
-            .distinctUntilChanged()
-    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
-    val isCurrent = currentSongId == song.id
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
-    
     
     val isEnabled = isEffectivelyOnline || isDownloaded
     val alpha = if (isEnabled) 1.0f else 0.38f

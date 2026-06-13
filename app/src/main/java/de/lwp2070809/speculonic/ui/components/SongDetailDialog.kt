@@ -47,14 +47,13 @@ fun SongDetailDialog(
 
     val pagerState = rememberPagerState(pageCount = { 3 })
 
-    
     LaunchedEffect(pagerState.currentPage, songEntity?.localUri) {
         val uri = songEntity?.localUri
         if (uri != null) {
             if (pagerState.currentPage == 0 && sha1 == null) {
-                sha1 = calculateSha1(uri, context)
+                sha1 = withContext(Dispatchers.IO) { calculateSha1(uri, context) }
             } else if (pagerState.currentPage == 1 && id3Metadata == null) {
-                id3Metadata = extractId3(uri, songEntity?.suffix, context)
+                id3Metadata = withContext(Dispatchers.IO) { extractId3(uri, songEntity?.suffix, context) }
             }
         }
     }
@@ -238,7 +237,8 @@ private fun RemoteTab(
             return@Column
         }
 
-        val diffs = compareSongs(localSong, remoteSong)
+        val context = LocalContext.current
+        val diffs = remember(localSong, remoteSong) { compareSongs(context, localSong, remoteSong) }
         if (diffs.isEmpty()) {
             Text(
                 text = stringResource(R.string.data_synchronized),
@@ -273,8 +273,11 @@ private fun RemoteTab(
 
 private data class DiffItem(val field: String, val localValue: String, val remoteValue: String)
 
-@Composable
-private fun compareSongs(local: de.lwp2070809.speculonic.data.db.entities.SongEntity, remote: Song): List<DiffItem> {
+private fun compareSongs(
+    context: Context,
+    local: de.lwp2070809.speculonic.data.db.entities.SongEntity,
+    remote: Song
+): List<DiffItem> {
     val diffs = mutableListOf<DiffItem>()
     fun check(field: String, l: Any?, r: Any?) {
         val ls = l?.toString() ?: "-"
@@ -282,14 +285,14 @@ private fun compareSongs(local: de.lwp2070809.speculonic.data.db.entities.SongEn
         if (ls != rs) diffs.add(DiffItem(field, ls, rs))
     }
 
-    check(stringResource(R.string.title), local.title, remote.title)
-    check(stringResource(R.string.artist), local.artist, remote.artist)
-    check(stringResource(R.string.album), local.album, remote.album)
-    check(stringResource(R.string.duration), local.duration, remote.duration)
-    check(stringResource(R.string.suffix_label), local.suffix, remote.suffix)
-    check(stringResource(R.string.bitrate), local.bitRate, remote.bitRate)
-    check(stringResource(R.string.file_size), local.size, remote.size)
-    check(stringResource(R.string.path), local.path, remote.path)
+    check(context.getString(R.string.title), local.title, remote.title)
+    check(context.getString(R.string.artist), local.artist, remote.artist)
+    check(context.getString(R.string.album), local.album, remote.album)
+    check(context.getString(R.string.duration), local.duration, remote.duration)
+    check(context.getString(R.string.suffix_label), local.suffix, remote.suffix)
+    check(context.getString(R.string.bitrate), local.bitRate, remote.bitRate)
+    check(context.getString(R.string.file_size), local.size, remote.size)
+    check(context.getString(R.string.path), local.path, remote.path)
 
     return diffs
 }
@@ -340,12 +343,7 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
             val physicalPath = FormatUtils.getFullPhysicalPath(uriString)
             var file = java.io.File(physicalPath)
             
-            
-            
-            
             if ((!file.exists() || !file.canRead()) && uriString.startsWith("content://")) {
-                
-                
                 val ext = suffix?.lowercase() ?: uriString.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotEmpty() } ?: "mp3"
                 val tempFile = java.io.File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
                 context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
@@ -387,7 +385,6 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
             
             val tag = audioFile.tag
             if (tag != null) {
-                
                 metadataMap["Title"] = tag.getFirst(org.jaudiotagger.tag.FieldKey.TITLE) ?: ""
                 metadataMap["Artist"] = tag.getFirst(org.jaudiotagger.tag.FieldKey.ARTIST) ?: ""
                 metadataMap["Album"] = tag.getFirst(org.jaudiotagger.tag.FieldKey.ALBUM) ?: ""
@@ -395,12 +392,10 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
                 metadataMap["Track"] = tag.getFirst(org.jaudiotagger.tag.FieldKey.TRACK) ?: ""
                 metadataMap["Genre"] = tag.getFirst(org.jaudiotagger.tag.FieldKey.GENRE) ?: ""
                 
-                
                 val lyrics = tag.getFirst(org.jaudiotagger.tag.FieldKey.LYRICS)
                 if (!lyrics.isNullOrEmpty()) {
                     metadataMap["Lyrics (Parsed)"] = lyrics
                 }
-                
                 
                 val fields = tag.fields
                 while (fields.hasNext()) {
@@ -408,19 +403,15 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
                     val key = field.id
                     val value = if (field.isBinary) "[Binary Data]" else field.toString()
                     
-                    
                     if (!key.equals("APIC", ignoreCase = true) && !key.equals("PIC", ignoreCase = true)) {
-                        
                         val cleanValue = value.replace(Regex("^Text=\"?|\"?$"), "").trim()
                         metadataMap["Raw: $key"] = cleanValue
                     }
                 }
                 
-                
                 val hasCover = tag.firstArtwork != null
                 metadataMap["Embedded Cover"] = if (hasCover) "Yes" else "No"
             }
-            
             
             if (file.absolutePath.contains(context.cacheDir.absolutePath)) {
                 file.delete()

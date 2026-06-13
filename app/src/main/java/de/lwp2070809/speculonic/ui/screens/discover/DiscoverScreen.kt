@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.WifiOff
+import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
@@ -36,6 +37,8 @@ import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -48,7 +51,8 @@ fun DiscoverScreen(
     onViewAllFavoriteSongs: () -> Unit = {},
     onViewAllFavoriteAlbums: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
-    onPlaylistClick: (String) -> Unit = {}
+    onPlaylistClick: (String) -> Unit = {},
+    onConfigureServerClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val repository = LocalSubsonicRepository.current
@@ -66,7 +70,7 @@ fun DiscoverScreen(
 
     LaunchedEffect(isOnline) {
         if (!isOnline && !viewModel.hasHandledOfflineStartup) {
-            viewModel.hasHandledOfflineStartup = true
+            viewModel.markOfflineStartupHandled()
             forceShowOfflineMessage = true
             delay(1000)
             forceShowOfflineMessage = false
@@ -76,16 +80,7 @@ fun DiscoverScreen(
     }
 
     LaunchedEffect(isEmpty, uiState.isLoading) {
-        if (isEmpty) {
-            if (uiState.isLoading) {
-                showEmptyState = true
-            } else {
-                delay(300)
-                showEmptyState = true
-            }
-        } else {
-            showEmptyState = false
-        }
+        showEmptyState = isEmpty && !uiState.isLoading
     }
 
     PullToRefreshBox(
@@ -135,15 +130,39 @@ fun DiscoverScreen(
                     )
                 }
             } else {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
                 ) {
+                    Icon(
+                        imageVector = Icons.Default.LibraryMusic,
+                        contentDescription = null,
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = stringResource(R.string.no_content_available),
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = { viewModel.refreshData() },
+                        modifier = Modifier.fillMaxWidth(0.7f)
+                    ) {
+                        Text(stringResource(R.string.sync_now))
+                    }
+                    Spacer(modifier = Modifier.height(8.dp))
+                    OutlinedButton(
+                        onClick = onConfigureServerClick,
+                        modifier = Modifier.fillMaxWidth(0.7f)
+                    ) {
+                        Text(stringResource(R.string.settings))
+                    }
                 }
             }
         } else {
@@ -282,6 +301,11 @@ fun FavoriteSongsRow(
     onSongClick: (Song) -> Unit
 ) {
     val repository = LocalSubsonicRepository.current
+    val playbackController = LocalPlaybackController.current
+    val currentSongId by remember(playbackController) {
+        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+
     val context = LocalContext.current
     val downloadController = remember(repository) { de.lwp2070809.speculonic.playback.DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
@@ -289,8 +313,9 @@ fun FavoriteSongsRow(
         songs.take(3).forEach { song ->
             SongListItem(
                 song = song,
+                isCurrent = song.id == currentSongId,
                 isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
+                isEffectivelyOnline = isEffectivelyOnline,
                 onClick = { onSongClick(song) },
                 onStarClick = { star ->
                     scope.launch {

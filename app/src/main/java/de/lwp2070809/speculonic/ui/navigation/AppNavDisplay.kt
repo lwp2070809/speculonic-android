@@ -92,7 +92,8 @@ fun AppNavDisplay(
                 onViewAllFavoriteSongs = { navigator.navigate(AppRoute.FavoriteSongs) },
                 onViewAllFavoriteAlbums = { navigator.navigate(AppRoute.FavoriteAlbums) },
                 onAlbumClick = { navigator.navigate(AppRoute.AlbumDetail(it)) },
-                onPlaylistClick = { navigator.navigate(AppRoute.PlaylistDetail(it)) }
+                onPlaylistClick = { navigator.navigate(AppRoute.PlaylistDetail(it)) },
+                onConfigureServerClick = { navigator.navigate(AppRoute.Settings) }
             )
         }
 
@@ -262,6 +263,18 @@ fun AppNavDisplay(
         }
     }
 
+    val safeEntryProvider: (NavKey) -> androidx.navigation3.runtime.NavEntry<NavKey> = { key ->
+        try {
+            entryProvider(key)
+        } catch (e: Exception) {
+            androidx.navigation3.runtime.NavEntry(key) { _ ->
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
+                    androidx.compose.material3.Text("Route not found: $key")
+                }
+            }
+        }
+    }
+
     val context = androidx.compose.ui.platform.LocalContext.current
     NavDisplay(
         backStack = navigationState.getRetainedKeys(),
@@ -285,7 +298,7 @@ fun AppNavDisplay(
         ),
         transitionSpec = myTransitionSpec,
         popTransitionSpec = myPopTransitionSpec,
-        entryProvider = entryProvider
+        entryProvider = safeEntryProvider
     )
 }
 

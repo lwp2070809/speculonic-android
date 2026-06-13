@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -29,6 +31,15 @@ data class DiscoverUiState(
     val error: String? = null
 )
 
+private data class DiscoverDataPackage(
+    val starredSongs: List<Song>,
+    val pinnedPlaylists: List<de.lwp2070809.speculonic.network.model.Playlist>,
+    val starredAlbums: List<Album>,
+    val newest: List<Album>,
+    val frequent: List<Album>,
+    val random: List<Album>
+)
+
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val repository: SubsonicRepository,
@@ -38,13 +49,15 @@ class DiscoverViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DiscoverUiState())
     val uiState: StateFlow<DiscoverUiState> = _uiState.asStateFlow()
 
+    @Volatile
     var hasHandledOfflineStartup = false
+        private set
+
+    fun markOfflineStartupHandled() {
+        hasHandledOfflineStartup = true
+    }
 
     init {
-        viewModelScope.launch {
-            kotlinx.coroutines.delay(2000)
-            hasHandledOfflineStartup = true
-        }
         loadData()
         observeData()
         observeServerConfigChanges()
@@ -65,87 +78,68 @@ class DiscoverViewModel @Inject constructor(
     }
 
     private fun observeData() {
-        
         viewModelScope.launch {
-            repository.getStarredFlow().collectLatest { songs ->
-                _uiState.update { state ->
-                    state.copy(favoriteSongs = songs.take(10))
-                }
-            }
-        }
+            val starredSongsFlow = repository.getStarredFlow()
+            val pinnedPlaylistsFlow = repository.getPinnedPlaylistsFlow()
+            val starredAlbumsFlow = repository.getStarredAlbumsFlow()
+            val newestFlow = repository.getAlbumsByListTypeFlow("newest")
+            val frequentFlow = repository.getAlbumsByListTypeFlow("frequent")
+            val randomFlow = repository.getAlbumsByListTypeFlow("random")
 
-        
-        viewModelScope.launch {
-            repository.getPinnedPlaylistsFlow().collectLatest { playlists ->
-                _uiState.update { state ->
-                    state.copy(pinnedPlaylists = playlists)
-                }
+            combine(
+                combine(starredSongsFlow, pinnedPlaylistsFlow, starredAlbumsFlow) { a, b, c -> Triple(a, b, c) },
+                combine(newestFlow, frequentFlow, randomFlow) { a, b, c -> Triple(a, b, c) }
+            ) { firstTriple, secondTriple ->
+                DiscoverDataPackage(
+                    starredSongs = firstTriple.first,
+                    pinnedPlaylists = firstTriple.second,
+                    starredAlbums = firstTriple.third,
+                    newest = secondTriple.first,
+                    frequent = secondTriple.second,
+                    random = secondTriple.third
+                )
             }
-        }
-
-        
-        viewModelScope.launch {
-            repository.getStarredAlbumsFlow().collectLatest { albums ->
+            .distinctUntilChanged()
+            .collectLatest { data ->
                 _uiState.update { state ->
-                    state.copy(favoriteAlbums = albums.take(10))
+                    state.copy(
+                        favoriteSongs = data.starredSongs.take(10),
+                        pinnedPlaylists = data.pinnedPlaylists,
+                        favoriteAlbums = data.starredAlbums.take(10),
+                        recentlyAdded = data.newest.take(20),
+                        mostPlayed = data.frequent.take(20),
+                        randomAlbums = data.random.take(20)
+                    )
                 }
-            }
-        }
-
-        
-        viewModelScope.launch {
-            repository.getAlbumsByListTypeFlow("newest").collectLatest { albums ->
-                _uiState.update { state ->
-                    state.copy(recentlyAdded = albums.take(20))
-                }
-            }
-        }
-
-        
-        viewModelScope.launch {
-            repository.getAlbumsByListTypeFlow("frequent").collectLatest { albums ->
-                _uiState.update { state ->
-                    state.copy(mostPlayed = albums.take(20))
-                }
-            }
-        }
-
-        
-        viewModelScope.launch {
-            repository.getAlbumsByListTypeFlow("random").collectLatest { albums ->
-                _uiState.update { state ->
-                    state.copy(randomAlbums = albums.take(20))
-                }
+                markOfflineStartupHandled()
             }
         }
     }
 
-    
     fun loadData() {
         viewModelScope.launch {
             val hasData = repository.hasLocalData()
-            
             if (!hasData) {
                 _uiState.update { it.copy(isLoading = true) }
                 try {
-                    
                     syncAllDataUseCase()
                 } catch (e: Exception) {
                     LogManager.e("DiscoverViewModel: initial sync failed", e)
                 } finally {
                     _uiState.update { it.copy(isLoading = false) }
+                    markOfflineStartupHandled()
                 }
+            } else {
+                markOfflineStartupHandled()
             }
         }
     }
 
-    
     fun refreshData() {
         viewModelScope.launch {
             LogManager.d("DiscoverViewModel: Targeted refresh triggered.")
             _uiState.update { it.copy(isLoading = true) }
             try {
-                
                 val newest = repository.getAlbumList("newest", forceRefresh = true)
                 val frequent = repository.getAlbumList("frequent", forceRefresh = true)
                 val random = repository.getAlbumList("random", forceRefresh = true)
@@ -172,7 +166,6 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
-    
     fun refreshFavoriteAlbums() {
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -191,11 +184,9 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
-    
     fun playFavoriteSong(song: Song, playbackController: PlaybackController) {
         viewModelScope.launch {
             try {
-                
                 val allFavoriteSongs = repository.getStarred()
                 val mediaItems = allFavoriteSongs.map { it.toMediaItem(repository) }
                 val index = allFavoriteSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)

@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.ui.screens.library
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,8 +14,10 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -28,6 +31,8 @@ import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.toMediaItem
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -43,6 +48,10 @@ fun FavoriteList(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
+    val currentSongId by remember(playbackController) {
+        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+
     val context = LocalContext.current
     val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
@@ -54,6 +63,8 @@ fun FavoriteList(
     val isAllDownloaded = remember(downloadedIds, songs) {
         songs.isNotEmpty() && songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
     }
+
+    var lastStarClickTime by remember { mutableLongStateOf(0L) }
 
     PullToRefreshBox(
         isRefreshing = isLoading,
@@ -96,15 +107,24 @@ fun FavoriteList(
             itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
                 SongListItem(
                     song = song,
+                    isCurrent = song.id == currentSongId,
                     isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
+                    isEffectivelyOnline = isEffectivelyOnline,
                     onClick = {
                         val mediaItems = songs.map { it.toMediaItem(repository) }
                         playbackController.play(mediaItems, index, queueTitle = "Favorite")
                     },
                     onStarClick = { star ->
-                        scope.launch {
-                            repository.starSong(song.id, star)
+                        val now = System.currentTimeMillis()
+                        if (now - lastStarClickTime >= 500) {
+                            lastStarClickTime = now
+                            scope.launch {
+                                val success = repository.starSong(song.id, star)
+                                if (!success) {
+                                    Toast.makeText(context, context.getString(R.string.failed_to_fetch_remote), Toast.LENGTH_SHORT).show()
+                                    onRefresh()
+                                }
+                            }
                         }
                     },
                     onDownloadClick = { downloadController.downloadSong(song) },
@@ -114,4 +134,3 @@ fun FavoriteList(
         }
     }
 }
-

@@ -289,4 +289,5 @@
     <string name="sync_cover_art_option_title">并同步专辑封面</string>
     <string name="sync_cover_art_option_desc">可能消耗数百MB流量，建议在WiFi下进行</string>
     <string name="pending_cover_art_sync">等待元数据同步完成后同步专辑封面</string>
+    <string name="search_offline_warning">由于您处于离线模式，无法发起远程搜索</string>
 </resources>

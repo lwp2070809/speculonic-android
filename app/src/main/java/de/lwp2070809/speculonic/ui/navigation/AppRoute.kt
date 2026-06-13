@@ -2,17 +2,31 @@ package de.lwp2070809.speculonic.ui.navigation
 
 import androidx.navigation3.runtime.NavKey
 import kotlinx.serialization.Serializable
+import de.lwp2070809.speculonic.R
 
 @Serializable
 sealed interface AppRoute : NavKey {
+    val isTopLevel: Boolean get() = false
+    val isDefaultTopBar: Boolean get() = false
+    val defaultTitleRes: Int? get() = null
+
     @Serializable
-    data object Discover : AppRoute
+    data object Discover : AppRoute {
+        override val isTopLevel: Boolean get() = true
+        override val isDefaultTopBar: Boolean get() = true
+    }
     
     @Serializable
-    data object Library : AppRoute
+    data object Library : AppRoute {
+        override val isTopLevel: Boolean get() = true
+        override val isDefaultTopBar: Boolean get() = true
+    }
     
     @Serializable
-    data object Settings : AppRoute
+    data object Settings : AppRoute {
+        override val isTopLevel: Boolean get() = true
+        override val isDefaultTopBar: Boolean get() = true
+    }
     
     @Serializable data object SettingsServer : AppRoute
     @Serializable data object SettingsPlayback : AppRoute
@@ -33,8 +47,14 @@ sealed interface AppRoute : NavKey {
     data class ArtistDetail(val artistId: String) : AppRoute
     
     @Serializable
-    data object FavoriteSongs : AppRoute
+    data object FavoriteSongs : AppRoute {
+        override val isDefaultTopBar: Boolean get() = true
+        override val defaultTitleRes: Int? get() = R.string.favorite_songs
+    }
     
     @Serializable
-    data object FavoriteAlbums : AppRoute
+    data object FavoriteAlbums : AppRoute {
+        override val isDefaultTopBar: Boolean get() = true
+        override val defaultTitleRes: Int? get() = R.string.favorite_albums
+    }
 }

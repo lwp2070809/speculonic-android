@@ -19,11 +19,8 @@ object FormatUtils {
     }
 
     fun formatDuration(millis: Long): String {
-        if (millis <= 0) return "00:00"
-        val totalSeconds = millis / 1000
-        val minutes = totalSeconds / 60
-        val seconds = totalSeconds % 60
-        return String.format(Locale.getDefault(), "%02d:%02d", minutes, seconds)
+        if (millis <= 0) return "0:00"
+        return formatDuration((millis / 1000).toInt())
     }
 
     fun formatSize(bytes: Long): String {
@@ -38,7 +35,6 @@ object FormatUtils {
         )
     }
 
-    
     fun simplifySafUri(uriString: String): String {
         if (uriString.isEmpty()) return ""
         try {
@@ -60,7 +56,6 @@ object FormatUtils {
         }
     }
 
-    
     fun getFullPhysicalPath(uriString: String): String {
         if (uriString.isEmpty()) return ""
         try {
@@ -124,4 +119,3 @@ object FormatUtils {
         }
     }
 }
-

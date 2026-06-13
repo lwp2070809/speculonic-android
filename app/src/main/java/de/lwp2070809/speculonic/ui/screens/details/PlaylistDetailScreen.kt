@@ -41,6 +41,8 @@ import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.toMediaItem
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -55,6 +57,9 @@ fun PlaylistDetailScreen(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
+    val currentSongId by remember(playbackController) {
+        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
+    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
@@ -152,6 +157,7 @@ fun PlaylistDetailScreen(
                         
                         SongListItem(
                             song = song,
+                            isCurrent = song.id == currentSongId,
                             isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
                             onClick = {

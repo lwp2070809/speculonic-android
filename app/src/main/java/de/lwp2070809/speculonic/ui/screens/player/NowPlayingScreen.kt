@@ -41,6 +41,7 @@ import androidx.compose.material.icons.filled.SkipNext
 import androidx.compose.material.icons.filled.SkipPrevious
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.outlined.Info
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
@@ -197,11 +198,13 @@ fun NowPlayingScreen(
         }
     }
 
-    if (showSongInfo && uiState.currentSong != null) {
-        de.lwp2070809.speculonic.ui.components.SongDetailDialog(
-            song = uiState.currentSong!!,
-            onDismiss = { showSongInfo = false }
-        )
+    uiState.currentSong?.let { song ->
+        if (showSongInfo) {
+            de.lwp2070809.speculonic.ui.components.SongDetailDialog(
+                song = song,
+                onDismiss = { showSongInfo = false }
+            )
+        }
     }
 }
 
@@ -241,32 +244,36 @@ private fun NowPlayingMobile(
         )
     }
 
-    val coroutineScope = rememberCoroutineScope()
-    val offsetY = remember { Animatable(0f) }
+    var dragOffset by remember { mutableStateOf(0f) }
+    var isDragging by remember { mutableStateOf(false) }
+
+    val animatedOffset by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = dragOffset,
+        animationSpec = if (isDragging) tween(0) else spring(),
+        label = "dragOffset"
+    )
+
+    val collapseThresholdPx = with(androidx.compose.ui.platform.LocalDensity.current) { 300.dp.toPx() }
 
     val dragModifier = Modifier.pointerInput(showLyrics) {
         detectVerticalDragGestures(
-            onDragStart = {},
+            onDragStart = { isDragging = true },
             onVerticalDrag = { change, dragAmount ->
-                coroutineScope.launch {
-                    val newOffset = (offsetY.value + dragAmount).coerceAtLeast(0f)
-                    offsetY.snapTo(newOffset)
-                }
+                dragOffset = (dragOffset + dragAmount).coerceAtLeast(0f)
                 change.consume()
             },
             onDragEnd = {
-                coroutineScope.launch {
-                    if (offsetY.value > 300f) {
-                        onCollapse()
-                    } else {
-                        offsetY.animateTo(0f, spring())
-                    }
+                isDragging = false
+                if (dragOffset > collapseThresholdPx) {
+                    onCollapse()
+                    dragOffset = 0f
+                } else {
+                    dragOffset = 0f
                 }
             },
             onDragCancel = {
-                coroutineScope.launch {
-                    offsetY.animateTo(0f, spring())
-                }
+                isDragging = false
+                dragOffset = 0f
             }
         )
     }
@@ -274,7 +281,7 @@ private fun NowPlayingMobile(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .offset { IntOffset(0, offsetY.value.roundToInt()) }
+            .offset { IntOffset(0, animatedOffset.roundToInt()) }
             .background(surfaceColor) 
     ) {
         
@@ -355,6 +362,15 @@ private fun NowPlayingMobile(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     
+                    var isLyricsActive by remember(showLyrics) { mutableStateOf(false) }
+                    LaunchedEffect(showLyrics) {
+                        if (showLyrics) {
+                            kotlinx.coroutines.delay(300)
+                            isLyricsActive = true
+                        } else {
+                            isLyricsActive = false
+                        }
+                    }
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -365,15 +381,24 @@ private fun NowPlayingMobile(
                     ) {
                         Crossfade(targetState = showLyrics, label = "LyricsTransition") { isLyrics ->
                             if (isLyrics) {
-                                LyricsView(
-                                    lyricsLines = uiState.lyricsLines,
-                                    rawLyrics = uiState.rawLyrics,
-                                    currentPosition = playbackState.currentPosition,
-                                    isPlaying = playbackState.isPlaying,
-                                    isLoading = uiState.isLoadingLyrics,
-                                    onSeek = { playbackController.seekTo(it) },
-                                    modifier = Modifier.fillMaxSize()
-                                )
+                                if (isLyricsActive) {
+                                    LyricsView(
+                                        lyricsLines = uiState.lyricsLines,
+                                        rawLyrics = uiState.rawLyrics,
+                                        currentPosition = playbackState.currentPosition,
+                                        isPlaying = playbackState.isPlaying,
+                                        isLoading = uiState.isLoadingLyrics,
+                                        onSeek = { playbackController.seekTo(it) },
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                } else {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                }
                             } else {
                                 ArtworkView(
                                     artworkId = playbackState.artworkId,
@@ -729,24 +754,26 @@ private fun PlaybackSeekBar(
                 )
             }
     ) {
-        var sliderDragValue by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf<Float?>(null) }
+        var isSliderDragging by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
+        var sliderDragValue by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableFloatStateOf(0f) }
         
-        val currentSliderValue = sliderDragValue ?: if (playbackState.duration > 0) {
+        val currentSliderValue = if (isSliderDragging) sliderDragValue else if (playbackState.duration > 0) {
             playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()
         } else 0f
         
         Slider(
             value = currentSliderValue,
             onValueChange = { 
+                isSliderDragging = true
                 sliderDragValue = it
             },
             onValueChangeFinished = {
-                sliderDragValue?.let {
+                if (isSliderDragging) {
                     if (playbackState.duration > 0) {
-                        playbackController.seekTo((it * playbackState.duration).toLong())
+                        playbackController.seekTo((sliderDragValue * playbackState.duration).toLong())
                     }
                 }
-                sliderDragValue = null
+                isSliderDragging = false
             },
             colors = SliderDefaults.colors(
                 thumbColor = MaterialTheme.colorScheme.primary,
@@ -759,8 +786,8 @@ private fun PlaybackSeekBar(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            val displayPosition = if (sliderDragValue != null && playbackState.duration > 0) {
-                (sliderDragValue!! * playbackState.duration).toLong()
+            val displayPosition = if (isSliderDragging && playbackState.duration > 0) {
+                (sliderDragValue * playbackState.duration).toLong()
             } else playbackState.currentPosition
             
             Text(FormatUtils.formatDuration(displayPosition), style = MaterialTheme.typography.labelMedium)

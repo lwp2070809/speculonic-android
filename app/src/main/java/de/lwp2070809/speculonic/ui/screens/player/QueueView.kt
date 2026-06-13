@@ -61,7 +61,7 @@ fun QueueView(
         ) {
             itemsIndexed(
                 items = queue,
-                key = { _, item -> item.mediaId },
+                key = { index, item -> "${item.mediaId}_$index" },
                 contentType = { _, _ -> "queueItem" }
             ) { index, item ->
                 ListItem(

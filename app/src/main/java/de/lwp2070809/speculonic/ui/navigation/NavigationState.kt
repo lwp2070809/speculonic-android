@@ -61,13 +61,14 @@ class NavigationState(
         }
     }
 
-    fun addRoute(route: NavKey) {
+    fun addRoute(route: NavKey, inclusive: Boolean = false) {
         val stack = backStacks[topLevelRoute] ?: emptyList()
         
         if (stack.isNotEmpty() && stack.last() == route) {
             return
         }
-        backStacks = backStacks + (topLevelRoute to (stack + route))
+        val newStack = if (inclusive && stack.isNotEmpty()) stack.dropLast(1) else stack
+        backStacks = backStacks + (topLevelRoute to (newStack + route))
     }
 
     fun popRoute() {
