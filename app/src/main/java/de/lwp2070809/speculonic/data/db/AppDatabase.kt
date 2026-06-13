@@ -27,7 +27,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
         PlaybackQueueEntity::class,
         SyncTempIdEntity::class
     ],
-    version = 19,
+    version = 20,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -94,6 +94,14 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_19_20 = object : Migration(19, 20) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_albumId_track` ON `songs` (`albumId`, `track`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_artistId_title` ON `songs` (`artistId`, `title`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_starred` ON `songs` (`starred`)")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -101,7 +109,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "speculonic_database"
                 )
-                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18)
+                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_19_20)
                     
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()

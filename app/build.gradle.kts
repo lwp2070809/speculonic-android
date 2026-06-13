@@ -68,15 +68,12 @@ android {
             if (hasLocalExtension) {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
+            java.srcDir("build/generated/ksp/debug/java")
         }
         getByName("release") {
             if (hasLocalExtension) {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
-        }
-        
-        getByName("main") {
-            java.srcDir("build/generated/ksp/debug/java")
             java.srcDir("build/generated/ksp/release/java")
         }
     }
