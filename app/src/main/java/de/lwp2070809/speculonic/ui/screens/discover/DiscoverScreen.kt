@@ -65,12 +65,10 @@ fun DiscoverScreen(
             uiState.favoriteSongs.isEmpty() &&
             uiState.favoriteAlbums.isEmpty()
 
-    var showEmptyState by remember { mutableStateOf(false) }
     var forceShowOfflineMessage by remember { mutableStateOf(false) }
 
     LaunchedEffect(isOnline) {
-        if (!isOnline && !viewModel.hasHandledOfflineStartup) {
-            viewModel.markOfflineStartupHandled()
+        if (!isOnline && !uiState.isInitialLoadComplete) {
             forceShowOfflineMessage = true
             delay(1000)
             forceShowOfflineMessage = false
@@ -79,9 +77,7 @@ fun DiscoverScreen(
         }
     }
 
-    LaunchedEffect(isEmpty, uiState.isLoading) {
-        showEmptyState = isEmpty && !uiState.isLoading
-    }
+    val showEmptyState = isEmpty && !uiState.isLoading && uiState.isInitialLoadComplete
 
     PullToRefreshBox(
         isRefreshing = uiState.isLoading,
@@ -91,78 +87,76 @@ fun DiscoverScreen(
         val showOffline = forceShowOfflineMessage || (!isOnline && showEmptyState && isEmpty)
         
         if (showOffline) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Icon(
-                        Icons.Default.WifiOff,
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.offline_mode),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Default.WifiOff,
+                    contentDescription = null,
+                    modifier = Modifier.size(64.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.offline_mode),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        } else if (isEmpty && uiState.isLoading) {
+            Column(
+                modifier = Modifier.fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                CircularProgressIndicator(
+                    color = MaterialTheme.colorScheme.primary,
+                    strokeWidth = 3.dp,
+                    modifier = Modifier.size(48.dp)
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Text(
+                    text = stringResource(R.string.first_sync_loading),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         } else if (showEmptyState && isEmpty) {
-            if (uiState.isLoading) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.LibraryMusic,
+                    contentDescription = null,
+                    modifier = Modifier.size(72.dp),
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = stringResource(R.string.no_content_available),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+                Button(
+                    onClick = { viewModel.refreshData() },
+                    modifier = Modifier.fillMaxWidth(0.7f)
                 ) {
-                    CircularProgressIndicator(
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 3.dp,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Text(
-                        text = stringResource(R.string.first_sync_loading),
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontWeight = FontWeight.Medium
-                    )
+                    Text(stringResource(R.string.sync_now))
                 }
-            } else {
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                Spacer(modifier = Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = onConfigureServerClick,
+                    modifier = Modifier.fillMaxWidth(0.7f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.LibraryMusic,
-                        contentDescription = null,
-                        modifier = Modifier.size(72.dp),
-                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.no_content_available),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(24.dp))
-                    Button(
-                        onClick = { viewModel.refreshData() },
-                        modifier = Modifier.fillMaxWidth(0.7f)
-                    ) {
-                        Text(stringResource(R.string.sync_now))
-                    }
-                    Spacer(modifier = Modifier.height(8.dp))
-                    OutlinedButton(
-                        onClick = onConfigureServerClick,
-                        modifier = Modifier.fillMaxWidth(0.7f)
-                    ) {
-                        Text(stringResource(R.string.settings))
-                    }
+                    Text(stringResource(R.string.settings))
                 }
             }
         } else {

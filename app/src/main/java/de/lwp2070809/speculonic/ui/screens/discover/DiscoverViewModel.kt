@@ -10,6 +10,7 @@ import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.toMediaItem
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,11 +18,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class DiscoverUiState(
     val isLoading: Boolean = false,
+    val isInitialLoadComplete: Boolean = false,
     val pinnedPlaylists: List<de.lwp2070809.speculonic.network.model.Playlist> = emptyList(),
     val favoriteSongs: List<Song> = emptyList(),
     val favoriteAlbums: List<Album> = emptyList(),
@@ -49,13 +52,7 @@ class DiscoverViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(DiscoverUiState())
     val uiState: StateFlow<DiscoverUiState> = _uiState.asStateFlow()
 
-    @Volatile
-    var hasHandledOfflineStartup = false
-        private set
 
-    fun markOfflineStartupHandled() {
-        hasHandledOfflineStartup = true
-    }
 
     init {
         loadData()
@@ -77,6 +74,7 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
+    @OptIn(FlowPreview::class)
     private fun observeData() {
         viewModelScope.launch {
             val starredSongsFlow = repository.getStarredFlow()
@@ -85,6 +83,8 @@ class DiscoverViewModel @Inject constructor(
             val newestFlow = repository.getAlbumsByListTypeFlow("newest")
             val frequentFlow = repository.getAlbumsByListTypeFlow("frequent")
             val randomFlow = repository.getAlbumsByListTypeFlow("random")
+
+            var isFirst = true
 
             combine(
                 combine(starredSongsFlow, pinnedPlaylistsFlow, starredAlbumsFlow) { a, b, c -> Triple(a, b, c) },
@@ -100,7 +100,22 @@ class DiscoverViewModel @Inject constructor(
                 )
             }
             .distinctUntilChanged()
+            .debounce {
+                if (isFirst) {
+                    isFirst = false
+                    0L
+                } else {
+                    150L
+                }
+            }
             .collectLatest { data ->
+                val hasAnyData = data.starredSongs.isNotEmpty() ||
+                        data.pinnedPlaylists.isNotEmpty() ||
+                        data.starredAlbums.isNotEmpty() ||
+                        data.newest.isNotEmpty() ||
+                        data.frequent.isNotEmpty() ||
+                        data.random.isNotEmpty()
+
                 _uiState.update { state ->
                     state.copy(
                         favoriteSongs = data.starredSongs.take(10),
@@ -108,10 +123,10 @@ class DiscoverViewModel @Inject constructor(
                         favoriteAlbums = data.starredAlbums.take(10),
                         recentlyAdded = data.newest.take(20),
                         mostPlayed = data.frequent.take(20),
-                        randomAlbums = data.random.take(20)
+                        randomAlbums = data.random.take(20),
+                        isInitialLoadComplete = state.isInitialLoadComplete || hasAnyData
                     )
                 }
-                markOfflineStartupHandled()
             }
         }
     }
@@ -126,11 +141,8 @@ class DiscoverViewModel @Inject constructor(
                 } catch (e: Exception) {
                     LogManager.e("DiscoverViewModel: initial sync failed", e)
                 } finally {
-                    _uiState.update { it.copy(isLoading = false) }
-                    markOfflineStartupHandled()
+                    _uiState.update { it.copy(isLoading = false, isInitialLoadComplete = true) }
                 }
-            } else {
-                markOfflineStartupHandled()
             }
         }
     }
@@ -140,21 +152,14 @@ class DiscoverViewModel @Inject constructor(
             LogManager.d("DiscoverViewModel: Targeted refresh triggered.")
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val newest = repository.getAlbumList("newest", forceRefresh = true)
-                val frequent = repository.getAlbumList("frequent", forceRefresh = true)
-                val random = repository.getAlbumList("random", forceRefresh = true)
-                val starredSongs = repository.getStarred(forceRefresh = true)
-                val starredAlbums = repository.getStarredAlbums(forceRefresh = true)
+                repository.getAlbumList("newest", forceRefresh = true)
+                repository.getAlbumList("frequent", forceRefresh = true)
+                repository.getAlbumList("random", forceRefresh = true)
+                repository.getStarred(forceRefresh = true)
+                repository.getStarredAlbums(forceRefresh = true)
                 
                 _uiState.update { state ->
-                    state.copy(
-                        recentlyAdded = if (newest.isNotEmpty()) newest else state.recentlyAdded,
-                        mostPlayed = if (frequent.isNotEmpty()) frequent else state.mostPlayed,
-                        randomAlbums = if (random.isNotEmpty()) random else state.randomAlbums,
-                        favoriteSongs = if (starredSongs.isNotEmpty()) starredSongs.take(10) else state.favoriteSongs,
-                        favoriteAlbums = if (starredAlbums.isNotEmpty()) starredAlbums.take(10) else state.favoriteAlbums,
-                        error = null
-                    )
+                    state.copy(error = null)
                 }
                 LogManager.i("DiscoverViewModel: Targeted refresh completed.")
             } catch (e: Exception) {
