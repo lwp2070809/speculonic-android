@@ -29,6 +29,7 @@ import javax.inject.Inject
 data class LibraryUiState(
     val isRefreshing: Boolean = false,
     val isSyncing: Boolean = false,
+    val isInitialLoadComplete: Boolean = false,
     val syncProgress: String? = null,
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList(),
@@ -68,7 +69,8 @@ class LibraryViewModel @Inject constructor(
             artists = args[4] as List<Artist>,
             favorites = args[5] as List<Song>,
             playlists = args[6] as List<Playlist>,
-            allSongsPaged = state.allSongsPaged ?: repository.getAllSongsPaged().cachedIn(viewModelScope)
+            allSongsPaged = state.allSongsPaged ?: repository.getAllSongsPaged().cachedIn(viewModelScope),
+            isInitialLoadComplete = true
         )
     }.stateIn(
         scope = viewModelScope,
