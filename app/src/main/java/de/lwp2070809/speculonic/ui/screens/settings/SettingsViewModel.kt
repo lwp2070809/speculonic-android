@@ -97,7 +97,6 @@ data class SettingsUiState(
     val urlError: String? = null,
     val showMobileSyncConfirm: Boolean = false,
     val showClearCacheConfirm: Boolean = false,
-    val showCoverArtSyncConfirm: Boolean = false,
     val showForceSyncConfirm: Boolean = false,
     val trustAllCertificates: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
@@ -294,7 +293,6 @@ class SettingsViewModel @Inject constructor(
                     urlError = _uiState.value.urlError,
                     showMobileSyncConfirm = _uiState.value.showMobileSyncConfirm,
                     showClearCacheConfirm = _uiState.value.showClearCacheConfirm,
-                    showCoverArtSyncConfirm = _uiState.value.showCoverArtSyncConfirm,
                     showForceSyncConfirm = _uiState.value.showForceSyncConfirm,
                     artistsCount = stats.artists,
                     albumsCount = stats.albums,
@@ -636,26 +634,6 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun cancelCoverArtSync() {
-        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false)
-        viewModelScope.launch {
-            preferencesManager.saveIsSyncing(false)
-            preferencesManager.saveSyncProgress(null)
-        }
-    }
-
-    @kotlin.OptIn(DelicateCoroutinesApi::class)
-    fun startCoverArtSync() {
-        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false)
-        GlobalScope.launch(Dispatchers.IO) {
-            try {
-                performCoverArtSyncInternal()
-            } finally {
-                preferencesManager.saveIsSyncing(false)
-                preferencesManager.saveSyncProgress(null)
-            }
-        }
-    }
 
     fun requestClearCache() { _uiState.value = _uiState.value.copy(showClearCacheConfirm = true) }
     fun cancelClearCache() { _uiState.value = _uiState.value.copy(showClearCacheConfirm = false) }

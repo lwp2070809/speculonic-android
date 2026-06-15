@@ -226,13 +226,10 @@
     <string name="confirm_download_all_message">确定要将列表中的全部歌曲加入离线下载吗？</string>
     <string name="confirm_force_sync_title">确认强制全量同步</string>
     <string name="confirm_force_sync_message">强制全量同步将无视本地数据的新旧状态，重新拉取所有元数据，可能需要较长时间并消耗较多流量。确定要继续吗？</string>
-    <string name="sync_cover_art_title">同步专辑封面</string>
-    <string name="sync_cover_art_message">元数据同步已完成。是否现在下载所有专辑封面？(可能需要较长时间并消耗较多流量)</string>
-    <string name="sync_now_action">立即同步</string>
-    <string name="sync_later_action">以后再说</string>
+
     <string name="delete_server_warning">此操作将同时彻底销毁本地所有已同步的音乐数据和缓存（SAF 导出的文件不会被影响）。此操作不可逆！</string>
     <string name="sync_cover_art_preparing">正在准备同步专辑封面...</string>
-    <string name="sync_cover_art_completed">封面同步完成</string>
+
     <string name="song_info">歌曲信息</string>
     <string name="pinned_playlists">钉选歌单</string>
     <string name="general_info">一般信息</string>

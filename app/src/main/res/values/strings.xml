@@ -228,13 +228,10 @@
     <string name="confirm_download_all_message">Are you sure you want to add all songs in this list to offline downloads?</string>
     <string name="confirm_force_sync_title">Confirm Force Full Sync</string>
     <string name="confirm_force_sync_message">Force full sync will ignore the current state of local data and fetch all metadata from scratch. This may take a long time and consume a lot of data. Are you sure you want to continue?</string>
-    <string name="sync_cover_art_title">Sync Album Covers</string>
-    <string name="sync_cover_art_message">Metadata sync completed. Do you want to download all album covers now? (This may take a long time and consume a lot of data)</string>
-    <string name="sync_now_action">Sync Now</string>
-    <string name="sync_later_action">Maybe Later</string>
+
     <string name="delete_server_warning">This action will also permanently destroy all synchronized music data and cache locally (SAF exported files will not be affected). This action is irreversible!</string>
     <string name="sync_cover_art_preparing">Preparing to sync album covers...</string>
-    <string name="sync_cover_art_completed">Album cover sync completed</string>
+
     <string name="song_info">Song Info</string>
     <string name="pinned_playlists">Pinned Playlists</string>
     <string name="general_info">General Info</string>

@@ -295,24 +295,6 @@ private fun MainContent(
         }
 
         
-        if (settingsUiState.showCoverArtSyncConfirm) {
-            AlertDialog(
-                onDismissRequest = { settingsViewModel.cancelCoverArtSync() },
-                title = { Text(androidx.compose.ui.res.stringResource(R.string.sync_cover_art_title)) },
-                text = { Text(androidx.compose.ui.res.stringResource(R.string.sync_cover_art_message)) },
-                confirmButton = {
-                    TextButton(onClick = { settingsViewModel.startCoverArtSync() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.sync_now_action))
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { settingsViewModel.cancelCoverArtSync() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.sync_later_action))
-                    }
-                }
-            )
-        }
-
         if (settingsUiState.showFirstSyncConfirm) {
             AlertDialog(
                 onDismissRequest = { settingsViewModel.cancelFirstSync() },
