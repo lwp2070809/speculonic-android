@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <issue id="RestrictedApi">
+        <ignore regexp=".*build.generated.*" />
+        <ignore regexp=".*docs.*" />
+    </issue>
+    <issue id="UnsafeOptInUsageError">
+        <ignore regexp=".*build.generated.*" />
+        <ignore regexp=".*docs.*" />
+    </issue>
+</lint>

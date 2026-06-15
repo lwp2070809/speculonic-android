@@ -27,7 +27,7 @@ class SubsonicCoverArtFetcher(
         val uriString = data
         if (!uriString.contains("/rest/getCoverArt")) return null
 
-        val id = android.net.Uri.parse(data).getQueryParameter("id") ?: return null
+        val id = data.toUri().getQueryParameter("id") ?: return null
         
         
         val diskCacheKey = options.diskCacheKey

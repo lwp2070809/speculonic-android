@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.data
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import de.lwp2070809.speculonic.BuildConfig
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
@@ -97,7 +98,7 @@ class UpdateManager(
     }
 
     fun openBrowser(url: String) {
-        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+        val intent = Intent(Intent.ACTION_VIEW, url.toUri()).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
         context.startActivity(intent)

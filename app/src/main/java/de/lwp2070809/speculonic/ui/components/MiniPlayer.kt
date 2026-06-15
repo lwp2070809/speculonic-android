@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.distinctUntilChanged
 import androidx.compose.ui.Alignment
@@ -56,11 +57,12 @@ fun MiniPlayer(
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     
-    val artworkId by remember(playbackController) { playbackController.playbackState.map { it.artworkId }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.artworkId)
-    val artworkUri by remember(playbackController) { playbackController.playbackState.map { it.artworkUri }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.artworkUri)
-    val currentSongTitle by remember(playbackController) { playbackController.playbackState.map { it.currentSongTitle }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.currentSongTitle)
-    val currentArtist by remember(playbackController) { playbackController.playbackState.map { it.currentArtist }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.currentArtist)
-    val isPlaying by remember(playbackController) { playbackController.playbackState.map { it.isPlaying }.distinctUntilChanged() }.collectAsState(playbackController.playbackState.value.isPlaying)
+    val playbackStateState = playbackController.playbackState.collectAsState()
+    val artworkId by remember { derivedStateOf { playbackStateState.value.artworkId } }
+    val artworkUri by remember { derivedStateOf { playbackStateState.value.artworkUri } }
+    val currentSongTitle by remember { derivedStateOf { playbackStateState.value.currentSongTitle } }
+    val currentArtist by remember { derivedStateOf { playbackStateState.value.currentArtist } }
+    val isPlaying by remember { derivedStateOf { playbackStateState.value.isPlaying } }
     
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,

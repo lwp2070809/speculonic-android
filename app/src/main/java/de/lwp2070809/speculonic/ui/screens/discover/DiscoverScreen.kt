@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -296,9 +297,8 @@ fun FavoriteSongsRow(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    val currentSongId by remember(playbackController) {
-        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
-    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+    val playbackStateState = playbackController.playbackState.collectAsState()
+    val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
 
     val context = LocalContext.current
     val downloadController = remember(repository) { de.lwp2070809.speculonic.playback.DownloadController(context, repository) }

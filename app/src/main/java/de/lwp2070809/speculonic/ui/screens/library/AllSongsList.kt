@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,9 +44,8 @@ fun AllSongsList(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    val currentSongId by remember(playbackController) {
-        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
-    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+    val playbackStateState = playbackController.playbackState.collectAsState()
+    val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
 
     val context = LocalContext.current
     val downloadController = remember(repository) { DownloadController(context, repository) }

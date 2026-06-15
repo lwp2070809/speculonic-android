@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.util
 
 import android.net.Uri
+import androidx.core.net.toUri
 import java.util.Locale
 import kotlin.math.log10
 import kotlin.math.pow
@@ -39,7 +40,7 @@ object FormatUtils {
     fun simplifySafUri(uriString: String): String {
         if (uriString.isEmpty()) return ""
         try {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val path = uri.path ?: return uriString
             if (path.startsWith("/tree/")) {
                 val docId = path.substring(6)
@@ -60,7 +61,7 @@ object FormatUtils {
     fun getFullPhysicalPath(uriString: String): String {
         if (uriString.isEmpty()) return ""
         try {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             if (uri.scheme == "file") {
                 return Uri.decode(uri.path ?: uriString)
             }

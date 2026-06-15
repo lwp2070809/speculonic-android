@@ -4,6 +4,7 @@ import de.lwp2070809.speculonic.R
 
 import android.content.Context
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -317,7 +318,7 @@ private suspend fun calculateSha1(uriString: String, context: Context): String? 
     try {
         val digest = MessageDigest.getInstance("SHA-1")
         val inputStream = if (uriString.startsWith("content://")) {
-            context.contentResolver.openInputStream(Uri.parse(uriString))
+            context.contentResolver.openInputStream(uriString.toUri())
         } else {
             FileInputStream(uriString)
         }
@@ -346,7 +347,7 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
             if ((!file.exists() || !file.canRead()) && uriString.startsWith("content://")) {
                 val ext = suffix?.lowercase() ?: uriString.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotEmpty() } ?: "mp3"
                 val tempFile = java.io.File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
-                context.contentResolver.openInputStream(Uri.parse(uriString))?.use { input ->
+                context.contentResolver.openInputStream(uriString.toUri())?.use { input ->
                     tempFile.outputStream().use { output ->
                         input.copyTo(output)
                     }

@@ -16,11 +16,13 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.DownloadTracker
@@ -48,9 +50,9 @@ fun FavoriteList(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    val currentSongId by remember(playbackController) {
-        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
-    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+    val playbackStateState = playbackController.playbackState.collectAsState()
+    val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
+    val failedMessage = stringResource(R.string.failed_to_fetch_remote)
 
     val context = LocalContext.current
     val downloadController = remember(repository) { DownloadController(context, repository) }
@@ -121,7 +123,7 @@ fun FavoriteList(
                             scope.launch {
                                 val success = repository.starSong(song.id, star)
                                 if (!success) {
-                                    Toast.makeText(context, context.getString(R.string.failed_to_fetch_remote), Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show()
                                     onRefresh()
                                 }
                             }

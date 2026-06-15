@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic.ui.screens.settings
 
 import android.content.Intent
 import android.net.Uri
+import androidx.core.net.toUri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -157,7 +158,7 @@ fun AboutSettings(viewModel: SettingsViewModel, topBarState: TopBarState, onBack
             supportingContent = { Text("https://github.com/lwp2070809/speculonic-android") },
             modifier = Modifier.clickable {
                 try {
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/lwp2070809/speculonic-android"))
+                    val intent = Intent(Intent.ACTION_VIEW, "https://github.com/lwp2070809/speculonic-android".toUri())
                     context.startActivity(intent)
                 } catch (e: Exception) {
                     

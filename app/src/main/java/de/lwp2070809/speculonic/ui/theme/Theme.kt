@@ -12,6 +12,8 @@ import androidx.compose.material3.lightColorScheme
 import android.app.Activity
 import android.content.ContextWrapper
 import android.graphics.drawable.ColorDrawable
+import android.annotation.SuppressLint
+import androidx.core.graphics.drawable.toDrawable
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -79,7 +81,7 @@ fun SpeculonicTheme(
             val window = (context as? Activity)?.window
             if (window != null) {
                 val surfaceArgb = colorScheme.surface.toArgb()
-                window.setBackgroundDrawable(ColorDrawable(surfaceArgb))
+                window.setBackgroundDrawable(surfaceArgb.toDrawable())
                 
                 val insetsController = WindowCompat.getInsetsController(window, view)
                 insetsController.isAppearanceLightStatusBars = !darkTheme
@@ -98,6 +100,7 @@ fun SpeculonicTheme(
 }
 
 
+@SuppressLint("RestrictedApi")
 private fun generateColorSchemeFromSeed(seedArgb: Int, isDark: Boolean): ColorScheme {
     val scheme = SchemeTonalSpot(
         Hct.fromInt(seedArgb),

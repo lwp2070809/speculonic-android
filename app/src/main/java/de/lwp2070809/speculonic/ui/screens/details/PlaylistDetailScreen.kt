@@ -57,9 +57,8 @@ fun PlaylistDetailScreen(
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    val currentSongId by remember(playbackController) {
-        playbackController.playbackState.map { it.currentSongId }.distinctUntilChanged()
-    }.collectAsState(initial = playbackController.playbackState.value.currentSongId)
+    val playbackStateState = playbackController.playbackState.collectAsState()
+    val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current

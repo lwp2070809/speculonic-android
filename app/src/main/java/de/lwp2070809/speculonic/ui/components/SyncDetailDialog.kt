@@ -5,6 +5,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -56,10 +57,13 @@ fun SyncDetailDialog(
                     }
                 }
 
+                val locale = androidx.compose.ui.platform.LocalLocale.current.platformLocale
+                val sdf = remember(locale) {
+                    java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", locale)
+                }
                 val lastSyncText = if (uiState.lastSyncTime == 0L) {
                     stringResource(R.string.sync_never)
                 } else {
-                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
                     sdf.format(java.util.Date(uiState.lastSyncTime))
                 }
                 Text(
