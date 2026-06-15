@@ -359,4 +359,15 @@ interface MusicDao {
     """)
     suspend fun getPlaybackQueue(): List<SongEntity>
 
+    @Query("SELECT COUNT(*) FROM artists")
+    fun getArtistsCountFlow(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM albums")
+    fun getAlbumsCountFlow(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM songs")
+    fun getSongsCountFlow(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM playlists")
+    fun getPlaylistsCountFlow(): Flow<Int>
 }

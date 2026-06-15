@@ -106,6 +106,7 @@ class PreferencesManager(private val context: Context) {
         val LAST_PING_TIME = longPreferencesKey("last_ping_time")
         val UPDATE_CHECK_INTERVAL = stringPreferencesKey("update_check_interval")
         val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
+        val SYNC_COVER_ART_ON_FORCE = booleanPreferencesKey("sync_cover_art_on_force")
     }
 
     
@@ -315,6 +316,7 @@ class PreferencesManager(private val context: Context) {
     }
 
     val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }
+    val syncCoverArtOnForce: Flow<Boolean> = context.dataStore.data.map { it[SYNC_COVER_ART_ON_FORCE] ?: false }
 
     suspend fun saveLastSeedColor(color: Int?, isDark: Boolean) {
         context.dataStore.edit { preferences ->
@@ -645,6 +647,12 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveLastUpdateCheckTime(time: Long) {
         context.dataStore.edit { preferences ->
             preferences[LAST_UPDATE_CHECK_TIME] = time
+        }
+    }
+
+    suspend fun saveSyncCoverArtOnForce(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[SYNC_COVER_ART_ON_FORCE] = enabled
         }
     }
 }

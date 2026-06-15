@@ -12,6 +12,7 @@ class SyncAllDataUseCase @Inject constructor(
         forceRefresh: Boolean = false,
         ignoreLastModified: Boolean = false,
         ignoreSafetyGuard: Boolean = false,
+        keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ) {
         if (!repository.isConfigured) {
@@ -42,6 +43,7 @@ class SyncAllDataUseCase @Inject constructor(
             ignoreLastModified = ignoreLastModified,
             ignoreSafetyGuard = ignoreSafetyGuard,
             hasLocalData = hasLocal,
+            keepSyncingState = keepSyncingState,
             onProgress = onProgress,
             onSyncComplete = { currentTime, serverLastModified ->
                 repository.getStarred(forceRefresh = true)

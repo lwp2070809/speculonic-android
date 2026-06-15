@@ -124,26 +124,6 @@ fun LibraryScreen(
                     .background(MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    AnimatedVisibility(visible = (uiState.isRefreshing || uiState.isSyncing) && uiState.syncProgress != null) {
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Column(modifier = Modifier.padding(8.dp)) {
-                                Text(
-                                    text = uiState.syncProgress ?: "",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    modifier = Modifier.padding(bottom = 4.dp)
-                                )
-                                LinearProgressIndicator(
-                                    modifier = Modifier.fillMaxWidth().height(2.dp),
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                            }
-                        }
-                    }
-
                     Box(modifier = Modifier.weight(1f)) {
                         if (showEmptyState) {
                             Column(

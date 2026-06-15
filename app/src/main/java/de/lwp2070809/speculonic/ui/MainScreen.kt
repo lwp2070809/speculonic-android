@@ -117,6 +117,7 @@ private fun MainContent(
     
     var showNowPlaying by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
+    var showSyncDetailDialog by remember { mutableStateOf(false) }
     val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val topBarState = remember { TopBarState() }
 
@@ -191,7 +192,10 @@ private fun MainContent(
                     currentRoute = currentRoute,
                     topBarState = topBarState,
                     onBackClick = { navigator.goBack() },
-                    onSearchClick = { showSearch = true }
+                    onSearchClick = { showSearch = true },
+                    isSyncing = isSyncing,
+                    syncProgress = settingsUiState.syncProgress,
+                    onSyncStatusClick = { showSyncDetailDialog = true }
                 )
             }
         ) { innerPadding ->
@@ -277,10 +281,12 @@ private fun MainContent(
         }
 
         
-        de.lwp2070809.speculonic.ui.components.SyncProgressOverlay(
-            isVisible = isSyncing && settingsUiState.syncProgress != null,
-            progressText = settingsUiState.syncProgress
-        )
+        if (showSyncDetailDialog) {
+            de.lwp2070809.speculonic.ui.components.SyncDetailDialog(
+                onDismiss = { showSyncDetailDialog = false },
+                viewModel = settingsViewModel
+            )
+        }
 
         
         if (settingsUiState.showCoverArtSyncConfirm) {

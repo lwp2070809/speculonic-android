@@ -42,6 +42,7 @@ class SyncManager(
         ignoreLastModified: Boolean = false,
         ignoreSafetyGuard: Boolean = false,
         hasLocalData: Boolean,
+        keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null,
         onSyncComplete: suspend (Long, Long) -> Unit
     ) {
@@ -198,8 +199,10 @@ class SyncManager(
         } catch (e: Exception) {
             throw e
         } finally {
-            pref.saveIsSyncing(false)
-            pref.saveSyncProgress(null)
+            if (!keepSyncingState) {
+                pref.saveIsSyncing(false)
+                pref.saveSyncProgress(null)
+            }
         }
         } finally {
             syncMutex.unlock()

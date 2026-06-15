@@ -171,6 +171,17 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             modifier = Modifier.clickable(enabled = !uiState.isSyncing) { viewModel.requestForceSync() }
         )
 
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.sync_cover_art_option_title)) },
+            supportingContent = { Text(stringResource(R.string.sync_cover_art_option_desc)) },
+            trailingContent = {
+                Switch(
+                    checked = uiState.syncCoverArtOnForce,
+                    onCheckedChange = { viewModel.updateSyncCoverArtOnForce(it) }
+                )
+            }
+        )
+
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
 
         

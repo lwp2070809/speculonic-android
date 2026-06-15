@@ -5,13 +5,16 @@ import de.lwp2070809.speculonic.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.Alignment
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Flip
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -21,6 +24,16 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
+import androidx.compose.material.icons.outlined.Cloud
+import androidx.compose.material.icons.outlined.CloudDone
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.core.*
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.rotate
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,7 +41,10 @@ fun MainTopBar(
     currentRoute: NavKey?,
     topBarState: TopBarState,
     onBackClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onSearchClick: () -> Unit,
+    isSyncing: Boolean = false,
+    syncProgress: String? = null,
+    onSyncStatusClick: () -> Unit = {}
 ) {
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
@@ -71,6 +87,25 @@ fun MainTopBar(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+
+                        var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                        var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+                        androidx.compose.runtime.LaunchedEffect(isSyncing) {
+                            if (lastSyncingState && !isSyncing) {
+                                showCloudDoneRecent = true
+                                kotlinx.coroutines.delay(5000)
+                                showCloudDoneRecent = false
+                            }
+                            lastSyncingState = isSyncing
+                        }
+
+                        IconButton(onClick = onSyncStatusClick) {
+                            CloudSyncIcon(
+                                isSyncing = isSyncing,
+                                showCloudDoneRecent = showCloudDoneRecent
+                            )
+                        }
                     }
                 } else {
                     Text(
@@ -110,4 +145,93 @@ fun MainTopBar(
             }
         }
     )
+}
+
+@Composable
+private fun CloudSyncIcon(
+    isSyncing: Boolean,
+    showCloudDoneRecent: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val targetAlpha = if (isSyncing || showCloudDoneRecent) 1f else 0.4f
+    val alpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = 500),
+        label = "alpha"
+    )
+
+    val syncingAlpha by animateFloatAsState(
+        targetValue = if (isSyncing) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 500,
+            delayMillis = 0
+        ),
+        label = "syncingAlpha"
+    )
+    val doneAlpha by animateFloatAsState(
+        targetValue = if (isSyncing) 0f else 1f,
+        animationSpec = tween(
+            durationMillis = 500,
+            delayMillis = if (isSyncing) 0 else 500
+        ),
+        label = "doneAlpha"
+    )
+
+    Box(
+        modifier = modifier.alpha(alpha),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(modifier = Modifier.alpha(doneAlpha)) {
+            Icon(
+                imageVector = Icons.Outlined.CloudDone,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+
+        Box(modifier = Modifier.alpha(syncingAlpha)) {
+            Icon(
+                imageVector = Icons.Outlined.Cloud,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+
+            val rotationState = if (isSyncing) {
+                val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+                infiniteTransition.animateFloat(
+                    initialValue = 0f,
+                    targetValue = 360f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(1500, easing = LinearEasing),
+                        repeatMode = RepeatMode.Restart
+                    ),
+                    label = "rotation"
+                )
+            } else {
+                androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+            }
+
+            val syncIconOffset = 2.dp
+            val syncIconSize = 20.dp
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = syncIconOffset, y = syncIconOffset)
+                    .background(MaterialTheme.colorScheme.surface, shape = CircleShape)
+                    .padding(1.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Sync,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .size(syncIconSize)
+                        .rotate(rotationState.value)
+                )
+            }
+        }
+    }
 }

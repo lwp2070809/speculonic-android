@@ -294,4 +294,10 @@
     <string name="sync_cover_art_option_desc">May consume hundreds of MB of data, WiFi recommended.</string>
     <string name="pending_cover_art_sync">Waiting for metadata sync to complete before syncing cover art.</string>
     <string name="search_offline_warning">Search is disabled in offline mode.</string>
+    <string name="sync_detail_title">Sync Details</string>
+    <string name="metadata_stats">Local Metadata Stats</string>
+    <string name="last_sync_time_label">Last synced: %1$s</string>
+    <string name="sync_status_label">Current Status: %1$s</string>
+    <string name="sync_idle">Idle</string>
+    <string name="sync_never">Never</string>
 </resources>

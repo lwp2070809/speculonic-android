@@ -39,6 +39,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
@@ -99,7 +101,13 @@ data class SettingsUiState(
     val showForceSyncConfirm: Boolean = false,
     val trustAllCertificates: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
-    val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED
+    val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED,
+    val artistsCount: Int = 0,
+    val albumsCount: Int = 0,
+    val songsCount: Int = 0,
+    val playlistsCount: Int = 0,
+    val lastSyncTime: Long = 0L,
+    val syncCoverArtOnForce: Boolean = false
 )
 
 @HiltViewModel
@@ -117,11 +125,17 @@ class SettingsViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
-    private val _isSyncing = MutableStateFlow(false)
-    val isSyncing: StateFlow<Boolean> = _isSyncing.asStateFlow()
+    val isSyncing: StateFlow<Boolean> = preferencesManager.isSyncing.stateIn(
+        scope = viewModelScope,
+        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        initialValue = false
+    )
 
-    private val _syncProgress = MutableStateFlow<String?>(null)
-    val syncProgress: StateFlow<String?> = _syncProgress.asStateFlow()
+    val syncProgress: StateFlow<String?> = preferencesManager.syncProgress.stateIn(
+        scope = viewModelScope,
+        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
     
     private val context = SpeculonicApp.instance
     private val cacheOperations = CacheOperations(context)
@@ -143,14 +157,24 @@ class SettingsViewModel @Inject constructor(
     private fun observePreferences() {
         viewModelScope.launch {
             
-            val group1 = combine(
+            val group1 = combine<Any?, PrefsGroup1>(
                 preferencesManager.serverUrl,
                 preferencesManager.username,
                 preferencesManager.password,
                 preferencesManager.cacheLocation,
                 preferencesManager.maxCacheSize,
-            ) { serverUrl, username, password, cacheLocation, maxCacheSize ->
-                PrefsGroup1(serverUrl, username, password, cacheLocation, maxCacheSize)
+                preferencesManager.syncCoverArtOnForce,
+                preferencesManager.lastSyncTime
+            ) { flows ->
+                PrefsGroup1(
+                    serverUrl = flows[0] as String,
+                    username = flows[1] as String,
+                    password = flows[2] as String,
+                    cacheLocation = flows[3] as String,
+                    maxCacheSize = flows[4] as Long,
+                    syncCoverArtOnForce = flows[5] as Boolean,
+                    lastSyncTime = flows[6] as Long
+                )
             }
 
             
@@ -201,7 +225,23 @@ class SettingsViewModel @Inject constructor(
                 PrefsGroup4(trustAllCertificates, showOfflineToast, updateCheckInterval, g3)
             }
 
-            combine(group1, group2, group4) { g1, g2, g4 ->
+            val statsFlow = combine(
+                database.musicDao().getArtistsCountFlow(),
+                database.musicDao().getAlbumsCountFlow(),
+                database.musicDao().getSongsCountFlow(),
+                database.musicDao().getPlaylistsCountFlow()
+            ) { artists, albums, songs, playlists ->
+                StatsGroup(artists, albums, songs, playlists)
+            }
+
+            val syncGroup = combine(
+                preferencesManager.isSyncing,
+                preferencesManager.syncProgress
+            ) { isSyncing, syncProgress ->
+                isSyncing to syncProgress
+            }
+
+            combine(group1, group2, group4, statsFlow, syncGroup) { g1, g2, g4, stats, sync ->
                 SettingsUiState(
                     serverUrl = g1.serverUrl,
                     username = g1.username,
@@ -242,8 +282,8 @@ class SettingsViewModel @Inject constructor(
                     isSaving = _uiState.value.isSaving,
                     isRefreshing = _uiState.value.isRefreshing,
                     isScanning = _uiState.value.isScanning,
-                    isSyncing = _uiState.value.isSyncing,
-                    syncProgress = _uiState.value.syncProgress,
+                    isSyncing = sync.first,
+                    syncProgress = sync.second,
                     syncPercentage = _uiState.value.syncPercentage,
                     showFirstSyncConfirm = _uiState.value.showFirstSyncConfirm,
                     showSafetyGuardConfirm = _uiState.value.showSafetyGuardConfirm,
@@ -255,7 +295,13 @@ class SettingsViewModel @Inject constructor(
                     showMobileSyncConfirm = _uiState.value.showMobileSyncConfirm,
                     showClearCacheConfirm = _uiState.value.showClearCacheConfirm,
                     showCoverArtSyncConfirm = _uiState.value.showCoverArtSyncConfirm,
-                    showForceSyncConfirm = _uiState.value.showForceSyncConfirm
+                    showForceSyncConfirm = _uiState.value.showForceSyncConfirm,
+                    artistsCount = stats.artists,
+                    albumsCount = stats.albums,
+                    songsCount = stats.songs,
+                    playlistsCount = stats.playlists,
+                    lastSyncTime = g1.lastSyncTime,
+                    syncCoverArtOnForce = g1.syncCoverArtOnForce
                 )
             }.collect {
                 _uiState.value = it
@@ -266,8 +312,14 @@ class SettingsViewModel @Inject constructor(
 
     private data class PrefsGroup1(
         val serverUrl: String, val username: String, val password: String,
-        val cacheLocation: String, val maxCacheSize: Long
+        val cacheLocation: String, val maxCacheSize: Long,
+        val syncCoverArtOnForce: Boolean, val lastSyncTime: Long
     )
+
+    private data class StatsGroup(
+        val artists: Int, val albums: Int, val songs: Int, val playlists: Int
+    )
+
     private data class PrefsGroup2(
         val mobilePlayAllowed: Boolean, val backgroundSyncEnabled: Boolean,
         val logLevel: LogLevel, val themeMode: ThemeMode, val colorMode: ColorMode
@@ -500,31 +552,47 @@ class SettingsViewModel @Inject constructor(
         performFullSync(isForced = true) 
     }
 
-    fun performFullSync(ignoreSafetyGuard: Boolean = false, isForced: Boolean = false, isFromServerSave: Boolean = false, syncCoverArt: Boolean = false) {
-        if (!isFromServerSave) {
-            _uiState.value = _uiState.value.copy(
-                showFirstSyncConfirm = false, 
-                showSafetyGuardConfirm = false,
-                isSyncing = true,
-                syncProgress = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
-            )
-            _isSyncing.value = true
-            _syncProgress.value = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing)
-        } else {
-            _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false)
+    fun updateSyncCoverArtOnForce(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.saveSyncCoverArtOnForce(enabled)
         }
+    }
+
+    private suspend fun performCoverArtSyncInternal() {
+        try {
+            preferencesManager.saveIsSyncing(true)
+            preferencesManager.saveSyncProgress(context.getString(de.lwp2070809.speculonic.R.string.sync_cover_art_preparing))
+            var lastNotifyTime = 0L
+            repository.syncAllCoverArt(onProgress = { status ->
+                val now = System.currentTimeMillis()
+                if (now - lastNotifyTime >= 300L) {
+                    lastNotifyTime = now
+                    viewModelScope.launch {
+                        preferencesManager.saveSyncProgress(status)
+                    }
+                }
+            })
+        } catch (e: Exception) {
+            LogManager.e("Settings: Cover Art Sync Failed", e)
+        }
+    }
+
+    fun performFullSync(ignoreSafetyGuard: Boolean = false, isForced: Boolean = false, isFromServerSave: Boolean = false, syncCoverArt: Boolean = false) {
+        _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false)
         viewModelScope.launch(Dispatchers.IO) {
+            val shouldSyncCovers = repository.isConfigured && 
+                (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))
             var success = false
             try {
+                preferencesManager.saveIsSyncing(true)
+                preferencesManager.saveSyncProgress(context.getString(de.lwp2070809.speculonic.R.string.sync_preparing))
                 syncAllDataUseCase(
                     forceRefresh = isForced, 
                     ignoreLastModified = isForced,
                     ignoreSafetyGuard = ignoreSafetyGuard,
+                    keepSyncingState = shouldSyncCovers,
                     onProgress = { status ->
-                        if (!isFromServerSave) {
-                            _syncProgress.value = status
-                            _uiState.value = _uiState.value.copy(syncProgress = status)
-                        }
+                        preferencesManager.saveSyncProgress(status)
                     }
                 )
                 success = true
@@ -535,27 +603,13 @@ class SettingsViewModel @Inject constructor(
             } catch (e: Exception) {
                 LogManager.e("Settings: Initial sync failed", e)
             } finally {
-                if (isFromServerSave) {
-                    if (success && repository.isConfigured && syncCoverArt) {
-                        startCoverArtSync()
-                    } else if (syncCoverArt) {
-                        val notificationManager = NotificationManagerCompat.from(context)
-                        notificationManager.cancel(1002)
-                    }
-                } else {
-                    val showConfirm = success && repository.isConfigured
-                    if (!showConfirm) {
-                        _isSyncing.value = false
-                        _syncProgress.value = null
-                        _uiState.value = _uiState.value.copy(
-                            isSyncing = false, 
-                            syncProgress = null
-                        )
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        showCoverArtSyncConfirm = showConfirm
-                    )
+                val shouldSyncCovers = success && repository.isConfigured && 
+                    (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))
+                if (shouldSyncCovers) {
+                    performCoverArtSyncInternal()
                 }
+                preferencesManager.saveIsSyncing(false)
+                preferencesManager.saveSyncProgress(null)
             }
         }
     }
@@ -566,7 +620,6 @@ class SettingsViewModel @Inject constructor(
     fun deleteServerSettings() {
         viewModelScope.launch(Dispatchers.IO) {
             preferencesManager.saveServerSettings("", "", "")
-            
             
             database.clearAllTables()
             cacheOperations.clearAllCache()
@@ -584,67 +637,22 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun cancelCoverArtSync() {
-        _isSyncing.value = false
-        _syncProgress.value = null
-        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false, isSyncing = false, syncProgress = null)
+        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false)
+        viewModelScope.launch {
+            preferencesManager.saveIsSyncing(false)
+            preferencesManager.saveSyncProgress(null)
+        }
     }
 
     @kotlin.OptIn(DelicateCoroutinesApi::class)
     fun startCoverArtSync() {
-        _isSyncing.value = false
-        _syncProgress.value = null
-        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false, isSyncing = false, syncProgress = null)
+        _uiState.value = _uiState.value.copy(showCoverArtSyncConfirm = false)
         GlobalScope.launch(Dispatchers.IO) {
-            val notificationManager = NotificationManagerCompat.from(context)
-            val channelId = "cover_art_sync_channel"
-            val notificationId = 1002
-            
-            val channel = android.app.NotificationChannel(
-                channelId,
-                "Cover Art Sync",
-                android.app.NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Syncs cover art in the background"
-            }
-            notificationManager.createNotificationChannel(channel)
-            
-            val builder = NotificationCompat.Builder(context, channelId)
-                .setSmallIcon(android.R.drawable.stat_sys_download)
-                .setContentTitle(context.getString(de.lwp2070809.speculonic.R.string.sync_now))
-                .setContentText(context.getString(de.lwp2070809.speculonic.R.string.sync_cover_art_preparing))
-                .setPriority(NotificationCompat.PRIORITY_LOW)
-                .setOngoing(true)
-                
-            if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                notificationManager.notify(notificationId, builder.build())
-            }
-
             try {
-                
-                
-                
-                
-                
-                var lastNotifyTime = 0L
-                repository.syncAllCoverArt(onProgress = { status ->
-                    val now = System.currentTimeMillis()
-                    if (now - lastNotifyTime >= 300L) {
-                        lastNotifyTime = now
-                        builder.setContentText(status)
-                        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                            notificationManager.notify(notificationId, builder.build())
-                        }
-                    }
-                })
-            } catch (e: Exception) {
-                LogManager.e("Settings: Cover Art Sync Failed", e)
+                performCoverArtSyncInternal()
             } finally {
-                builder.setContentText(context.getString(de.lwp2070809.speculonic.R.string.sync_cover_art_completed))
-                    .setOngoing(false)
-                    .setSmallIcon(android.R.drawable.stat_sys_download_done)
-                if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-                    notificationManager.notify(notificationId, builder.build())
-                }
+                preferencesManager.saveIsSyncing(false)
+                preferencesManager.saveSyncProgress(null)
             }
         }
     }
