@@ -186,7 +186,8 @@ private fun MainContent(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.windowInsetsPadding(WindowInsets.safeDrawing),
+            modifier = Modifier.fillMaxSize(),
+            contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
                 MainTopBar(
                     currentRoute = currentRoute,
@@ -201,6 +202,10 @@ private fun MainContent(
         ) { innerPadding ->
             androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold(
                 modifier = Modifier.padding(innerPadding).fillMaxSize(),
+                navigationSuiteColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.colors(
+                    navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainer
+                ),
                 navigationSuiteItems = {
                     navItems.forEach { item ->
                         val isSelected = navigationState.topLevelRoute == item.route
@@ -230,7 +235,8 @@ private fun MainContent(
                         onPlayPause = { playbackController.togglePlayPause() },
                         onSkipPrevious = { playbackController.skipToPrevious() },
                         onSkipNext = { playbackController.skipToNext() },
-                        onClick = { showNowPlaying = true }
+                        onClick = { showNowPlaying = true },
+                        modifier = Modifier.navigationBarsPadding()
                     )
                 }
             }
