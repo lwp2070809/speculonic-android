@@ -50,13 +50,10 @@ class BluetoothCarDeviceDetector(
     private var audioDeviceCallback: AudioDeviceCallback? = null
 
     private fun hasBluetoothConnectPermission(): Boolean {
-        if (android.os.Build.VERSION.SDK_INT >= 31) {
-            return androidx.core.content.ContextCompat.checkSelfPermission(
-                context, 
-                android.Manifest.permission.BLUETOOTH_CONNECT
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-        }
-        return true
+        return androidx.core.content.ContextCompat.checkSelfPermission(
+            context, 
+            android.Manifest.permission.BLUETOOTH_CONNECT
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
     fun init() {
@@ -74,9 +71,8 @@ class BluetoothCarDeviceDetector(
                     checkConnectionState()
                     addedDevices?.forEach { device ->
                         if (device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                            (android.os.Build.VERSION.SDK_INT >= 31 && 
-                            (device.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || 
-                             device.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER))
+                            device.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || 
+                            device.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
                         ) {
                             serviceScope.launch {
                                 delay(1500)
@@ -129,7 +125,8 @@ class BluetoothCarDeviceDetector(
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val hasBluetoothOutput = devices.any { 
             it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            (android.os.Build.VERSION.SDK_INT >= 31 && (it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER))
+            it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || 
+            it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
         }
         
         if (!hasBluetoothOutput) return false

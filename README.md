@@ -22,7 +22,6 @@ The project is built on the philosophy of treating the application as a local mi
 ## Requirements
 
 * **Android Version**: Android 12.0 (API 31) or higher.
-  > Note: The current version still supports Android 10.0 (API 29), but compatibility updates are no longer provided. We plan to bump `minSdk` to 31 and remove compatibility code for older Android versions after version 1.0.0.
 
 ## Roadmap
 
@@ -85,7 +84,6 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 ## 系统要求
 
 * **Android 版本**: Android 12.0 (API 31) 及以上.
-  > 注意: 当前版本依然支持 Android 10.0 (API 29), 但已不再提供适配. 计划在 1.0.0 版本后将 `minSdk` 调整为 31, 并移除旧版本 Android 的兼容性适配代码.
 
 ## 开发路线图
 

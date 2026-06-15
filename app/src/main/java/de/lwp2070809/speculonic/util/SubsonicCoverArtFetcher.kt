@@ -70,11 +70,7 @@ class SubsonicCoverArtFetcher(
                 null
             } finally {
                 try {
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-                        retriever.close()
-                    } else {
-                        retriever.release()
-                    }
+                    retriever.close()
                 } catch (e: Exception) {
                     
                 }

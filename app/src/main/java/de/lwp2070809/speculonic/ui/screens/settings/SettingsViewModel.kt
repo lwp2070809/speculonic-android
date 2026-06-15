@@ -402,7 +402,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun updateCarBluetoothEnabled(enabled: Boolean) { 
-        if (enabled && android.os.Build.VERSION.SDK_INT >= 31) {
+        if (enabled) {
             val hasPermission = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!hasPermission) {
                 _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = true)
@@ -597,16 +597,14 @@ class SettingsViewModel @Inject constructor(
             val channelId = "cover_art_sync_channel"
             val notificationId = 1002
             
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                val channel = android.app.NotificationChannel(
-                    channelId,
-                    "Cover Art Sync",
-                    android.app.NotificationManager.IMPORTANCE_LOW
-                ).apply {
-                    description = "Syncs cover art in the background"
-                }
-                notificationManager.createNotificationChannel(channel)
+            val channel = android.app.NotificationChannel(
+                channelId,
+                "Cover Art Sync",
+                android.app.NotificationManager.IMPORTANCE_LOW
+            ).apply {
+                description = "Syncs cover art in the background"
             }
+            notificationManager.createNotificationChannel(channel)
             
             val builder = NotificationCompat.Builder(context, channelId)
                 .setSmallIcon(android.R.drawable.stat_sys_download)
@@ -815,16 +813,14 @@ class SettingsViewModel @Inject constructor(
         val channelId = "cover_art_sync_channel"
         val notificationId = 1002
         
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-            val channel = android.app.NotificationChannel(
-                channelId,
-                "Cover Art Sync",
-                android.app.NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = "Syncs cover art in the background"
-            }
-            notificationManager.createNotificationChannel(channel)
+        val channel = android.app.NotificationChannel(
+            channelId,
+            "Cover Art Sync",
+            android.app.NotificationManager.IMPORTANCE_LOW
+        ).apply {
+            description = "Syncs cover art in the background"
         }
+        notificationManager.createNotificationChannel(channel)
         
         val builder = NotificationCompat.Builder(context, channelId)
             .setSmallIcon(android.R.drawable.stat_sys_download)

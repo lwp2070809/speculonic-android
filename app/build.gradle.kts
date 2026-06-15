@@ -16,7 +16,7 @@ android {
 
     defaultConfig {
         applicationId = "de.lwp2070809.speculonic"
-        minSdk = 29
+        minSdk = 31
         targetSdk = 36
         versionCode = 1
         versionName = "0.9.4"

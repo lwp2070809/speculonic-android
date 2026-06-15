@@ -73,11 +73,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
 
     LaunchedEffect(uiState.showBluetoothPermissionRequest) {
         if (uiState.showBluetoothPermissionRequest) {
-            if (android.os.Build.VERSION.SDK_INT >= 31) {
-                bluetoothPermissionLauncher.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
-            } else {
-                viewModel.onBluetoothPermissionResult(true)
-            }
+            bluetoothPermissionLauncher.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
 
