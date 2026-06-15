@@ -62,8 +62,8 @@ data class SettingsUiState(
     val carBluetoothEnabled: Boolean = false,
     val syncPlaybackState: Boolean = false,
     val skipSilenceEnabled: Boolean = false,
-    val playbackSpeed: Float = 1.0f,
-    val bufferStrategy: Int = 0,
+    val duckOnTransientFocusLoss: Boolean = true,
+    val pauseOnAudioFocusLoss: Boolean = true,
 
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
@@ -177,10 +177,10 @@ class SettingsViewModel @Inject constructor(
             
             val playbackGroup = combine(
                 preferencesManager.skipSilenceEnabled,
-                preferencesManager.playbackSpeed,
-                preferencesManager.bufferStrategy
-            ) { skipSilence, speed, buffer ->
-                PlaybackPrefs(skipSilence, speed, buffer)
+                preferencesManager.duckOnTransientFocusLoss,
+                preferencesManager.pauseOnAudioFocusLoss
+            ) { skipSilence, duck, pause ->
+                PlaybackPrefs(skipSilence, duck, pause)
             }
 
             val group3 = combine(
@@ -220,8 +220,8 @@ class SettingsViewModel @Inject constructor(
                     carBluetoothEnabled = g4.third.bluetooth.carEnabled,
                     syncPlaybackState = g4.third.bluetooth.syncState,
                     skipSilenceEnabled = g4.third.playback.skipSilence,
-                    playbackSpeed = g4.third.playback.playbackSpeed,
-                    bufferStrategy = g4.third.playback.bufferStrategy,
+                    duckOnTransientFocusLoss = g4.third.playback.duckOnTransientFocusLoss,
+                    pauseOnAudioFocusLoss = g4.third.playback.pauseOnAudioFocusLoss,
 
                     bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
                     bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
@@ -277,7 +277,9 @@ class SettingsViewModel @Inject constructor(
         val lyricsEnabled: Boolean, val hideProgress: Boolean, val deviceNames: Set<String>
     )
     private data class PlaybackPrefs(
-        val skipSilence: Boolean, val playbackSpeed: Float, val bufferStrategy: Int
+        val skipSilence: Boolean,
+        val duckOnTransientFocusLoss: Boolean,
+        val pauseOnAudioFocusLoss: Boolean
     )
     private data class PrefsGroup3(
         val silentCacheEnabled: Boolean,
@@ -414,8 +416,8 @@ class SettingsViewModel @Inject constructor(
     
     fun updateSyncPlaybackState(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSyncPlaybackState(enabled) } }
     fun updateSkipSilenceEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSkipSilenceEnabled(enabled) } }
-    fun updatePlaybackSpeed(speed: Float) { viewModelScope.launch { preferencesManager.savePlaybackSpeed(speed) } }
-    fun updateBufferStrategy(strategy: Int) { viewModelScope.launch { preferencesManager.saveBufferStrategy(strategy) } }
+    fun updateDuckOnTransientFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveDuckOnTransientFocusLoss(enabled) } }
+    fun updatePauseOnAudioFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.savePauseOnAudioFocusLoss(enabled) } }
 
     fun updateBluetoothLyricsEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsEnabled(enabled) } }
     fun updateBluetoothLyricsHideProgressBar(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsHideProgressBar(enabled) } }

@@ -8,7 +8,7 @@ import android.media.AudioManager
 import androidx.annotation.OptIn
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
-import androidx.media3.common.PlaybackParameters
+
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
@@ -33,10 +33,13 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import javax.inject.Inject
+import android.media.AudioFocusRequest
+import android.media.AudioAttributes
 
 @OptIn(UnstableApi::class)
 @AndroidEntryPoint
@@ -67,6 +70,81 @@ class PlaybackService : MediaSessionService() {
 
     private var isMetered = false
     private var mobilePlayAllowed = true
+
+    private val audioManager by lazy { getSystemService(Context.AUDIO_SERVICE) as AudioManager }
+    private var duckOnTransientFocusLoss = true
+    private var pauseOnAudioFocusLoss = true
+    private var isDefaultFocusHandling = true
+    private var focusRequest: AudioFocusRequest? = null
+    private var playWhenReadyBeforeLoss = false
+    private var isTransientLossActive = false
+
+    private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
+        if (isDefaultFocusHandling) return@OnAudioFocusChangeListener
+        val player = mediaSession?.player ?: return@OnAudioFocusChangeListener
+        val realPlayer = if (player is BluetoothCarManager.CarDisguisePlayer) {
+            player.wrappedPlayer
+        } else {
+            player
+        }
+        if (realPlayer is ExoPlayer) {
+            when (focusChange) {
+                AudioManager.AUDIOFOCUS_LOSS -> {
+                    if (pauseOnAudioFocusLoss) {
+                        playWhenReadyBeforeLoss = false
+                        isTransientLossActive = false
+                        realPlayer.pause()
+                        abandonAudioFocus()
+                    }
+                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                    playWhenReadyBeforeLoss = realPlayer.playWhenReady
+                    isTransientLossActive = true
+                    realPlayer.pause()
+                }
+                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                    if (duckOnTransientFocusLoss) {
+                        realPlayer.volume = 0.2f
+                    } else {
+                        playWhenReadyBeforeLoss = realPlayer.playWhenReady
+                        isTransientLossActive = true
+                        realPlayer.pause()
+                    }
+                }
+                AudioManager.AUDIOFOCUS_GAIN -> {
+                    realPlayer.volume = 1.0f
+                    if (isTransientLossActive) {
+                        isTransientLossActive = false
+                        if (playWhenReadyBeforeLoss) {
+                            realPlayer.play()
+                            playWhenReadyBeforeLoss = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun requestAudioFocus(): Int {
+        if (focusRequest == null) {
+            val playbackAttributes = AudioAttributes.Builder()
+                .setUsage(AudioAttributes.USAGE_MEDIA)
+                .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                .build()
+            focusRequest = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
+                .setAudioAttributes(playbackAttributes)
+                .setAcceptsDelayedFocusGain(true)
+                .setOnAudioFocusChangeListener(audioFocusChangeListener)
+                .build()
+        }
+        return audioManager.requestAudioFocus(focusRequest!!)
+    }
+
+    private fun abandonAudioFocus() {
+        focusRequest?.let {
+            audioManager.abandonAudioFocusRequest(it)
+        }
+    }
 
     private lateinit var persistence: PlaybackStatePersistence
     private lateinit var errorHandler: PlaybackErrorHandler
@@ -172,14 +250,24 @@ class PlaybackService : MediaSessionService() {
                     val sUrl = prefs.serverUrl.first()
                     val uName = prefs.username.first()
                     val pWord = prefs.password.first()
+                    val duckFocus = data[PreferencesManager.DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true
+                    val pauseFocus = data[PreferencesManager.PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true
                     object {
                         val serverUrl = sUrl
                         val username = uName
                         val password = pWord
                         val maxCacheSize = data[PreferencesManager.MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024)
-                        val bufferStrategy = data[PreferencesManager.BUFFER_STRATEGY] ?: 1
+                        val handleAudioFocus = duckFocus && pauseFocus
                     }
                 }
+
+                duckOnTransientFocusLoss = withContext(Dispatchers.IO) {
+                    this@PlaybackService.dataStore.data.first()[PreferencesManager.DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true
+                }
+                pauseOnAudioFocusLoss = withContext(Dispatchers.IO) {
+                    this@PlaybackService.dataStore.data.first()[PreferencesManager.PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true
+                }
+                isDefaultFocusHandling = duckOnTransientFocusLoss && pauseOnAudioFocusLoss
 
                 if (config.serverUrl.isBlank()) {
                     isInitializing = false
@@ -199,7 +287,7 @@ class PlaybackService : MediaSessionService() {
                     PlayerBuilder(this@PlaybackService).build(
                         playbackCache = playbackCache,
                         downloadCache = downloadCache,
-                        bufferStrategy = config.bufferStrategy,
+                        handleAudioFocus = config.handleAudioFocus,
                         checkRestriction = { isMetered && !mobilePlayAllowed }
                     )
                 }
@@ -267,10 +355,40 @@ class PlaybackService : MediaSessionService() {
                 }
             }
         }
-        
+
         serviceScope.launch {
-            prefs.playbackSpeed.collect { speed ->
-                mediaSession?.player?.playbackParameters = PlaybackParameters(speed)
+            combine(
+                prefs.duckOnTransientFocusLoss,
+                prefs.pauseOnAudioFocusLoss
+            ) { duck, pause ->
+                Pair(duck, pause)
+            }
+            .collect { (duck, pause) ->
+                duckOnTransientFocusLoss = duck
+                pauseOnAudioFocusLoss = pause
+                isDefaultFocusHandling = duck && pause
+                
+                val player = mediaSession?.player
+                if (player != null) {
+                    val realPlayer = if (player is BluetoothCarManager.CarDisguisePlayer) {
+                        player.wrappedPlayer
+                    } else {
+                        player
+                    }
+                    if (realPlayer is ExoPlayer) {
+                        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+                            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                            .build()
+                        realPlayer.setAudioAttributes(audioAttributes, isDefaultFocusHandling)
+                    }
+                }
+                
+                if (isDefaultFocusHandling) {
+                    abandonAudioFocus()
+                    isTransientLossActive = false
+                    playWhenReadyBeforeLoss = false
+                }
             }
         }
         
@@ -349,6 +467,13 @@ class PlaybackService : MediaSessionService() {
                 if (playbackState == Player.STATE_READY) {
                     errorHandler.resetErrorCount()
                 }
+                if (!isDefaultFocusHandling) {
+                    if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
+                        abandonAudioFocus()
+                        isTransientLossActive = false
+                        playWhenReadyBeforeLoss = false
+                    }
+                }
             }
 
             override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
@@ -356,10 +481,23 @@ class PlaybackService : MediaSessionService() {
                     persistence.savePlaybackState(player, immediate = true)
                     persistence.stopPositionPersistence()
                     carAudioManager.stopBluetoothLyricsUpdate()
+                    if (!isDefaultFocusHandling) {
+                        if (!isTransientLossActive) {
+                            abandonAudioFocus()
+                        }
+                    }
                 } else {
                     persistence.startPositionPersistence(player)
                     if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
                         carAudioManager.startBluetoothLyricsUpdate()
+                    }
+                    if (!isDefaultFocusHandling) {
+                        val result = requestAudioFocus()
+                        if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                            player.playWhenReady = false
+                        } else {
+                            isTransientLossActive = false
+                        }
                     }
                 }
             }
@@ -401,6 +539,9 @@ class PlaybackService : MediaSessionService() {
         persistence.cancelAll()
         carAudioManager.stopBluetoothLyricsUpdate()
         silentCacheJob?.cancel()
+        if (!isDefaultFocusHandling) {
+            abandonAudioFocus()
+        }
         mediaSession?.run {
             release()
             player.release()

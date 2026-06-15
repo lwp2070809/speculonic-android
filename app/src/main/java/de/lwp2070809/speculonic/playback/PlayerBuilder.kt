@@ -27,7 +27,7 @@ class PlayerBuilder(private val context: Context) {
     fun build(
         playbackCache: androidx.media3.datasource.cache.Cache,
         downloadCache: androidx.media3.datasource.cache.Cache,
-        bufferStrategy: Int = 1,
+        handleAudioFocus: Boolean = true,
         checkRestriction: () -> Boolean
     ): ExoPlayer {
         
@@ -91,11 +91,7 @@ class PlayerBuilder(private val context: Context) {
             .build()
             
         
-        val (minBuffer, maxBuffer, playBuffer, rebuffer) = when (bufferStrategy) {
-            1 -> listOf(10_000, 15_000, 1_000, 2_000)
-            2 -> listOf(30_000, 60_000, 2_000, 3_000)
-            else -> listOf(15_000, 30_000, 1_500, 2_500)
-        }
+        val (minBuffer, maxBuffer, playBuffer, rebuffer) = listOf(15_000, 30_000, 1_500, 2_500)
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(minBuffer, maxBuffer, playBuffer, rebuffer)
@@ -129,7 +125,7 @@ class PlayerBuilder(private val context: Context) {
 
         return ExoPlayer.Builder(context, renderersFactory)
             .setMediaSourceFactory(mediaSourceFactory)
-            .setAudioAttributes(audioAttributes, true)
+            .setAudioAttributes(audioAttributes, handleAudioFocus)
             .setLoadControl(loadControl)
             .build()
     }

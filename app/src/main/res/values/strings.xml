@@ -36,11 +36,13 @@
     <string name="bluetooth_audio">Bluetooth Audio</string>
     <string name="skip_silence">Skip Silence</string>
     <string name="skip_silence_description">Automatically skip silent parts of the audio</string>
-    <string name="playback_speed">Playback Speed</string>
-    <string name="buffer_strategy">Buffer Strategy</string>
-    <string name="buffer_strategy_data_saver">Data Saver</string>
-    <string name="buffer_strategy_balanced">Balanced</string>
-    <string name="buffer_strategy_anti_stutter">Stable Playback</string>
+    <string name="transient_focus_change">Transient Focus Change</string>
+    <string name="duck_on_transient">Lower Volume</string>
+    <string name="duck_on_transient_description">Automatically lower volume during notifications or navigation, disable to keep playing at normal volume</string>
+    <string name="permanent_focus_change">Permanent Focus Change</string>
+    <string name="pause_on_loss">Pause Playback</string>
+    <string name="pause_on_loss_description">Automatically pause when other apps start playing or during incoming calls</string>
+
 
 
     <string name="search">Search</string>

@@ -87,8 +87,8 @@ class PreferencesManager(private val context: Context) {
         val BLUETOOTH_CAR_DEVICE_NAMES = androidx.datastore.preferences.core.stringSetPreferencesKey("bluetooth_car_device_names")
         
         val SKIP_SILENCE_ENABLED = booleanPreferencesKey("skip_silence_enabled")
-        val PLAYBACK_SPEED = androidx.datastore.preferences.core.floatPreferencesKey("playback_speed")
-        val BUFFER_STRATEGY = androidx.datastore.preferences.core.intPreferencesKey("buffer_strategy")
+        val DUCK_ON_TRANSIENT_FOCUS_LOSS = booleanPreferencesKey("duck_on_transient_focus_loss")
+        val PAUSE_ON_AUDIO_FOCUS_LOSS = booleanPreferencesKey("pause_on_audio_focus_loss")
 
 
         val NOTIFICATION_REMINDER_ENABLED = booleanPreferencesKey("notification_reminder_enabled")
@@ -262,8 +262,8 @@ class PreferencesManager(private val context: Context) {
     val carBluetoothEnabled: Flow<Boolean> = context.dataStore.data.map { it[CAR_BLUETOOTH_ENABLED] ?: false }
     val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }
     val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }
-    val playbackSpeed: Flow<Float> = context.dataStore.data.map { it[PLAYBACK_SPEED] ?: 1.0f }
-    val bufferStrategy: Flow<Int> = context.dataStore.data.map { it[BUFFER_STRATEGY] ?: 0 }
+    val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }
+    val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }
 
     val bluetoothLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_ENABLED] ?: false }
     val bluetoothLyricsHideProgressBar: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR] ?: false }
@@ -498,17 +498,18 @@ class PreferencesManager(private val context: Context) {
         }
     }
 
-    suspend fun savePlaybackSpeed(speed: Float) {
+    suspend fun saveDuckOnTransientFocusLoss(enabled: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[PLAYBACK_SPEED] = speed
+            preferences[DUCK_ON_TRANSIENT_FOCUS_LOSS] = enabled
         }
     }
 
-    suspend fun saveBufferStrategy(strategy: Int) {
+    suspend fun savePauseOnAudioFocusLoss(enabled: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[BUFFER_STRATEGY] = strategy
+            preferences[PAUSE_ON_AUDIO_FOCUS_LOSS] = enabled
         }
     }
+
 
 
     suspend fun saveBluetoothLyricsEnabled(enabled: Boolean) {
