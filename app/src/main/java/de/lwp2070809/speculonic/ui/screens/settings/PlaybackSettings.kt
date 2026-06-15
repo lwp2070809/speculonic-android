@@ -60,13 +60,13 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
         
         Text(
             text = stringResource(R.string.transient_focus_change),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
         
         ListItem(
@@ -80,13 +80,13 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
         Text(
             text = stringResource(R.string.permanent_focus_change),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
         
         ListItem(

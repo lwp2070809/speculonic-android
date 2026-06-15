@@ -57,7 +57,7 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
     
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(SettingsConstants.PAGE_PADDING).verticalScroll(rememberScrollState())) {
         
         var expandedTheme by remember { mutableStateOf(false) }
         val themes = listOf(
@@ -99,7 +99,7 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
         
         var expandedColor by remember { mutableStateOf(false) }
@@ -141,7 +141,7 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
         
         var expandedLanguage by remember { mutableStateOf(false) }
@@ -184,7 +184,7 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
         var expandedBg by remember { mutableStateOf(false) }
         val bgModes = listOf(

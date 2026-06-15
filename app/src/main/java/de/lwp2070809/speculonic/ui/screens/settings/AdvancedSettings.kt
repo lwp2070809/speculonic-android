@@ -89,7 +89,7 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp).verticalScroll(rememberScrollState())) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(SettingsConstants.PAGE_PADDING).verticalScroll(rememberScrollState())) {
 
 
         var expandedLogLevel by remember { mutableStateOf(false) }
@@ -129,7 +129,7 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
 
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
 
         OutlinedButton(
             onClick = { showLogViewer = true },

@@ -33,23 +33,23 @@ fun InconsistencyDialog(
                 .fillMaxHeight(0.8f),
             shape = MaterialTheme.shapes.large,
             color = MaterialTheme.colorScheme.surface,
-            tonalElevation = 6.dp
+            tonalElevation = SettingsConstants.DIALOG_TONAL_ELEVATION
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
-                Column(modifier = Modifier.padding(24.dp)) {
+                Column(modifier = Modifier.padding(SettingsConstants.DIALOG_PADDING)) {
                     Text(
                         text = stringResource(R.string.inconsistency_dialog_title),
                         style = MaterialTheme.typography.headlineSmall,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                     if (inconsistentItems.isEmpty()) {
                         Text(
                             text = stringResource(R.string.inconsistency_dialog_success),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
-                        Spacer(modifier = Modifier.height(4.dp))
+                        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_SMALL))
                         Text(
                             text = stringResource(R.string.inconsistency_dialog_hint),
                             style = MaterialTheme.typography.bodySmall,

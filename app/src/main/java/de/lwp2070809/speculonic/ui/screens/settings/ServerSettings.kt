@@ -73,21 +73,21 @@ fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(SettingsConstants.PAGE_PADDING)) {
         if (uiState.serverUrl.isBlank()) {
             Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
                 Button(onClick = { showEditDialog = true }) {
                     Icon(Icons.Default.Add, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                     Text(stringResource(R.string.setup_server))
                 }
             }
         } else {
             Card(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(SettingsConstants.PAGE_PADDING)) {
                     Text(text = uiState.serverUrl, style = MaterialTheme.typography.titleMedium)
                     Text(text = uiState.username, style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                         IconButton(onClick = { showEditDialog = true }) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit")
@@ -123,7 +123,7 @@ fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete_server)) },
-            text = { Column { Text(stringResource(R.string.confirm_delete_server)); Spacer(modifier = Modifier.height(8.dp)); Text(text = stringResource(R.string.delete_server_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } },
+            text = { Column { Text(stringResource(R.string.confirm_delete_server)); Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM)); Text(text = stringResource(R.string.delete_server_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteServerSettings()
@@ -170,7 +170,7 @@ fun ServerConfigDialog(
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
                 OutlinedTextField(
                     value = url,
                     onValueChange = { 
@@ -186,7 +186,7 @@ fun ServerConfigDialog(
                         { Text(uiState.urlError!!) }
                     } else null
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                 OutlinedTextField(
                     value = user,
                     onValueChange = { user = it },
@@ -194,7 +194,7 @@ fun ServerConfigDialog(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                 OutlinedTextField(
                     value = pass,
                     onValueChange = { pass = it },
@@ -204,11 +204,11 @@ fun ServerConfigDialog(
                     visualTransformation = PasswordVisualTransformation()
                 )
                 
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
                 
                 
                 HorizontalDivider()
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     verticalAlignment = Alignment.CenterVertically,
@@ -225,7 +225,7 @@ fun ServerConfigDialog(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                     Switch(
                         checked = syncCoverArt,
                         onCheckedChange = { syncCoverArt = it }

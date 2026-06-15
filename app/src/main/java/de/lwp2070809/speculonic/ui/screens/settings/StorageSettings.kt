@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -144,7 +145,7 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             text = stringResource(R.string.metadata_sync),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         ListItem(
@@ -161,17 +162,22 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.force_full_sync)) },
             supportingContent = { Text(stringResource(R.string.force_full_sync_description)) },
-            leadingContent = { 
-                Icon(
-                    if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync, 
-                    contentDescription = null,
-                    modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
-                ) 
-            },
-            modifier = Modifier.clickable(enabled = !uiState.isSyncing) { viewModel.requestForceSync() }
+            trailingContent = {
+                IconButton(
+                    onClick = { viewModel.requestForceSync() },
+                    enabled = !uiState.isSyncing
+                ) {
+                    Icon(
+                        imageVector = if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
+                        contentDescription = stringResource(R.string.force_full_sync),
+                        modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
+                    )
+                }
+            }
         )
 
         ListItem(
+            modifier = Modifier.padding(start = SettingsConstants.SUB_ITEM_PADDING),
             headlineContent = { Text(stringResource(R.string.sync_cover_art_option_title)) },
             supportingContent = { Text(stringResource(R.string.sync_cover_art_option_desc)) },
             trailingContent = {
@@ -189,7 +195,7 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             text = stringResource(R.string.playback_cache),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         
@@ -259,7 +265,7 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             text = stringResource(R.string.persistent_storage),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         ListItem(
@@ -307,7 +313,7 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             text = stringResource(R.string.maintenance_tools),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         if (uiState.cacheLocation.isNotEmpty()) {
@@ -463,10 +469,10 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             Surface(
                 shape = MaterialTheme.shapes.large,
                 color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
+                tonalElevation = SettingsConstants.DIALOG_TONAL_ELEVATION
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp),
+                    modifier = Modifier.padding(SettingsConstants.DIALOG_PADDING),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
@@ -475,13 +481,13 @@ fun StorageSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                         modifier = Modifier.size(48.dp),
                         strokeWidth = 4.dp
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
                     Text(
                         text = "正在扫描缓存",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                     Text(
                         text = uiState.interactiveScanStatus,
                         style = MaterialTheme.typography.bodyMedium,

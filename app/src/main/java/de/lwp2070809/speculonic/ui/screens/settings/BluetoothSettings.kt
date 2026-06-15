@@ -82,7 +82,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             text = stringResource(R.string.bluetooth_car_audio),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         ListItem(
@@ -132,7 +132,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         val showProgressBarEnabled = uiState.carBluetoothEnabled && uiState.bluetoothLyricsEnabled
         ListItem(
             modifier = Modifier
-                .padding(start = 16.dp)
+                .padding(start = SettingsConstants.SUB_ITEM_PADDING)
                 .alpha(if (showProgressBarEnabled) 1f else 0.38f),
             headlineContent = { Text(stringResource(R.string.bluetooth_lyrics_hide_progress_bar)) },
             supportingContent = { Text(stringResource(R.string.bluetooth_lyrics_hide_progress_bar_description)) },
@@ -145,7 +145,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         )
         
-        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+        HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
     }
 
     if (showBluetoothNamesDialog) {
@@ -171,7 +171,7 @@ fun BluetoothNamesDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.bluetooth_car_device_names)) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(SettingsConstants.SPACER_HEIGHT_MEDIUM)) {
                 Text(
                     text = stringResource(R.string.bluetooth_car_device_names_description),
                     style = MaterialTheme.typography.bodySmall
@@ -199,7 +199,7 @@ fun BluetoothNamesDialog(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 300.dp)
+                        .heightIn(max = SettingsConstants.DIALOG_MAX_HEIGHT)
                         .verticalScroll(rememberScrollState())
                 ) {
                     names.forEach { name ->
