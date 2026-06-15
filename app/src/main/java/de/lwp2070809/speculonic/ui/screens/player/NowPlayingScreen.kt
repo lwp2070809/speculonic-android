@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.ui.screens.player
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
@@ -362,15 +363,26 @@ private fun NowPlayingMobile(
                     Spacer(modifier = Modifier.height(16.dp))
 
                     
-                    var isLyricsActive by remember(showLyrics) { mutableStateOf(false) }
-                    LaunchedEffect(showLyrics) {
-                        if (showLyrics) {
-                            kotlinx.coroutines.delay(300)
-                            isLyricsActive = true
-                        } else {
-                            isLyricsActive = false
-                        }
-                    }
+                    val lyricsAlpha by animateFloatAsState(
+                        targetValue = if (showLyrics) 1f else 0f,
+                        animationSpec = tween(durationMillis = 250),
+                        label = "LyricsAlpha"
+                    )
+                    val artworkAlpha by animateFloatAsState(
+                        targetValue = if (showLyrics) 0f else 1f,
+                        animationSpec = tween(durationMillis = 250),
+                        label = "ArtworkAlpha"
+                    )
+                    val lyricsScale by animateFloatAsState(
+                        targetValue = if (showLyrics) 1f else 0.92f,
+                        animationSpec = tween(durationMillis = 250),
+                        label = "LyricsScale"
+                    )
+                    val artworkScale by animateFloatAsState(
+                        targetValue = if (showLyrics) 1f else 1.05f,
+                        animationSpec = tween(durationMillis = 250),
+                        label = "ArtworkScale"
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -379,9 +391,39 @@ private fun NowPlayingMobile(
                             .then(if (!showLyrics) dragModifier else Modifier)
                             .clickable { onToggleLyrics() }
                     ) {
-                        Crossfade(targetState = showLyrics, label = "LyricsTransition") { isLyrics ->
-                            if (isLyrics) {
-                                if (isLyricsActive) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .graphicsLayer {
+                                    alpha = artworkAlpha
+                                    scaleX = artworkScale
+                                    scaleY = artworkScale
+                                }
+                        ) {
+                            ArtworkView(
+                                artworkId = playbackState.artworkId,
+                                artworkUri = playbackState.artworkUri,
+                                repository = repository
+                            )
+                        }
+                        if (lyricsAlpha > 0f) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer {
+                                        alpha = lyricsAlpha
+                                        scaleX = lyricsScale
+                                        scaleY = lyricsScale
+                                    }
+                            ) {
+                                if (uiState.isLoadingLyrics) {
+                                    Box(
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        CircularProgressIndicator()
+                                    }
+                                } else {
                                     LyricsView(
                                         lyricsLines = uiState.lyricsLines,
                                         rawLyrics = uiState.rawLyrics,
@@ -391,20 +433,7 @@ private fun NowPlayingMobile(
                                         onSeek = { playbackController.seekTo(it) },
                                         modifier = Modifier.fillMaxSize()
                                     )
-                                } else {
-                                    Box(
-                                        modifier = Modifier.fillMaxSize(),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        CircularProgressIndicator()
-                                    }
                                 }
-                            } else {
-                                ArtworkView(
-                                    artworkId = playbackState.artworkId,
-                                    artworkUri = playbackState.artworkUri,
-                                    repository = repository
-                                )
                             }
                         }
                     }
