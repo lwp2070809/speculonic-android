@@ -1,6 +1,5 @@
 package de.lwp2070809.speculonic.ui.theme
 
-import android.os.Build
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -79,9 +78,6 @@ fun SpeculonicTheme(
             }
             val window = (context as? Activity)?.window
             if (window != null) {
-                window.statusBarColor = android.graphics.Color.TRANSPARENT
-                window.navigationBarColor = android.graphics.Color.TRANSPARENT
-                
                 val surfaceArgb = colorScheme.surface.toArgb()
                 window.setBackgroundDrawable(ColorDrawable(surfaceArgb))
                 
@@ -89,10 +85,7 @@ fun SpeculonicTheme(
                 insetsController.isAppearanceLightStatusBars = !darkTheme
                 insetsController.isAppearanceLightNavigationBars = !darkTheme
                 
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    window.isNavigationBarContrastEnforced = false
-                    window.isStatusBarContrastEnforced = false
-                }
+                window.isNavigationBarContrastEnforced = false
             }
         }
     }
