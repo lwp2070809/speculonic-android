@@ -3,8 +3,6 @@ package de.lwp2070809.speculonic.util
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.net.Uri
 import androidx.annotation.OptIn
 import androidx.media3.common.util.BitmapLoader

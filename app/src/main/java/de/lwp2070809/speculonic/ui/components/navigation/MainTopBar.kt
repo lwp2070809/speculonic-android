@@ -128,7 +128,7 @@ fun MainTopBar(
                                 label = "translationY"
                             )
                         } else {
-                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
                         }
 
                         val alpha = if (activeDownloadsCount > 0) {
@@ -143,7 +143,7 @@ fun MainTopBar(
                                 label = "alpha"
                             )
                         } else {
-                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(1f) }
+                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
                         }
 
                         IconButton(onClick = onDownloadManagerClick) {
@@ -288,7 +288,7 @@ private fun CloudSyncIcon(
                     label = "rotation"
                 )
             } else {
-                androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+                androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
             }
 
             val syncIconOffset = 2.dp

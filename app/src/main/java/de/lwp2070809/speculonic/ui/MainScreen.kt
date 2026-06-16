@@ -1,10 +1,6 @@
 package de.lwp2070809.speculonic.ui
 
 import de.lwp2070809.speculonic.R
-import android.Manifest
-import android.os.Build
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
@@ -82,6 +78,7 @@ fun MainScreen(
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun MainContent(
     windowSizeClass: WindowSizeClass,

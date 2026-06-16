@@ -11,6 +11,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -57,7 +58,7 @@ fun InconsistencyDialog(
                         )
                     } else {
                         Text(
-                            text = stringResource(R.string.inconsistency_dialog_found, inconsistentItems.size),
+                            text = pluralStringResource(R.plurals.inconsistency_dialog_found, inconsistentItems.size, inconsistentItems.size),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.error
                         )

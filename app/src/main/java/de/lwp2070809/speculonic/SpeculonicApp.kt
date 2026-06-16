@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic
 
 import android.app.Application
 import android.content.Context
+import android.os.storage.StorageManager
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import coil3.ImageLoader
@@ -68,7 +69,12 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
     
     override fun newImageLoader(context: Context): ImageLoader {
         val cacheDir = context.cacheDir
-        val usableSpace = cacheDir.usableSpace
+        val storageManager = context.getSystemService(StorageManager::class.java)
+        val usableSpace = try {
+            storageManager.getAllocatableBytes(StorageManager.UUID_DEFAULT)
+        } catch (e: Exception) {
+            cacheDir.usableSpace
+        }
         val imageCacheLimit = (usableSpace * 0.05).toLong().coerceIn(256 * 1024 * 1024L, 1024 * 1024 * 1024L)
 
         return ImageLoader.Builder(context)

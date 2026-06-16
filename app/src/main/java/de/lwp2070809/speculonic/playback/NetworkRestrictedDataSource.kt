@@ -5,7 +5,6 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
-import java.io.IOException
 
 @UnstableApi
 class NetworkRestrictedDataSource(

@@ -18,7 +18,6 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.extractor.DefaultExtractorsFactory
-import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.di.NetworkModule
 
 @UnstableApi

@@ -9,7 +9,6 @@
     <string name="artists">艺术家</string>
     <string name="albums">专辑</string>
     <string name="playlists">歌单</string>
-    <string name="folders">文件夹</string>
     <string name="favorite_songs">收藏曲目</string>
     <string name="favorite_albums">收藏专辑</string>
     <string name="view_all">查看全部</string>
@@ -17,7 +16,6 @@
     <string name="server_url">服务器地址</string>
     <string name="username">用户名</string>
     <string name="password">密码</string>
-    <string name="data_management">数据与存储</string>
     <string name="metadata_sync">元数据同步</string>
     <string name="playback_cache">播放缓存</string>
     <string name="persistent_storage">持久化存储</string>
@@ -61,9 +59,7 @@
     <string name="download_channel_description">后台下载服务</string>
     <string name="unlimited">不限制</string>
     <string name="mobile_play_allowed">允许计费网络播放</string>
-    <string name="mobile_play_allowed_desc">开启后允许在移动网络下播放在线音乐</string>
     <string name="network_restricted_error">播放已暂停：当前未允许使用移动网络播放。请连接 Wi-Fi 或在设置中开启移动数据播放。</string>
-    <string name="downloading_progress_simple">正在下载 (%1$d首未完成)</string>
     <string name="view_logs">查看日志</string>
     <string name="logs">日志</string>
     <string name="clear_logs">清除</string>
@@ -137,8 +133,6 @@
     <string name="force_full_sync_description">忽略服务器时间戳，执行完整的元数据重建。</string>
     <string name="silent_cache">静默缓存</string>
     <string name="silent_cache_description">播放 5 秒后自动将歌曲下载至持久存储。</string>
-    <string name="silent_cache_channel_name">静默缓存</string>
-    <string name="silent_cache_channel_description">后台静默缓存服务</string>
     <string name="silent_cache_warning_title">关闭静默缓存？</string>
     <string name="silent_cache_warning_message">关闭后，收听过的歌曲将不会自动保存到本地，下次收听相同歌曲时将重新消耗网络流量。是否确认关闭？</string>
     <string name="sync_progress_status">当前状态：%1$s</string>
@@ -205,10 +199,6 @@
     <string name="stop_and_scan">停止播放并开始扫描…</string>
 
     
-    <string name="notification_permission_title">通知权限</string>
-    <string name="notification_permission_message">Speculonic 需要通知权限才能在锁屏和通知栏显示播放控制器。这可以让您在不打开应用的情况下控制音乐播放。</string>
-    <string name="go_to_settings">去授权</string>
-    <string name="dont_remind_me">不再提醒</string>
     <string name="error_invalid_url">URL 必须以 http:// 或 https:// 开头</string>
     <string name="trust_all_certificates">信任所有 SSL 证书</string>
     <string name="trust_all_certificates_description">跳过证书验证，适用于使用自签名或私有 CA 证书的自托管服务器。请仅在信任您的服务器时启用。</string>
@@ -219,7 +209,6 @@
     <string name="pref_show_offline_toast_title">断网提示</string>
     <string name="pref_show_offline_toast_summary">当检测到服务器连续连接失败时，弹出断网提示</string>
     <string name="cancel_downloads">取消全部</string>
-    <string name="downloading_progress">正在下载 (第 %1$d/%2$d 首)</string>
     <string name="confirm_cancel_all_downloads_title">取消下载</string>
     <string name="confirm_cancel_all_downloads_message">确定要取消所有排队中的下载任务吗？</string>
     <string name="confirm_download_all_title">全部下载</string>
@@ -228,7 +217,7 @@
     <string name="confirm_force_sync_message">强制全量同步将无视本地数据的新旧状态，重新拉取所有元数据，可能需要较长时间并消耗较多流量。确定要继续吗？</string>
 
     <string name="delete_server_warning">此操作将同时彻底销毁本地所有已同步的音乐数据和缓存（SAF 导出的文件不会被影响）。此操作不可逆！</string>
-    <string name="sync_cover_art_preparing">正在准备同步专辑封面...</string>
+    <string name="sync_cover_art_preparing">正在准备同步专辑封面…</string>
 
     <string name="song_info">歌曲信息</string>
     <string name="pinned_playlists">钉选歌单</string>
@@ -242,26 +231,26 @@
     <string name="genre">流派</string>
     <string name="content_type">内容类型 (MIME)</string>
     <string name="starred_status">已收藏</string>
-    <string name="md5">MD5</string>
     <string name="physical_path">物理路径</string>
     <string name="sha_1">SHA-1</string>
-    <string name="calculating">计算中...</string>
+    <string name="calculating">计算中…</string>
     <string name="not_available_not_cached">不可用 (未缓存)</string>
     <string name="remote_tab">云端比对</string>
     <string name="failed_to_fetch_remote">获取云端数据失败</string>
-    <string name="loading_local_data">正在加载本地数据...</string>
+    <string name="loading_local_data">正在加载本地数据…</string>
     <string name="no_remote_data">暂无云端数据。</string>
     <string name="data_synchronized">本地与云端数据完全同步。</string>
     <string name="differences_found">发现以下差异：</string>
     <string name="local_label">本地</string>
     <string name="remote_label">云端</string>
     <string name="suffix_label">文件格式后缀</string>
-    <string name="tag_format">标签格式版本</string>
     <string name="container_format_and_version">底层容器格式与版本</string>
     <string name="inconsistency_dialog_title">校验结果</string>
     <string name="inconsistency_dialog_success">校验完成，所有缓存文件均与服务器保持一致。</string>
     <string name="inconsistency_dialog_hint">如确实修改了远程服务器数据, 可以尝试先进行一次全量同步。</string>
-    <string name="inconsistency_dialog_found">发现 %1$d 个不一致的文件，请选择处理方式：</string>
+    <plurals name="inconsistency_dialog_found">
+        <item quantity="other">发现 %1$d 个不一致的文件，请选择处理方式：</item>
+    </plurals>
     <string name="inconsistency_reason_missing">文件丢失</string>
     <string name="inconsistency_reason_mismatch">文件内容不一致</string>
     <string name="inconsistency_reason_orphaned">未知的孤立文件</string>
@@ -269,7 +258,6 @@
 
     
     <string name="about">关于</string>
-    <string name="app_description">基于 OpenSubsonic API 的开源音乐客户端</string>
     <string name="version">版本号</string>
     <string name="license">开源协议</string>
     <string name="github_repository">GitHub 仓库</string>
@@ -287,7 +275,6 @@
     <string name="sync_metadata_data_warning">同步元数据可能消耗数十MB流量</string>
     <string name="sync_cover_art_option_title">并同步专辑封面</string>
     <string name="sync_cover_art_option_desc">可能消耗数百MB流量，建议在WiFi下进行</string>
-    <string name="pending_cover_art_sync">等待元数据同步完成后同步专辑封面</string>
     <string name="search_offline_warning">由于您处于离线模式，无法发起远程搜索</string>
     <string name="sync_detail_title">同步详情</string>
     <string name="metadata_stats">本地元数据统计</string>
@@ -301,19 +288,14 @@
     <string name="offline_downloads">离线下载</string>
     <string name="silent_cache_tab">静默缓存</string>
     <string name="cache_quota_exceeded">播放缓存已超过配额！</string>
-    <string name="clear_completed">清除已完成</string>
     <string name="artists_count_label">歌手</string>
     <string name="albums_count_label">专辑</string>
     <string name="songs_count_label">曲目</string>
     <string name="playlists_count_label">歌单</string>
     <string name="last_sync_success_time">上次同步成功：</string>
     <string name="cached_songs_ratio">已缓存歌曲占比</string>
-    <string name="free_storage_space">剩余空间</string>
     <string name="internal_cache_color_label">私有缓存</string>
-    <string name="external_cache_color_label">持久下载</string>
-    <string name="free_space_color_label">设备剩余</string>
     <string name="active_downloads">活动下载</string>
-    <string name="silent_cache_active">静默缓存任务</string>
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
     <string name="metadata">元数据</string>
     <string name="cache_label">缓存</string>

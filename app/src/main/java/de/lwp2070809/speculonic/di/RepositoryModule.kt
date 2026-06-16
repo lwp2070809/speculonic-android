@@ -9,7 +9,6 @@ import dagger.hilt.components.SingletonComponent
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import okhttp3.OkHttpClient
 import javax.inject.Singleton
 
 @Module
@@ -21,14 +20,12 @@ object RepositoryModule {
     fun provideSubsonicRepository(
         @ApplicationContext context: Context,
         musicDao: MusicDao,
-        preferencesManager: PreferencesManager,
-        okHttpClient: OkHttpClient
+        preferencesManager: PreferencesManager
     ): SubsonicRepository {
         return SubsonicRepository(
             context = context,
             musicDao = musicDao,
-            preferencesManager = preferencesManager,
-            okHttpClient = okHttpClient
+            preferencesManager = preferencesManager
         )
     }
 }

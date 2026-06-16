@@ -396,13 +396,6 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-    private fun checkUriExists(context: Context, uri: Uri): Boolean {
-        return try {
-            DocumentFile.fromSingleUri(context, uri)?.exists() == true
-        } catch (e: Exception) {
-            false
-        }
-    }
 
     private fun isMeteredNetwork(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager

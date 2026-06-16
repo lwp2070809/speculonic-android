@@ -25,13 +25,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
-import okhttp3.OkHttpClient
-
 class SubsonicRepository(
     private val context: Context,
     private val musicDao: MusicDao,
-    private val preferencesManager: PreferencesManager,
-    private val okHttpClient: OkHttpClient
+    private val preferencesManager: PreferencesManager
 ) {
     private var repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entityMapper = EntityMapper

@@ -24,7 +24,6 @@ import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.util.CoilBitmapLoader
-import de.lwp2070809.speculonic.util.ConnectivityManagerNetworkMonitor
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers

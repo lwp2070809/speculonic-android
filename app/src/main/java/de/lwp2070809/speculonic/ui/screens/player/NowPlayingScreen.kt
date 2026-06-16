@@ -1,6 +1,5 @@
 package de.lwp2070809.speculonic.ui.screens.player
 
-import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOut
 import androidx.compose.animation.core.animateFloatAsState
@@ -59,6 +58,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -245,7 +246,7 @@ private fun NowPlayingMobile(
         )
     }
 
-    var dragOffset by remember { mutableStateOf(0f) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
 
     val animatedOffset by androidx.compose.animation.core.animateFloatAsState(
@@ -617,7 +618,7 @@ private fun ArtworkView(
         val context = LocalContext.current
         val coroutineScope = rememberCoroutineScope()
 
-        var activeSlot by remember { mutableStateOf(0) }
+        var activeSlot by remember { mutableIntStateOf(0) }
         var model0 by remember { mutableStateOf<Any?>(null) }
         var model1 by remember { mutableStateOf<Any?>(null) }
 
@@ -954,7 +955,7 @@ private fun PlayerBlurBackground(
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
 
-    var activeSlot by remember { mutableStateOf(0) }
+    var activeSlot by remember { mutableIntStateOf(0) }
     var model0 by remember { mutableStateOf<Any?>(null) }
     var model1 by remember { mutableStateOf<Any?>(null) }
 

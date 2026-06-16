@@ -9,7 +9,6 @@ import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.GetNowPlayingLyricsUseCase
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LyricLine
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow

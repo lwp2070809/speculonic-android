@@ -35,12 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.compose.LocalLifecycleOwner
-import androidx.lifecycle.repeatOnLifecycle
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.util.LyricLine
-import kotlinx.coroutines.delay
 
 @Composable
 fun LyricsView(

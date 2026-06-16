@@ -2,7 +2,6 @@ package de.lwp2070809.speculonic.data
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import androidx.core.net.toUri
 import de.lwp2070809.speculonic.BuildConfig
 import de.lwp2070809.speculonic.util.LogManager

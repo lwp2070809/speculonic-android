@@ -11,7 +11,6 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import android.app.Activity
 import android.content.ContextWrapper
-import android.graphics.drawable.ColorDrawable
 import android.annotation.SuppressLint
 import androidx.core.graphics.drawable.toDrawable
 import androidx.compose.runtime.Composable

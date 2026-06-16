@@ -6,8 +6,6 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.SearchResult3
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest

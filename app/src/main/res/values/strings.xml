@@ -9,7 +9,6 @@
     <string name="artists">Artists</string>
     <string name="albums">Albums</string>
     <string name="playlists">Playlists</string>
-    <string name="folders">Folders</string>
     <string name="favorite_songs">Favorite Songs</string>
     <string name="favorite_albums">Favorite Albums</string>
     <string name="view_all">View All</string>
@@ -17,7 +16,6 @@
     <string name="server_url">Server URL</string>
     <string name="username">Username</string>
     <string name="password">Password</string>
-    <string name="data_management">Data &amp; Storage</string>
     <string name="metadata_sync">Metadata Sync</string>
     <string name="playback_cache">Playback Cache</string>
     <string name="persistent_storage">Persistent Storage</string>
@@ -61,9 +59,7 @@
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
-    <string name="mobile_play_allowed_desc">When enabled, music stream via mobile network if not cached</string>
     <string name="network_restricted_error">Playback paused: Mobile network streaming is not allowed. Please connect to Wi-Fi or enable mobile data streaming in settings.</string>
-    <string name="downloading_progress_simple">Downloading (%1$d remaining)</string>
     <string name="view_logs">View Logs</string>
     <string name="logs">Logs</string>
     <string name="clear_logs">Clear</string>
@@ -137,8 +133,6 @@
     <string name="force_full_sync_description">Ignore server timestamps and perform a complete metadata rebuild.</string>
     <string name="silent_cache">Silent Cache</string>
     <string name="silent_cache_description">Automatically download songs to persistent storage after 5s of playback.</string>
-    <string name="silent_cache_channel_name">Silent Cache</string>
-    <string name="silent_cache_channel_description">Background silent cache service</string>
     <string name="silent_cache_warning_title">Disable Silent Cache?</string>
     <string name="silent_cache_warning_message">Disabling silent cache will prevent songs from being saved locally while listening. You will consume more data if you listen to the same songs again. Are you sure?</string>
     <string name="sync_progress_status">Status: %1$s</string>
@@ -208,10 +202,6 @@
     <string name="stop_and_scan">Stopping playback and starting scan…</string>
 
     
-    <string name="notification_permission_title">Notification Permission</string>
-    <string name="notification_permission_message">Speculonic needs notification permission to show the music player on the lock screen and notification shade. This allows you to control playback without opening the app.</string>
-    <string name="go_to_settings">Go to Settings</string>
-    <string name="dont_remind_me">Don\'t remind me</string>
     <string name="error_invalid_url">URL must start with http:// or https://</string>
     <string name="trust_all_certificates">Trust All SSL Certificates</string>
     <string name="trust_all_certificates_description">Bypass SSL verification for self-hosted servers with untrusted certificates. Use only if you trust your server.</string>
@@ -221,7 +211,6 @@
     <string name="pref_show_offline_toast_title">Offline Notification</string>
     <string name="pref_show_offline_toast_summary">Show a toast when the server is unreachable due to continuous connection failures</string>
     <string name="cancel_downloads">Cancel All</string>
-    <string name="downloading_progress">Downloading (%1$d/%2$d)</string>
     <string name="confirm_cancel_all_downloads_title">Cancel Downloads</string>
     <string name="confirm_cancel_all_downloads_message">Are you sure you want to cancel all queued downloads?</string>
     <string name="confirm_download_all_title">Download All</string>
@@ -230,7 +219,7 @@
     <string name="confirm_force_sync_message">Force full sync will ignore the current state of local data and fetch all metadata from scratch. This may take a long time and consume a lot of data. Are you sure you want to continue?</string>
 
     <string name="delete_server_warning">This action will also permanently destroy all synchronized music data and cache locally (SAF exported files will not be affected). This action is irreversible!</string>
-    <string name="sync_cover_art_preparing">Preparing to sync album covers...</string>
+    <string name="sync_cover_art_preparing">Preparing to sync album covers…</string>
 
     <string name="song_info">Song Info</string>
     <string name="pinned_playlists">Pinned Playlists</string>
@@ -244,26 +233,27 @@
     <string name="genre">Genre</string>
     <string name="content_type">Content Type</string>
     <string name="starred_status">Starred</string>
-    <string name="md5">MD5</string>
     <string name="physical_path">Physical Path</string>
     <string name="sha_1">SHA-1</string>
-    <string name="calculating">Calculating...</string>
+    <string name="calculating">Calculating…</string>
     <string name="not_available_not_cached">Not available (Not cached)</string>
     <string name="remote_tab">Remote</string>
     <string name="failed_to_fetch_remote">Failed to fetch remote data</string>
-    <string name="loading_local_data">Loading local data...</string>
+    <string name="loading_local_data">Loading local data…</string>
     <string name="no_remote_data">No remote data available.</string>
     <string name="data_synchronized">Local and remote data are fully synchronized.</string>
     <string name="differences_found">Differences found:</string>
     <string name="local_label">Local</string>
     <string name="remote_label">Remote</string>
     <string name="suffix_label">Suffix</string>
-    <string name="tag_format">Tag Format</string>
     <string name="container_format_and_version">Container Format and Version</string>
     <string name="inconsistency_dialog_title">Verification Result</string>
     <string name="inconsistency_dialog_success">Verification complete. All cached files match the server.</string>
     <string name="inconsistency_dialog_hint">If remote server data was indeed modified, you can try forcing a full sync first.</string>
-    <string name="inconsistency_dialog_found">Found %1$d inconsistent files. Please select an action:</string>
+    <plurals name="inconsistency_dialog_found">
+        <item quantity="one">Found %1$d inconsistent file. Please select an action:</item>
+        <item quantity="other">Found %1$d inconsistent files. Please select an action:</item>
+    </plurals>
     <string name="inconsistency_reason_missing">File missing</string>
     <string name="inconsistency_reason_mismatch">Binary mismatch</string>
     <string name="inconsistency_reason_orphaned">Unknown orphaned file</string>
@@ -271,7 +261,6 @@
 
     <!-- About -->
     <string name="about">About</string>
-    <string name="app_description">An open source music client based on OpenSubsonic API</string>
     <string name="version">Version</string>
     <string name="license">License</string>
     <string name="github_repository">GitHub Repository</string>
@@ -289,7 +278,6 @@
     <string name="sync_metadata_data_warning">Syncing metadata may consume tens of MB of data.</string>
     <string name="sync_cover_art_option_title">And sync cover art</string>
     <string name="sync_cover_art_option_desc">May consume hundreds of MB of data, WiFi recommended.</string>
-    <string name="pending_cover_art_sync">Waiting for metadata sync to complete before syncing cover art.</string>
     <string name="search_offline_warning">Search is disabled in offline mode.</string>
     <string name="sync_detail_title">Sync Details</string>
     <string name="metadata_stats">Local Metadata Stats</string>
@@ -303,19 +291,14 @@
     <string name="offline_downloads">Downloads</string>
     <string name="silent_cache_tab">Cache</string>
     <string name="cache_quota_exceeded">Playback cache exceeded quota!</string>
-    <string name="clear_completed">Clear Completed</string>
     <string name="artists_count_label">Artists</string>
     <string name="albums_count_label">Albums</string>
     <string name="songs_count_label">Songs</string>
     <string name="playlists_count_label">Playlists</string>
     <string name="last_sync_success_time">Last synced successfully: </string>
     <string name="cached_songs_ratio">Cached Songs Ratio</string>
-    <string name="free_storage_space">Free Space</string>
     <string name="internal_cache_color_label">Private Cache</string>
-    <string name="external_cache_color_label">Downloads</string>
-    <string name="free_space_color_label">Free Space</string>
     <string name="active_downloads">Active Downloads</string>
-    <string name="silent_cache_active">Silent Cache Tasks</string>
     <string name="clear_cache_quota_warning">Clear Playback Cache</string>
     <string name="metadata">Metadata</string>
     <string name="cache_label">Cache</string>

@@ -16,7 +16,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
@@ -383,7 +382,6 @@ class SyncManager(
         private val syncMutex = Mutex()
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L 
         private const val BATCH_SIZE = 500
-        private const val SAFETY_GUARD_THRESHOLD = 1000
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
     }
 }
