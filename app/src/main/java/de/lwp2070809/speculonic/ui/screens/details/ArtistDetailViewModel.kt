@@ -19,6 +19,7 @@ data class ArtistDetailUiState(
     val artist: Artist? = null,
     val albums: List<Album> = emptyList(),
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val error: String? = null
 )
 
@@ -40,9 +41,13 @@ class ArtistDetailViewModel @AssistedInject constructor(
         loadArtistDetails()
     }
 
-    fun loadArtistDetails(forceRefresh: Boolean = false) {
+    fun loadArtistDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true) }
+            if (isManualRefresh) {
+                _uiState.update { it.copy(isRefreshing = true) }
+            } else {
+                _uiState.update { it.copy(isLoading = true) }
+            }
             try {
                 
                 
@@ -53,12 +58,13 @@ class ArtistDetailViewModel @AssistedInject constructor(
                         artist = artist ?: it.artist, 
                         albums = if (albums.isNotEmpty()) albums else it.albums,
                         isLoading = false,
+                        isRefreshing = false,
                         
                         error = null
                     ) 
                 }
             } catch (e: Exception) {
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = e.message) }
             }
         }
     }

@@ -100,8 +100,8 @@ fun AlbumDetailScreen(
     }
 
     PullToRefreshBox(
-        isRefreshing = uiState.isLoading && uiState.album != null,
-        onRefresh = { if (isOnline) viewModel.loadAlbumDetails(forceRefresh = true) },
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { if (isOnline) viewModel.loadAlbumDetails(forceRefresh = true, isManualRefresh = true) },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         Box(modifier = Modifier.fillMaxSize()) {

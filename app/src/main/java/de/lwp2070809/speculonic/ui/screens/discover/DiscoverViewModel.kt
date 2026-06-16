@@ -24,6 +24,7 @@ import javax.inject.Inject
 
 data class DiscoverUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val isInitialLoadComplete: Boolean = false,
     val pinnedPlaylists: List<de.lwp2070809.speculonic.network.model.Playlist> = emptyList(),
     val favoriteSongs: List<Song> = emptyList(),
@@ -150,7 +151,7 @@ class DiscoverViewModel @Inject constructor(
     fun refreshData() {
         viewModelScope.launch {
             LogManager.d("DiscoverViewModel: Targeted refresh triggered.")
-            _uiState.update { it.copy(isLoading = true) }
+            _uiState.update { it.copy(isRefreshing = true) }
             try {
                 repository.getAlbumList("newest", forceRefresh = true)
                 repository.getAlbumList("frequent", forceRefresh = true)
@@ -166,7 +167,7 @@ class DiscoverViewModel @Inject constructor(
                 LogManager.e("DiscoverViewModel: refreshData failed", e)
                 _uiState.update { it.copy(error = e.message) }
             } finally {
-                _uiState.update { it.copy(isLoading = false) }
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }

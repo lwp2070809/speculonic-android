@@ -28,6 +28,7 @@ import javax.inject.Inject
 
 data class LibraryUiState(
     val isRefreshing: Boolean = false,
+    val isLoading: Boolean = false,
     val isSyncing: Boolean = false,
     val isInitialLoadComplete: Boolean = false,
     val syncProgress: String? = null,
@@ -96,7 +97,7 @@ class LibraryViewModel @Inject constructor(
             val hasLocalData = repository.hasLocalData()
             
             if (!hasLocalData) {
-                _uiState.update { it.copy(isRefreshing = true) }
+                _uiState.update { it.copy(isLoading = true) }
                 
                 launch {
                     try {
@@ -104,7 +105,7 @@ class LibraryViewModel @Inject constructor(
                     } catch (e: Exception) {
                         LogManager.e("LibraryViewModel: Initial playlist fetch failed", e)
                     } finally {
-                        _uiState.update { it.copy(isRefreshing = false) }
+                        _uiState.update { it.copy(isLoading = false) }
                     }
                 }
 
@@ -167,7 +168,7 @@ class LibraryViewModel @Inject constructor(
     fun refreshDeeply(ignoreLastModified: Boolean = false, ignoreSafetyGuard: Boolean = false) {
         viewModelScope.launch {
             _uiState.update { it.copy(
-                isRefreshing = true, 
+                isLoading = true, 
                 syncProgress = "正在执行全量同步...", 
                 error = null,
                 showSafetyGuardConfirm = false
@@ -181,10 +182,10 @@ class LibraryViewModel @Inject constructor(
                         _uiState.update { it.copy(syncProgress = status) }
                     }
                 )
-                _uiState.update { it.copy(isRefreshing = false, syncProgress = null) }
+                _uiState.update { it.copy(isLoading = false, syncProgress = null) }
             } catch (e: de.lwp2070809.speculonic.domain.repository.SafetyGuardException) {
                 _uiState.update { it.copy(
-                    isRefreshing = false,
+                    isLoading = false,
                     syncProgress = null,
                     showSafetyGuardConfirm = true,
                     safetyGuardMessage = e.message
@@ -192,7 +193,7 @@ class LibraryViewModel @Inject constructor(
             } catch (e: Exception) {
                 LogManager.e("LibraryViewModel: refreshDeeply failed", e)
                 _uiState.update { it.copy(
-                    isRefreshing = false,
+                    isLoading = false,
                     syncProgress = null,
                     error = e.message ?: "Unknown error"
                 ) }

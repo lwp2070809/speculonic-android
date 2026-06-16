@@ -60,8 +60,8 @@ fun ArtistDetailScreen(
     }
 
     PullToRefreshBox(
-        isRefreshing = uiState.isLoading && uiState.artist != null,
-        onRefresh = { if (isOnline) viewModel.loadArtistDetails(forceRefresh = true) },
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { if (isOnline) viewModel.loadArtistDetails(forceRefresh = true, isManualRefresh = true) },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

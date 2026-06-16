@@ -81,7 +81,7 @@ fun DiscoverScreen(
     val showEmptyState = isEmpty && !uiState.isLoading && uiState.isInitialLoadComplete
 
     PullToRefreshBox(
-        isRefreshing = uiState.isLoading,
+        isRefreshing = uiState.isRefreshing,
         onRefresh = { if (isOnline) viewModel.refreshData() },
         modifier = Modifier.fillMaxSize()
     ) {

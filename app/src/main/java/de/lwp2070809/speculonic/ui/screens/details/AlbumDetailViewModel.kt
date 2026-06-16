@@ -17,6 +17,7 @@ import kotlinx.coroutines.launch
 
 data class AlbumDetailUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val album: Album? = null,
     val songs: List<Song> = emptyList(),
     val error: String? = null
@@ -44,34 +45,31 @@ class AlbumDetailViewModel @AssistedInject constructor(
         loadAlbumDetails(forceRefresh = false)
     }
 
-    fun loadAlbumDetails(forceRefresh: Boolean = false) {
+    fun loadAlbumDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {
         viewModelScope.launch {
-            
-            
-            if (forceRefresh || _uiState.value.album == null) {
+            if (isManualRefresh) {
+                _uiState.value = _uiState.value.copy(isRefreshing = true)
+            } else if (forceRefresh || _uiState.value.album == null) {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
 
             try {
-                
-                
                 val cachedAlbum = repository.getAlbum(albumId, forceRefresh = false)
                 if (cachedAlbum != null) {
                     _uiState.value = _uiState.value.copy(isLoading = false, error = null)
                 }
 
-                
                 repository.getAlbum(albumId, forceRefresh = true)
-                _uiState.value = _uiState.value.copy(isLoading = false, error = null)
+                _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
             } catch (e: Exception) {
-                
                 if (_uiState.value.album == null) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,
+                        isRefreshing = false,
                         error = e.message
                     )
                 } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false)
+                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
                 }
             }
         }

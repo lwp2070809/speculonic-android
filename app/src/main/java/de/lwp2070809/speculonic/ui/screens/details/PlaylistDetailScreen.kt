@@ -96,8 +96,8 @@ fun PlaylistDetailScreen(
     }
 
     PullToRefreshBox(
-        isRefreshing = uiState.isLoading && uiState.playlist != null,
-        onRefresh = { if (isOnline) viewModel.loadPlaylistDetails(forceRefresh = true) },
+        isRefreshing = uiState.isRefreshing,
+        onRefresh = { if (isOnline) viewModel.loadPlaylistDetails(forceRefresh = true, isManualRefresh = true) },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

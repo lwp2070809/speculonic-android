@@ -84,7 +84,7 @@ fun LibraryScreen(
                          uiState.artists.isEmpty() && 
                          uiState.playlists.isEmpty()
 
-    val showEmptyState = isLibraryEmpty && !uiState.isRefreshing && !uiState.isSyncing && uiState.isInitialLoadComplete
+    val showEmptyState = isLibraryEmpty && !uiState.isRefreshing && !uiState.isLoading && !uiState.isSyncing && uiState.isInitialLoadComplete
 
     Column(modifier = Modifier.fillMaxSize()) {
         PrimaryScrollableTabRow(

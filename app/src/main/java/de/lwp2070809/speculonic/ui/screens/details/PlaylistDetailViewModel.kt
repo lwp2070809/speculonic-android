@@ -18,6 +18,7 @@ import kotlinx.coroutines.launch
 
 data class PlaylistDetailUiState(
     val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
     val playlist: Playlist? = null,
     val songs: List<Song> = emptyList(),
     val error: String? = null
@@ -47,9 +48,11 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         loadPlaylistDetails(forceRefresh = false)
     }
 
-    fun loadPlaylistDetails(forceRefresh: Boolean = false) {
+    fun loadPlaylistDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {
         viewModelScope.launch {
-            if (forceRefresh || _uiState.value.playlist == null) {
+            if (isManualRefresh) {
+                _uiState.value = _uiState.value.copy(isRefreshing = true)
+            } else if (forceRefresh || _uiState.value.playlist == null) {
                 _uiState.value = _uiState.value.copy(isLoading = true)
             }
 
@@ -67,7 +70,8 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                 val playlistMetadata = playlists.find { it.id == playlistId }
                 
                 _uiState.value = _uiState.value.copy(
-                    isLoading = false, 
+                    isLoading = false,
+                    isRefreshing = false,
                     songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
                     playlist = playlistMetadata ?: _uiState.value.playlist,
                     error = null
@@ -75,6 +79,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             } catch (e: Exception) {
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
+                    isRefreshing = false,
                     error = e.message
                 )
             }
