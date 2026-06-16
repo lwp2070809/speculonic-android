@@ -15,6 +15,7 @@ import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -71,9 +72,14 @@ fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
             onClick = { onNavigate(AppRoute.SettingsAppearance) }
         )
         SettingsCategoryItem(
-            title = stringResource(R.string.data_management),
+            title = stringResource(R.string.metadata),
+            icon = Icons.Default.Sync,
+            onClick = { onNavigate(AppRoute.MetadataSettings) }
+        )
+        SettingsCategoryItem(
+            title = stringResource(R.string.storage_cache_settings),
             icon = Icons.Default.Storage,
-            onClick = { onNavigate(AppRoute.SettingsStorage) }
+            onClick = { onNavigate(AppRoute.StorageCacheSettings) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.network),

@@ -36,14 +36,44 @@ class CacheOperations(private val context: Context) {
         }
     }
 
-    suspend fun calculateCacheSizes(cacheLocation: String): Pair<Long, Long> = withContext(Dispatchers.IO) {
-        var internalBytes = 0L
+    suspend fun clearPlaybackCache() = withContext(Dispatchers.IO) {
+        CacheManager.executeWithCacheReleaseLock {
+            File(context.cacheDir, "media_playback_buffer").deleteRecursively()
+        }
+    }
+
+    suspend fun clearCoverArtCache() = withContext(Dispatchers.IO) {
+        CacheManager.executeWithCacheReleaseLock {
+            File(context.cacheDir, "image_cache").deleteRecursively()
+        }
+    }
+
+    suspend fun clearSongDownloads() = withContext(Dispatchers.IO) {
+        try {
+            val downloadManager = DownloadManagerHelper.getDownloadManagerSuspend(context)
+            downloadManager.removeAllDownloads()
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to clear downloads", e)
+        }
+        DownloadManagerHelper.reset()
+        CacheManager.executeWithCacheReleaseLock {
+            val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
+            internalPersistentDir.deleteRecursively()
+        }
+    }
+
+    suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {
+        val playbackBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
+        val coverArtBytes = getDirectorySize(File(context.cacheDir, "image_cache"))
+        val songBytes = getDirectorySize(File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache"))
         var externalBytes = 0L
         
-        internalBytes += getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
-        internalBytes += getDirectorySize(File(context.cacheDir, "image_cache"))
-        internalBytes += getDirectorySize(File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache"))
-        
+        val totalCache = getDirectorySize(context.cacheDir)
+        val totalFiles = getDirectorySize(context.filesDir)
+        val totalExternalFiles = getDirectorySize(context.getExternalFilesDir(null))
+        val totalPrivate = totalCache + totalFiles + totalExternalFiles
+        val otherBytes = (totalPrivate - playbackBytes - coverArtBytes - songBytes).coerceAtLeast(0L)
+
         if (cacheLocation.isNotBlank()) {
             try {
                 val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
@@ -57,7 +87,7 @@ class CacheOperations(private val context: Context) {
             }
         }
         
-        internalBytes to externalBytes
+        CacheBreakdown(playbackBytes, coverArtBytes, songBytes, otherBytes, externalBytes)
     }
 
     private fun getDirectorySize(directory: File?): Long {
@@ -76,3 +106,11 @@ class CacheOperations(private val context: Context) {
         return DecimalFormat("#,##0.#").format(size / 1024.0.pow(digitGroups.toDouble())) + " " + units[digitGroups]
     }
 }
+
+data class CacheBreakdown(
+    val playbackBytes: Long,
+    val coverArtBytes: Long,
+    val songBytes: Long,
+    val otherBytes: Long,
+    val externalBytes: Long
+)

@@ -34,6 +34,10 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.core.*
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.Spacer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,7 +48,9 @@ fun MainTopBar(
     onSearchClick: () -> Unit,
     isSyncing: Boolean = false,
     syncProgress: String? = null,
-    onSyncStatusClick: () -> Unit = {}
+    onSyncStatusClick: () -> Unit = {},
+    activeDownloadsCount: Int = 0,
+    onDownloadManagerClick: () -> Unit = {}
 ) {
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
@@ -70,15 +76,10 @@ fun MainTopBar(
                     val logoSpacing = if (isLandscape) 24.dp else 8.dp
                     
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(logoSpacing)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Flip,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(40.dp)
-                        )
                         Text(
                             text = appName,
                             fontSize = 26.sp,
@@ -87,6 +88,75 @@ fun MainTopBar(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+
+                        val translationY = if (activeDownloadsCount > 0) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "download_bounce")
+                            infiniteTransition.animateFloat(
+                                initialValue = -4f,
+                                targetValue = 4f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1000, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ),
+                                label = "translationY"
+                            )
+                        } else {
+                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(0f) }
+                        }
+
+                        val alpha = if (activeDownloadsCount > 0) {
+                            val infiniteTransition = rememberInfiniteTransition(label = "download_fade")
+                            infiniteTransition.animateFloat(
+                                initialValue = 1f,
+                                targetValue = 0f,
+                                animationSpec = infiniteRepeatable(
+                                    animation = tween(1000, easing = LinearEasing),
+                                    repeatMode = RepeatMode.Restart
+                                ),
+                                label = "alpha"
+                            )
+                        } else {
+                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(1f) }
+                        }
+
+                        IconButton(onClick = onDownloadManagerClick) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp)) {
+                                if (activeDownloadsCount > 0) {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDownward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier
+                                            .size(22.dp)
+                                            .graphicsLayer {
+                                                this.translationY = translationY.value * density
+                                                this.alpha = alpha.value
+                                            }
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .padding(bottom = 2.dp)
+                                            .size(width = 16.dp, height = 2.dp)
+                                            .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowDownward,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(22.dp)
+                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .align(Alignment.BottomCenter)
+                                            .padding(bottom = 2.dp)
+                                            .size(width = 16.dp, height = 2.dp)
+                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), shape = CircleShape)
+                                    )
+                                }
+                            }
+                        }
 
                         var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
                         var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }

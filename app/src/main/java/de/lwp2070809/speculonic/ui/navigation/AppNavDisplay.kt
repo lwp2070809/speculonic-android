@@ -46,6 +46,9 @@ import de.lwp2070809.speculonic.ui.screens.library.LibraryScreen
 import de.lwp2070809.speculonic.ui.screens.library.LibraryViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsScreen
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
+import de.lwp2070809.speculonic.ui.screens.settings.MetadataSettings
+import de.lwp2070809.speculonic.ui.screens.settings.StorageCacheSettings
+import de.lwp2070809.speculonic.ui.screens.download.DownloadManagerScreen
 
 @Composable
 fun AppNavDisplay(
@@ -176,11 +179,25 @@ fun AppNavDisplay(
             )
         }
 
-        entry<AppRoute.SettingsStorage> {
-            
-            de.lwp2070809.speculonic.ui.screens.settings.StorageSettings(
+        entry<AppRoute.MetadataSettings> {
+            MetadataSettings(
                 viewModel = settingsViewModel,
                 topBarState = topBarState
+            )
+        }
+
+        entry<AppRoute.StorageCacheSettings> {
+            StorageCacheSettings(
+                viewModel = settingsViewModel,
+                topBarState = topBarState,
+                onNavigateToDownloadManager = { navigator.navigate(AppRoute.DownloadManager) }
+            )
+        }
+
+        entry<AppRoute.DownloadManager> {
+            DownloadManagerScreen(
+                topBarState = topBarState,
+                onBackClick = { navigator.goBack() }
             )
         }
 

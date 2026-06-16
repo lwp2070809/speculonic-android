@@ -106,7 +106,19 @@ data class SettingsUiState(
     val songsCount: Int = 0,
     val playlistsCount: Int = 0,
     val lastSyncTime: Long = 0L,
-    val syncCoverArtOnForce: Boolean = false
+    val syncCoverArtOnForce: Boolean = false,
+    val internalCacheBytes: Long = 0L,
+    val externalCacheBytes: Long = 0L,
+    val freeSpaceBytes: Long = 0L,
+    val cachedSongsCount: Int = 0,
+    val playbackCacheBytes: Long = 0L,
+    val coverArtCacheBytes: Long = 0L,
+    val songCacheBytes: Long = 0L,
+    val otherCacheBytes: Long = 0L,
+    val playbackCacheSize: String = "0 B",
+    val coverArtCacheSize: String = "0 B",
+    val songCacheSize: String = "0 B",
+    val otherCacheSize: String = "0 B"
 )
 
 @HiltViewModel
@@ -771,11 +783,53 @@ class SettingsViewModel @Inject constructor(
     fun refreshCacheSize() {
         viewModelScope.launch {
             val location = preferencesManager.cacheLocation.first()
-            val (internal, external) = cacheOperations.calculateCacheSizes(location)
+            val breakdown = cacheOperations.calculateCacheSizes(location)
+            val freeSpace = try {
+                context.cacheDir.freeSpace
+            } catch (e: Exception) {
+                0L
+            }
+            val cachedSongs = withContext(Dispatchers.IO) {
+                database.musicDao().getAllCachedSongs().size
+            }
+            val totalInternal = breakdown.playbackBytes + breakdown.coverArtBytes + breakdown.songBytes + breakdown.otherBytes
             _uiState.value = _uiState.value.copy(
-                internalCacheSize = cacheOperations.formatFileSize(internal),
-                externalCacheSize = cacheOperations.formatFileSize(external)
+                internalCacheSize = cacheOperations.formatFileSize(totalInternal),
+                externalCacheSize = cacheOperations.formatFileSize(breakdown.externalBytes),
+                internalCacheBytes = totalInternal,
+                externalCacheBytes = breakdown.externalBytes,
+                freeSpaceBytes = freeSpace,
+                cachedSongsCount = cachedSongs,
+                playbackCacheBytes = breakdown.playbackBytes,
+                coverArtCacheBytes = breakdown.coverArtBytes,
+                songCacheBytes = breakdown.songBytes,
+                otherCacheBytes = breakdown.otherBytes,
+                playbackCacheSize = cacheOperations.formatFileSize(breakdown.playbackBytes),
+                coverArtCacheSize = cacheOperations.formatFileSize(breakdown.coverArtBytes),
+                songCacheSize = cacheOperations.formatFileSize(breakdown.songBytes),
+                otherCacheSize = cacheOperations.formatFileSize(breakdown.otherBytes)
             )
+        }
+    }
+
+    fun clearPlaybackCache() {
+        viewModelScope.launch {
+            cacheOperations.clearPlaybackCache()
+            refreshCacheSize()
+        }
+    }
+
+    fun clearCoverArtCache() {
+        viewModelScope.launch {
+            cacheOperations.clearCoverArtCache()
+            refreshCacheSize()
+        }
+    }
+
+    fun clearSongDownloads() {
+        viewModelScope.launch {
+            cacheOperations.clearSongDownloads()
+            refreshCacheSize()
         }
     }
 

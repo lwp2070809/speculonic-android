@@ -1,0 +1,860 @@
+package de.lwp2070809.speculonic.ui.screens.settings
+
+import android.content.Intent
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.Color
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuAnchorType
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.util.FormatUtils
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StorageCacheSettings(
+    viewModel: SettingsViewModel,
+    topBarState: TopBarState,
+    onNavigateToDownloadManager: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val title = stringResource(R.string.storage_cache_settings)
+    val screenToken = remember { java.util.UUID.randomUUID().toString() }
+
+    LaunchedEffect(Unit) {
+        topBarState.update(
+            title = title,
+            actions = {},
+            showSearch = false,
+            showBack = true,
+            token = screenToken
+        )
+        viewModel.refreshCacheSize()
+    }
+
+    androidx.compose.runtime.DisposableEffect(Unit) {
+        onDispose {
+            topBarState.clear(screenToken)
+        }
+    }
+
+    val context = LocalContext.current
+    val directoryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+    ) { uri: Uri? ->
+        uri?.let {
+            val takeFlags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+            try {
+                context.contentResolver.takePersistableUriPermission(it, takeFlags)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.e("StorageCacheSettings: Failed to take persistable URI permission", e)
+            }
+
+            try {
+                val refreshIntent = Intent(context, de.lwp2070809.speculonic.playback.PlaybackService::class.java).apply {
+                    action = "de.lwp2070809.speculonic.action.REFRESH_SAF_PERMISSION"
+                    data = it
+                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
+                }
+                context.startService(refreshIntent)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.w("StorageCacheSettings: Failed to refresh SAF permission in PlaybackService", e)
+            }
+
+            viewModel.updateCacheLocation(it.toString())
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "refresh")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
+    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+        ) {
+            StorageDashboardCard(
+                playbackBytes = uiState.playbackCacheBytes,
+                coverArtBytes = uiState.coverArtCacheBytes,
+                songBytes = uiState.songCacheBytes,
+                otherBytes = uiState.otherCacheBytes,
+                internalBytes = uiState.internalCacheBytes,
+                maxCacheBytes = uiState.maxCacheSize,
+                cachedSongsCount = uiState.cachedSongsCount,
+                songsCount = uiState.songsCount,
+                playbackSizeLabel = uiState.playbackCacheSize,
+                coverArtSizeLabel = uiState.coverArtCacheSize,
+                songSizeLabel = uiState.songCacheSize,
+                otherSizeLabel = uiState.otherCacheSize,
+                onClearCacheClick = { viewModel.requestClearCache() },
+                onClearPlaybackClick = { viewModel.clearPlaybackCache() },
+                onClearCoverArtClick = { viewModel.clearCoverArtCache() },
+                onClearSongsClick = { viewModel.clearSongDownloads() },
+                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, top = SettingsConstants.PAGE_PADDING)
+            )
+
+            Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.download_manager)) },
+                supportingContent = { Text(stringResource(R.string.active_downloads)) },
+                leadingContent = { Icon(Icons.Default.Download, contentDescription = null) },
+                trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
+                modifier = Modifier.clickable { onNavigateToDownloadManager() }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
+
+            Text(
+                text = stringResource(R.string.playback_cache),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+            )
+
+            var expandedCacheSize by remember { mutableStateOf(false) }
+            val cacheSizes = listOf(
+                512L * 1024 * 1024 to "512 MB",
+                1024L * 1024 * 1024 to "1 GB",
+                2L * 1024 * 1024 * 1024 to "2 GB",
+                5L * 1024 * 1024 * 1024 to "5 GB",
+                -1L to stringResource(R.string.unlimited)
+            )
+            val currentCacheSizeLabel = cacheSizes.find { it.first == uiState.maxCacheSize }?.second 
+                ?: if (uiState.maxCacheSize == -1L) stringResource(R.string.unlimited) else "${uiState.maxCacheSize / (1024 * 1024)} MB"
+
+            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)) {
+                ExposedDropdownMenuBox(
+                    expanded = expandedCacheSize,
+                    onExpandedChange = { expandedCacheSize = !expandedCacheSize },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = currentCacheSizeLabel,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.max_internal_cache)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCacheSize) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedCacheSize,
+                        onDismissRequest = { expandedCacheSize = false }
+                    ) {
+                        cacheSizes.forEach { (size, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    viewModel.updateMaxCacheSize(size)
+                                    expandedCacheSize = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
+                }
+            }
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.clear_internal_cache)) },
+                supportingContent = { Text(stringResource(R.string.used_space, uiState.internalCacheSize)) },
+                trailingContent = {
+                    TextButton(
+                        onClick = { viewModel.requestClearCache() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) {
+                        Text(stringResource(R.string.clear))
+                    }
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
+
+            Text(
+                text = stringResource(R.string.persistent_storage),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+            )
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.persistent_storage_saf)) },
+                supportingContent = {
+                    Text(
+                        text = if (uiState.cacheLocation.isEmpty()) {
+                            stringResource(R.string.not_configured)
+                        } else {
+                            FormatUtils.simplifySafUri(uiState.cacheLocation)
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
+                trailingContent = {
+                    Row {
+                        if (uiState.cacheLocation.isNotEmpty()) {
+                            IconButton(onClick = { viewModel.updateCacheLocation("") }) {
+                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.reset), tint = MaterialTheme.colorScheme.error)
+                            }
+                        }
+                        IconButton(onClick = { directoryLauncher.launch(null) }) {
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.configure_saf))
+                        }
+                    }
+                }
+            )
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.silent_cache)) },
+                supportingContent = { Text(stringResource(R.string.silent_cache_description)) },
+                trailingContent = {
+                    Switch(
+                        checked = uiState.silentCacheEnabled,
+                        onCheckedChange = { viewModel.updateSilentCacheEnabled(it) }
+                    )
+                }
+            )
+
+            HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
+
+            Text(
+                text = stringResource(R.string.maintenance_tools),
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+            )
+
+            if (uiState.cacheLocation.isNotEmpty()) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.scan_local_files)) },
+                    supportingContent = { 
+                        Column {
+                            Text(stringResource(R.string.external_usage, uiState.externalCacheSize))
+                            if (uiState.isScanning && uiState.syncProgress != null) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "${uiState.syncProgress} (${uiState.syncPercentage ?: 0}%)",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
+                    },
+                    leadingContent = { 
+                        Icon(
+                            if (uiState.isScanning) Icons.Default.Refresh else Icons.Default.Search, 
+                            contentDescription = null,
+                            modifier = if (uiState.isScanning) Modifier.rotate(rotation) else Modifier
+                        ) 
+                    },
+                    trailingContent = {
+                        if (uiState.isScanning) {
+                            CircularProgressIndicator(
+                                progress = { (uiState.syncPercentage ?: 0).toFloat() / 100f },
+                                modifier = Modifier.size(24.dp),
+                                strokeWidth = 2.dp
+                            )
+                        }
+                    },
+                    modifier = Modifier.clickable(enabled = !uiState.isScanning) { viewModel.scanLocalFiles() }
+                )
+            }
+
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.verify_cache)) },
+                supportingContent = { 
+                    Column {
+                        Text(stringResource(R.string.verify_description))
+                        if (uiState.isSyncing && uiState.syncProgress != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = "${uiState.syncProgress} (${uiState.syncPercentage ?: 0}%)",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    }
+                },
+                leadingContent = {
+                    Icon(
+                        if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
+                        contentDescription = null,
+                        modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
+                    )
+                },
+                trailingContent = {
+                    if (uiState.isSyncing) {
+                        CircularProgressIndicator(
+                            progress = { (uiState.syncPercentage ?: 0).toFloat() / 100f },
+                            modifier = Modifier.size(24.dp),
+                            strokeWidth = 2.dp
+                        )
+                    }
+                },
+                modifier = Modifier.clickable(enabled = !uiState.isSyncing) { viewModel.requestSyncWithServer() }
+            )
+        }
+    }
+
+    if (uiState.showClearCacheConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelClearCache() },
+            title = { Text(stringResource(R.string.clear_internal_cache)) },
+            text = { Text(stringResource(R.string.clear_cache_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearCache() }) {
+                    Text(stringResource(R.string.clear), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelClearCache() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.showSilentCacheConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelDisableSilentCache() },
+            title = { Text(stringResource(R.string.silent_cache_warning_title)) },
+            text = { Text(stringResource(R.string.silent_cache_warning_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmDisableSilentCache() }) {
+                    Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelDisableSilentCache() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.showMobileSyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelMobileSync() },
+            title = { Text(stringResource(R.string.mobile_data_warning)) },
+            text = { Text(stringResource(R.string.mobile_verify_confirm)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.syncWithServer() }) {
+                    Text(stringResource(R.string.verify_anyway))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelMobileSync() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.isInteractiveScanning) {
+        Dialog(
+            onDismissRequest = {},
+            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
+        ) {
+            Surface(
+                shape = MaterialTheme.shapes.large,
+                color = MaterialTheme.colorScheme.surface,
+                tonalElevation = 6.dp
+            ) {
+                Column(
+                    modifier = Modifier.padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        progress = { (uiState.interactiveScanProgress.toFloat() / 100f).coerceIn(0f, 1f) },
+                        modifier = Modifier.size(48.dp),
+                        strokeWidth = 4.dp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "正在扫描缓存",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = uiState.interactiveScanStatus,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    }
+
+    if (uiState.showInconsistencyDialog) {
+        InconsistencyDialog(
+            inconsistentItems = uiState.inconsistentItems,
+            onDismissRequest = { viewModel.dismissInconsistencyDialog() },
+            onResolveItem = { item, action -> viewModel.resolveInconsistentItem(item, action) }
+        )
+    }
+}
+
+@Composable
+fun StorageDashboardCard(
+    playbackBytes: Long,
+    coverArtBytes: Long,
+    songBytes: Long,
+    otherBytes: Long,
+    internalBytes: Long,
+    maxCacheBytes: Long,
+    cachedSongsCount: Int,
+    songsCount: Int,
+    playbackSizeLabel: String,
+    coverArtSizeLabel: String,
+    songSizeLabel: String,
+    otherSizeLabel: String,
+    onClearCacheClick: () -> Unit,
+    onClearPlaybackClick: () -> Unit,
+    onClearCoverArtClick: () -> Unit,
+    onClearSongsClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+
+    val brush = Brush.linearGradient(
+        colors = listOf(
+            MaterialTheme.colorScheme.primaryContainer,
+            MaterialTheme.colorScheme.tertiaryContainer
+        )
+    )
+
+    val isOverQuota = remember(maxCacheBytes, internalBytes) {
+        maxCacheBytes != -1L && internalBytes > maxCacheBytes
+    }
+
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .background(brush)
+            .clickable { expanded = !expanded }
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.cache_label),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                )
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    if (isOverQuota) {
+                        IconButton(
+                            onClick = {
+                                onClearCacheClick()
+                            },
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.errorContainer,
+                                    shape = CircleShape
+                                )
+                                .size(32.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = stringResource(R.string.clear_cache_quota_warning),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    Icon(
+                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                        contentDescription = "展开详情",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                }
+            }
+
+            val total = maxCacheBytes.coerceAtLeast(1L).toFloat()
+            val progressWeight = if (maxCacheBytes == -1L) 1.0f else (internalBytes.toFloat() / total).coerceAtMost(1f)
+
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(10.dp)
+                        .clip(RoundedCornerShape(5.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                ) {
+                    if (expanded) {
+                        val playbackWeight = if (internalBytes > 0) (playbackBytes.toFloat() / internalBytes) * progressWeight else 0f
+                        val coverArtWeight = if (internalBytes > 0) (coverArtBytes.toFloat() / internalBytes) * progressWeight else 0f
+                        val songWeight = if (internalBytes > 0) (songBytes.toFloat() / internalBytes) * progressWeight else 0f
+                        val otherWeight = if (internalBytes > 0) (otherBytes.toFloat() / internalBytes) * progressWeight else 0f
+
+                        if (songWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(songWeight)
+                                    .fillMaxSize()
+                                    .background(Color(0xFF2196F3))
+                            )
+                        }
+                        if (coverArtWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(coverArtWeight)
+                                    .fillMaxSize()
+                                    .background(Color(0xFF4CAF50))
+                            )
+                        }
+                        if (playbackWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(playbackWeight)
+                                    .fillMaxSize()
+                                    .background(Color(0xFFFF9800))
+                            )
+                        }
+                        if (otherWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(otherWeight)
+                                    .fillMaxSize()
+                                    .background(Color(0xFF9C27B0))
+                            )
+                        }
+                        if (1f - progressWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(1f - progressWeight)
+                                    .fillMaxSize()
+                            )
+                        }
+                    } else {
+                        val progressColor = if (isOverQuota) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                        if (progressWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(progressWeight)
+                                    .fillMaxSize()
+                                    .background(progressColor)
+                            )
+                        }
+                        if (1f - progressWeight > 0.001f) {
+                            Spacer(
+                                modifier = Modifier
+                                    .weight(1f - progressWeight)
+                                    .fillMaxSize()
+                            )
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.Start
+                ) {
+                    LegendItem(
+                        label = stringResource(R.string.internal_cache_color_label),
+                        size = if (maxCacheBytes == -1L) FormatUtils.formatSize(internalBytes) else "${FormatUtils.formatSize(internalBytes)} / ${FormatUtils.formatSize(maxCacheBytes)}",
+                        color = if (isOverQuota) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+                    
+                    CacheDetailRow(
+                        label = stringResource(R.string.song_cache_color_label),
+                        size = songSizeLabel,
+                        color = Color(0xFF2196F3),
+                        onClearClick = onClearSongsClick
+                    )
+
+                    CacheDetailRow(
+                        label = stringResource(R.string.cover_art_cache_color_label),
+                        size = coverArtSizeLabel,
+                        color = Color(0xFF4CAF50),
+                        onClearClick = onClearCoverArtClick
+                    )
+
+                    CacheDetailRow(
+                        label = stringResource(R.string.playback_cache_color_label),
+                        size = playbackSizeLabel,
+                        color = Color(0xFFFF9800),
+                        onClearClick = onClearPlaybackClick
+                    )
+
+                    CacheDetailRow(
+                        label = stringResource(R.string.other_cache_color_label),
+                        size = otherSizeLabel,
+                        color = Color(0xFF9C27B0),
+                        onClearClick = null
+                    )
+                }
+            }
+
+            Text(
+                text = stringResource(R.string.internal_cache_description),
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+            )
+
+            if (isOverQuota) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.8f), shape = RoundedCornerShape(8.dp))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Warning,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Text(
+                        text = stringResource(R.string.cache_quota_exceeded),
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onErrorContainer,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val ratio = if (songsCount == 0) 0 else (cachedSongsCount * 100) / songsCount
+                Column {
+                    Text(
+                        text = stringResource(R.string.cached_songs_ratio),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
+                    )
+                    Text(
+                        text = "$ratio% (共 $cachedSongsCount/$songsCount 首)",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer
+                    )
+                }
+                CircularProgressIndicator(
+                    progress = { ratio.toFloat() / 100f },
+                    modifier = Modifier.size(36.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
+                    strokeWidth = 3.dp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun LegendItem(
+    label: String,
+    size: String,
+    color: androidx.compose.ui.graphics.Color
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Column {
+            Text(
+                text = label,
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
+            )
+            Text(
+                text = size,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+    }
+}
+
+@Composable
+fun CacheDetailRow(
+    label: String,
+    size: String,
+    color: androidx.compose.ui.graphics.Color,
+    onClearClick: (() -> Unit)?
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+            Text(
+                text = label,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+        }
+        
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = size,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            if (onClearClick != null) {
+                IconButton(
+                    onClick = onClearClick,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Delete,
+                        contentDescription = "清除",
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.width(24.dp))
+            }
+        }
+    }
+}

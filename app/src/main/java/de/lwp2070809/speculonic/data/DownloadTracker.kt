@@ -42,10 +42,15 @@ object DownloadTracker {
     private val _activeDownloadIds = MutableStateFlow<Set<String>>(emptySet())
     val activeDownloadIds = _activeDownloadIds.asStateFlow()
 
+    private val _allDownloads = MutableStateFlow<List<Download>>(emptyList())
+    val allDownloadsFlow = _allDownloads.asStateFlow()
+
     private val isInitialized = AtomicBoolean(false)
     
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val entityMapper = EntityMapper
+
+    private var pollJob: kotlinx.coroutines.Job? = null
 
     fun init(context: Context) {
         if (isInitialized.getAndSet(true)) return
@@ -58,22 +63,48 @@ object DownloadTracker {
     }
 
     private fun loadDownloads(downloadManager: DownloadManager) {
+        updateAllDownloads(downloadManager)
+    }
+
+    private fun updateAllDownloads(downloadManager: DownloadManager) {
+        val all = mutableListOf<Download>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
+        val currentActiveDownloads = downloadManager.currentDownloads
+        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
         downloadManager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
-                val download = cursor.download
-                val isSilent = isSilentDownload(download)
-                
+                val dbDownload = cursor.download
+                val download = currentActiveMap[dbDownload.request.id] ?: dbDownload
+                all.add(download)
                 if (download.state == Download.STATE_COMPLETED) {
-                    if (!isSilent) downloaded.add(download.request.id)
+                    downloaded.add(download.request.id)
                 } else if (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED) {
-                    if (!isSilent) active.add(download.request.id)
+                    active.add(download.request.id)
                 }
             }
         }
         _downloadedSongIds.value = downloaded
         _activeDownloadIds.value = active
+        _allDownloads.value = all
+        checkAndStartPolling(downloadManager)
+    }
+
+    private fun checkAndStartPolling(downloadManager: DownloadManager) {
+        val hasActive = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }
+        if (hasActive) {
+            if (pollJob == null || pollJob?.isActive == false) {
+                pollJob = scope.launch {
+                    while (true) {
+                        kotlinx.coroutines.delay(1000)
+                        updateAllDownloads(downloadManager)
+                    }
+                }
+            }
+        } else {
+            pollJob?.cancel()
+            pollJob = null
+        }
     }
 
     private fun isSilentDownload(download: Download): Boolean {
@@ -93,7 +124,7 @@ object DownloadTracker {
 
             when (download.state) {
                 Download.STATE_COMPLETED -> {
-                    if (!isSilent) _downloadedSongIds.update { it + download.request.id }
+                    _downloadedSongIds.update { it + download.request.id }
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
                     
@@ -102,12 +133,7 @@ object DownloadTracker {
                     }
                 }
                 Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
-                    if (!isSilent) {
-                        _activeDownloadIds.update { it + download.request.id }
-                    } else {
-                        
-                        _activeDownloadIds.update { it - download.request.id }
-                    }
+                    _activeDownloadIds.update { it + download.request.id }
                     _downloadedSongIds.update { it - download.request.id }
                 }
                 Download.STATE_FAILED, Download.STATE_REMOVING, Download.STATE_STOPPED -> {
@@ -125,11 +151,13 @@ object DownloadTracker {
                     _activeDownloadIds.update { it - download.request.id }
                 }
             }
+            updateAllDownloads(downloadManager)
         }
 
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
+            updateAllDownloads(downloadManager)
             
             scope.launch {
                 val db = AppDatabase.getDatabase(context)

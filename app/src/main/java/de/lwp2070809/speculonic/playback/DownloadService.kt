@@ -80,34 +80,13 @@ class DownloadService : DownloadService(
             return buildCancellingNotification()
         }
 
-        val visibleDownloads = downloads.filter { !isSilent(it) }
-        val activeDownloads = visibleDownloads.filter { 
+        val activeDownloads = downloads.filter { 
             it.state == Download.STATE_DOWNLOADING || 
             it.state == Download.STATE_QUEUED || 
             it.state == Download.STATE_RESTARTING 
         }
         
         if (activeDownloads.isNotEmpty()) {
-            val currentDownload = activeDownloads.firstOrNull { it.state == Download.STATE_DOWNLOADING }
-                ?: activeDownloads.firstOrNull() ?: return buildSilentNotification()
-
-            
-            val songTitle = try {
-                if (currentDownload.request.data.isNotEmpty()) {
-                    val json = JSONObject(Util.fromUtf8Bytes(currentDownload.request.data))
-                    json.optString("title", getString(R.string.app_name))
-                } else {
-                    getString(R.string.app_name)
-                }
-            } catch (e: Exception) {
-                getString(R.string.app_name)
-            }
-
-            
-            val activeCount = activeDownloads.size
-
-            val progressTitle = getString(R.string.downloading_progress_simple, activeCount)
-
             val clickIntent = android.app.PendingIntent.getActivity(
                 this, 0,
                 android.content.Intent(this, MainActivity::class.java).apply {
@@ -116,55 +95,19 @@ class DownloadService : DownloadService(
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
 
-            val cancelIntent = android.app.PendingIntent.getActivity(
-                this,
-                0,
-                android.content.Intent(this, MainActivity::class.java).apply {
-                    action = "de.lwp2070809.speculonic.ACTION_ASK_CANCEL_DOWNLOADS"
-                    flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP
-                },
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-
-            return NotificationCompat.Builder(this, CHANNEL_ID)
-                .setSmallIcon(R.drawable.ic_launcher_foreground)
-                .setContentTitle(songTitle)
-                .setContentText(progressTitle)
-                .setContentIntent(clickIntent)
-                .setProgress(0, 0, true)
-                .setSilent(true)
-                .setOngoing(true)
-                .addAction(
-                    R.drawable.ic_launcher_foreground,
-                    getString(R.string.cancel_downloads),
-                    cancelIntent
-                )
-                .build()
-        }
-        
-        
-        if (visibleDownloads.isNotEmpty()) {
-            val clickIntent = android.app.PendingIntent.getActivity(
-                this, 0,
-                android.content.Intent(this, MainActivity::class.java).apply {
-                    flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
-                },
-                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
-            )
-            
             return NotificationCompat.Builder(this, CHANNEL_ID)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle(getString(R.string.app_name))
-                .setContentText(getString(R.string.sync_completed))
+                .setContentText(getString(R.string.preparing_offline_content))
                 .setContentIntent(clickIntent)
-                .setAutoCancel(true)
                 .setSilent(true)
+                .setOngoing(true)
                 .build()
         }
-
         
         return buildSilentNotification()
     }
+
 
     private fun isSilent(download: Download): Boolean {
         return try {

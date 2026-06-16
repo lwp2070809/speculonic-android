@@ -23,9 +23,10 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.playback.PlaybackController
+import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
+import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.ui.components.MiniPlayer
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.ui.navigation.AppNavDisplay
@@ -147,6 +148,7 @@ private fun MainContent(
     }
 
     
+    val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
     val searchViewModel: SearchViewModel = hiltViewModel(key = "search_$serverUrl")
     val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_$serverUrl")
 
@@ -189,6 +191,19 @@ private fun MainContent(
             modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
             topBar = {
+                val activeDownloadsCount = remember(allDownloads) {
+                    allDownloads.count { download ->
+                        val isSilent = try {
+                            if (download.request.data.isNotEmpty()) {
+                                val json = org.json.JSONObject(androidx.media3.common.util.Util.fromUtf8Bytes(download.request.data))
+                                json.optBoolean("isSilent", false)
+                            } else false
+                        } catch (e: Exception) {
+                            false
+                        }
+                        !isSilent && (download.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || download.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
+                    }
+                }
                 MainTopBar(
                     currentRoute = currentRoute,
                     topBarState = topBarState,
@@ -196,7 +211,9 @@ private fun MainContent(
                     onSearchClick = { showSearch = true },
                     isSyncing = isSyncing,
                     syncProgress = settingsUiState.syncProgress,
-                    onSyncStatusClick = { showSyncDetailDialog = true }
+                    onSyncStatusClick = { showSyncDetailDialog = true },
+                    activeDownloadsCount = activeDownloadsCount,
+                    onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) }
                 )
             }
         ) { innerPadding ->

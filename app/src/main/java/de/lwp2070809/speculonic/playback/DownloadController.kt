@@ -40,9 +40,9 @@ class DownloadController(
         val streamUrl = repository.buildDownloadUrl(song.id)
         LogManager.d("DownloadController: Requesting download for ${song.title} (ID: ${song.id}, Silent: $isSilent)")
         
-        
         val dataJson = JSONObject().apply {
             put("title", song.title)
+            put("artist", song.artist)
             put("isSilent", isSilent)
         }
         val data = Util.getUtf8Bytes(dataJson.toString())
@@ -64,6 +64,37 @@ class DownloadController(
             LogManager.e("DownloadController: Failed to send download intents", e)
         }
     }
+
+    fun pauseDownload(songId: String) {
+        try {
+            DownloadService.sendSetStopReason(
+                context,
+                de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                songId,
+                1,
+                false
+            )
+            LogManager.i("DownloadController: Sent SetStopReason=1 (Pause) for $songId")
+        } catch (e: Exception) {
+            LogManager.e("DownloadController: Failed to send Pause intent", e)
+        }
+    }
+
+    fun resumeDownload(songId: String) {
+        try {
+            DownloadService.sendSetStopReason(
+                context,
+                de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                songId,
+                0,
+                false
+            )
+            LogManager.i("DownloadController: Sent SetStopReason=0 (Resume) for $songId")
+        } catch (e: Exception) {
+            LogManager.e("DownloadController: Failed to send Resume intent", e)
+        }
+    }
+
 
     
     fun removeDownload(songId: String) {
@@ -142,6 +173,19 @@ class DownloadController(
             } catch (e: Exception) {
                 LogManager.e("DownloadController: Error while removing SAF file for $songId", e)
             }
+        }
+    }
+
+    fun cancelDownloadTaskOnly(songId: String) {
+        try {
+            DownloadService.sendRemoveDownload(
+                context,
+                de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                songId,
+                false
+            )
+        } catch (e: Exception) {
+            LogManager.e("DownloadController: Failed to send RemoveDownload intent (task only)", e)
         }
     }
 }
