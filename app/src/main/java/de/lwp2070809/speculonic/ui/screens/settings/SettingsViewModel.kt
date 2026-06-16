@@ -542,9 +542,7 @@ class SettingsViewModel @Inject constructor(
             
             if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {
                 if (url.isNotEmpty()) {
-                    if (syncCoverArt) {
-                        showPendingCoverArtSyncNotification()
-                    }
+
                     performFullSync(isForced = true, isFromServerSave = true, syncCoverArt = syncCoverArt)
                 }
             }
@@ -850,30 +848,6 @@ class SettingsViewModel @Inject constructor(
         else -> "System"
     }
 
-    private fun showPendingCoverArtSyncNotification() {
-        val notificationManager = NotificationManagerCompat.from(context)
-        val channelId = "cover_art_sync_channel"
-        val notificationId = 1002
-        
-        val channel = android.app.NotificationChannel(
-            channelId,
-            "Cover Art Sync",
-            android.app.NotificationManager.IMPORTANCE_LOW
-        ).apply {
-            description = "Syncs cover art in the background"
-        }
-        notificationManager.createNotificationChannel(channel)
-        
-        val builder = NotificationCompat.Builder(context, channelId)
-            .setSmallIcon(android.R.drawable.stat_sys_download)
-            .setContentTitle(context.getString(de.lwp2070809.speculonic.R.string.sync_cover_art_option_title))
-            .setContentText(context.getString(de.lwp2070809.speculonic.R.string.pending_cover_art_sync))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
-            .setOngoing(true)
-            
-        if (ActivityCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED) {
-            notificationManager.notify(notificationId, builder.build())
-        }
-    }
+
 }
 

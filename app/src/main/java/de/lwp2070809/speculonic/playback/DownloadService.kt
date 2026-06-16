@@ -135,30 +135,14 @@ class DownloadService : DownloadService(
             }
             manager.createNotificationChannel(channel)
         }
-
-        
-        if (manager.getNotificationChannel(SILENT_CHANNEL_ID) == null) {
-            val name = getString(R.string.silent_cache_channel_name)
-            val descriptionText = getString(R.string.silent_cache_channel_description)
-            val channel = NotificationChannel(
-                SILENT_CHANNEL_ID,
-                name,
-                NotificationManager.IMPORTANCE_MIN
-            ).apply {
-                description = descriptionText
-                setShowBadge(false)
-                lockscreenVisibility = Notification.VISIBILITY_SECRET
-            }
-            manager.createNotificationChannel(channel)
-        }
     }
 
     private fun buildSilentNotification(): Notification {
-        return NotificationCompat.Builder(this, SILENT_CHANNEL_ID)
+        return NotificationCompat.Builder(this, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(getString(R.string.app_name))
             .setContentText(getString(R.string.caching_in_background))
-            .setPriority(NotificationCompat.PRIORITY_MIN)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
             .setCategory(NotificationCompat.CATEGORY_SERVICE)
             .setSilent(true)
             .setOngoing(true)
@@ -184,6 +168,5 @@ class DownloadService : DownloadService(
         
         private const val FOREGROUND_NOTIFICATION_ID = 2001
         private const val CHANNEL_ID = "speculonic_download_channel"
-        private const val SILENT_CHANNEL_ID = "speculonic_silent_channel"
     }
 }

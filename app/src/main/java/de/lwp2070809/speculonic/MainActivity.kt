@@ -90,7 +90,7 @@ class MainActivity : AppCompatActivity() {
             val themeMode by preferencesManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val colorMode by preferencesManager.colorMode.collectAsState(initial = ColorMode.ALBUM_COVER)
             val mobilePlayAllowed by preferencesManager.mobilePlayAllowed.collectAsState(initial = true)
-            val notificationReminderEnabled by preferencesManager.notificationReminderEnabled.collectAsState(initial = true)
+
 
             val isEffectivelyOnline by remember(networkMonitor, preferencesManager) {
                 combine(
@@ -195,40 +195,7 @@ class MainActivity : AppCompatActivity() {
             }
             
             
-            var showNotificationEducationDialog by remember { mutableStateOf(false) }
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    if (!isGranted) {
-                        LogManager.w("MainActivity: Notification permission denied by user.")
-                    }
-                }
 
-                LaunchedEffect(Unit) {
-                    val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                        context,
-                        android.Manifest.permission.POST_NOTIFICATIONS
-                    ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-                    if (!hasPermission) {
-                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    }
-                }
-
-                LaunchedEffect(isPlayingState) {
-                    if (isPlayingState) {
-                        val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                            context,
-                            android.Manifest.permission.POST_NOTIFICATIONS
-                        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-
-                        if (!hasPermission && notificationReminderEnabled) {
-                            showNotificationEducationDialog = true
-                        }
-                    }
-                }
-            }
             
             
             DisposableEffect(lifecycleOwner) {
@@ -335,34 +302,7 @@ class MainActivity : AppCompatActivity() {
                     )
                 }
 
-                if (showNotificationEducationDialog) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showNotificationEducationDialog = false },
-                        title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.notification_permission_title)) },
-                        text = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.notification_permission_message)) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                showNotificationEducationDialog = false
-                                val intent = Intent(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
-                                    putExtra(android.provider.Settings.EXTRA_APP_PACKAGE, context.packageName)
-                                }
-                                context.startActivity(intent)
-                            }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.go_to_settings))
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                showNotificationEducationDialog = false
-                                scope.launch {
-                                    preferencesManager.saveNotificationReminderEnabled(false)
-                                }
-                            }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.dont_remind_me))
-                            }
-                        }
-                    )
-                }
+
                 updateResult?.let { result ->
                     if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
                         androidx.compose.material3.AlertDialog(

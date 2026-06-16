@@ -26,14 +26,42 @@ class DownloadController(
     private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
 
     
+    private fun Context.findActivity(): android.app.Activity? {
+        var ctx = this
+        while (ctx is android.content.ContextWrapper) {
+            if (ctx is android.app.Activity) {
+                return ctx
+            }
+            ctx = ctx.baseContext
+        }
+        return null
+    }
+
     fun downloadSong(song: Song, isSilent: Boolean = false) {
-        
         if (!isSilent) {
             val activeIds = DownloadTracker.activeDownloadIds.value
             val downloadedIds = DownloadTracker.downloadedSongIds.value
             if (activeIds.contains(song.id) || downloadedIds.contains(song.id)) {
                 LogManager.d("DownloadController: Song ${song.title} is already active or downloaded. Skipping AddRequest.")
                 return
+            }
+        }
+
+        if (!isSilent && android.os.Build.VERSION.SDK_INT >= 33) {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            
+            if (!hasPermission) {
+                val activity = context.findActivity()
+                if (activity != null) {
+                    androidx.core.app.ActivityCompat.requestPermissions(
+                        activity,
+                        arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
+                        101
+                    )
+                }
             }
         }
 
@@ -53,13 +81,18 @@ class DownloadController(
             .build()
 
         try {
-            DownloadService.sendAddDownload(
-                context,
-                de.lwp2070809.speculonic.playback.DownloadService::class.java,
-                downloadRequest,
-                false
-            )
-            LogManager.i("DownloadController: AddDownload intent sent for ${song.id}")
+            if (isSilent) {
+                de.lwp2070809.speculonic.data.DownloadManagerHelper.getDownloadManager(context).addDownload(downloadRequest)
+                LogManager.i("DownloadController: Silent download added directly to DownloadManager for ${song.id}")
+            } else {
+                DownloadService.sendAddDownload(
+                    context,
+                    de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                    downloadRequest,
+                    false
+                )
+                LogManager.i("DownloadController: AddDownload intent sent for ${song.id}")
+            }
         } catch (e: Exception) {
             LogManager.e("DownloadController: Failed to send download intents", e)
         }

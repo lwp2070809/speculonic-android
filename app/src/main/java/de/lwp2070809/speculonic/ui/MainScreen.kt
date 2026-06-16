@@ -99,15 +99,7 @@ private fun MainContent(
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     
-    
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-        val permissionLauncher = rememberLauncherForActivityResult(
-            ActivityResultContracts.RequestPermission()
-        ) {}
-        LaunchedEffect(Unit) {
-            permissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-        }
-    }
+
     
     val topLevelRoutes = setOf(AppRoute.Discover, AppRoute.Library, AppRoute.Settings)
     val navigationState = rememberNavigationState(
