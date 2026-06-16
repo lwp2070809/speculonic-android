@@ -327,4 +327,5 @@
     <string name="cover_art_cache_color_label">专辑封面</string>
     <string name="song_cache_color_label">本地歌曲</string>
     <string name="other_cache_color_label">其他缓存</string>
+    <string name="no_download_tasks">无下载任务</string>
 </resources>

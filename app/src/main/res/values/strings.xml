@@ -329,4 +329,5 @@
     <string name="cover_art_cache_color_label">Cover Art</string>
     <string name="song_cache_color_label">Cached Songs</string>
     <string name="other_cache_color_label">Other Cache</string>
+    <string name="no_download_tasks">No download tasks</string>
 </resources>

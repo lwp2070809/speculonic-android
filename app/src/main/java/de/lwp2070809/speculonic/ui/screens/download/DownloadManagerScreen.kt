@@ -219,7 +219,7 @@ fun DownloadManagerScreen(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
                         )
                         Text(
-                            text = "无下载任务",
+                            text = stringResource(R.string.no_download_tasks),
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
