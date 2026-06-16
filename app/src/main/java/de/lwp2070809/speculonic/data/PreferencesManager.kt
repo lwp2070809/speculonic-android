@@ -256,6 +256,14 @@ class PreferencesManager(private val context: Context) {
     val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }
     val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }
     val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }
+    val serverCapabilities: Flow<ServerCapabilities?> = context.dataStore.data.map { preferences ->
+        val jsonString = preferences[SERVER_CAPABILITIES_JSON]
+        try {
+            jsonString?.let { Json.decodeFromString(ServerCapabilities.serializer(), it) }
+        } catch (e: Exception) {
+            null
+        }
+    }
     val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: false }
     val lastSleepTimerMinutes: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_MINUTES] ?: 30 }
     val lastSleepTimerSongCount: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }

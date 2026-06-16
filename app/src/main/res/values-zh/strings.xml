@@ -310,4 +310,14 @@
     <string name="song_cache_color_label">本地歌曲</string>
     <string name="other_cache_color_label">其他缓存</string>
     <string name="no_download_tasks">无下载任务</string>
+    <string name="server_dashboard_title">服务器信息</string>
+    <string name="server_type">服务器类型</string>
+    <string name="server_version">服务器版本</string>
+    <string name="subsonic_api_version">Subsonic API 版本</string>
+    <string name="opensubsonic_support">支持 OpenSubsonic</string>
+    <string name="supported_extensions">支持的扩展特性</string>
+    <string name="opensubsonic_supported">支持</string>
+    <string name="opensubsonic_not_supported">不支持</string>
+    <string name="no_extensions_found">未检测到扩展特性</string>
+    <string name="unknown_val">未知</string>
 </resources>

@@ -146,16 +146,14 @@ class SubsonicRepository(
         coverArtSyncManager.syncAllCoverArt(onProgress)
     }
 
-    suspend fun ping(): Boolean {
+    suspend fun ping(force: Boolean = false): Boolean {
         val (u, t, s) = authManager.getAuthParams()
-        
         
         val hasLocal = hasLocalData()
         val lastPing = preferencesManager.getLastPingTimeSync()
         val now = System.currentTimeMillis()
         val pingTTL = 12 * 60 * 60 * 1000L 
-        if (hasLocal && (now - lastPing) < pingTTL && preferencesManager.getServerCapabilitiesSync() != null) {
-            
+        if (!force && hasLocal && (now - lastPing) < pingTTL && preferencesManager.getServerCapabilitiesSync() != null) {
             return true
         }
 
@@ -166,7 +164,6 @@ class SubsonicRepository(
                 if (serverCapabilities.isOpenSubsonic) {
                     discoverExtensions()
                 }
-                
                 
                 preferencesManager.saveServerCapabilities(serverCapabilities)
                 preferencesManager.saveLastPingTime(System.currentTimeMillis())
@@ -277,7 +274,8 @@ class SubsonicRepository(
         serverCapabilities = serverCapabilities.copy(
             type = response.type,
             serverVersion = response.serverVersion,
-            isOpenSubsonic = response.openSubsonic == true
+            isOpenSubsonic = response.openSubsonic == true,
+            subsonicApiVersion = response.version
         )
     }
 

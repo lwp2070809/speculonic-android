@@ -313,4 +313,14 @@
     <string name="song_cache_color_label">Cached Songs</string>
     <string name="other_cache_color_label">Other Cache</string>
     <string name="no_download_tasks">No download tasks</string>
+    <string name="server_dashboard_title">Server Information</string>
+    <string name="server_type">Server Type</string>
+    <string name="server_version">Server Version</string>
+    <string name="subsonic_api_version">Subsonic API Version</string>
+    <string name="opensubsonic_support">OpenSubsonic Support</string>
+    <string name="supported_extensions">Supported Extensions</string>
+    <string name="opensubsonic_supported">Supported</string>
+    <string name="opensubsonic_not_supported">Not Supported</string>
+    <string name="no_extensions_found">No extended features detected</string>
+    <string name="unknown_val">Unknown</string>
 </resources>

@@ -112,7 +112,8 @@ data class SettingsUiState(
     val playbackCacheSize: String = "0 B",
     val coverArtCacheSize: String = "0 B",
     val songCacheSize: String = "0 B",
-    val otherCacheSize: String = "0 B"
+    val otherCacheSize: String = "0 B",
+    val serverCapabilities: de.lwp2070809.speculonic.domain.repository.ServerCapabilities? = null
 )
 
 @HiltViewModel
@@ -169,7 +170,8 @@ class SettingsViewModel @Inject constructor(
                 preferencesManager.cacheLocation,
                 preferencesManager.maxCacheSize,
                 preferencesManager.syncCoverArtOnForce,
-                preferencesManager.lastSyncTime
+                preferencesManager.lastSyncTime,
+                preferencesManager.serverCapabilities
             ) { flows ->
                 PrefsGroup1(
                     serverUrl = flows[0] as String,
@@ -178,7 +180,8 @@ class SettingsViewModel @Inject constructor(
                     cacheLocation = flows[3] as String,
                     maxCacheSize = flows[4] as Long,
                     syncCoverArtOnForce = flows[5] as Boolean,
-                    lastSyncTime = flows[6] as Long
+                    lastSyncTime = flows[6] as Long,
+                    serverCapabilities = flows[7] as de.lwp2070809.speculonic.domain.repository.ServerCapabilities?
                 )
             }
 
@@ -305,7 +308,8 @@ class SettingsViewModel @Inject constructor(
                     songsCount = stats.songs,
                     playlistsCount = stats.playlists,
                     lastSyncTime = g1.lastSyncTime,
-                    syncCoverArtOnForce = g1.syncCoverArtOnForce
+                    syncCoverArtOnForce = g1.syncCoverArtOnForce,
+                    serverCapabilities = g1.serverCapabilities
                 )
             }.collect {
                 _uiState.value = it
@@ -317,7 +321,8 @@ class SettingsViewModel @Inject constructor(
     private data class PrefsGroup1(
         val serverUrl: String, val username: String, val password: String,
         val cacheLocation: String, val maxCacheSize: Long,
-        val syncCoverArtOnForce: Boolean, val lastSyncTime: Long
+        val syncCoverArtOnForce: Boolean, val lastSyncTime: Long,
+        val serverCapabilities: de.lwp2070809.speculonic.domain.repository.ServerCapabilities?
     )
 
     private data class StatsGroup(
@@ -532,6 +537,9 @@ class SettingsViewModel @Inject constructor(
             }
 
             preferencesManager.saveServerSettings(url, user, pass)
+            viewModelScope.launch(Dispatchers.IO) {
+                repository.ping(force = true)
+            }
             
             
             if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {

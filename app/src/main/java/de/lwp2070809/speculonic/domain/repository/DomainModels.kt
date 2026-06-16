@@ -7,7 +7,8 @@ data class ServerCapabilities(
     val type: String? = null,
     val serverVersion: String? = null,
     val isOpenSubsonic: Boolean = false,
-    val extensions: List<String> = emptyList()
+    val extensions: List<String> = emptyList(),
+    val subsonicApiVersion: String? = null
 )
 
 sealed class DomainException(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
