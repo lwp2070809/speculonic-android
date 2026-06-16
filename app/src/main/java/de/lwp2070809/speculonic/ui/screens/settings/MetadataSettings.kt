@@ -24,7 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PlaylistPlay
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material3.AlertDialog
@@ -291,7 +291,7 @@ fun MetadataDashboardCard(
                 DashboardItem(
                     count = playlists,
                     label = stringResource(R.string.playlists_count_label),
-                    icon = Icons.Default.PlaylistPlay,
+                    icon = Icons.AutoMirrored.Filled.PlaylistPlay,
                     modifier = Modifier.weight(1f)
                 )
             }

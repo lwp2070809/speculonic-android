@@ -63,7 +63,8 @@ import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import org.json.JSONObject
 
-@OptIn(ExperimentalMaterial3Api::class, UnstableApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun DownloadManagerScreen(
     topBarState: TopBarState,
@@ -247,7 +248,7 @@ fun DownloadManagerScreen(
     }
 }
 
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun DownloadTaskItem(
     task: Download,
@@ -435,7 +436,7 @@ fun getStatusColor(state: Int): Color {
     }
 }
 
-@OptIn(UnstableApi::class)
+@androidx.annotation.OptIn(UnstableApi::class)
 private fun isSilentDownload(download: Download): Boolean {
     return try {
         if (download.request.data.isNotEmpty()) {
