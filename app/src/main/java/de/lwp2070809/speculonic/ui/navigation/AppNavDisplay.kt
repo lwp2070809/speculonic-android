@@ -57,6 +57,7 @@ fun AppNavDisplay(
     topBarState: TopBarState,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onShowSearch: () -> Unit,
     settingsViewModel: SettingsViewModel,
     modifier: Modifier = Modifier
@@ -92,6 +93,7 @@ fun AppNavDisplay(
                 viewModel = discoverViewModel,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onViewAllFavoriteSongs = { navigator.navigate(AppRoute.FavoriteSongs) },
                 onViewAllFavoriteAlbums = { navigator.navigate(AppRoute.FavoriteAlbums) },
                 onAlbumClick = { navigator.navigate(AppRoute.AlbumDetail(it)) },
@@ -111,6 +113,7 @@ fun AppNavDisplay(
                 songs = uiState.favorites,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onRefresh = { libraryViewModel.refreshFavorites() },
                 isLoading = uiState.isRefreshing,
                 onDownloadClick = { downloadController.downloadSong(it) },
@@ -140,6 +143,7 @@ fun AppNavDisplay(
                 viewModel = libraryViewModel,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onAlbumClick = { navigator.navigate(AppRoute.AlbumDetail(it)) },
                 onArtistClick = { navigator.navigate(AppRoute.ArtistDetail(it)) },
                 onPlaylistClick = { navigator.navigate(AppRoute.PlaylistDetail(it)) }
@@ -243,6 +247,7 @@ fun AppNavDisplay(
                 topBarState = topBarState,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onBackClick = { navigator.goBack() },
                 onSearchClick = onShowSearch
             )
@@ -274,6 +279,7 @@ fun AppNavDisplay(
                 topBarState = topBarState,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onBackClick = { navigator.goBack() },
                 onSearchClick = onShowSearch
             )

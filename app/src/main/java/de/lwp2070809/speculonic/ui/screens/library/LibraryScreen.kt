@@ -41,6 +41,7 @@ fun LibraryScreen(
     viewModel: LibraryViewModel,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onPlaylistClick: (String) -> Unit
@@ -170,7 +171,8 @@ fun LibraryScreen(
                                         AllSongsList(
                                             songsPaged = songsPaged,
                                             isOnline = isOnline,
-                                            isEffectivelyOnline = isEffectivelyOnline
+                                            isEffectivelyOnline = isEffectivelyOnline,
+                                            isStreamingAllowed = isStreamingAllowed
                                         )
                                     }
                                     3 -> ArtistsList(

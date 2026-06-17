@@ -21,6 +21,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Wifi
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.Cloud
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -32,6 +34,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -58,11 +62,17 @@ fun MainTopBar(
     syncProgress: String? = null,
     onSyncStatusClick: () -> Unit = {},
     activeDownloadsCount: Int = 0,
-    onDownloadManagerClick: () -> Unit = {}
+    onDownloadManagerClick: () -> Unit = {},
+    offlineMode: Boolean,
+    onToggleOfflineMode: () -> Unit
 ) {
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
     val isDefaultTopBarRoute = appRoute?.isDefaultTopBar ?: false
+    
+    val scope = rememberCoroutineScope()
+    var showWifiHighlightRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var wifiHighlightJob by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
     
     TopAppBar(
         title = { 
@@ -113,6 +123,21 @@ fun MainTopBar(
                             CloudSyncIcon(
                                 isSyncing = isSyncing,
                                 showCloudDoneRecent = showCloudDoneRecent
+                            )
+                        }
+
+                        IconButton(onClick = {
+                            wifiHighlightJob?.cancel()
+                            wifiHighlightJob = scope.launch {
+                                showWifiHighlightRecent = true
+                                onToggleOfflineMode()
+                                kotlinx.coroutines.delay(4000)
+                                showWifiHighlightRecent = false
+                            }
+                        }) {
+                            WifiOfflineIcon(
+                                offlineMode = offlineMode,
+                                isTriggeredRecent = showWifiHighlightRecent
                             )
                         }
 
@@ -312,4 +337,27 @@ private fun CloudSyncIcon(
             }
         }
     }
+}
+
+@Composable
+private fun WifiOfflineIcon(
+    offlineMode: Boolean,
+    isTriggeredRecent: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val targetAlpha = if (isTriggeredRecent) 1f else 0.4f
+    val alpha by animateFloatAsState(
+        targetValue = targetAlpha,
+        animationSpec = tween(durationMillis = 500),
+        label = "alpha"
+    )
+
+    Icon(
+        imageVector = if (offlineMode) Icons.Default.WifiOff else Icons.Default.Wifi,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = modifier
+            .size(32.dp)
+            .alpha(alpha)
+    )
 }

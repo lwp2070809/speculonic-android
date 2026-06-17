@@ -95,6 +95,8 @@ data class SettingsUiState(
     val trustAllCertificates: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
     val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED,
+    val autoOfflineOnMetered: Boolean = false,
+    val offlineModeEnabled: Boolean = false,
     val artistsCount: Int = 0,
     val albumsCount: Int = 0,
     val songsCount: Int = 0,
@@ -228,9 +230,18 @@ class SettingsViewModel @Inject constructor(
                 preferencesManager.trustAllCertificates,
                 preferencesManager.showOfflineToast,
                 preferencesManager.updateCheckInterval,
+                preferencesManager.autoOfflineOnMetered,
+                preferencesManager.offlineModeEnabled,
                 group3
-            ) { trustAllCertificates, showOfflineToast, updateCheckInterval, g3 ->
-                PrefsGroup4(trustAllCertificates, showOfflineToast, updateCheckInterval, g3)
+            ) { flows ->
+                PrefsGroup4(
+                    trustAllCertificates = flows[0] as Boolean,
+                    showOfflineToast = flows[1] as Boolean,
+                    updateCheckInterval = flows[2] as de.lwp2070809.speculonic.data.UpdateCheckInterval,
+                    autoOfflineOnMetered = flows[3] as Boolean,
+                    offlineModeEnabled = flows[4] as Boolean,
+                    third = flows[5] as PrefsGroup3
+                )
             }
 
             val statsFlow = combine(
@@ -287,6 +298,8 @@ class SettingsViewModel @Inject constructor(
                     inconsistentItems = _uiState.value.inconsistentItems,
                     trustAllCertificates = g4.trustAllCertificates,
                     updateCheckInterval = g4.updateCheckInterval,
+                    autoOfflineOnMetered = g4.autoOfflineOnMetered,
+                    offlineModeEnabled = g4.offlineModeEnabled,
                     isSaving = _uiState.value.isSaving,
                     isRefreshing = _uiState.value.isRefreshing,
                     isScanning = _uiState.value.isScanning,
@@ -353,8 +366,22 @@ class SettingsViewModel @Inject constructor(
         val trustAllCertificates: Boolean,
         val showOfflineToast: Boolean,
         val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval,
+        val autoOfflineOnMetered: Boolean,
+        val offlineModeEnabled: Boolean,
         val third: PrefsGroup3
     )
+
+    fun updateAutoOfflineOnMetered(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.saveAutoOfflineOnMetered(enabled)
+        }
+    }
+
+    fun updateOfflineModeEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.saveOfflineModeEnabled(enabled)
+        }
+    }
 
     fun updateServerUrl(url: String) { 
         _uiState.value = _uiState.value.copy(serverUrl = url, urlError = null, testConnectionResult = null) 

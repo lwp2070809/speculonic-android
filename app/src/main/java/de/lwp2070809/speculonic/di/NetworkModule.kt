@@ -14,6 +14,9 @@ import de.lwp2070809.speculonic.data.UpdateManager
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.serialization.json.Json
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import okhttp3.Dns
 import okhttp3.Interceptor
 import okhttp3.MediaType.Companion.toMediaType
@@ -51,117 +54,120 @@ object NetworkModule {
     }
 
     
+    sealed interface NetworkEvent {
+        object ServerOffline : NetworkEvent
+        object NetworkRestricted : NetworkEvent
+    }
+
     object ServerReachableManager {
+        @Volatile
+        var isManualOffline: Boolean = false
+
         @Volatile
         var isServerReachable: Boolean = true
             private set
 
+        @Volatile
+        var isPhysicallyConnected: Boolean = true
+            internal set
+
+        @Volatile
+        var lastFailureTimestamp: Long = 0L
+            private set
+
+        @Volatile
+        private var lastFailureLogTime: Long = 0L
+
         private val failureCount = java.util.concurrent.atomic.AtomicInteger(0)
+
+        private val _networkEventFlow = kotlinx.coroutines.flow.MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 10)
+        val networkEventFlow: kotlinx.coroutines.flow.SharedFlow<NetworkEvent> = _networkEventFlow.asSharedFlow()
+
+        fun emitEvent(event: NetworkEvent) {
+            _networkEventFlow.tryEmit(event)
+        }
 
         @Synchronized
         fun handleSuccess() {
             failureCount.set(0)
             if (!isServerReachable) {
                 isServerReachable = true
-                LogManager.i("ServerReachableManager: 请求成功。服务器已标记为可达 (REACHABLE)。")
+                LogManager.i("ServerReachableManager: REACHABLE")
             }
         }
 
         @Synchronized
         fun handleFailure() {
-            val current = failureCount.incrementAndGet()
-            if (current >= 3) {
-                if (isServerReachable) {
-                    isServerReachable = false
-                    LogManager.w("ServerReachableManager: 连续 3 次发生网络连接失败。标记服务器为不可达 (UNREACHABLE)。")
-                    
-                    val app = try { de.lwp2070809.speculonic.SpeculonicApp.instance } catch(e: Exception) { null }
-                    val cm = app?.getSystemService(ConnectivityManager::class.java)
-                    if (app != null && cm?.activeNetwork != null) {
-                        val prefs = de.lwp2070809.speculonic.data.PreferencesManager.getInstance(app)
-                        if (prefs.getShowOfflineToastSync()) {
-                            android.os.Handler(android.os.Looper.getMainLooper()).post {
-                                android.widget.Toast.makeText(
-                                    app, 
-                                    app.getString(de.lwp2070809.speculonic.R.string.server_offline_toast),
-                                    android.widget.Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
+            val now = System.currentTimeMillis()
+            if (now - lastFailureLogTime > 2000L) {
+                lastFailureLogTime = now
+                val current = failureCount.incrementAndGet()
+                if (current >= 3) {
+                    if (isServerReachable) {
+                        isServerReachable = false
+                        lastFailureTimestamp = now
+                        LogManager.w("ServerReachableManager: UNREACHABLE")
+                        _networkEventFlow.tryEmit(NetworkEvent.ServerOffline)
                     }
+                } else {
+                    LogManager.d("ServerReachableManager: $current/3")
                 }
             } else {
-                LogManager.d("ServerReachableManager: 网络请求失败，已记录一次失败计数 ($current/3)。")
+                LogManager.d("ServerReachableManager: debounce")
             }
         }
 
-        
         @Synchronized
         fun reset() {
             failureCount.set(0)
             if (!isServerReachable) {
                 isServerReachable = true
-                LogManager.i("ServerReachableManager: 网络恢复可用。重置失败计数，并将服务器重新标记为可达 (REACHABLE)。")
+                LogManager.i("ServerReachableManager: reset")
             }
         }
 
-        
         @Synchronized
         fun handleNetworkLost() {
             failureCount.set(0)
             if (isServerReachable) {
                 isServerReachable = false
-                LogManager.w("ServerReachableManager: 网络连接丢失 (onLost)。标记服务器为不可达 (UNREACHABLE)，等待网络恢复。")
+                LogManager.w("ServerReachableManager: lost")
             }
         }
 
-        
         fun isOfflineOrUnreachable(): Boolean {
-            
-            val app = try {
-                de.lwp2070809.speculonic.SpeculonicApp.instance
-            } catch (e: Exception) {
-                null
-            }
-            if (app != null) {
-                val cm = app.getSystemService(android.net.ConnectivityManager::class.java)
-                if (cm?.activeNetwork == null) {
-                    return true
-                }
-            }
-            
-            return !isServerReachable
+            return !isPhysicallyConnected || !isServerReachable || isManualOffline
         }
     }
 
     private class SonicLogInterceptor : Interceptor {
         private fun isPhysicallyDisconnected(): Boolean {
-            val app = try {
-                de.lwp2070809.speculonic.SpeculonicApp.instance
-            } catch (e: Exception) {
-                null
-            } ?: return false
-
-            val connectivityManager = app.getSystemService(ConnectivityManager::class.java) ?: return false
-            return connectivityManager.activeNetwork == null
+            return !ServerReachableManager.isPhysicallyConnected
         }
 
         override fun intercept(chain: Interceptor.Chain): Response {
             val request = chain.request()
             val url = request.url.toString()
-            
             val safeUrl = url.replace(Regex("([utps])=[^&]+"), "$1=***")
 
-            
+            if (ServerReachableManager.isManualOffline) {
+                LogManager.w("OfflineInterceptor: manual offline: $safeUrl")
+                throw java.io.IOException("Offline: Manual offline mode is enabled")
+            }
+
             if (isPhysicallyDisconnected()) {
-                LogManager.w("OfflineInterceptor: 设备处于完全断网状态。秒拦截请求，不发送网络包。URL: $safeUrl")
+                LogManager.w("OfflineInterceptor: disconnected: $safeUrl")
                 throw java.io.IOException("Offline: No active network connection available")
             }
 
-            
             if (!ServerReachableManager.isServerReachable) {
-                LogManager.w("OfflineInterceptor: 当前服务器标记为不可达 (UNREACHABLE)。秒拦截请求，不发送网络包。URL: $safeUrl")
-                throw java.io.IOException("Offline: Server is unreachable due to network blocking or previous failures")
+                val timeSinceLastFailure = System.currentTimeMillis() - ServerReachableManager.lastFailureTimestamp
+                if (timeSinceLastFailure > 30000L) {
+                    LogManager.i("OfflineInterceptor: probe: $safeUrl")
+                } else {
+                    LogManager.w("OfflineInterceptor: unreachable: $safeUrl")
+                    throw java.io.IOException("Offline: Server is unreachable due to network blocking or previous failures")
+                }
             }
 
             if (de.lwp2070809.speculonic.BuildConfig.DEBUG) {
@@ -176,14 +182,11 @@ object NetworkModule {
                     if (de.lwp2070809.speculonic.BuildConfig.DEBUG) {
                         LogManager.d("Network Response: ${response.code} for $safeUrl")
                     }
-                    
                     ServerReachableManager.handleSuccess()
                 }
                 return response
             } catch (e: Exception) {
                 val host = request.url.host
-
-                
                 if (e is java.net.UnknownHostException || 
                     e is java.net.ConnectException || 
                     e is java.net.SocketTimeoutException) {
@@ -278,17 +281,21 @@ object NetworkModule {
         } ?: return
 
         val connectivityManager = app.getSystemService(ConnectivityManager::class.java) ?: return
+        ServerReachableManager.isPhysicallyConnected = connectivityManager.activeNetwork != null
+
         val callback = object : ConnectivityManager.NetworkCallback() {
             private var wasInternetAvailable = false
             private var wasVpn = false
 
             override fun onAvailable(network: android.net.Network) {
+                ServerReachableManager.isPhysicallyConnected = true
                 wasInternetAvailable = true 
                 ServerReachableManager.reset()
             }
 
             override fun onCapabilitiesChanged(network: android.net.Network, capabilities: NetworkCapabilities) {
                 val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                ServerReachableManager.isPhysicallyConnected = hasInternet
                 val isVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
 
                 val internetRestored = hasInternet && !wasInternetAvailable
@@ -304,9 +311,9 @@ object NetworkModule {
             }
 
             override fun onLost(network: android.net.Network) {
+                ServerReachableManager.isPhysicallyConnected = false
                 wasInternetAvailable = false
                 wasVpn = false
-                
                 ServerReachableManager.handleNetworkLost()
             }
         }

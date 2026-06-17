@@ -55,9 +55,7 @@ class PlaybackErrorHandler(
                 error.cause is IOException
 
         if (error.cause is NetworkRestrictedException) {
-            serviceScope.launch(Dispatchers.Main) {
-                android.widget.Toast.makeText(context, de.lwp2070809.speculonic.R.string.network_restricted_error, android.widget.Toast.LENGTH_LONG).show()
-            }
+            de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.emitEvent(de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.NetworkRestricted)
         }
 
         if (isNetworkRestricted || isNetworkError) {

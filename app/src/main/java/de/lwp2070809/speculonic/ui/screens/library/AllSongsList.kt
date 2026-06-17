@@ -39,18 +39,19 @@ import kotlinx.coroutines.launch
 fun AllSongsList(
     songsPaged: LazyPagingItems<Song>,
     isOnline: Boolean,
-    isEffectivelyOnline: Boolean
+    isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean
 ) {
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
-
+ 
     val context = LocalContext.current
     val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     val allSongsTitle = stringResource(R.string.all_songs)
-
+ 
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -68,6 +69,7 @@ fun AllSongsList(
                         isCurrent = song.id == currentSongId,
                         isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
+                        isStreamingAllowed = isStreamingAllowed,
                         onClick = {
                             scope.launch {
                                 val windowStart = index

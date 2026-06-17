@@ -107,6 +107,8 @@ class PreferencesManager(private val context: Context) {
         val UPDATE_CHECK_INTERVAL = stringPreferencesKey("update_check_interval")
         val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
         val SYNC_COVER_ART_ON_FORCE = booleanPreferencesKey("sync_cover_art_on_force")
+        val OFFLINE_MODE_ENABLED = booleanPreferencesKey("offline_mode_enabled")
+        val AUTO_OFFLINE_ON_METERED = booleanPreferencesKey("auto_offline_on_metered")
     }
 
     
@@ -325,6 +327,14 @@ class PreferencesManager(private val context: Context) {
 
     val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }
     val syncCoverArtOnForce: Flow<Boolean> = context.dataStore.data.map { it[SYNC_COVER_ART_ON_FORCE] ?: false }
+
+    val offlineModeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[OFFLINE_MODE_ENABLED] ?: false
+    }
+
+    val autoOfflineOnMetered: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[AUTO_OFFLINE_ON_METERED] ?: false
+    }
 
     suspend fun saveLastSeedColor(color: Int?, isDark: Boolean) {
         context.dataStore.edit { preferences ->
@@ -661,6 +671,18 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveSyncCoverArtOnForce(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[SYNC_COVER_ART_ON_FORCE] = enabled
+        }
+    }
+
+    suspend fun saveOfflineModeEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[OFFLINE_MODE_ENABLED] = enabled
+        }
+    }
+
+    suspend fun saveAutoOfflineOnMetered(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[AUTO_OFFLINE_ON_METERED] = enabled
         }
     }
 }

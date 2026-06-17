@@ -59,6 +59,11 @@
     <string name="download_channel_description">后台下载服务</string>
     <string name="unlimited">不限制</string>
     <string name="mobile_play_allowed">允许计费网络播放</string>
+    <string name="auto_offline_disabled_toast">自动离线模式已自动关闭</string>
+    <string name="offline_mode_enabled_toast">离线模式已开启</string>
+    <string name="offline_mode_disabled_toast">离线模式已关闭</string>
+    <string name="pref_auto_offline_on_metered_title">自动离线模式</string>
+    <string name="pref_auto_offline_on_metered_summary">当检测到计费网络时自动切入离线模式，连接非计费网络时恢复</string>
     <string name="network_restricted_error">播放已暂停：当前未允许使用移动网络播放。请连接 Wi-Fi 或在设置中开启移动数据播放。</string>
     <string name="view_logs">查看日志</string>
     <string name="logs">日志</string>

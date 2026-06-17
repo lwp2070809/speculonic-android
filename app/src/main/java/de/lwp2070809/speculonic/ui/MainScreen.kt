@@ -43,9 +43,12 @@ fun MainScreen(
     playbackController: PlaybackController,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     repository: SubsonicRepository,
     initialShowNowPlaying: Boolean = false,
-    onNowPlayingShown: () -> Unit = {}
+    onNowPlayingShown: () -> Unit = {},
+    offlineMode: Boolean,
+    onToggleOfflineMode: () -> Unit
 ) {
     val serverUrl by preferencesManager.serverUrl.collectAsState(initial = preferencesManager.getServerUrlSync())
     val username by preferencesManager.username.collectAsState(initial = "")
@@ -67,12 +70,15 @@ fun MainScreen(
             preferencesManager = preferencesManager,
             isOnline = isOnline,
             isEffectivelyOnline = isEffectivelyOnline,
+            isStreamingAllowed = isStreamingAllowed,
             serverUrl = serverUrl,
             initialShowNowPlaying = initialShowNowPlaying,
             onNowPlayingShown = onNowPlayingShown,
             settingsViewModel = settingsViewModel,
             isSyncing = isSyncing,
-            settingsUiState = settingsUiState
+            settingsUiState = settingsUiState,
+            offlineMode = offlineMode,
+            onToggleOfflineMode = onToggleOfflineMode
         )
     }
 }
@@ -85,12 +91,15 @@ private fun MainContent(
     preferencesManager: PreferencesManager,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     serverUrl: String?,
     initialShowNowPlaying: Boolean,
     onNowPlayingShown: () -> Unit,
     settingsViewModel: SettingsViewModel,
     isSyncing: Boolean,
-    settingsUiState: de.lwp2070809.speculonic.ui.screens.settings.SettingsUiState
+    settingsUiState: de.lwp2070809.speculonic.ui.screens.settings.SettingsUiState,
+    offlineMode: Boolean,
+    onToggleOfflineMode: () -> Unit
 ) {
     val context = LocalContext.current
     val repository = LocalSubsonicRepository.current
@@ -202,7 +211,9 @@ private fun MainContent(
                     syncProgress = settingsUiState.syncProgress,
                     onSyncStatusClick = { showSyncDetailDialog = true },
                     activeDownloadsCount = activeDownloadsCount,
-                    onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) }
+                    onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
+                    offlineMode = offlineMode,
+                    onToggleOfflineMode = onToggleOfflineMode
                 )
             }
         ) { innerPadding ->
@@ -232,6 +243,7 @@ private fun MainContent(
                         topBarState = topBarState,
                         isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
+                        isStreamingAllowed = isStreamingAllowed,
                         onShowSearch = { showSearch = true },
                         settingsViewModel = settingsViewModel,
                         modifier = Modifier.weight(1f)
@@ -262,6 +274,7 @@ private fun MainContent(
                     viewModel = searchViewModel,
                     isOnline = isOnline,
                     isEffectivelyOnline = isEffectivelyOnline,
+                    isStreamingAllowed = isStreamingAllowed,
                     onAlbumClick = { albumId ->
                         navigator.navigate(AppRoute.AlbumDetail(albumId))
                         showSearch = false

@@ -89,14 +89,65 @@ class MainActivity : AppCompatActivity() {
             val themeMode by preferencesManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val colorMode by preferencesManager.colorMode.collectAsState(initial = ColorMode.ALBUM_COVER)
             val mobilePlayAllowed by preferencesManager.mobilePlayAllowed.collectAsState(initial = true)
+            val offlineMode by preferencesManager.offlineModeEnabled.collectAsState(initial = false)
+            val autoOffline by preferencesManager.autoOfflineOnMetered.collectAsState(initial = false)
 
+            LaunchedEffect(offlineMode) {
+                de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offlineMode
+            }
+
+            LaunchedEffect(isMetered, autoOffline, offlineMode) {
+                if (autoOffline) {
+                    if (isMetered && !offlineMode) {
+                        preferencesManager.saveOfflineModeEnabled(true)
+                    } else if (!isMetered && offlineMode) {
+                        preferencesManager.saveOfflineModeEnabled(false)
+                    }
+                }
+            }
+
+            val toggleOfflineMode: () -> Unit = {
+                scope.launch {
+                    val currentOffline = preferencesManager.offlineModeEnabled.first()
+                    val autoOfflineEnabled = preferencesManager.autoOfflineOnMetered.first()
+                    if (autoOfflineEnabled) {
+                        preferencesManager.saveAutoOfflineOnMetered(false)
+                        android.widget.Toast.makeText(
+                            context.applicationContext,
+                            R.string.auto_offline_disabled_toast,
+                            android.widget.Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                    preferencesManager.saveOfflineModeEnabled(!currentOffline)
+                    val toastMsg = if (!currentOffline) {
+                        R.string.offline_mode_enabled_toast
+                    } else {
+                        R.string.offline_mode_disabled_toast
+                    }
+                    android.widget.Toast.makeText(
+                        context.applicationContext,
+                        toastMsg,
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
 
             val isEffectivelyOnline by remember(networkMonitor, preferencesManager) {
                 combine(
                     networkMonitor.networkStatus,
-                    preferencesManager.mobilePlayAllowed
-                ) { status, allowed ->
-                    status.isOnline && (!status.isMetered || allowed)
+                    preferencesManager.offlineModeEnabled
+                ) { status, offline ->
+                    status.isOnline && !offline
+                }.distinctUntilChanged()
+            }.collectAsState(initial = true)
+
+            val isStreamingAllowed by remember(networkMonitor, preferencesManager) {
+                combine(
+                    networkMonitor.networkStatus,
+                    preferencesManager.mobilePlayAllowed,
+                    preferencesManager.offlineModeEnabled
+                ) { status, allowed, offline ->
+                    status.isOnline && (!status.isMetered || allowed) && !offline
                 }.distinctUntilChanged()
             }.collectAsState(initial = true)
 
@@ -112,6 +163,15 @@ class MainActivity : AppCompatActivity() {
             var updateResult by remember { mutableStateOf<de.lwp2070809.speculonic.data.UpdateManager.UpdateResult?>(null) }
 
             LaunchedEffect(Unit) {
+                launch {
+                    de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.networkEventFlow.collect { event ->
+                        val messageResId = when (event) {
+                            de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.ServerOffline -> R.string.server_offline_toast
+                            de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.NetworkRestricted -> R.string.network_restricted_error
+                        }
+                        android.widget.Toast.makeText(context.applicationContext, messageResId, android.widget.Toast.LENGTH_SHORT).show()
+                    }
+                }
                 
                 launch {
                     delay(500)
@@ -185,13 +245,7 @@ class MainActivity : AppCompatActivity() {
                 onDispose { context.unregisterReceiver(receiver) }
             }
 
-            
-            LaunchedEffect(batteryStatus, isEffectivelyOnline, isMetered) {
-                if (batteryStatus && isEffectivelyOnline && !isMetered) {
-                    LogManager.i("MainActivity: Conditions met (Charging + Unmetered). Triggering event-driven quick sync.")
-                    MetadataSyncWorker.runOnce(context, forceRefresh = false, isQuickOnly = true) 
-                }
-            }
+
             
             
 
@@ -331,9 +385,12 @@ class MainActivity : AppCompatActivity() {
                     playbackController = playbackController,
                     isOnline = isOnlineReal,
                     isEffectivelyOnline = isEffectivelyOnline,
+                    isStreamingAllowed = isStreamingAllowed,
                     repository = repository,
                     initialShowNowPlaying = showNowPlayingTrigger,
-                    onNowPlayingShown = { showNowPlayingTrigger = false }
+                    onNowPlayingShown = { showNowPlayingTrigger = false },
+                    offlineMode = offlineMode,
+                    onToggleOfflineMode = toggleOfflineMode
                 )
             }
         }

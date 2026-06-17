@@ -42,6 +42,7 @@ fun FavoriteList(
     songs: List<Song>, 
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onRefresh: () -> Unit,
     isLoading: Boolean,
     onDownloadClick: (Song) -> Unit,
@@ -99,6 +100,7 @@ fun FavoriteList(
                         onDownloadAll = onDownloadAllClick,
                         isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
+                        isStreamingAllowed = isStreamingAllowed,
                         isDownloading = isAnyDownloading,
                         isDownloadEnabled = !isAllDownloaded
                     )
@@ -111,6 +113,7 @@ fun FavoriteList(
                     isCurrent = song.id == currentSongId,
                     isOnline = isOnline,
                     isEffectivelyOnline = isEffectivelyOnline,
+                    isStreamingAllowed = isStreamingAllowed,
                     onClick = {
                         val mediaItems = songs.map { it.toMediaItem(repository) }
                         playbackController.play(mediaItems, index, queueTitle = "Favorite")

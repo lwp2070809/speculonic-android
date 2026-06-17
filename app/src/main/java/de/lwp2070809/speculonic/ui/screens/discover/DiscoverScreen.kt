@@ -47,6 +47,7 @@ fun DiscoverScreen(
     viewModel: DiscoverViewModel, 
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onViewAllFavoriteSongs: () -> Unit = {},
     onViewAllFavoriteAlbums: () -> Unit = {},
     onAlbumClick: (String) -> Unit = {},
@@ -80,7 +81,7 @@ fun DiscoverScreen(
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { if (isOnline) viewModel.refreshData() },
+        onRefresh = { if (isEffectivelyOnline) viewModel.refreshData() },
         modifier = Modifier.fillMaxSize()
     ) {
         val showOffline = forceShowOfflineMessage || (!isOnline && showEmptyState && isEmpty)
@@ -146,7 +147,8 @@ fun DiscoverScreen(
                 Spacer(modifier = Modifier.height(24.dp))
                 Button(
                     onClick = { viewModel.refreshData() },
-                    modifier = Modifier.fillMaxWidth(0.7f)
+                    modifier = Modifier.fillMaxWidth(0.7f),
+                    enabled = isEffectivelyOnline
                 ) {
                     Text(stringResource(R.string.sync_now))
                 }
@@ -187,7 +189,8 @@ fun DiscoverScreen(
                         FavoriteSongsRow(
                             songs = uiState.favoriteSongs,
                             isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
+                            isEffectivelyOnline = isEffectivelyOnline,
+                            isStreamingAllowed = isStreamingAllowed,
                             onSongClick = { song ->
                                 viewModel.playFavoriteSong(song, playbackController)
                             }
@@ -291,6 +294,7 @@ fun FavoriteSongsRow(
     songs: List<Song>,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onSongClick: (Song) -> Unit
 ) {
     val repository = LocalSubsonicRepository.current
@@ -308,6 +312,7 @@ fun FavoriteSongsRow(
                 isCurrent = song.id == currentSongId,
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
                 onClick = { onSongClick(song) },
                 onStarClick = { star ->
                     scope.launch {

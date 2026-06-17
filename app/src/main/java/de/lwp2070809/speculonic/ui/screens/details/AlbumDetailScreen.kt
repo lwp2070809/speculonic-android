@@ -43,6 +43,7 @@ fun AlbumDetailScreen(
     topBarState: TopBarState,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
@@ -138,6 +139,7 @@ fun AlbumDetailScreen(
                                 },
                                 isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
                                 isDownloadEnabled = !isAllDownloaded
                             )
@@ -150,6 +152,7 @@ fun AlbumDetailScreen(
                             isCurrent = song.id == currentSongId,
                             isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
+                            isStreamingAllowed = isStreamingAllowed,
                             onClick = {
                                 val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
                                 playbackController.play(mediaItems, index, queueTitle = uiState.album?.name)

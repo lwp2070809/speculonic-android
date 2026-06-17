@@ -34,6 +34,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -122,20 +123,21 @@ fun PlaylistList(
         contentPadding = PaddingValues(bottom = 80.dp)
     ) {
         item {
+            val alpha = if (isEffectivelyOnline) 1f else 0.38f
             ListItem(
-                headlineContent = { Text(stringResource(R.string.create_playlist)) },
+                headlineContent = { Text(stringResource(R.string.create_playlist), modifier = Modifier.alpha(alpha)) },
                 leadingContent = {
                     Box(
                         modifier = Modifier
                             .size(48.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(MaterialTheme.colorScheme.primaryContainer),
+                            .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = alpha))
                     }
                 },
-                modifier = Modifier.clickable(enabled = isOnline) { showCreateDialog = true }
+                modifier = Modifier.clickable(enabled = isEffectivelyOnline) { showCreateDialog = true }
             )
         }
 
@@ -178,7 +180,7 @@ fun PlaylistList(
                                     showMenu = false
                                     playlistToDelete = playlist
                                 },
-                                enabled = isOnline
+                                enabled = isEffectivelyOnline
                             )
                         }
                     }

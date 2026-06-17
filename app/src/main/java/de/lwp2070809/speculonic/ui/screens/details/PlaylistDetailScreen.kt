@@ -51,6 +51,7 @@ fun PlaylistDetailScreen(
     topBarState: TopBarState,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
@@ -138,6 +139,7 @@ fun PlaylistDetailScreen(
                                 },
                                 isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
                                 isDownloadEnabled = !isAllDownloaded
                             )
@@ -158,6 +160,7 @@ fun PlaylistDetailScreen(
                             isCurrent = song.id == currentSongId,
                             isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
+                            isStreamingAllowed = isStreamingAllowed,
                             onClick = {
                                 val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
                                 playbackController.play(mediaItems, index, queueTitle = uiState.playlist?.name)
@@ -216,7 +219,7 @@ fun PlaylistDetailScreen(
                                                         showItemMenu = false
                                                         downloadController.downloadSong(song)
                                                     },
-                                                    enabled = isEffectivelyOnline
+                                                    enabled = isStreamingAllowed
                                                 )
                                             }
                                             DropdownMenuItem(
@@ -239,7 +242,7 @@ fun PlaylistDetailScreen(
                                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
-                                                enabled = isOnline
+                                                enabled = isEffectivelyOnline
                                             )
                                         }
                                     }

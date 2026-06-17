@@ -59,6 +59,11 @@
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
+    <string name="auto_offline_disabled_toast">Auto-offline mode has been automatically disabled.</string>
+    <string name="offline_mode_enabled_toast">Offline mode enabled</string>
+    <string name="offline_mode_disabled_toast">Offline mode disabled</string>
+    <string name="pref_auto_offline_on_metered_title">Auto-offline Mode</string>
+    <string name="pref_auto_offline_on_metered_summary">Automatically enter offline mode when a metered network is detected, and recover when connected to an unmetered network</string>
     <string name="network_restricted_error">Playback paused: Mobile network streaming is not allowed. Please connect to Wi-Fi or enable mobile data streaming in settings.</string>
     <string name="view_logs">View Logs</string>
     <string name="logs">Logs</string>

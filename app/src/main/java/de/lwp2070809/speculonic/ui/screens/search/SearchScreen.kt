@@ -63,6 +63,7 @@ fun SearchScreen(
     viewModel: SearchViewModel,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
     onClose: () -> Unit
@@ -171,6 +172,7 @@ fun SearchScreen(
                                 isCurrent = song.id == currentSongId,
                                 isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
                                 onClick = {
                                     playbackController.play(listOf(song.toMediaItem(repository)))
                                 },

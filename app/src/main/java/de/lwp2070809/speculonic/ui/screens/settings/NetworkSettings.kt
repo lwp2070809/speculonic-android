@@ -53,6 +53,16 @@ fun NetworkSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             }
         )
         ListItem(
+            headlineContent = { Text(stringResource(R.string.pref_auto_offline_on_metered_title)) },
+            supportingContent = { Text(stringResource(R.string.pref_auto_offline_on_metered_summary)) },
+            trailingContent = {
+                Switch(
+                    checked = uiState.autoOfflineOnMetered,
+                    onCheckedChange = { viewModel.updateAutoOfflineOnMetered(it) }
+                )
+            }
+        )
+        ListItem(
             headlineContent = { Text(stringResource(R.string.pref_show_offline_toast_title)) },
             supportingContent = { Text(stringResource(R.string.pref_show_offline_toast_summary)) },
             trailingContent = {

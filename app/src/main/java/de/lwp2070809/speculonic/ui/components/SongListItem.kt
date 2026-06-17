@@ -58,6 +58,7 @@ fun SongListItem(
     isCurrent: Boolean,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     onClick: () -> Unit,
     onStarClick: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
@@ -71,7 +72,7 @@ fun SongListItem(
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
     
-    val isEnabled = isEffectivelyOnline || isDownloaded
+    val isEnabled = isDownloaded || isStreamingAllowed
     val alpha = if (isEnabled) 1.0f else 0.38f
 
     var showMenu by remember { mutableStateOf(false) }
@@ -163,7 +164,7 @@ fun SongListItem(
                             isStarred = !isStarred
                             onStarClick(isStarred)
                         },
-                        enabled = isOnline
+                        enabled = isEffectivelyOnline
                     ) {
                         Icon(
                             imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
@@ -196,7 +197,7 @@ fun SongListItem(
                                         onDownloadClick()
                                         showMenu = false
                                     },
-                                    enabled = isEffectivelyOnline
+                                    enabled = isStreamingAllowed
                                 )
                             }
                             DropdownMenuItem(
@@ -214,7 +215,7 @@ fun SongListItem(
                                     showAddToPlaylistDialog = true
                                     showMenu = false
                                 },
-                                enabled = isOnline
+                                enabled = isEffectivelyOnline
                             )
                         }
                     }

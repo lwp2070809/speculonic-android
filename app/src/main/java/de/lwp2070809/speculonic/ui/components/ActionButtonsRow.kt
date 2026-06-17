@@ -23,6 +23,7 @@ fun ActionButtonsRow(
     onDownloadAll: () -> Unit,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
+    isStreamingAllowed: Boolean,
     isDownloading: Boolean,
     isDownloadEnabled: Boolean = true
 ) {
@@ -85,7 +86,7 @@ fun ActionButtonsRow(
         } else {
             IconButton(
                 onClick = { showDownloadAllDialog = true },
-                enabled = isEffectivelyOnline && isDownloadEnabled
+                enabled = isStreamingAllowed && isDownloadEnabled
             ) {
                 Icon(Icons.Default.Download, contentDescription = stringResource(R.string.download_all))
             }
