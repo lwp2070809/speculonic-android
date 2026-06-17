@@ -193,8 +193,7 @@ fun AppNavDisplay(
         entry<AppRoute.StorageCacheSettings> {
             StorageCacheSettings(
                 viewModel = settingsViewModel,
-                topBarState = topBarState,
-                onNavigateToDownloadManager = { navigator.navigate(AppRoute.DownloadManager) }
+                topBarState = topBarState
             )
         }
 

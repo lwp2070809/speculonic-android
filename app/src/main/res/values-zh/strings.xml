@@ -300,7 +300,6 @@
     <string name="last_sync_success_time">上次同步成功：</string>
     <string name="cached_songs_ratio">已缓存歌曲占比</string>
     <string name="internal_cache_color_label">私有缓存</string>
-    <string name="active_downloads">活动下载</string>
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
     <string name="metadata">元数据</string>
     <string name="cache_label">缓存</string>

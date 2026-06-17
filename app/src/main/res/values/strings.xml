@@ -303,7 +303,6 @@
     <string name="last_sync_success_time">Last synced successfully: </string>
     <string name="cached_songs_ratio">Cached Songs Ratio</string>
     <string name="internal_cache_color_label">Private Cache</string>
-    <string name="active_downloads">Active Downloads</string>
     <string name="clear_cache_quota_warning">Clear Playback Cache</string>
     <string name="metadata">Metadata</string>
     <string name="cache_label">Cache</string>

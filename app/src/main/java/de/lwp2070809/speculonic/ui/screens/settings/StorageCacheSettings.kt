@@ -92,8 +92,7 @@ import de.lwp2070809.speculonic.util.FormatUtils
 @Composable
 fun StorageCacheSettings(
     viewModel: SettingsViewModel,
-    topBarState: TopBarState,
-    onNavigateToDownloadManager: () -> Unit
+    topBarState: TopBarState
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val title = stringResource(R.string.storage_cache_settings)
@@ -181,16 +180,6 @@ fun StorageCacheSettings(
             )
 
             Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
-
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.download_manager)) },
-                supportingContent = { Text(stringResource(R.string.active_downloads)) },
-                leadingContent = { Icon(Icons.Default.Download, contentDescription = null) },
-                trailingContent = { Icon(Icons.Default.ChevronRight, contentDescription = null) },
-                modifier = Modifier.clickable { onNavigateToDownloadManager() }
-            )
-
-            HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
 
             Text(
                 text = stringResource(R.string.playback_cache),
