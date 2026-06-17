@@ -340,8 +340,11 @@ private fun DetailItem(label: String, value: String) {
 private suspend fun calculateSha1(uriString: String, context: Context): String? = withContext(Dispatchers.IO) {
     try {
         val digest = MessageDigest.getInstance("SHA-1")
-        val inputStream = if (uriString.startsWith("content://")) {
-            context.contentResolver.openInputStream(uriString.toUri())
+        val uri = uriString.toUri()
+        val inputStream = if (uri.scheme == "content") {
+            context.contentResolver.openInputStream(uri)
+        } else if (uri.scheme == "file") {
+            FileInputStream(uri.path)
         } else {
             FileInputStream(uriString)
         }

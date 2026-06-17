@@ -98,8 +98,8 @@ object CacheManager {
                 playbackCache = null
                 downloadCache?.release()
                 downloadCache = null
-                LogManager.i("CacheManager: All cache instances released.")
-                
+                databaseProvider = null
+                LogManager.i("CacheManager: All cache instances and database provider released.")
                 
                 block()
             }

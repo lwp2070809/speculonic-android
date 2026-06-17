@@ -394,7 +394,16 @@ class SettingsViewModel @Inject constructor(
     fun updateCacheLocation(location: String) {
         viewModelScope.launch {
             preferencesManager.saveCacheLocation(location)
-            if (location.isNotEmpty()) scanLocalFiles()
+            if (location.isNotEmpty()) {
+                scanLocalFiles()
+            } else {
+                val cachedSongs = database.musicDao().getAllCachedSongs()
+                cachedSongs.forEach { song ->
+                    if (song.localUri != null && song.localUri.startsWith("content://")) {
+                        database.musicDao().updateSongCacheStatus(song.id, null, false)
+                    }
+                }
+            }
         }
     }
     fun updateMaxCacheSize(size: Long) { viewModelScope.launch { preferencesManager.saveMaxCacheSize(size) } }

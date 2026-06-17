@@ -236,7 +236,7 @@ fun DownloadManagerScreen(
                             task = task,
                             onPauseClick = { downloadController.pauseDownload(task.request.id) },
                             onResumeClick = { downloadController.resumeDownload(task.request.id) },
-                            onCancelClick = { downloadController.removeDownload(task.request.id) }
+                            onCancelClick = { downloadController.cancelDownloadTaskOnly(task.request.id) }
                         )
                     }
                 }

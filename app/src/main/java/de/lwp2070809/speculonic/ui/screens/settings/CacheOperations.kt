@@ -7,6 +7,8 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.util.UnstableApi
 import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.DownloadManagerHelper
+import de.lwp2070809.speculonic.data.DownloadTracker
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -19,13 +21,6 @@ import kotlin.math.pow
 class CacheOperations(private val context: Context) {
     
     suspend fun clearAllCache() = withContext(Dispatchers.IO) {
-        try {
-            val downloadManager = DownloadManagerHelper.getDownloadManagerSuspend(context)
-            downloadManager.removeAllDownloads()
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to clear DownloadManager tasks", e)
-        }
-        
         DownloadManagerHelper.reset()
 
         CacheManager.executeWithCacheReleaseLock {
@@ -33,7 +28,22 @@ class CacheOperations(private val context: Context) {
             File(context.cacheDir, "image_cache").deleteRecursively()
             val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
             internalPersistentDir.deleteRecursively()
+            val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+            privateExportedDir.deleteRecursively()
+            try {
+                context.deleteDatabase("exoplayer_internal.db")
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearAllCache", e)
+            }
         }
+
+        try {
+            val db = AppDatabase.getDatabase(context)
+            db.musicDao().resetAllCacheStatus()
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
+        }
+        DownloadTracker.clearAll()
     }
 
     suspend fun clearPlaybackCache() = withContext(Dispatchers.IO) {
@@ -49,23 +59,36 @@ class CacheOperations(private val context: Context) {
     }
 
     suspend fun clearSongDownloads() = withContext(Dispatchers.IO) {
-        try {
-            val downloadManager = DownloadManagerHelper.getDownloadManagerSuspend(context)
-            downloadManager.removeAllDownloads()
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to clear downloads", e)
-        }
         DownloadManagerHelper.reset()
         CacheManager.executeWithCacheReleaseLock {
             val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
             internalPersistentDir.deleteRecursively()
+            val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+            privateExportedDir.deleteRecursively()
+            try {
+                context.deleteDatabase("exoplayer_internal.db")
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearSongDownloads", e)
+            }
         }
+
+        try {
+            val db = AppDatabase.getDatabase(context)
+            db.musicDao().resetAllCacheStatus()
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
+        }
+        DownloadTracker.clearAll()
     }
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {
         val playbackBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
         val coverArtBytes = getDirectorySize(File(context.cacheDir, "image_cache"))
-        val songBytes = getDirectorySize(File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache"))
+        
+        val privatePersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
+        val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+        val songBytes = getDirectorySize(privatePersistentDir) + getDirectorySize(privateExportedDir)
+        
         var externalBytes = 0L
         
         val totalCache = getDirectorySize(context.cacheDir)

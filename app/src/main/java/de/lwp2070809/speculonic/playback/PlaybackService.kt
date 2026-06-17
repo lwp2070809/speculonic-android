@@ -509,16 +509,22 @@ class PlaybackService : MediaSessionService() {
             delay(5000)
             
             val player = mediaSession?.player
-            if (player != null && player.playbackState != Player.STATE_IDLE) {
-                var checkCount = 0
-                while (isActive && checkCount < 5) {
-                    val bufferedDuration = player.bufferedPosition - player.currentPosition
-                    val isBufferSufficient = bufferedDuration > 30_000 || player.bufferedPercentage > 90
-                    
-                    if (isBufferSufficient) break
-                    delay(2000)
-                    checkCount++
-                }
+            if (player == null || !player.playWhenReady || player.playbackState == Player.STATE_IDLE) {
+                return@launch
+            }
+            
+            var checkCount = 0
+            while (isActive && checkCount < 5) {
+                val bufferedDuration = player.bufferedPosition - player.currentPosition
+                val isBufferSufficient = bufferedDuration > 30_000 || player.bufferedPercentage > 90
+                
+                if (isBufferSufficient) break
+                delay(2000)
+                checkCount++
+            }
+
+            if (!isActive || !player.playWhenReady || player.playbackState == Player.STATE_IDLE) {
+                return@launch
             }
 
             val manager = cacheStrategyManager ?: return@launch

@@ -22,6 +22,7 @@ import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.LyricsRepository
 import de.lwp2070809.speculonic.domain.repository.UrlBuilder
 import de.lwp2070809.speculonic.util.LogManager
+import androidx.documentfile.provider.DocumentFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -52,6 +53,12 @@ object DownloadTracker {
 
     private var pollJob: kotlinx.coroutines.Job? = null
 
+    fun clearAll() {
+        _downloadedSongIds.value = emptySet()
+        _activeDownloadIds.value = emptySet()
+        _allDownloads.value = emptyList()
+    }
+
     fun init(context: Context) {
         if (isInitialized.getAndSet(true)) return
 
@@ -80,7 +87,9 @@ object DownloadTracker {
                 if (download.state == Download.STATE_COMPLETED) {
                     downloaded.add(download.request.id)
                 } else if (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED) {
-                    active.add(download.request.id)
+                    if (!isSilentDownload(download)) {
+                        active.add(download.request.id)
+                    }
                 }
             }
         }
@@ -133,7 +142,11 @@ object DownloadTracker {
                     }
                 }
                 Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
-                    _activeDownloadIds.update { it + download.request.id }
+                    if (!isSilentDownload(download)) {
+                        _activeDownloadIds.update { it + download.request.id }
+                    } else {
+                        _activeDownloadIds.update { it - download.request.id }
+                    }
                     _downloadedSongIds.update { it - download.request.id }
                 }
                 Download.STATE_FAILED, Download.STATE_REMOVING, Download.STATE_STOPPED -> {
@@ -161,23 +174,45 @@ object DownloadTracker {
             
             scope.launch {
                 val db = AppDatabase.getDatabase(context)
-                db.musicDao().updateSongCacheStatus(download.request.id, null, false)
-                
-                val songId = download.request.id
-                try {
-                    CacheManager.getPlaybackCache(context).removeResource(songId)
-                    LogManager.d("DownloadTracker: Cleared playbackCache for cancelled song $songId")
-                } catch (e: Exception) {
-                    LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
+                val songEntity = db.musicDao().getSongById(download.request.id)
+                var keepCacheStatus = false
+                if (songEntity?.localUri != null && songEntity.isFullyCached) {
+                    val uri = android.net.Uri.parse(songEntity.localUri)
+                    val exists = if (songEntity.localUri.startsWith("file://")) {
+                        val path = uri.path
+                        path != null && java.io.File(path).exists()
+                    } else {
+                        try {
+                            val doc = DocumentFile.fromSingleUri(context, uri)
+                            doc?.exists() == true
+                        } catch (e: Exception) {
+                            false
+                        }
+                    }
+                    if (exists) {
+                        keepCacheStatus = true
+                    }
                 }
-                
-                try {
-                    val maxCacheSize = PreferencesManager.getInstance(context).maxCacheSize.first()
-                    val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
-                    downloadCache.removeResource(songId)
-                    LogManager.i("DownloadTracker: Cleared downloadCache for cancelled song $songId (incomplete fragments wiped)")
-                } catch (e: Exception) {
-                    LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
+
+                if (!keepCacheStatus) {
+                    db.musicDao().updateSongCacheStatus(download.request.id, null, false)
+                    
+                    val songId = download.request.id
+                    try {
+                        CacheManager.getPlaybackCache(context).removeResource(songId)
+                    } catch (e: Exception) {
+                        LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
+                    }
+                    
+                    try {
+                        val maxCacheSize = PreferencesManager.getInstance(context).maxCacheSize.first()
+                        val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
+                        downloadCache.removeResource(songId)
+                    } catch (e: Exception) {
+                        LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
+                    }
+                } else {
+                    LogManager.i("DownloadTracker: Keep cache status for " + download.request.id)
                 }
             }
         }
@@ -185,12 +220,7 @@ object DownloadTracker {
         private suspend fun exportDownloadedSong(context: Context, download: Download) {
             val preferencesManager = PreferencesManager.getInstance(context)
             val cacheLocation = preferencesManager.cacheLocation.first()
-            
-            
-            if (cacheLocation.isBlank()) {
-                LogManager.d("DownloadTracker: Skipping export as SAF is not configured.")
-                return
-            }
+            val isSafEnabled = cacheLocation.isNotBlank()
 
             val isSilent = isSilentDownload(download)
             LogManager.d("DownloadTracker: Preparing export for ${download.request.id}. Silent: $isSilent")
@@ -207,7 +237,6 @@ object DownloadTracker {
             val songEntity = db.musicDao().getSongById(download.request.id) ?: return
             val song = entityMapper.toSong(songEntity)
             
-            
             var lyrics: String? = null
             var coverArtBytes: ByteArray? = null
             
@@ -220,11 +249,9 @@ object DownloadTracker {
                     val api = NetworkModule.provideSubsonicService(baseUrl)
                     val authManager = AuthManager(user, pass.toCharArray())
                     
-                    
                     val lyricsRepo = LyricsRepository(context, api, db.musicDao(), authManager)
                     val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)
                     lyrics = rawLyrics
-                    
                     
                     if (!song.coverArt.isNullOrBlank()) {
                         val urlBuilder = UrlBuilder(baseUrl, authManager)
@@ -250,13 +277,23 @@ object DownloadTracker {
             }
 
             val localUriResult = try {
-                CacheExporter.exportToSaf(
-                    context,
-                    song,
-                    lyrics,
-                    coverArtBytes,
-                    cacheDataSourceFactory
-                )
+                if (isSafEnabled) {
+                    CacheExporter.exportToSaf(
+                        context,
+                        song,
+                        lyrics,
+                        coverArtBytes,
+                        cacheDataSourceFactory
+                    )
+                } else {
+                    CacheExporter.exportToPrivate(
+                        context,
+                        song,
+                        lyrics,
+                        coverArtBytes,
+                        cacheDataSourceFactory
+                    )
+                }
             } catch (e: SecurityException) {
                 LogManager.e("DownloadTracker: SAF permission expired during export", e)
                 Handler(Looper.getMainLooper()).post {
@@ -267,7 +304,7 @@ object DownloadTracker {
 
             localUriResult.onSuccess { localUri ->
                 db.musicDao().updateSongCacheStatus(download.request.id, localUri, true)
-                LogManager.i("DownloadTracker: Song ${download.request.id} exported to SAF and database status marked: $localUri")
+                LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri")
                 
                 
                 if (preferencesManager.autoCleanCacheAfterExport.first()) {

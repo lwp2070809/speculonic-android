@@ -2,7 +2,6 @@ package de.lwp2070809.speculonic.data
 
 import de.lwp2070809.speculonic.R
 
-
 import android.content.Context
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
@@ -53,7 +52,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.regex.Pattern
 
 @OptIn(UnstableApi::class)
@@ -70,7 +71,6 @@ class CacheSyncWorker @AssistedInject constructor(
         val isForceScan = inputData.getBoolean(KEY_FORCE_SCAN, false)
         val shouldHealCovers = inputData.getBoolean(KEY_HEAL_COVERS, false)
 
-        
         if (!isDeepSync && !isForceScan) {
             val lastScan = preferencesManager.lastCacheScanTime.first()
             val currentTime = System.currentTimeMillis()
@@ -90,33 +90,27 @@ class CacheSyncWorker @AssistedInject constructor(
         val cacheLocation = preferencesManager.cacheLocation.first()
         val isSafEnabled = cacheLocation.isNotBlank()
         
-        
         if (isSafEnabled) {
             val hasPermission = context.contentResolver.persistedUriPermissions.any { 
                 it.uri.toString() == cacheLocation && it.isWritePermission && it.isReadPermission 
             }
             if (!hasPermission) {
                 LogManager.e("CacheSync: SAF permission lost for $cacheLocation. Sync aborted to prevent accidental redownloads.")
-                
                 return Result.failure()
             }
         }
 
         val downloadCache = CacheManager.getDownloadCache(context)
-
         val serverUrl = preferencesManager.serverUrl.first()
         if (serverUrl.isBlank()) return Result.failure()
         
         val downloadController = DownloadController(context, repository)
 
-        
         if (isSafEnabled) {
             migratePrivateCacheToSaf(context, musicDao, downloadCache)
         }
 
         var safFiles: Array<DocumentFile>? = null
-
-        
         val cachedSongs = musicDao.getAllCachedSongs()
         if (cachedSongs.isNotEmpty()) {
             val existingSafSongIds = mutableSetOf<String>()
@@ -141,96 +135,91 @@ class CacheSyncWorker @AssistedInject constructor(
                 }
             }
 
-            val groups = cachedSongs.groupBy { it.albumId ?: it.parent ?: "unknown" }
-            val totalGroups = groups.size
-            var processedGroups = 0
+            val totalSongs = cachedSongs.size
+            val processedSongsCount = AtomicInteger(0)
             val validator = CacheValidator(context)
+            val globalSemaphore = Semaphore(5)
 
-            for ((groupId, groupSongs) in groups) {
-                processedGroups++
-                val progressValue = (processedGroups * 90 / totalGroups)
-                val statusRes = if (isDeepSync) de.lwp2070809.speculonic.R.string.verifying_binary_consistency else de.lwp2070809.speculonic.R.string.scanning_local_files
-                setProgress(workDataOf(PROGRESS to progressValue, STATUS to context.getString(statusRes, groupId)))
-                
-                val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
-                val isMetered = isMeteredNetwork(context)
-
-                coroutineScope {
-                    val semaphore = Semaphore(10)
-                    groupSongs.map { song ->
-                        async(Dispatchers.IO) {
-                            semaphore.withPermit {
-                                val physicalExists = if (isSafEnabled && song.localUri != null) {
-                                    existingSafSongIds.contains(song.id)
+            coroutineScope {
+                cachedSongs.map { song ->
+                    async(Dispatchers.IO) {
+                        globalSemaphore.withPermit {
+                            val physicalExists = if (isSafEnabled && song.localUri != null) {
+                                if (song.localUri.startsWith("file://")) {
+                                    val path = Uri.parse(song.localUri).path
+                                    path != null && File(path).exists()
                                 } else {
-                                    downloadCache.keys.contains(song.id)
+                                    existingSafSongIds.contains(song.id)
                                 }
+                            } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file://")) {
+                                val path = Uri.parse(song.localUri).path
+                                path != null && File(path).exists()
+                            } else {
+                                downloadCache.keys.contains(song.id)
+                            }
 
-                                var needsRedownload = !physicalExists
-                                
-                                if (physicalExists && isDeepSync) {
-                                    
-                                    if (!validator.checkBinaryConsistency(song.localUri?.toUri() ?: Uri.EMPTY, song, deepCheck = true)) {
-                                        LogManager.i("CacheSync: Binary inconsistency detected for ${song.title}. Flagging for redownload.")
-                                        needsRedownload = true
-                                    }
-                                }
-
-                                if (needsRedownload) {
-                                    
-                                    if (!isDeepSync) {
-                                        LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
-                                        musicDao.updateSongCacheStatus(song.id, null, false)
-                                        
-                                        
-                                        try {
-                                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                                downloadManager.removeDownload(song.id)
-                                            }
-                                            LogManager.i("CacheSync: Successfully removed missing download task for ${song.title} from DownloadManager.")
-                                        } catch (e: Exception) {
-                                            LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
-                                        }
-                                        return@withPermit
-                                    }
-
-                                    if (isMetered && !mobilePlayAllowed) {
-                                        LogManager.w("CacheSync: Redownload skipped for ${song.title} due to metered network.")
-                                        return@withPermit
-                                    }
-
-                                    LogManager.w("CacheSync: Cache invalid for ${song.title}. Triggering bit-perfect redownload.")
-                                    musicDao.updateSongCacheStatus(song.id, null, false)
-                                    
-                                    try {
-                                        downloadCache.removeResource(song.id)
-                                        CacheManager.getPlaybackCache(context).removeResource(song.id)
-                                    } catch (e: Exception) {
-                                        LogManager.e("CacheSync: Failed to clean old cache before redownload", e)
-                                    }
-                                    
-                                    val songModel = de.lwp2070809.speculonic.network.model.Song(
-                                        id = song.id,
-                                        title = song.title,
-                                        album = song.album,
-                                        artist = song.artist,
-                                        albumId = song.albumId,
-                                        duration = song.duration,
-                                        coverArt = song.coverArt,
-                                        path = song.path,
-                                        size = song.size,
-                                        md5 = song.md5
-                                    )
-                                    downloadController.downloadSong(songModel, isSilent = true)
+                            var needsRedownload = !physicalExists
+                            
+                            if (physicalExists && isDeepSync && song.localUri != null) {
+                                if (!validator.checkBinaryConsistency(Uri.parse(song.localUri), song, deepCheck = true)) {
+                                    LogManager.i("CacheSync: Binary inconsistency detected for ${song.title}. Flagging for redownload.")
+                                    needsRedownload = true
                                 }
                             }
+
+                            if (needsRedownload) {
+                                if (!isDeepSync) {
+                                    LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
+                                    musicDao.updateSongCacheStatus(song.id, null, false)
+                                    try {
+                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                            downloadManager.removeDownload(song.id)
+                                        }
+                                        LogManager.i("CacheSync: Successfully removed missing download task for ${song.title} from DownloadManager.")
+                                    } catch (e: Exception) {
+                                        LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
+                                    }
+                                } else {
+                                    val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
+                                    val isMetered = isMeteredNetwork(context)
+                                    if (isMetered && !mobilePlayAllowed) {
+                                        LogManager.w("CacheSync: Redownload skipped for ${song.title} due to metered network.")
+                                    } else {
+                                        LogManager.i("CacheSync: Triggering redownload for inconsistent/missing song: ${song.title}")
+                                        musicDao.updateSongCacheStatus(song.id, null, false)
+                                        try {
+                                            downloadCache.removeResource(song.id)
+                                            CacheManager.getPlaybackCache(context).removeResource(song.id)
+                                        } catch (e: Exception) {
+                                            LogManager.e("CacheSync: Failed to clean old cache before redownload", e)
+                                        }
+                                        val songModel = Song(
+                                            id = song.id,
+                                            title = song.title,
+                                            album = song.album,
+                                            artist = song.artist,
+                                            albumId = song.albumId,
+                                            duration = song.duration,
+                                            coverArt = song.coverArt,
+                                            path = song.path,
+                                            size = song.size,
+                                            md5 = song.md5
+                                        )
+                                        downloadController.downloadSong(songModel, isSilent = true)
+                                    }
+                                }
+                            }
+
+                            val processed = processedSongsCount.incrementAndGet()
+                            val progressValue = (processed * 90 / totalSongs)
+                            val statusRes = if (isDeepSync) de.lwp2070809.speculonic.R.string.verifying_binary_consistency else de.lwp2070809.speculonic.R.string.scanning_local_files
+                            setProgress(workDataOf(PROGRESS to progressValue, STATUS to context.getString(statusRes, song.title)))
                         }
-                    }.awaitAll()
-                }
+                    }
+                }.awaitAll()
             }
         }
 
-        
         if (isSafEnabled) {
             setProgress(workDataOf(PROGRESS to 95, STATUS to context.getString(de.lwp2070809.speculonic.R.string.sync_scanning_orphans)))
             try {
@@ -263,7 +252,6 @@ class CacheSyncWorker @AssistedInject constructor(
             }
         }
 
-        
         if (shouldHealCovers) {
             try {
                 setProgress(workDataOf(PROGRESS to 98, STATUS to "正在补全专辑封面..."))
@@ -278,9 +266,7 @@ class CacheSyncWorker @AssistedInject constructor(
             LogManager.d("CacheSync: Cover art healing skipped for standard scan.")
         }
 
-        
         preferencesManager.saveLastCacheScanTime(System.currentTimeMillis())
-
         setProgress(workDataOf(PROGRESS to 100, STATUS to context.getString(de.lwp2070809.speculonic.R.string.sync_completed)))
         LogManager.i("CacheSync: Sync completed.")
         return Result.success()
@@ -293,12 +279,12 @@ class CacheSyncWorker @AssistedInject constructor(
     ) {
         val cachedSongs = musicDao.getAllCachedSongs()
         val toMigrate = cachedSongs.filter {
-            it.localUri.isNullOrBlank() && downloadCache.keys.contains(it.id)
+            it.localUri.isNullOrBlank() || it.localUri.startsWith("file://")
         }
 
         if (toMigrate.isEmpty()) return
 
-        LogManager.i("CacheSync: Found ${toMigrate.size} private cached songs waiting for migration to SAF.")
+        LogManager.i("CacheSync: Found ${toMigrate.size} songs waiting for migration to SAF.")
         val total = toMigrate.size
 
         val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideOkHttpClient())
@@ -318,37 +304,40 @@ class CacheSyncWorker @AssistedInject constructor(
 
             var lyrics: String? = null
             var coverArtBytes: ByteArray? = null
-            try {
-                val baseUrl = preferencesManager.serverUrl.first()
-                val user = preferencesManager.username.first()
-                val pass = preferencesManager.password.first()
+            
+            if (song.localUri.isNullOrBlank()) {
+                try {
+                    val baseUrl = preferencesManager.serverUrl.first()
+                    val user = preferencesManager.username.first()
+                    val pass = preferencesManager.password.first()
 
-                if (baseUrl.isNotBlank() && user.isNotBlank()) {
-                    val api = NetworkModule.provideSubsonicService(baseUrl)
-                    val authManager = AuthManager(user, pass.toCharArray())
+                    if (baseUrl.isNotBlank() && user.isNotBlank()) {
+                        val api = NetworkModule.provideSubsonicService(baseUrl)
+                        val authManager = AuthManager(user, pass.toCharArray())
 
-                    val lyricsRepo = LyricsRepository(context, api, musicDao, authManager)
-                    val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)
-                    lyrics = rawLyrics
+                        val lyricsRepo = LyricsRepository(context, api, musicDao, authManager)
+                        val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)
+                        lyrics = rawLyrics
 
-                    if (!song.coverArt.isNullOrBlank()) {
-                        val urlBuilder = UrlBuilder(baseUrl, authManager)
-                        val coverUrl = urlBuilder.buildCoverArtUrl(song.coverArt)
-                        val imageLoader = SingletonImageLoader.get(context)
-                        val request = ImageRequest.Builder(context).data(coverUrl).build()
-                        val result = imageLoader.execute(request)
-                        if (result is SuccessResult) {
-                            val bitmap = (result.image as? BitmapImage)?.bitmap
-                            if (bitmap != null) {
-                                val bos = ByteArrayOutputStream()
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, bos)
-                                coverArtBytes = bos.toByteArray()
+                        if (!song.coverArt.isNullOrBlank()) {
+                            val urlBuilder = UrlBuilder(baseUrl, authManager)
+                            val coverUrl = urlBuilder.buildCoverArtUrl(song.coverArt)
+                            val imageLoader = SingletonImageLoader.get(context)
+                            val request = ImageRequest.Builder(context).data(coverUrl).build()
+                            val result = imageLoader.execute(request)
+                            if (result is SuccessResult) {
+                                val bitmap = (result.image as? BitmapImage)?.bitmap
+                                if (bitmap != null) {
+                                    val bos = ByteArrayOutputStream()
+                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, bos)
+                                    coverArtBytes = bos.toByteArray()
+                                }
                             }
                         }
                     }
+                } catch (e: Exception) {
+                    LogManager.w("CacheSync: Failed to fetch metadata for ${song.title} during migration, using audio only", e)
                 }
-            } catch (e: Exception) {
-                LogManager.w("CacheSync: Failed to fetch metadata for ${song.title} during migration, using audio only", e)
             }
 
             val songModel = Song(
@@ -365,7 +354,11 @@ class CacheSyncWorker @AssistedInject constructor(
             )
 
             val localUriResult = try {
-                CacheExporter.exportToSaf(context, songModel, lyrics, coverArtBytes, cacheDataSourceFactory)
+                if (song.localUri != null && song.localUri.startsWith("file://")) {
+                    CacheExporter.exportPrivateFileToSaf(context, songModel, song.localUri)
+                } else {
+                    CacheExporter.exportToSaf(context, songModel, lyrics, coverArtBytes, cacheDataSourceFactory)
+                }
             } catch (e: SecurityException) {
                 LogManager.e("CacheSync: SAF permission expired during migration", e)
                 Handler(Looper.getMainLooper()).post {
@@ -375,8 +368,29 @@ class CacheSyncWorker @AssistedInject constructor(
             }
 
             localUriResult.onSuccess { localUri ->
+                val oldLocalUri = song.localUri
                 musicDao.updateSongLocalUri(song.id, localUri)
                 LogManager.i("CacheSync: Migrated ${song.title} to SAF successfully.")
+
+                if (oldLocalUri != null && oldLocalUri.startsWith("file://")) {
+                    try {
+                        val path = Uri.parse(oldLocalUri).path
+                        if (path != null) {
+                            val file = File(path)
+                            if (file.exists()) {
+                                file.delete()
+                                LogManager.d("CacheSync: Deleted migrated private audio file: $path")
+                            }
+                            val lrcFile = File(de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(path))
+                            if (lrcFile.exists()) {
+                                lrcFile.delete()
+                                LogManager.d("CacheSync: Deleted migrated private lyric file: ${lrcFile.path}")
+                            }
+                        }
+                    } catch (e: Exception) {
+                        LogManager.e("CacheSync: Failed to clean up private files after migration", e)
+                    }
+                }
 
                 if (autoClean) {
                     LogManager.d("CacheSync: autoClean is enabled. Cleaning private cache for ${song.title}.")
@@ -396,7 +410,6 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-
     private fun isMeteredNetwork(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork ?: return false
@@ -410,7 +423,6 @@ class CacheSyncWorker @AssistedInject constructor(
         const val KEY_HEAL_COVERS = "heal_covers"
         const val PROGRESS = "progress"
         const val STATUS = "status"
-        
         
         const val CACHE_SCAN_COOLDOWN_HOURS = 168L
 

@@ -31,6 +31,8 @@ class BluetoothLyricsManager(
     private var bluetoothLyricsJob: Job? = null
     private var currentLyricsLines: List<LyricLine> = emptyList()
     private var currentLyricsJob: Job? = null
+    private var lastUpdateTimestamp = 0L
+    private var pendingUpdateJob: Job? = null
 
     fun release() {
         stopBluetoothLyricsUpdate()
@@ -151,12 +153,31 @@ class BluetoothLyricsManager(
         val realTitle = originalMetadata.extras?.getString("realTitle") ?: originalMetadata.title?.toString() ?: ""
         val realArtist = originalMetadata.extras?.getString("realArtist") ?: originalMetadata.artist?.toString() ?: ""
 
-        serviceScope.launch(Dispatchers.Main) {
-            if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
-                (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(lyricLine, "$realTitle - $realArtist")
-            } else {
-                (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(null, null)
+        val now = System.currentTimeMillis()
+        val minInterval = 300L
+
+        pendingUpdateJob?.cancel()
+
+        if (forceUpdate || now - lastUpdateTimestamp >= minInterval) {
+            lastUpdateTimestamp = now
+            serviceScope.launch(Dispatchers.Main) {
+                dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
             }
+        } else {
+            val remainingDelay = minInterval - (now - lastUpdateTimestamp)
+            pendingUpdateJob = serviceScope.launch(Dispatchers.Main) {
+                delay(remainingDelay)
+                lastUpdateTimestamp = System.currentTimeMillis()
+                dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
+            }
+        }
+    }
+
+    private fun dispatchLyricsUpdate(player: androidx.media3.common.Player, lyricLine: String?, realTitle: String, realArtist: String) {
+        if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
+            (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(lyricLine, "$realTitle - $realArtist")
+        } else {
+            (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(null, null)
         }
     }
 }

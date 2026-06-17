@@ -7,25 +7,30 @@ import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.security.MessageDigest
 
 class CacheValidator(private val context: Context) {
 
-    
     suspend fun checkBinaryConsistency(uri: Uri, dbSong: SongEntity, deepCheck: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         try {
-            val docFile = DocumentFile.fromSingleUri(context, uri) ?: return@withContext false
-            if (!docFile.exists()) return@withContext false
+            val length = if (uri.scheme == "file") {
+                val file = File(uri.path ?: return@withContext false)
+                if (!file.exists()) return@withContext false
+                file.length()
+            } else {
+                val docFile = DocumentFile.fromSingleUri(context, uri) ?: return@withContext false
+                if (!docFile.exists()) return@withContext false
+                docFile.length()
+            }
 
-            
             if (dbSong.size != null && dbSong.size > 0) {
-                if (docFile.length() != dbSong.size) {
-                    LogManager.i("CacheValidator: Size mismatch for ${dbSong.title}. Local: ${docFile.length()}, Expected: ${dbSong.size}")
+                if (length != dbSong.size) {
+                    LogManager.i("CacheValidator: Size mismatch for ${dbSong.title}. Local: $length, Expected: ${dbSong.size}")
                     return@withContext false
                 }
             }
 
-            
             if (deepCheck && !dbSong.md5.isNullOrBlank()) {
                 val localMd5 = calculateMd5(uri)
                 if (localMd5 != dbSong.md5) {
@@ -43,8 +48,14 @@ class CacheValidator(private val context: Context) {
     suspend fun calculateMd5(uri: Uri): String? = withContext(Dispatchers.IO) {
         try {
             val digest = MessageDigest.getInstance("MD5")
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                val buffer = ByteArray(65536) 
+            val stream = if (uri.scheme == "file") {
+                val file = File(uri.path ?: return@withContext null)
+                file.inputStream()
+            } else {
+                context.contentResolver.openInputStream(uri)
+            }
+            stream?.use { input ->
+                val buffer = ByteArray(65536)
                 var read: Int
                 while (input.read(buffer).also { read = it } != -1) {
                     digest.update(buffer, 0, read)
