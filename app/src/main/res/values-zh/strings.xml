@@ -318,7 +318,7 @@
     <string name="server_type">服务器类型</string>
     <string name="server_version">服务器版本</string>
     <string name="subsonic_api_version">Subsonic API 版本</string>
-    <string name="opensubsonic_support">支持 OpenSubsonic</string>
+    <string name="opensubsonic_support">OpenSubsonic</string>
     <string name="supported_extensions">支持的扩展特性</string>
     <string name="opensubsonic_supported">支持</string>
     <string name="opensubsonic_not_supported">不支持</string>

@@ -321,7 +321,7 @@
     <string name="server_type">Server Type</string>
     <string name="server_version">Server Version</string>
     <string name="subsonic_api_version">Subsonic API Version</string>
-    <string name="opensubsonic_support">OpenSubsonic Support</string>
+    <string name="opensubsonic_support">OpenSubsonic</string>
     <string name="supported_extensions">Supported Extensions</string>
     <string name="opensubsonic_supported">Supported</string>
     <string name="opensubsonic_not_supported">Not Supported</string>
