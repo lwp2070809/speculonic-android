@@ -152,13 +152,6 @@ object DownloadTracker {
                 Download.STATE_FAILED, Download.STATE_REMOVING, Download.STATE_STOPPED -> {
                     _activeDownloadIds.update { it - download.request.id }
                     _downloadedSongIds.update { it - download.request.id }
-                    
-                    if (download.state == Download.STATE_REMOVING) {
-                        scope.launch {
-                            val db = AppDatabase.getDatabase(context)
-                            db.musicDao().updateSongCacheStatus(download.request.id, null, false)
-                        }
-                    }
                 }
                 else -> {
                     _activeDownloadIds.update { it - download.request.id }
@@ -178,13 +171,12 @@ object DownloadTracker {
                 var keepCacheStatus = false
                 if (songEntity?.localUri != null && songEntity.isFullyCached) {
                     val uri = android.net.Uri.parse(songEntity.localUri)
-                    val exists = if (songEntity.localUri.startsWith("file://")) {
+                    val exists = if (songEntity.localUri.startsWith("file:")) {
                         val path = uri.path
                         path != null && java.io.File(path).exists()
                     } else {
                         try {
-                            val doc = DocumentFile.fromSingleUri(context, uri)
-                            doc?.exists() == true
+                            context.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
                         } catch (e: Exception) {
                             false
                         }

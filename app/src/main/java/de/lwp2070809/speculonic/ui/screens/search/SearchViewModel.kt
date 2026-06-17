@@ -37,7 +37,7 @@ class SearchViewModel @Inject constructor(
                 val currentResults = _uiState.value.results
                 if (currentResults.song.isNotEmpty()) {
                     val updatedSongs = currentResults.song.map { song ->
-                        song.copy(isFullyCached = downloadedIds.contains(song.id))
+                        song.copy(isFullyCached = song.isFullyCached || downloadedIds.contains(song.id))
                     }
                     if (updatedSongs != currentResults.song) {
                         _uiState.value = _uiState.value.copy(

@@ -32,7 +32,7 @@ object LocalLyricsProvider {
                         }
                     }
                 }
-            } else if (audioUriString.startsWith("file://") || audioUriString.startsWith("/")) {
+            } else if (audioUriString.startsWith("file:") || audioUriString.startsWith("/")) {
                 val physicalPath = de.lwp2070809.speculonic.util.FormatUtils.getFullPhysicalPath(audioUriString)
                 val lrcPath = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(physicalPath)
                 val lrcFile = java.io.File(lrcPath)
@@ -93,7 +93,7 @@ object LocalLyricsProvider {
                         }
                     }
                 }
-            } else if (audioUriString.startsWith("file://") || audioUriString.startsWith("/")) {
+            } else if (audioUriString.startsWith("file:") || audioUriString.startsWith("/")) {
                 val physicalPath = de.lwp2070809.speculonic.util.FormatUtils.getFullPhysicalPath(audioUriString)
                 val lrcPath = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(physicalPath)
                 val lrcFile = java.io.File(lrcPath)

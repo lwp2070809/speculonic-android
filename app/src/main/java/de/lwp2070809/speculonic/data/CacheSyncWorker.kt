@@ -145,13 +145,13 @@ class CacheSyncWorker @AssistedInject constructor(
                     async(Dispatchers.IO) {
                         globalSemaphore.withPermit {
                             val physicalExists = if (isSafEnabled && song.localUri != null) {
-                                if (song.localUri.startsWith("file://")) {
+                                if (song.localUri.startsWith("file:")) {
                                     val path = Uri.parse(song.localUri).path
                                     path != null && File(path).exists()
                                 } else {
                                     existingSafSongIds.contains(song.id)
                                 }
-                            } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file://")) {
+                            } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
                                 val path = Uri.parse(song.localUri).path
                                 path != null && File(path).exists()
                             } else {
@@ -279,7 +279,7 @@ class CacheSyncWorker @AssistedInject constructor(
     ) {
         val cachedSongs = musicDao.getAllCachedSongs()
         val toMigrate = cachedSongs.filter {
-            it.localUri.isNullOrBlank() || it.localUri.startsWith("file://")
+            it.localUri.isNullOrBlank() || it.localUri.startsWith("file:")
         }
 
         if (toMigrate.isEmpty()) return
@@ -354,7 +354,7 @@ class CacheSyncWorker @AssistedInject constructor(
             )
 
             val localUriResult = try {
-                if (song.localUri != null && song.localUri.startsWith("file://")) {
+                if (song.localUri != null && song.localUri.startsWith("file:")) {
                     CacheExporter.exportPrivateFileToSaf(context, songModel, song.localUri)
                 } else {
                     CacheExporter.exportToSaf(context, songModel, lyrics, coverArtBytes, cacheDataSourceFactory)
@@ -372,7 +372,7 @@ class CacheSyncWorker @AssistedInject constructor(
                 musicDao.updateSongLocalUri(song.id, localUri)
                 LogManager.i("CacheSync: Migrated ${song.title} to SAF successfully.")
 
-                if (oldLocalUri != null && oldLocalUri.startsWith("file://")) {
+                if (oldLocalUri != null && oldLocalUri.startsWith("file:")) {
                     try {
                         val path = Uri.parse(oldLocalUri).path
                         if (path != null) {
