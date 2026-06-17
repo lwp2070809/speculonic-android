@@ -95,12 +95,12 @@ fun MainTopBar(
                     
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
+                        verticalAlignment = Alignment.Bottom,
                         horizontalArrangement = Arrangement.spacedBy(logoSpacing)
                     ) {
                         Text(
                             text = appName,
-                            fontSize = 26.sp,
+                            fontSize = 30.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
@@ -119,22 +119,32 @@ fun MainTopBar(
                             lastSyncingState = isSyncing
                         }
 
-                        IconButton(onClick = onSyncStatusClick) {
+                        IconButton(
+                            onClick = onSyncStatusClick,
+                            modifier = Modifier
+                                .align(Alignment.Bottom)
+                                .size(34.dp)
+                        ) {
                             CloudSyncIcon(
                                 isSyncing = isSyncing,
                                 showCloudDoneRecent = showCloudDoneRecent
                             )
                         }
 
-                        IconButton(onClick = {
-                            wifiHighlightJob?.cancel()
-                            wifiHighlightJob = scope.launch {
-                                showWifiHighlightRecent = true
-                                onToggleOfflineMode()
-                                kotlinx.coroutines.delay(4000)
-                                showWifiHighlightRecent = false
-                            }
-                        }) {
+                        IconButton(
+                            onClick = {
+                                wifiHighlightJob?.cancel()
+                                wifiHighlightJob = scope.launch {
+                                    showWifiHighlightRecent = true
+                                    onToggleOfflineMode()
+                                    kotlinx.coroutines.delay(4000)
+                                    showWifiHighlightRecent = false
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.Bottom)
+                                .size(34.dp)
+                        ) {
                             WifiOfflineIcon(
                                 offlineMode = offlineMode,
                                 isTriggeredRecent = showWifiHighlightRecent
@@ -171,15 +181,21 @@ fun MainTopBar(
                             androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
                         }
 
-                        IconButton(onClick = onDownloadManagerClick) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(32.dp)) {
+                        IconButton(
+                            onClick = onDownloadManagerClick,
+                            modifier = Modifier
+                                .align(Alignment.Bottom)
+                                .offset(y = (-1).dp)
+                                .size(34.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp)) {
                                 if (activeDownloadsCount > 0) {
                                     Icon(
                                         imageVector = Icons.Default.ArrowDownward,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
-                                            .size(22.dp)
+                                            .size(20.dp)
                                             .graphicsLayer {
                                                 this.translationY = translationY.value * density
                                                 this.alpha = alpha.value
@@ -188,7 +204,7 @@ fun MainTopBar(
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomCenter)
-                                            .padding(bottom = 2.dp)
+                                            .padding(bottom = 3.5.dp)
                                             .size(width = 16.dp, height = 2.dp)
                                             .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
                                     )
@@ -197,12 +213,12 @@ fun MainTopBar(
                                         imageVector = Icons.Default.ArrowDownward,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(22.dp)
+                                        modifier = Modifier.size(20.dp)
                                     )
                                     Box(
                                         modifier = Modifier
                                             .align(Alignment.BottomCenter)
-                                            .padding(bottom = 2.dp)
+                                            .padding(bottom = 3.dp)
                                             .size(width = 16.dp, height = 2.dp)
                                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), shape = CircleShape)
                                     )
@@ -289,7 +305,7 @@ private fun CloudSyncIcon(
                 imageVector = Icons.Outlined.CloudDone,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(26.dp)
             )
         }
 
@@ -298,7 +314,7 @@ private fun CloudSyncIcon(
                 imageVector = Icons.Outlined.Cloud,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(26.dp)
             )
 
             val rotationState = if (isSyncing) {
@@ -316,13 +332,14 @@ private fun CloudSyncIcon(
                 androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
             }
 
-            val syncIconOffset = 2.dp
-            val syncIconSize = 20.dp
+            val syncIconOffsetX = 0.5.dp
+            val syncIconOffsetY = 0.dp
+            val syncIconSize = 15.dp
 
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
-                    .offset(x = syncIconOffset, y = syncIconOffset)
+                    .offset(x = syncIconOffsetX, y = syncIconOffsetY)
                     .background(MaterialTheme.colorScheme.surface, shape = CircleShape)
                     .padding(1.dp)
             ) {
@@ -357,7 +374,7 @@ private fun WifiOfflineIcon(
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = modifier
-            .size(32.dp)
+            .size(26.dp)
             .alpha(alpha)
     )
 }
