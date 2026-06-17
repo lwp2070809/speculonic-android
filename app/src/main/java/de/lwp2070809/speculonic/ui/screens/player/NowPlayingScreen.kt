@@ -66,6 +66,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.BlurredEdgeTreatment
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -100,6 +101,7 @@ import kotlin.math.roundToInt
 fun NowPlayingScreen(
     viewModel: NowPlayingViewModel,
     isExpanded: Boolean = false,
+    isEffectivelyOnline: Boolean,
     onCollapse: () -> Unit
 ) {
     val repository = LocalSubsonicRepository.current
@@ -134,6 +136,7 @@ fun NowPlayingScreen(
                 uiState = uiState,
                 playbackController = playbackController,
                 viewModel = viewModel,
+                isEffectivelyOnline = isEffectivelyOnline,
                 onCollapse = onCollapse,
                 onShowQueue = { showQueue = true },
                 onShowSleepTimer = { showSleepTimerSheet = true },
@@ -147,6 +150,7 @@ fun NowPlayingScreen(
                 viewModel = viewModel,
                 showLyrics = showLyricsMobile,
                 onToggleLyrics = { showLyricsMobile = !showLyricsMobile },
+                isEffectivelyOnline = isEffectivelyOnline,
                 onCollapse = onCollapse,
                 onShowQueue = { showQueue = true },
                 onShowSleepTimer = { showSleepTimerSheet = true },
@@ -218,6 +222,7 @@ private fun NowPlayingMobile(
     viewModel: NowPlayingViewModel,
     showLyrics: Boolean,
     onToggleLyrics: () -> Unit,
+    isEffectivelyOnline: Boolean,
     onCollapse: () -> Unit,
     onShowQueue: () -> Unit,
     onShowSleepTimer: () -> Unit,
@@ -463,7 +468,7 @@ private fun NowPlayingMobile(
                 ) {
                     PlaybackSeekBar(playbackState, playbackController)
                     MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
-                    ExtraControls(playbackState, uiState, viewModel, onShowSleepTimer)
+                    ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
                 }
             }
         }
@@ -476,6 +481,7 @@ private fun NowPlayingExpanded(
     uiState: NowPlayingUiState,
     playbackController: PlaybackController,
     viewModel: NowPlayingViewModel,
+    isEffectivelyOnline: Boolean,
     onCollapse: () -> Unit,
     onShowQueue: () -> Unit,
     onShowSleepTimer: () -> Unit,
@@ -581,7 +587,7 @@ private fun NowPlayingExpanded(
                     SongInfo(playbackState)
                     PlaybackSeekBar(playbackState, playbackController)
                     MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
-                    ExtraControls(playbackState, uiState, viewModel, onShowSleepTimer)
+                    ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
                 }
             }
 
@@ -901,13 +907,18 @@ private fun ExtraControls(
     playbackState: PlaybackState,
     uiState: NowPlayingUiState,
     viewModel: NowPlayingViewModel,
+    isEffectivelyOnline: Boolean,
     onShowSleepTimer: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.SpaceEvenly
     ) {
-        TextButton(onClick = { viewModel.toggleFavorite() }) {
+        TextButton(
+            onClick = { viewModel.toggleFavorite() },
+            enabled = isEffectivelyOnline,
+            modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
+        ) {
             Icon(
                 if (uiState.isStarred) Icons.Default.Favorite else Icons.Default.FavoriteBorder, 
                 null, 

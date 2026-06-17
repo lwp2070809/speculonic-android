@@ -300,7 +300,10 @@ private fun MainContent(
                     showNowPlaying = false
                 }
                 de.lwp2070809.speculonic.ui.screens.player.NowPlayingScreen(
-                    viewModel = nowPlayingViewModel, isExpanded = isExpanded, onCollapse = { showNowPlaying = false }
+                    viewModel = nowPlayingViewModel,
+                    isExpanded = isExpanded,
+                    isEffectivelyOnline = isEffectivelyOnline,
+                    onCollapse = { showNowPlaying = false }
                 )
             }
         }

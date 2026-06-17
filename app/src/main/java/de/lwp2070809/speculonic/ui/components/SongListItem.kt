@@ -106,7 +106,10 @@ fun SongListItem(
 
     ListItem(
         headlineContent = { 
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.alpha(alpha),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 Text(
                     text = song.title,
                     maxLines = 1,
@@ -130,7 +133,8 @@ fun SongListItem(
             Text(
                 text = "${song.artist ?: ""} • ${FormatUtils.formatDuration(song.duration ?: 0)}",
                 maxLines = 1,
-                overflow = TextOverflow.Ellipsis
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.alpha(alpha)
             ) 
         },
         leadingContent = {
@@ -141,6 +145,7 @@ fun SongListItem(
                 model = model,
                 contentDescription = null,
                 modifier = Modifier
+                    .alpha(alpha)
                     .size(40.dp)
                     .clip(RoundedCornerShape(4.dp))
                     .then(
@@ -156,7 +161,9 @@ fun SongListItem(
         },
         trailingContent = {
             if (trailingContentOverride != null) {
-                trailingContentOverride()
+                Box(modifier = Modifier.alpha(alpha)) {
+                    trailingContentOverride()
+                }
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
@@ -164,7 +171,8 @@ fun SongListItem(
                             isStarred = !isStarred
                             onStarClick(isStarred)
                         },
-                        enabled = isEffectivelyOnline
+                        enabled = isEffectivelyOnline,
+                        modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                     ) {
                         Icon(
                             imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
@@ -223,7 +231,6 @@ fun SongListItem(
             }
         },
         modifier = modifier
-            .alpha(alpha)
             .clickable(enabled = isEnabled) { onClick() }
     )
 }
