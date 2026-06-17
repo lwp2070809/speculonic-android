@@ -16,6 +16,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -67,7 +68,8 @@ fun AlbumDetailScreen(
             actions = {
                 IconButton(
                     onClick = { viewModel.toggleStar() },
-                    enabled = isOnline && uiState.album != null
+                    enabled = isEffectivelyOnline && uiState.album != null,
+                    modifier = Modifier.alpha(if (isEffectivelyOnline && uiState.album != null) 1.0f else 0.38f)
                 ) {
                     val isStarred = uiState.album?.starred != null
                     Icon(

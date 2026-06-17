@@ -24,6 +24,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -186,7 +187,8 @@ fun PlaylistDetailScreen(
                                                 repository.starSong(song.id, isStarred)
                                             }
                                         },
-                                        enabled = isOnline
+                                        enabled = isEffectivelyOnline,
+                                        modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                                     ) {
                                         Icon(
                                             imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
