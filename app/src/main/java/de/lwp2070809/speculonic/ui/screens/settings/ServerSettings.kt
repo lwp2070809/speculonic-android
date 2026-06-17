@@ -50,6 +50,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -58,7 +59,11 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 
 @Composable
-fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
+fun ServerSettings(
+    viewModel: SettingsViewModel,
+    topBarState: TopBarState,
+    isEffectivelyOnline: Boolean
+) {
     val uiState by viewModel.uiState.collectAsState()
     var showEditDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -90,8 +95,17 @@ fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             .verticalScroll(rememberScrollState())
     ) {
         if (uiState.serverUrl.isBlank()) {
-            Box(modifier = Modifier.fillMaxWidth().height(200.dp), contentAlignment = Alignment.Center) {
-                Button(onClick = { showEditDialog = true }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(200.dp)
+                    .alpha(if (isEffectivelyOnline) 1.0f else 0.38f),
+                contentAlignment = Alignment.Center
+            ) {
+                Button(
+                    onClick = { showEditDialog = true },
+                    enabled = isEffectivelyOnline
+                ) {
                     Icon(Icons.Default.Add, contentDescription = null)
                     Spacer(Modifier.width(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                     Text(stringResource(R.string.setup_server))
@@ -135,13 +149,20 @@ fun ServerSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                         }
                     }
                     Row(
+                        modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        IconButton(onClick = { showEditDialog = true }) {
+                        IconButton(
+                            onClick = { showEditDialog = true },
+                            enabled = isEffectivelyOnline
+                        ) {
                             Icon(Icons.Default.Edit, contentDescription = "Edit")
                         }
-                        IconButton(onClick = { showDeleteConfirm = true }) {
+                        IconButton(
+                            onClick = { showDeleteConfirm = true },
+                            enabled = isEffectivelyOnline
+                        ) {
                             Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
                         }
                     }

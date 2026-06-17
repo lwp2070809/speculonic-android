@@ -74,6 +74,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
@@ -92,7 +93,8 @@ import de.lwp2070809.speculonic.util.FormatUtils
 @Composable
 fun StorageCacheSettings(
     viewModel: SettingsViewModel,
-    topBarState: TopBarState
+    topBarState: TopBarState,
+    isEffectivelyOnline: Boolean
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val title = stringResource(R.string.storage_cache_settings)
@@ -370,7 +372,9 @@ fun StorageCacheSettings(
                         )
                     }
                 },
-                modifier = Modifier.clickable(enabled = !uiState.isSyncing) { viewModel.requestSyncWithServer() }
+                modifier = Modifier
+                    .alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
+                    .clickable(enabled = !uiState.isSyncing && isEffectivelyOnline) { viewModel.requestSyncWithServer() }
             )
         }
     }

@@ -48,6 +48,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -64,7 +65,11 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MetadataSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
+fun MetadataSettings(
+    viewModel: SettingsViewModel,
+    topBarState: TopBarState,
+    isEffectivelyOnline: Boolean
+) {
     val uiState by viewModel.uiState.collectAsState()
     val title = stringResource(R.string.metadata)
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
@@ -137,7 +142,7 @@ fun MetadataSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 trailingContent = {
                     IconButton(
                         onClick = { viewModel.requestForceSync() },
-                        enabled = !uiState.isSyncing
+                        enabled = !uiState.isSyncing && isEffectivelyOnline
                     ) {
                         Icon(
                             imageVector = if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
@@ -145,7 +150,8 @@ fun MetadataSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                             modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
                         )
                     }
-                }
+                },
+                modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
             )
 
             ListItem(

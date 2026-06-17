@@ -101,13 +101,13 @@ fun SearchScreen(
                 onValueChange = { viewModel.onQueryChange(it) },
                 placeholder = { 
                     Text(
-                        text = if (isOnline) stringResource(R.string.search_hint) 
+                        text = if (isEffectivelyOnline) stringResource(R.string.search_hint) 
                                else stringResource(R.string.search_offline_warning)
                     ) 
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                enabled = isOnline,
+                enabled = isEffectivelyOnline,
                 trailingIcon = {
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
@@ -119,7 +119,7 @@ fun SearchScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            if (!isOnline && uiState.results.song.isEmpty() && uiState.results.album.isEmpty() && uiState.results.artist.isEmpty()) {
+            if (!isEffectivelyOnline && uiState.results.song.isEmpty() && uiState.results.album.isEmpty() && uiState.results.artist.isEmpty()) {
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally

@@ -163,7 +163,8 @@ fun AppNavDisplay(
             
             de.lwp2070809.speculonic.ui.screens.settings.ServerSettings(
                 viewModel = settingsViewModel,
-                topBarState = topBarState
+                topBarState = topBarState,
+                isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
@@ -186,14 +187,16 @@ fun AppNavDisplay(
         entry<AppRoute.MetadataSettings> {
             MetadataSettings(
                 viewModel = settingsViewModel,
-                topBarState = topBarState
+                topBarState = topBarState,
+                isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
         entry<AppRoute.StorageCacheSettings> {
             StorageCacheSettings(
                 viewModel = settingsViewModel,
-                topBarState = topBarState
+                topBarState = topBarState,
+                isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
