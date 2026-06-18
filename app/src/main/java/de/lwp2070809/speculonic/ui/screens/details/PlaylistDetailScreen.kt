@@ -76,6 +76,10 @@ fun PlaylistDetailScreen(
     val isAllDownloaded = remember(downloadedIds, uiState.songs) {
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
     }
+
+    val isPlayActionsEnabled = remember(uiState.songs, downloadedIds, isStreamingAllowed) {
+        isStreamingAllowed || uiState.songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+    }
     val playlistTitle = stringResource(R.string.playlists)
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
@@ -142,7 +146,9 @@ fun PlaylistDetailScreen(
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
-                                isDownloadEnabled = !isAllDownloaded
+                                isDownloadEnabled = !isAllDownloaded,
+                                isPlayAllEnabled = isPlayActionsEnabled,
+                                isShuffleEnabled = isPlayActionsEnabled
                             )
                         }
                     }

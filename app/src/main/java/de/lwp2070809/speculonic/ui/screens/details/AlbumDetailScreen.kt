@@ -101,6 +101,10 @@ fun AlbumDetailScreen(
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
     }
 
+    val isPlayActionsEnabled = remember(uiState.songs, downloadedIds, isStreamingAllowed) {
+        isStreamingAllowed || uiState.songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+    }
+
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
         onRefresh = { if (isOnline) viewModel.loadAlbumDetails(forceRefresh = true, isManualRefresh = true) },
@@ -143,7 +147,9 @@ fun AlbumDetailScreen(
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
-                                isDownloadEnabled = !isAllDownloaded
+                                isDownloadEnabled = !isAllDownloaded,
+                                isPlayAllEnabled = isPlayActionsEnabled,
+                                isShuffleEnabled = isPlayActionsEnabled
                             )
                         }
                     }

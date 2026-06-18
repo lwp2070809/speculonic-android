@@ -46,7 +46,45 @@ class DownloadService : DownloadService(
         }
     }
 
+    private val downloadListener = object : DownloadManager.Listener {
+        override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
+            checkAndStopIfSilent()
+        }
+    }
+
+    private fun checkAndStopIfSilent() {
+        if (isSilentOnly()) {
+            de.lwp2070809.speculonic.util.LogManager.i("DownloadService: Only silent downloads active. Stopping service.")
+            stopSelf()
+        }
+    }
+
+    private fun isSilentOnly(): Boolean {
+        val manager = getDownloadManager()
+        var hasActive = false
+        var hasManual = false
+        try {
+            manager.downloadIndex.getDownloads().use { cursor ->
+                while (cursor.moveToNext()) {
+                    val download = cursor.download
+                    if (download.state == Download.STATE_DOWNLOADING || 
+                        download.state == Download.STATE_QUEUED || 
+                        download.state == Download.STATE_RESTARTING) {
+                        hasActive = true
+                        if (!isSilent(download)) {
+                            hasManual = true
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            
+        }
+        return hasActive && !hasManual
+    }
+
     override fun onCreate() {
+        de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onCreate")
         super.onCreate()
         createNotificationChannels()
         val filter = android.content.IntentFilter(ACTION_CANCEL_ALL_DOWNLOADS)
@@ -56,9 +94,31 @@ class DownloadService : DownloadService(
             filter,
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
+        getDownloadManager().addListener(downloadListener)
+    }
+
+    override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        val action = intent?.action
+        de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onStartCommand action=$action flags=$flags startId=$startId")
+        if (isSilentOnly() && (action == "androidx.media3.exoplayer.downloadService.action.INIT" 
+                || action == "androidx.media3.exoplayer.downloadService.action.RESTART"
+                || intent == null)) {
+            de.lwp2070809.speculonic.util.LogManager.i("DownloadService: Intercepted silent download INIT action. Stopping service.")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        val result = super.onStartCommand(intent, flags, startId)
+        checkAndStopIfSilent()
+        return result
     }
 
     override fun onDestroy() {
+        de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onDestroy")
+        try {
+            getDownloadManager().removeListener(downloadListener)
+        } catch (e: java.lang.Exception) {
+            de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Failed to remove download listener", e)
+        }
         try {
             unregisterReceiver(cancelReceiver)
         } catch (e: Exception) {

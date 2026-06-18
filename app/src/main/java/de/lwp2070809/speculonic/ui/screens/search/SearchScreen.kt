@@ -100,10 +100,7 @@ fun SearchScreen(
                 value = uiState.query,
                 onValueChange = { viewModel.onQueryChange(it) },
                 placeholder = { 
-                    Text(
-                        text = if (isEffectivelyOnline) stringResource(R.string.search_hint) 
-                               else stringResource(R.string.search_offline_warning)
-                    ) 
+                    Text(text = stringResource(R.string.search_hint)) 
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,

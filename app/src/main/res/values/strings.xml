@@ -244,6 +244,7 @@
     <string name="not_available_not_cached">Not available (Not cached)</string>
     <string name="remote_tab">Remote</string>
     <string name="failed_to_fetch_remote">Failed to fetch remote data</string>
+    <string name="cloud_compare_offline_error">Offline or server unreachable. Cannot fetch remote data.</string>
     <string name="loading_local_data">Loading local data…</string>
     <string name="no_remote_data">No remote data available.</string>
     <string name="data_synchronized">Local and remote data are fully synchronized.</string>

@@ -84,14 +84,22 @@ fun SongDetailDialog(
 
     LaunchedEffect(pagerState.currentPage) {
         if (pagerState.currentPage == 2 && remoteSong == null && !remoteLoading) {
-            remoteLoading = true
-            val result = repository.getSongRemote(song.id)
-            if (result.isSuccess) {
-                remoteSong = result.getOrNull()
+            if (de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
+                remoteError = "OFFLINE"
             } else {
-                remoteError = result.exceptionOrNull()?.message ?: "Failed to fetch remote data"
+                remoteLoading = true
+                val result = repository.getSongRemote(song.id)
+                if (result.isSuccess) {
+                    remoteSong = result.getOrNull()
+                } else {
+                    if (de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
+                        remoteError = "OFFLINE"
+                    } else {
+                        remoteError = result.exceptionOrNull()?.message ?: context.getString(R.string.failed_to_fetch_remote)
+                    }
+                }
+                remoteLoading = false
             }
-            remoteLoading = false
         }
     }
 
@@ -253,7 +261,12 @@ private fun RemoteTab(
             return@Column
         }
         if (error != null) {
-            Text(text = error, color = MaterialTheme.colorScheme.error)
+            val displayError = if (error == "OFFLINE") {
+                stringResource(R.string.cloud_compare_offline_error)
+            } else {
+                error
+            }
+            Text(text = displayError, color = MaterialTheme.colorScheme.error)
             return@Column
         }
         if (remoteSong == null || localSong == null) {

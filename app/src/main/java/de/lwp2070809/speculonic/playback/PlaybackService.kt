@@ -186,7 +186,14 @@ class PlaybackService : MediaSessionService() {
             preferencesManagerProvider = { preferencesManager },
             dbProvider = { db },
             currentQueueTitleProvider = { currentQueueTitle },
-            onQueueTitleRestored = { currentQueueTitle = it }
+            onQueueTitleRestored = {
+                currentQueueTitle = it
+                mediaSession?.let { session ->
+                    session.sessionExtras = android.os.Bundle().apply {
+                        putString("queueTitle", it)
+                    }
+                }
+            }
         )
 
         errorHandler = PlaybackErrorHandler(

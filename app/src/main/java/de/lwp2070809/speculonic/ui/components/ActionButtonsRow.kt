@@ -25,7 +25,9 @@ fun ActionButtonsRow(
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     isDownloading: Boolean,
-    isDownloadEnabled: Boolean = true
+    isDownloadEnabled: Boolean = true,
+    isPlayAllEnabled: Boolean = true,
+    isShuffleEnabled: Boolean = true
 ) {
     var showDownloadAllDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
 
@@ -58,6 +60,7 @@ fun ActionButtonsRow(
     ) {
         Button(
             onClick = onPlayAll,
+            enabled = isPlayAllEnabled,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 8.dp)
         ) {
@@ -68,6 +71,7 @@ fun ActionButtonsRow(
         
         OutlinedButton(
             onClick = onShuffle,
+            enabled = isShuffleEnabled,
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 8.dp)
         ) {

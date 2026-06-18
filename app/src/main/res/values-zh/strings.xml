@@ -242,6 +242,7 @@
     <string name="not_available_not_cached">不可用 (未缓存)</string>
     <string name="remote_tab">云端比对</string>
     <string name="failed_to_fetch_remote">获取云端数据失败</string>
+    <string name="cloud_compare_offline_error">由于您处于离线模式或服务器不可达，无法获取云端数据</string>
     <string name="loading_local_data">正在加载本地数据…</string>
     <string name="no_remote_data">暂无云端数据。</string>
     <string name="data_synchronized">本地与云端数据完全同步。</string>

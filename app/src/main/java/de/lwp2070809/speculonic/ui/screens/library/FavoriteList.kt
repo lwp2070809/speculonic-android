@@ -66,6 +66,10 @@ fun FavoriteList(
         songs.isNotEmpty() && songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
     }
 
+    val isPlayActionsEnabled = remember(songs, downloadedIds, isStreamingAllowed) {
+        isStreamingAllowed || songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+    }
+
     var lastStarClickTime by remember { mutableLongStateOf(0L) }
 
     PullToRefreshBox(
@@ -102,7 +106,9 @@ fun FavoriteList(
                         isEffectivelyOnline = isEffectivelyOnline,
                         isStreamingAllowed = isStreamingAllowed,
                         isDownloading = isAnyDownloading,
-                        isDownloadEnabled = !isAllDownloaded
+                        isDownloadEnabled = !isAllDownloaded,
+                        isPlayAllEnabled = isPlayActionsEnabled,
+                        isShuffleEnabled = isPlayActionsEnabled
                     )
                 }
             }

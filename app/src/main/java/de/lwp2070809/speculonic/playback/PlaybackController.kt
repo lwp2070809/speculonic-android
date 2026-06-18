@@ -12,6 +12,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -93,6 +94,7 @@ class PlaybackController private constructor(context: Context) {
     private var songsPlayedSinceTimerStarted = 0
     private var lastMediaId: String? = null
     private val pendingActions = mutableListOf<(MediaController) -> Unit>()
+    private var localQueueTitle: String? = null
 
     private fun executeWhenReady(action: (MediaController) -> Unit) {
         ensureController()
@@ -120,7 +122,17 @@ class PlaybackController private constructor(context: Context) {
         
         LogManager.i("PlaybackController: Initializing MediaController...")
         val sessionToken = SessionToken(appContext, ComponentName(appContext, PlaybackService::class.java))
-        val newFuture = MediaController.Builder(appContext, sessionToken).buildAsync()
+        val newFuture = MediaController.Builder(appContext, sessionToken)
+            .setListener(object : MediaController.Listener {
+                override fun onExtrasChanged(
+                    controller: MediaController,
+                    extras: android.os.Bundle
+                ) {
+                    super.onExtrasChanged(controller, extras)
+                    updateState()
+                }
+            })
+            .buildAsync()
         controllerFuture = newFuture
         newFuture.addListener({
             try {
@@ -249,7 +261,13 @@ class PlaybackController private constructor(context: Context) {
         val artworkId = extras?.getString("coverArtId")
         val realTitle = extras?.getString("realTitle") ?: currentMediaItem?.mediaMetadata?.title?.toString() ?: ""
         val realArtist = extras?.getString("realArtist") ?: currentMediaItem?.mediaMetadata?.artist?.toString() ?: ""
-        val queueTitle = controller.sessionExtras.getString("queueTitle")
+
+        if (localQueueTitle == null) {
+            val sessionQueueTitle = controller.sessionExtras.getString("queueTitle")
+            if (sessionQueueTitle != null) {
+                localQueueTitle = sessionQueueTitle
+            }
+        }
 
         _playbackState.value = _playbackState.value.copy(
             currentSongId = currentMediaItem?.mediaId ?: "",
@@ -264,11 +282,13 @@ class PlaybackController private constructor(context: Context) {
             shuffleModeEnabled = controller.shuffleModeEnabled,
             currentQueue = queue,
             currentIndex = controller.currentMediaItemIndex,
-            queueTitle = queueTitle ?: _playbackState.value.queueTitle
+            queueTitle = localQueueTitle ?: _playbackState.value.queueTitle
         )
     }
 
     fun play(mediaItems: List<MediaItem>, startIndex: Int = 0, shuffle: Boolean = false, queueTitle: String? = null) {
+        localQueueTitle = queueTitle
+        _playbackState.value = _playbackState.value.copy(queueTitle = queueTitle ?: _playbackState.value.queueTitle)
         executeWhenReady { controller ->
         
         scope.launch {
@@ -276,10 +296,15 @@ class PlaybackController private constructor(context: Context) {
             val savedShuffleMode = preferencesManager.shuffleMode.first()
             
             withContext(Dispatchers.Main) {
-                queueTitle?.let {
-                    val bundle = android.os.Bundle().apply { putString("queueTitle", it) }
-                    controller.sendCustomCommand(androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY), bundle)
-                    _playbackState.value = _playbackState.value.copy(queueTitle = it)
+                if (queueTitle != null) {
+                    val deferred = CompletableDeferred<Unit>()
+                    val bundle = android.os.Bundle().apply { putString("queueTitle", queueTitle) }
+                    val future = controller.sendCustomCommand(
+                        androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY),
+                        bundle
+                    )
+                    future.addListener({ deferred.complete(Unit) }, MoreExecutors.directExecutor())
+                    deferred.await()
                 }
 
                 controller.repeatMode = savedRepeatMode
@@ -292,6 +317,7 @@ class PlaybackController private constructor(context: Context) {
         }
     }
     }
+
 
     fun addMediaItems(mediaItems: List<MediaItem>) {
         executeWhenReady { controller ->
