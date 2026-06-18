@@ -14,7 +14,7 @@ The project is built on the philosophy of treating the application as a local mi
 
 ## Features
 
-* **Native Android Development**: Built on native Android Jetpack Compose and Kotlin technologies. Supports adaptive responsive layouts for both mobile phones and tablets/large screens. Uses ExoPlayer as the playback engine.
+* **Native Android Development**: Built on native Android Jetpack Compose and Kotlin technologies. Supports adaptive responsive layouts for both mobile phones and tablets/large screens. Uses Media3 ExoPlayer as the playback engine.
 * **Subsonic Local Mirror**: Provides incremental Subsonic metadata synchronization, persisted to a local database. Built-in consistency validation analyzes and reconciles discrepancies between cached music files and remote Subsonic server data.
 * **Car Connectivity**: Detects car bluetooth profiles and device fingerprints, hijacking the underlying AVRCP protocol to push real-time scrolling lyrics to car dashboards.
 * **Theme System**: Supports dark theme. The playback UI performs dynamic color extraction and contrast checks from the current album art, providing Gaussian-blurred and glow-gradient dynamic backgrounds.
@@ -27,7 +27,6 @@ The project is built on the philosophy of treating the application as a local mi
 
 - [x] Provide Github Action builds
 - [ ] Publish on F-Droid
-- [ ] Fix low-priority code defects
 - [ ] Refactor tablet UI layout
 - [ ] Provide Android X86 builds
 - [x] Deliver compatibility updates within 3 months of new Android API releases
@@ -76,7 +75,7 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 ## 功能特性
 
-* **Android原生开发**: 基于 Android 原生Jetpack Compose和kotlin技术构建. 支持手机端与平板电脑的响应式自适应布局. 播放引擎为ExoPlayer.
+* **Android原生开发**: 基于 Android 原生Jetpack Compose和kotlin技术构建. 支持手机端与平板电脑的响应式自适应布局. 播放引擎为Media3 ExoPlayer.
 * **Subsonic本地镜像**: 提供增量Subsonic元数据同步机制, 并持久化到本地数据库. 内置数据一致性校验, 能分析并修复已缓存音乐文件与远程Subsonic服务器中数据的差异.
 * **车辆互联适配**: 可以嗅探车机蓝牙广播与设备指纹来判断是否连接到车载蓝牙音频; 劫持底层 AVRCP 协议, 将歌曲实时同步歌词投送到车载屏幕.
 * **主题系统**: 支持深色主题. 播放界面可根据当前曲目封面执行动态色彩提取与对比度校验, 提供高斯模糊和微光渐变两种美观的播放器背景.
@@ -89,7 +88,6 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 - [x] 提供 Github Action 构建
 - [ ] 上架 F-Droid
-- [ ] 修复一些低优先级代码缺陷
 - [ ] 重构平板电脑的 UI
 - [ ] 提供 Android X86 版本
 - [x] 在 Android 新 API 版本发布 3 个月内提供适配
