@@ -261,19 +261,42 @@ class PlaybackController private constructor(context: Context) {
         val realArtist = extras?.getString("realArtist") ?: currentMediaItem?.mediaMetadata?.artist?.toString() ?: ""
         val queueTitle = controller.sessionExtras.getString("queueTitle")
 
+        val current = _playbackState.value
+        val newSongId = currentMediaItem?.mediaId ?: ""
+        val newIsPlaying = controller.isPlaying
+        val newRepeatMode = controller.repeatMode
+        val newShuffle = controller.shuffleModeEnabled
+        val newIndex = controller.currentMediaItemIndex
+        val newArtworkUri = currentMediaItem?.mediaMetadata?.artworkUri
+
+        val hasSignificantChange =
+            current.currentSongId != newSongId ||
+            current.currentSongTitle != realTitle ||
+            current.currentArtist != realArtist ||
+            current.artworkUri != newArtworkUri ||
+            current.artworkId != artworkId ||
+            current.isPlaying != newIsPlaying ||
+            current.repeatMode != newRepeatMode ||
+            current.shuffleModeEnabled != newShuffle ||
+            current.currentIndex != newIndex ||
+            current.queueTitle != queueTitle ||
+            (events == null || events.contains(Player.EVENT_TIMELINE_CHANGED))
+
+        if (!hasSignificantChange) return
+
         _playbackState.value = _playbackState.value.copy(
-            currentSongId = currentMediaItem?.mediaId ?: "",
+            currentSongId = newSongId,
             currentSongTitle = realTitle,
             currentArtist = realArtist,
-            artworkUri = currentMediaItem?.mediaMetadata?.artworkUri,
+            artworkUri = newArtworkUri,
             artworkId = artworkId,
-            isPlaying = controller.isPlaying,
+            isPlaying = newIsPlaying,
             currentPosition = controller.currentPosition,
             duration = controller.duration,
-            repeatMode = controller.repeatMode,
-            shuffleModeEnabled = controller.shuffleModeEnabled,
+            repeatMode = newRepeatMode,
+            shuffleModeEnabled = newShuffle,
             currentQueue = queue,
-            currentIndex = controller.currentMediaItemIndex,
+            currentIndex = newIndex,
             queueTitle = queueTitle
         )
     }

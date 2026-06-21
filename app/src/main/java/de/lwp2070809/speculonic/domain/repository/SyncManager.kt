@@ -119,12 +119,41 @@ class SyncManager(
                         val songChannel = Channel<List<de.lwp2070809.speculonic.data.db.entities.SongEntity>>(capacity = Channel.BUFFERED)
                         val tempIdChannel = Channel<List<SyncTempIdEntity>>(capacity = Channel.BUFFERED)
 
-                        val consumers = listOf(
-                            launch(Dispatchers.IO) { for (chunk in artistChannel) musicDao.insertArtists(chunk) },
-                            launch(Dispatchers.IO) { for (chunk in albumChannel) musicDao.insertAlbums(chunk) },
-                            launch(Dispatchers.IO) { for (chunk in songChannel) musicDao.insertSongs(chunk) },
-                            launch(Dispatchers.IO) { for (chunk in tempIdChannel) musicDao.insertSyncTempIds(chunk) }
-                        )
+                        val writerJob = launch(Dispatchers.IO) {
+                            var artistClosed = false
+                            var albumClosed = false
+                            var songClosed = false
+                            var tempIdClosed = false
+
+                            while (!artistClosed || !albumClosed || !songClosed || !tempIdClosed) {
+                                kotlinx.coroutines.selects.select {
+                                    if (!artistClosed) {
+                                        artistChannel.onReceiveCatching { result ->
+                                            result.getOrNull()?.let { musicDao.insertArtists(it) }
+                                            if (result.isClosed) artistClosed = true
+                                        }
+                                    }
+                                    if (!albumClosed) {
+                                        albumChannel.onReceiveCatching { result ->
+                                            result.getOrNull()?.let { musicDao.insertAlbums(it) }
+                                            if (result.isClosed) albumClosed = true
+                                        }
+                                    }
+                                    if (!songClosed) {
+                                        songChannel.onReceiveCatching { result ->
+                                            result.getOrNull()?.let { musicDao.insertSongs(it) }
+                                            if (result.isClosed) songClosed = true
+                                        }
+                                    }
+                                    if (!tempIdClosed) {
+                                        tempIdChannel.onReceiveCatching { result ->
+                                            result.getOrNull()?.let { musicDao.insertSyncTempIds(it) }
+                                            if (result.isClosed) tempIdClosed = true
+                                        }
+                                    }
+                                }
+                            }
+                        }
 
                         withContext(Dispatchers.IO) {
                             responseBody.byteStream().use { stream ->
@@ -149,7 +178,7 @@ class SyncManager(
                         albumChannel.close()
                         songChannel.close()
                         tempIdChannel.close()
-                        consumers.joinAll()
+                        writerJob.join()
                     }
 
                     
@@ -288,45 +317,59 @@ class SyncManager(
         }
     }
 
+    private sealed class SyncDirResult {
+        data class Success(val subDirs: List<Pair<String, String?>>) : SyncDirResult()
+        object Failure : SyncDirResult()
+    }
+
     suspend fun syncAllArtistsAndSongs() {
         val (u, t, s) = authManager.getAuthParams()
-        try {
-            val response = api.getIndexes(u, t, s)
-            val indexes = response.response.indexes ?: return
-            
-            val allArtists = indexes.index.flatMap { it.artist }
-            if (allArtists.isNotEmpty()) {
-                allArtists.chunked(500).forEach { chunk ->
-                    musicDao.insertArtists(chunk.map { ArtistEntity(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount ?: 0) })
-                }
+        val response = api.getIndexes(u, t, s)
+        val indexes = response.response.indexes ?: return
+        
+        val allArtists = indexes.index.flatMap { it.artist }
+        if (allArtists.isNotEmpty()) {
+            allArtists.chunked(500).forEach { chunk ->
+                musicDao.insertArtists(chunk.map { ArtistEntity(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount ?: 0) })
             }
+        }
 
+        val queue = mutableListOf<Pair<String, String?>>()
+        allArtists.forEach { queue.add(it.id to it.id) }
+        
+        var failCount = 0
+        var totalCount = 0
+        
+        while (queue.isNotEmpty()) {
+            val chunk = queue.take(10)
+            queue.subList(0, chunk.size).clear()
+            totalCount += chunk.size
             
-            val queue = mutableListOf<Pair<String, String?>>()
-            allArtists.forEach { queue.add(it.id to it.id) }
-            
-            while (queue.isNotEmpty()) {
-                val chunk = queue.take(10)
-                queue.subList(0, chunk.size).clear()
-                
-                val nextDirs = kotlinx.coroutines.coroutineScope {
-                    chunk.map { (id, artistId) ->
-                        async {
-                            syncSingleDirectory(id, artistId, u, t, s)
-                        }
-                    }.awaitAll().flatten()
-                }
-                queue.addAll(nextDirs)
+            val nextDirs = kotlinx.coroutines.coroutineScope {
+                chunk.map { (id, artistId) ->
+                    async {
+                        syncSingleDirectory(id, artistId, u, t, s)
+                    }
+                }.awaitAll()
             }
-        } catch (e: Exception) {
-            LogManager.e("SyncManager: syncAllArtistsAndSongs failed", e)
+            
+            nextDirs.forEach { result ->
+                when (result) {
+                    is SyncDirResult.Success -> queue.addAll(result.subDirs)
+                    is SyncDirResult.Failure -> failCount++
+                }
+            }
+        }
+        
+        if (totalCount > 0 && (failCount.toDouble() / totalCount) > 0.5) {
+            throw java.io.IOException("Legacy sync failure rate too high: $failCount/$totalCount directories failed")
         }
     }
 
-    private suspend fun syncSingleDirectory(id: String, artistId: String?, u: String, t: String, s: String): List<Pair<String, String?>> {
+    private suspend fun syncSingleDirectory(id: String, artistId: String?, u: String, t: String, s: String): SyncDirResult {
         try {
             val response = api.getMusicDirectory(id, u, t, s)
-            val directory = response.response.directory ?: return emptyList()
+            val directory = response.response.directory ?: return SyncDirResult.Success(emptyList())
             val children = directory.child
             
             val songs = children.filter { !it.isDir }
@@ -371,10 +414,10 @@ class SyncManager(
                 }
             }
 
-            return subDirs.map { it.id to artistId }
+            return SyncDirResult.Success(subDirs.map { it.id to artistId })
         } catch (e: Exception) {
             LogManager.e("SyncManager: syncSingleDirectory failed for id=$id", e)
-            return emptyList()
+            return SyncDirResult.Failure
         }
     }
 

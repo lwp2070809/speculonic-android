@@ -3,7 +3,6 @@ package de.lwp2070809.speculonic.data
 import de.lwp2070809.speculonic.R
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.Uri
@@ -16,8 +15,6 @@ import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.Cache
-import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.work.Constraints
 import androidx.work.CoroutineWorker
 import androidx.work.Data
@@ -28,19 +25,12 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import androidx.work.workDataOf
-import coil3.BitmapImage
-import coil3.SingletonImageLoader
-import coil3.request.ImageRequest
-import coil3.request.SuccessResult
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
-import de.lwp2070809.speculonic.domain.repository.AuthManager
-import de.lwp2070809.speculonic.domain.repository.LyricsRepository
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.domain.repository.UrlBuilder
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.util.LogManager
@@ -51,7 +41,6 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -107,7 +96,7 @@ class CacheSyncWorker @AssistedInject constructor(
         val downloadController = DownloadController(context, repository)
 
         if (isSafEnabled) {
-            migratePrivateCacheToSaf(context, musicDao, downloadCache)
+            migratePrivateCacheToSaf(context, musicDao)
         }
 
         var safFiles: Array<DocumentFile>? = null
@@ -274,24 +263,17 @@ class CacheSyncWorker @AssistedInject constructor(
 
     private suspend fun migratePrivateCacheToSaf(
         context: Context,
-        musicDao: MusicDao,
-        downloadCache: Cache
+        musicDao: MusicDao
     ) {
         val cachedSongs = musicDao.getAllCachedSongs()
         val toMigrate = cachedSongs.filter {
-            it.localUri.isNullOrBlank() || it.localUri.startsWith("file:")
+            !it.localUri.isNullOrBlank() && it.localUri.startsWith("file:")
         }
 
         if (toMigrate.isEmpty()) return
 
         LogManager.i("CacheSync: Found ${toMigrate.size} songs waiting for migration to SAF.")
         val total = toMigrate.size
-
-        val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideOkHttpClient())
-        val cacheDataSourceFactory = CacheDataSource.Factory()
-            .setCache(downloadCache)
-            .setUpstreamDataSourceFactory(httpDataSourceFactory)
-
         val autoClean = preferencesManager.autoCleanCacheAfterExport.first()
 
         toMigrate.forEachIndexed { index, song ->
@@ -301,44 +283,6 @@ class CacheSyncWorker @AssistedInject constructor(
                 PROGRESS to progressValue,
                 STATUS to "正在导出历史缓存 (${index + 1}/$total): ${song.title}"
             ))
-
-            var lyrics: String? = null
-            var coverArtBytes: ByteArray? = null
-            
-            if (song.localUri.isNullOrBlank()) {
-                try {
-                    val baseUrl = preferencesManager.serverUrl.first()
-                    val user = preferencesManager.username.first()
-                    val pass = preferencesManager.password.first()
-
-                    if (baseUrl.isNotBlank() && user.isNotBlank()) {
-                        val api = NetworkModule.provideSubsonicService(baseUrl)
-                        val authManager = AuthManager(user, pass.toCharArray())
-
-                        val lyricsRepo = LyricsRepository(context, api, musicDao, authManager)
-                        val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)
-                        lyrics = rawLyrics
-
-                        if (!song.coverArt.isNullOrBlank()) {
-                            val urlBuilder = UrlBuilder(baseUrl, authManager)
-                            val coverUrl = urlBuilder.buildCoverArtUrl(song.coverArt)
-                            val imageLoader = SingletonImageLoader.get(context)
-                            val request = ImageRequest.Builder(context).data(coverUrl).build()
-                            val result = imageLoader.execute(request)
-                            if (result is SuccessResult) {
-                                val bitmap = (result.image as? BitmapImage)?.bitmap
-                                if (bitmap != null) {
-                                    val bos = ByteArrayOutputStream()
-                                    bitmap.compress(Bitmap.CompressFormat.JPEG, 90, bos)
-                                    coverArtBytes = bos.toByteArray()
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    LogManager.w("CacheSync: Failed to fetch metadata for ${song.title} during migration, using audio only", e)
-                }
-            }
 
             val songModel = Song(
                 id = song.id,
@@ -357,7 +301,7 @@ class CacheSyncWorker @AssistedInject constructor(
                 if (song.localUri != null && song.localUri.startsWith("file:")) {
                     CacheExporter.exportPrivateFileToSaf(context, songModel, song.localUri)
                 } else {
-                    CacheExporter.exportToSaf(context, songModel, lyrics, coverArtBytes, cacheDataSourceFactory)
+                    kotlin.Result.failure(Exception("Not a private file"))
                 }
             } catch (e: SecurityException) {
                 LogManager.e("CacheSync: SAF permission expired during migration", e)
@@ -394,11 +338,11 @@ class CacheSyncWorker @AssistedInject constructor(
 
                 if (autoClean) {
                     LogManager.d("CacheSync: autoClean is enabled. Cleaning private cache for ${song.title}.")
-                    downloadCache.removeResource(song.id)
                     try {
+                        CacheManager.getDownloadCache(context).removeResource(song.id)
                         CacheManager.getPlaybackCache(context).removeResource(song.id)
                     } catch (e: Exception) {
-                        LogManager.e("CacheSync: Failed to clean playback cache for migrated ${song.title}", e)
+                        LogManager.e("CacheSync: Failed to clean playback/download cache for migrated ${song.title}", e)
                     }
                 }
             }.onFailure {

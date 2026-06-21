@@ -20,34 +20,47 @@ object DownloadManagerHelper {
     private var downloadManager: DownloadManager? = null
     private var downloadExecutor: java.util.concurrent.ExecutorService? = null
 
-    
-    fun getDownloadManager(context: Context): DownloadManager {
-        return kotlinx.coroutines.runBlocking {
-            mutex.withLock {
+    @Volatile
+    private var isInitializing = false
+
+    suspend fun initializeAsync(context: Context) {
+        if (downloadManager != null) return
+        if (isInitializing) return
+        isInitializing = true
+        try {
+            val preferencesManager = PreferencesManager.getInstance(context)
+            val maxCacheSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                preferencesManager.maxCacheSize.first()
+            }
+            val mobilePlayAllowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                preferencesManager.mobilePlayAllowed.first()
+            }
+            synchronized(this) {
                 if (downloadManager == null) {
-                    val preferencesManager = PreferencesManager.getInstance(context)
-                    val maxCacheSize = preferencesManager.maxCacheSize.first()
-                    val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
                     initialize(context, maxCacheSize, mobilePlayAllowed)
                 }
+            }
+        } finally {
+            isInitializing = false
+        }
+    }
+
+    fun getDownloadManager(context: Context): DownloadManager {
+        return downloadManager ?: synchronized(this) {
+            downloadManager ?: run {
+                LogManager.w("DownloadManagerHelper: getDownloadManager called before async init, initializing with defaults")
+                val defaultCacheSize = 1024L * 1024 * 1024 // 1GB
+                initialize(context, defaultCacheSize, mobilePlayAllowed = true)
                 downloadManager!!
             }
         }
     }
 
-    private val mutex = kotlinx.coroutines.sync.Mutex()
-
-    
     suspend fun getDownloadManagerSuspend(context: Context): DownloadManager {
-        mutex.withLock {
-            if (downloadManager == null) {
-                val preferencesManager = PreferencesManager.getInstance(context)
-                val maxCacheSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { preferencesManager.maxCacheSize.first() }
-                val mobilePlayAllowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { preferencesManager.mobilePlayAllowed.first() }
-                initialize(context, maxCacheSize, mobilePlayAllowed)
-            }
-            return downloadManager!!
+        if (downloadManager == null) {
+            initializeAsync(context)
         }
+        return downloadManager!!
     }
 
     private fun initialize(context: Context, maxCacheSize: Long, mobilePlayAllowed: Boolean) {
@@ -128,29 +141,24 @@ object DownloadManagerHelper {
 
     
     fun updateRequirements(mobilePlayAllowed: Boolean) {
-        kotlinx.coroutines.runBlocking {
-            mutex.withLock {
-                LogManager.i("Updating DownloadManager requirements: mobilePlayAllowed=$mobilePlayAllowed")
-                val requirements = if (mobilePlayAllowed) {
-                    Requirements(Requirements.NETWORK)
-                } else {
-                    Requirements(Requirements.NETWORK_UNMETERED)
-                }
-                downloadManager?.requirements = requirements
+        synchronized(this) {
+            LogManager.i("Updating DownloadManager requirements: mobilePlayAllowed=$mobilePlayAllowed")
+            val requirements = if (mobilePlayAllowed) {
+                Requirements(Requirements.NETWORK)
+            } else {
+                Requirements(Requirements.NETWORK_UNMETERED)
             }
+            downloadManager?.requirements = requirements
         }
     }
 
-    
     fun release() {
-        kotlinx.coroutines.runBlocking {
-            mutex.withLock {
-                LogManager.i("Releasing DownloadManagerHelper resources.")
-                downloadManager?.release()
-                downloadManager = null
-                downloadExecutor?.shutdown()
-                downloadExecutor = null
-            }
+        synchronized(this) {
+            LogManager.i("Releasing DownloadManagerHelper resources.")
+            downloadManager?.release()
+            downloadManager = null
+            downloadExecutor?.shutdown()
+            downloadExecutor = null
         }
     }
     

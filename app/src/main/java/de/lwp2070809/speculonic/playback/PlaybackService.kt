@@ -19,6 +19,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import de.lwp2070809.speculonic.MainActivity
 import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.CacheStrategyManager
+import de.lwp2070809.speculonic.data.DownloadManagerHelper
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.data.db.AppDatabase
@@ -247,6 +248,9 @@ class PlaybackService : MediaSessionService() {
 
         serviceScope.launch {
             try {
+                launch(Dispatchers.IO) {
+                    DownloadManagerHelper.initializeAsync(this@PlaybackService)
+                }
                 val prefs = preferencesManager
                 
                 observeNetworkAndPreferences(prefs)
