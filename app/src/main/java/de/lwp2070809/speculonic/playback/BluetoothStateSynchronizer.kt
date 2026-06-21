@@ -15,7 +15,8 @@ class BluetoothStateSynchronizer(
     private val context: Context,
     private val deviceDetector: BluetoothCarDeviceDetector,
     private val serviceScope: CoroutineScope,
-    private val mediaSessionProvider: () -> MediaSession?
+    private val mediaSessionProvider: () -> MediaSession?,
+    private val setJitterProtected: (Boolean) -> Unit = {}
 ) {
     var syncPlaybackState = true
 
@@ -75,6 +76,7 @@ class BluetoothStateSynchronizer(
             val originalVolume = player.volume
             player.volume = 0f
             
+            setJitterProtected(true)
             player.play()
             serviceScope.launch {
                 try {
@@ -88,6 +90,11 @@ class BluetoothStateSynchronizer(
                         }
                     } catch (e: Exception) {
                         LogManager.w("BluetoothStateSynchronizer: 恢复暂停状态时发生异常，播放器可能已被释放", e)
+                    } finally {
+                        launch {
+                            delay(150)
+                            setJitterProtected(false)
+                        }
                     }
                 }
             }

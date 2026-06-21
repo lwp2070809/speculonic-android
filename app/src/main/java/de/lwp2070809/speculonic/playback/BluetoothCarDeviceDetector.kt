@@ -11,6 +11,7 @@ import android.media.AudioDeviceCallback
 import android.media.AudioManager
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -48,6 +49,7 @@ class BluetoothCarDeviceDetector(
     }
 
     private var audioDeviceCallback: AudioDeviceCallback? = null
+    private var connectionDebounceJob: Job? = null
 
     private fun hasBluetoothConnectPermission(): Boolean {
         return androidx.core.content.ContextCompat.checkSelfPermission(
@@ -113,10 +115,20 @@ class BluetoothCarDeviceDetector(
             
         }
         bluetoothA2dp = null
+        connectionDebounceJob?.cancel()
     }
 
     fun checkConnectionState() {
-        _carConnectionState.value = isCarBluetoothConnected()
+        connectionDebounceJob?.cancel()
+        val isConnected = isCarBluetoothConnected()
+        if (isConnected) {
+            _carConnectionState.value = true
+        } else {
+            connectionDebounceJob = serviceScope.launch {
+                delay(500)
+                _carConnectionState.value = isCarBluetoothConnected()
+            }
+        }
     }
 
     

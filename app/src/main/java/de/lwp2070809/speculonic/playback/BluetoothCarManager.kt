@@ -41,9 +41,6 @@ class BluetoothCarManager(
     }
 
     
-    val stateSynchronizer = BluetoothStateSynchronizer(context, deviceDetector, serviceScope, mediaSessionProvider)
-
-    
     val lyricsManager = BluetoothLyricsManager(
         context = context,
         serviceScope = serviceScope,
@@ -52,6 +49,14 @@ class BluetoothCarManager(
         carConnectionState = deviceDetector.carConnectionState,
         isCarEnabled = { deviceDetector.carBluetoothEnabled },
         isLyricsEnabled = { bluetoothLyricsEnabled }
+    )
+
+    val stateSynchronizer = BluetoothStateSynchronizer(
+        context = context,
+        deviceDetector = deviceDetector,
+        serviceScope = serviceScope,
+        mediaSessionProvider = mediaSessionProvider,
+        setJitterProtected = { lyricsManager.isPlayPauseJitterProtected = it }
     )
 
     
@@ -111,21 +116,38 @@ class BluetoothCarManager(
 
     
     inner class CarDisguisePlayer(player: Player) : ForwardingPlayer(player) {
-        private val listeners = java.util.concurrent.CopyOnWriteArraySet<Player.Listener>()
+        private val listenerMap = java.util.concurrent.ConcurrentHashMap<Player.Listener, Player.Listener>()
         private val stateLock = Any()
         private var currentLyricTitle: String? = null
         private var currentLyricArtist: String? = null
         private var syncTimestamp: Long = 0L
         private var coverSyncTimestamp: Long = 0L
 
+        private inner class WrappedListener(
+            private val delegate: Player.Listener
+        ) : Player.Listener by delegate {
+            override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
+                delegate.onMediaMetadataChanged(this@CarDisguisePlayer.mediaMetadata)
+            }
+
+            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+                delegate.onMediaItemTransition(this@CarDisguisePlayer.currentMediaItem, reason)
+            }
+
+            override fun onEvents(player: Player, events: Player.Events) {
+                delegate.onEvents(this@CarDisguisePlayer, events)
+            }
+        }
+
         override fun addListener(listener: Player.Listener) {
-            listeners.add(listener)
-            super.addListener(listener)
+            val wrapped = WrappedListener(listener)
+            listenerMap[listener] = wrapped
+            super.addListener(wrapped)
         }
 
         override fun removeListener(listener: Player.Listener) {
-            listeners.remove(listener)
-            super.removeListener(listener)
+            val wrapped = listenerMap.remove(listener) ?: listener
+            super.removeListener(wrapped)
         }
 
         override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
@@ -202,7 +224,7 @@ class BluetoothCarManager(
                 currentLyricArtist = artist
             }
             val newMetadata = mediaMetadata
-            listeners.forEach { it.onMediaMetadataChanged(newMetadata) }
+            listenerMap.keys.forEach { it.onMediaMetadataChanged(newMetadata) }
         }
 
         fun triggerCoverSync() {
@@ -210,7 +232,7 @@ class BluetoothCarManager(
                 coverSyncTimestamp = System.currentTimeMillis()
             }
             val meta = mediaMetadata
-            listeners.forEach { it.onMediaMetadataChanged(meta) }
+            listenerMap.keys.forEach { it.onMediaMetadataChanged(meta) }
         }
 
         fun forceStateSync() {
@@ -223,7 +245,7 @@ class BluetoothCarManager(
             val pwr = playWhenReady
             val reason = Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST
             
-            listeners.forEach {
+            listenerMap.keys.forEach {
                 it.onMediaMetadataChanged(meta)
                 it.onPlaybackStateChanged(state)
                 it.onPlayWhenReadyChanged(pwr, reason)
@@ -231,7 +253,7 @@ class BluetoothCarManager(
         }
 
         private fun isHideProgressBarActive(): Boolean {
-            return carBluetoothEnabled && bluetoothLyricsEnabled && bluetoothLyricsHideProgressBar && isCarBluetoothConnected()
+            return carBluetoothEnabled && bluetoothLyricsEnabled && bluetoothLyricsHideProgressBar && deviceDetector.carConnectionState.value
         }
 
         override fun getDuration(): Long {

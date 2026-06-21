@@ -33,6 +33,8 @@ class BluetoothLyricsManager(
     private var currentLyricsJob: Job? = null
     private var lastUpdateTimestamp = 0L
     private var pendingUpdateJob: Job? = null
+    @Volatile var isPlayPauseJitterProtected = false
+    private var currentLoadedMediaId: String? = null
 
     fun release() {
         stopBluetoothLyricsUpdate()
@@ -42,9 +44,14 @@ class BluetoothLyricsManager(
 
     
     fun loadLyricsForBluetooth(mediaItem: MediaItem) {
+        if (mediaItem.mediaId == currentLoadedMediaId && currentLyricsLines.isNotEmpty()) {
+            startBluetoothLyricsUpdate()
+            return
+        }
         val repo = repositoryProvider() ?: return
         
         currentLyricsLines = emptyList()
+        currentLoadedMediaId = null
         updateMediaSessionMetadata(null)
         
         currentLyricsJob?.cancel()
@@ -71,10 +78,12 @@ class BluetoothLyricsManager(
             if (lines.isEmpty() && raw.isNullOrBlank()) {
                 val pureMusicStr = context.getString(R.string.pure_music)
                 currentLyricsLines = listOf(LyricLine(timeMs = 0L, content = pureMusicStr))
+                currentLoadedMediaId = mediaItem.mediaId
                 updateMediaSessionMetadata(pureMusicStr)
                 return@launch
             } else {
                 currentLyricsLines = lines
+                currentLoadedMediaId = mediaItem.mediaId
             }
             
             startBluetoothLyricsUpdate()
@@ -111,8 +120,10 @@ class BluetoothLyricsManager(
                     
                     if (lineIndex != lastLineIndex) {
                         val line = if (lineIndex != -1) currentLyricsLines[lineIndex].content else null
-                        updateMediaSessionMetadata(line)
-                        lastLineIndex = lineIndex
+                        if (line != null || !isPlayPauseJitterProtected) {
+                            updateMediaSessionMetadata(line)
+                            lastLineIndex = lineIndex
+                        }
                     }
 
                     val nextLineTime = if (lineIndex + 1 < currentLyricsLines.size) {
