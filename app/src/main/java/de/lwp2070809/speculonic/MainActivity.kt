@@ -179,7 +179,6 @@ class MainActivity : AppCompatActivity() {
                 }
 
                 DownloadTracker.init(context)
-                MetadataSyncWorker.schedule(context)
                 
                 launch {
                     val result = updateManager.checkForUpdates(manual = false)
@@ -187,8 +186,6 @@ class MainActivity : AppCompatActivity() {
                         updateResult = result
                     }
                 }
-                
-                
                 
                 val wasSyncing = preferencesManager.isSyncing.first()
                 if (wasSyncing) {
@@ -201,14 +198,7 @@ class MainActivity : AppCompatActivity() {
                         LogManager.w("MainActivity: Detected interrupted sync. Triggering re-sync...")
                         MetadataSyncWorker.runOnce(context, forceRefresh = true)
                     }
-                } else {
-                    
-                    MetadataSyncWorker.runOnce(context, forceRefresh = false)
                 }
-                
-                
-                CacheSyncWorker.runOnce(context, forceScan = false, healCovers = false)
-                
                 
                 preferencesManager.logLevel.collectLatest { level ->
                     LogManager.setMinLevel(level)

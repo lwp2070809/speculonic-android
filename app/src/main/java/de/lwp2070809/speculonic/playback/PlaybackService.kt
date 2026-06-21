@@ -167,7 +167,12 @@ class PlaybackService : MediaSessionService() {
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
         
-        val placeholderPlayer = ExoPlayer.Builder(this).build()
+        val emptyRenderersFactory = androidx.media3.exoplayer.RenderersFactory { eventHandler, _, _, _, metadataRendererOutput ->
+            arrayOf(
+                androidx.media3.exoplayer.metadata.MetadataRenderer(metadataRendererOutput, eventHandler.looper)
+            )
+        }
+        val placeholderPlayer = ExoPlayer.Builder(this, emptyRenderersFactory).build()
         mediaSession = MediaSession.Builder(this, placeholderPlayer)
             .setSessionActivity(pendingIntent)
             .setCallback(CustomCallback())
@@ -583,7 +588,12 @@ class PlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? {
         return mediaSession ?: fallbackSession ?: run {
-            val placeholderPlayer = ExoPlayer.Builder(this).build()
+            val emptyRenderersFactory = androidx.media3.exoplayer.RenderersFactory { eventHandler, _, _, _, metadataRendererOutput ->
+                arrayOf(
+                    androidx.media3.exoplayer.metadata.MetadataRenderer(metadataRendererOutput, eventHandler.looper)
+                )
+            }
+            val placeholderPlayer = ExoPlayer.Builder(this, emptyRenderersFactory).build()
             val newSession = MediaSession.Builder(this, placeholderPlayer).build()
             fallbackSession = newSession
             newSession
