@@ -22,6 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.layout.size
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
+import androidx.compose.material3.Icon
+import androidx.compose.ui.graphics.vector.ImageVector
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
 
@@ -95,46 +103,42 @@ fun SyncDetailDialog(
 
                     Card(
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                         ),
+                        shape = MaterialTheme.shapes.medium,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Column(
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                                .padding(vertical = 16.dp, horizontal = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                StatItem(
-                                    label = stringResource(R.string.artists),
-                                    value = uiState.artistsCount.toString(),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                StatItem(
-                                    label = stringResource(R.string.albums),
-                                    value = uiState.albumsCount.toString(),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                StatItem(
-                                    label = stringResource(R.string.songs),
-                                    value = uiState.songsCount.toString(),
-                                    modifier = Modifier.weight(1f)
-                                )
-                                StatItem(
-                                    label = stringResource(R.string.playlists),
-                                    value = uiState.playlistsCount.toString(),
-                                    modifier = Modifier.weight(1f)
-                                )
-                            }
+                            StatItem(
+                                icon = Icons.Default.Person,
+                                label = stringResource(R.string.artists),
+                                value = uiState.artistsCount.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatItem(
+                                icon = Icons.Default.Album,
+                                label = stringResource(R.string.albums),
+                                value = uiState.albumsCount.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatItem(
+                                icon = Icons.Default.MusicNote,
+                                label = stringResource(R.string.songs),
+                                value = uiState.songsCount.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
+                            StatItem(
+                                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                                label = stringResource(R.string.playlists),
+                                value = uiState.playlistsCount.toString(),
+                                modifier = Modifier.weight(1f)
+                            )
                         }
                     }
                 }
@@ -150,17 +154,25 @@ fun SyncDetailDialog(
 
 @Composable
 private fun StatItem(
+    icon: ImageVector,
     label: String,
     value: String,
     modifier: Modifier = Modifier
 ) {
     Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onSurface,
             fontWeight = FontWeight.Bold
         )

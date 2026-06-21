@@ -294,15 +294,11 @@
     <string name="offline_downloads">离线下载</string>
     <string name="silent_cache_tab">静默缓存</string>
     <string name="cache_quota_exceeded">播放缓存已超过配额！</string>
-    <string name="artists_count_label">歌手</string>
-    <string name="albums_count_label">专辑</string>
-    <string name="songs_count_label">曲目</string>
-    <string name="playlists_count_label">歌单</string>
-    <string name="last_sync_success_time">上次同步成功：</string>
+
     <string name="cached_songs_ratio">已缓存歌曲占比</string>
     <string name="internal_cache_color_label">私有缓存</string>
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
-    <string name="metadata">元数据</string>
+
     <string name="cache_label">缓存</string>
     <string name="internal_cache_description">内部缓存包含播放缓冲、专辑封面缓存等写入内部存储的数据。</string>
     <string name="clear_queue_keep_cache">清除队列</string>
@@ -320,9 +316,9 @@
     <string name="server_version">服务器版本</string>
     <string name="subsonic_api_version">Subsonic API 版本</string>
     <string name="opensubsonic_support">OpenSubsonic</string>
-    <string name="supported_extensions">支持的扩展特性</string>
+
     <string name="opensubsonic_supported">支持</string>
     <string name="opensubsonic_not_supported">不支持</string>
-    <string name="no_extensions_found">未检测到扩展特性</string>
+
     <string name="unknown_val">未知</string>
 </resources>

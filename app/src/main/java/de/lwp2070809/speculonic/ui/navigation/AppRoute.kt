@@ -31,7 +31,7 @@ sealed interface AppRoute : NavKey {
     @Serializable data object SettingsServer : AppRoute
     @Serializable data object SettingsPlayback : AppRoute
     @Serializable data object SettingsAppearance : AppRoute
-    @Serializable data object MetadataSettings : AppRoute
+
     @Serializable data object StorageCacheSettings : AppRoute
     @Serializable data object DownloadManager : AppRoute
     @Serializable data object SettingsNetwork : AppRoute

@@ -1,6 +1,12 @@
 package de.lwp2070809.speculonic.ui.screens.settings
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,6 +30,8 @@ import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Code
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Sync
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
@@ -37,10 +45,12 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ListItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -71,6 +81,17 @@ fun ServerSettings(
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
 
+    val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+    val rotation by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+
     LaunchedEffect(Unit) {
         topBarState.update(
             title = title,
@@ -91,7 +112,7 @@ fun ServerSettings(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(SettingsConstants.PAGE_PADDING)
+            .padding(vertical = SettingsConstants.PAGE_PADDING)
             .verticalScroll(rememberScrollState())
     ) {
         if (uiState.serverUrl.isBlank()) {
@@ -99,6 +120,7 @@ fun ServerSettings(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(200.dp)
+                    .padding(horizontal = SettingsConstants.PAGE_PADDING)
                     .alpha(if (isEffectivelyOnline) 1.0f else 0.38f),
                 contentAlignment = Alignment.Center
             ) {
@@ -113,7 +135,9 @@ fun ServerSettings(
             }
         } else {
             Card(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SettingsConstants.PAGE_PADDING),
                 colors = androidx.compose.material3.CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
@@ -176,11 +200,13 @@ fun ServerSettings(
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(vertical = 8.dp)
+                modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = 8.dp)
             )
 
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = SettingsConstants.PAGE_PADDING)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     val caps = uiState.serverCapabilities
@@ -233,9 +259,90 @@ fun ServerSettings(
                         OpenSubsonicBadge(supported = caps?.isOpenSubsonic == true)
                     }
 
-                    if (caps?.isOpenSubsonic == true) {
-                        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
-                        ExtensionsSection(extensions = caps.extensions)
+                }
+            }
+
+            if (uiState.serverUrl.isNotBlank()) {
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = stringResource(R.string.metadata_sync),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = 8.dp)
+                )
+
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.background_sync)) },
+                    supportingContent = { Text(stringResource(R.string.background_sync_description)) },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.backgroundSyncEnabled,
+                            onCheckedChange = { viewModel.updateBackgroundSyncEnabled(it) }
+                        )
+                    }
+                )
+
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.force_full_sync)) },
+                    supportingContent = { Text(stringResource(R.string.force_full_sync_description)) },
+                    trailingContent = {
+                        IconButton(
+                            onClick = { viewModel.requestForceSync() },
+                            enabled = !uiState.isSyncing && isEffectivelyOnline
+                        ) {
+                            Icon(
+                                imageVector = if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
+                                contentDescription = stringResource(R.string.force_full_sync),
+                                modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
+                            )
+                        }
+                    },
+                    modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
+                )
+
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.sync_cover_art_option_title)) },
+                    supportingContent = { Text(stringResource(R.string.sync_cover_art_option_desc)) },
+                    trailingContent = {
+                        Switch(
+                            checked = uiState.syncCoverArtOnForce,
+                            onCheckedChange = { viewModel.updateSyncCoverArtOnForce(it) }
+                        )
+                    },
+                    modifier = Modifier.padding(start = SettingsConstants.SUB_ITEM_PADDING)
+                )
+
+                if (uiState.isSyncing && uiState.syncProgress != null) {
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
+                    Card(
+                        colors = androidx.compose.material3.CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        ),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Refresh,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(24.dp)
+                                    .rotate(rotation),
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = uiState.syncProgress ?: "",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -275,6 +382,42 @@ fun ServerSettings(
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.showForceSyncConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelForceSync() },
+            title = { Text(stringResource(R.string.confirm_force_sync_title)) },
+            text = { Text(stringResource(R.string.confirm_force_sync_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmForceSync() }) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelForceSync() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (uiState.showSafetyGuardConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelSafetyGuard() },
+            title = { Text("安全警戒线触发") },
+            text = { Text(uiState.safetyGuardMessage ?: "") },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmSafetyGuard() }) {
+                    Text("继续同步 (覆盖本地)", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelSafetyGuard() }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -550,47 +693,6 @@ fun OpenSubsonicBadge(supported: Boolean) {
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
-@Composable
-fun ExtensionsSection(extensions: List<String>) {
-    Column(modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
-        Text(
-            text = stringResource(R.string.supported_extensions),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        if (extensions.isEmpty()) {
-            Text(
-                text = stringResource(R.string.no_extensions_found),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        } else {
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                extensions.forEach { ext ->
-                    Box(
-                        modifier = Modifier
-                            .background(
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                shape = MaterialTheme.shapes.extraSmall
-                            )
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
-                        Text(
-                            text = ext,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
+
 
 

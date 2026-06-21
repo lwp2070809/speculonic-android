@@ -46,7 +46,7 @@ import de.lwp2070809.speculonic.ui.screens.library.LibraryScreen
 import de.lwp2070809.speculonic.ui.screens.library.LibraryViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsScreen
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
-import de.lwp2070809.speculonic.ui.screens.settings.MetadataSettings
+
 import de.lwp2070809.speculonic.ui.screens.settings.StorageCacheSettings
 import de.lwp2070809.speculonic.ui.screens.download.DownloadManagerScreen
 
@@ -184,13 +184,7 @@ fun AppNavDisplay(
             )
         }
 
-        entry<AppRoute.MetadataSettings> {
-            MetadataSettings(
-                viewModel = settingsViewModel,
-                topBarState = topBarState,
-                isEffectivelyOnline = isEffectivelyOnline
-            )
-        }
+
 
         entry<AppRoute.StorageCacheSettings> {
             StorageCacheSettings(

@@ -69,11 +69,7 @@ fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
             icon = Icons.Default.Palette,
             onClick = { onNavigate(AppRoute.SettingsAppearance) }
         )
-        SettingsCategoryItem(
-            title = stringResource(R.string.metadata),
-            icon = Icons.Default.Sync,
-            onClick = { onNavigate(AppRoute.MetadataSettings) }
-        )
+
         SettingsCategoryItem(
             title = stringResource(R.string.storage_cache_settings),
             icon = Icons.Default.Storage,

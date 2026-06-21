@@ -297,15 +297,11 @@
     <string name="offline_downloads">Downloads</string>
     <string name="silent_cache_tab">Cache</string>
     <string name="cache_quota_exceeded">Playback cache exceeded quota!</string>
-    <string name="artists_count_label">Artists</string>
-    <string name="albums_count_label">Albums</string>
-    <string name="songs_count_label">Songs</string>
-    <string name="playlists_count_label">Playlists</string>
-    <string name="last_sync_success_time">Last synced successfully: </string>
+
     <string name="cached_songs_ratio">Cached Songs Ratio</string>
     <string name="internal_cache_color_label">Private Cache</string>
     <string name="clear_cache_quota_warning">Clear Playback Cache</string>
-    <string name="metadata">Metadata</string>
+
     <string name="cache_label">Cache</string>
     <string name="internal_cache_description">Internal cache includes playback buffer, cover art cache, and other temporary files.</string>
     <string name="clear_queue_keep_cache">Clear Queue</string>
@@ -323,9 +319,9 @@
     <string name="server_version">Server Version</string>
     <string name="subsonic_api_version">Subsonic API Version</string>
     <string name="opensubsonic_support">OpenSubsonic</string>
-    <string name="supported_extensions">Supported Extensions</string>
+
     <string name="opensubsonic_supported">Supported</string>
     <string name="opensubsonic_not_supported">Not Supported</string>
-    <string name="no_extensions_found">No extended features detected</string>
+
     <string name="unknown_val">Unknown</string>
 </resources>
