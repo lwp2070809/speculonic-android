@@ -83,13 +83,16 @@ class BluetoothStateSynchronizer(
                     delay(100)
                 } finally {
                     try {
-                        if (player.playbackState != androidx.media3.common.Player.STATE_IDLE) {
-                            player.pause()
+                        try {
+                            if (player.playbackState != androidx.media3.common.Player.STATE_IDLE) {
+                                player.pause()
+                            }
+                        } catch (e: Exception) {
+                            LogManager.w("BluetoothStateSynchronizer: 恢复暂停状态时发生异常，播放器可能已被释放", e)
+                        } finally {
                             player.volume = originalVolume
-                            LogManager.i("BluetoothStateSynchronizer: 成功触发无声 Play-Pause 抖动唤醒，MediaSession 已激活并完美同步为 STATE_PAUSED。")
+                            LogManager.i("BluetoothStateSynchronizer: 成功触发无声 Play-Pause 抖动唤醒，MediaSession 已激活。")
                         }
-                    } catch (e: Exception) {
-                        LogManager.w("BluetoothStateSynchronizer: 恢复暂停状态时发生异常，播放器可能已被释放", e)
                     } finally {
                         launch {
                             delay(150)

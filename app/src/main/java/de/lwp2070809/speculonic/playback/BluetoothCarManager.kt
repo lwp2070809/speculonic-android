@@ -123,24 +123,33 @@ class BluetoothCarManager(
         private var syncTimestamp: Long = 0L
         private var coverSyncTimestamp: Long = 0L
 
-        private inner class WrappedListener(
-            private val delegate: Player.Listener
-        ) : Player.Listener by delegate {
-            override fun onMediaMetadataChanged(mediaMetadata: androidx.media3.common.MediaMetadata) {
-                delegate.onMediaMetadataChanged(this@CarDisguisePlayer.mediaMetadata)
-            }
-
-            override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-                delegate.onMediaItemTransition(this@CarDisguisePlayer.currentMediaItem, reason)
-            }
-
-            override fun onEvents(player: Player, events: Player.Events) {
-                delegate.onEvents(this@CarDisguisePlayer, events)
-            }
-        }
-
         override fun addListener(listener: Player.Listener) {
-            val wrapped = WrappedListener(listener)
+            val wrapped = java.lang.reflect.Proxy.newProxyInstance(
+                androidx.media3.common.Player.Listener::class.java.classLoader,
+                arrayOf(androidx.media3.common.Player.Listener::class.java)
+            ) { proxy, method, args ->
+                when (method.name) {
+                    "onMediaMetadataChanged" -> {
+                        listener.onMediaMetadataChanged(this@CarDisguisePlayer.mediaMetadata)
+                    }
+                    "onMediaItemTransition" -> {
+                        listener.onMediaItemTransition(this@CarDisguisePlayer.currentMediaItem, args?.get(1) as? Int ?: androidx.media3.common.Player.MEDIA_ITEM_TRANSITION_REASON_AUTO)
+                    }
+                    "onEvents" -> {
+                        listener.onEvents(this@CarDisguisePlayer, args?.get(1) as androidx.media3.common.Player.Events)
+                    }
+                    "equals" -> {
+                        val other = args?.get(0)
+                        proxy === other || listener == other
+                    }
+                    "hashCode" -> {
+                        listener.hashCode()
+                    }
+                    else -> {
+                        method.invoke(listener, *(args ?: emptyArray()))
+                    }
+                }
+            } as androidx.media3.common.Player.Listener
             listenerMap[listener] = wrapped
             super.addListener(wrapped)
         }
