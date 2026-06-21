@@ -197,7 +197,7 @@ class DiscoverViewModel @Inject constructor(
                 val mediaItems = allFavoriteSongs.map { it.toMediaItem(repository) }
                 val index = allFavoriteSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
                 if (mediaItems.isNotEmpty()) {
-                    playbackController.play(mediaItems, index)
+                    playbackController.play(mediaItems, index, queueTitle = "Favorite")
                 }
             } catch (e: Exception) {
                 LogManager.e("DiscoverViewModel: Play favorite song failed", e)
