@@ -21,12 +21,27 @@ class ResolveInconsistencyUseCase @Inject constructor(
             val db = AppDatabase.getDatabase(context)
             val musicDao = db.musicDao()
 
+            val deletePhysicalFile: (String) -> Boolean = { uriString ->
+                try {
+                    val uri = android.net.Uri.parse(uriString)
+                    if (uri.scheme == "file") {
+                        val path = uri.path
+                        path != null && java.io.File(path).delete()
+                    } else {
+                        androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)?.delete() == true
+                    }
+                } catch (e: Exception) {
+                    LogManager.e("ResolveInconsistencyUseCase: Failed to delete physical file: $uriString", e)
+                    false
+                }
+            }
+
             when (action) {
                 Action.DELETE -> {
                     if (item.type == InconsistentItem.Type.ORPHANED_FILE) {
                         try {
                             item.localUri?.let { uri ->
-                                androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri.toUri())?.delete()
+                                deletePhysicalFile(uri)
                             }
                         } catch (e: Exception) { LogManager.e("ResolveInconsistencyUseCase: Failed to delete orphaned file", e) }
                     } else {
@@ -34,7 +49,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
                             musicDao.updateSongCacheStatus(song.id, null, false)
                             try {
                                 item.localUri?.let { uri ->
-                                    androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri.toUri())?.delete()
+                                    deletePhysicalFile(uri)
                                 }
                             } catch (e: Exception) {
                                 LogManager.w("ResolveInconsistencyUseCase: Failed to delete DB song file", e)
@@ -47,7 +62,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
                         musicDao.updateSongCacheStatus(song.id, null, false)
                         try {
                             item.localUri?.let { uri ->
-                                androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri.toUri())?.delete()
+                                deletePhysicalFile(uri)
                             }
                         } catch (e: Exception) {
                             LogManager.w("ResolveInconsistencyUseCase: Failed to delete DB song file before redownload", e)

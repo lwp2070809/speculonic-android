@@ -51,6 +51,11 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                     for (song in groupSongs) {
                         val physicalExists = if (isSafEnabled && song.localUri != null) {
                             try { androidx.documentfile.provider.DocumentFile.fromSingleUri(context, song.localUri.toUri())?.exists() == true } catch(e: Exception) { false }
+                        } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
+                            try {
+                                val path = android.net.Uri.parse(song.localUri).path
+                                path != null && java.io.File(path).exists()
+                            } catch (e: Exception) { false }
                         } else {
                             downloadCache.keys.contains(song.id)
                         }
