@@ -1,3 +1,5 @@
+@file:Suppress("DEPRECATION")
+
 package de.lwp2070809.speculonic.data.prefs
 
 import android.content.Context
