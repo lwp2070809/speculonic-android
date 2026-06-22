@@ -216,7 +216,6 @@ class PlaybackService : MediaSessionService() {
             mediaSessionProvider = { mediaSession },
             repositoryProvider = { repository }
         )
-        carAudioManager.init()
 
 
 
@@ -344,9 +343,15 @@ class PlaybackService : MediaSessionService() {
         serviceScope.launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
         
         serviceScope.launch {
-            prefs.carBluetoothEnabled.collect {
-                carAudioManager.carBluetoothEnabled = it
-                if (!it || !carAudioManager.bluetoothLyricsEnabled) {
+            prefs.carBluetoothEnabled.collect { isEnabled ->
+                carAudioManager.carBluetoothEnabled = isEnabled
+                if (isEnabled) {
+                    carAudioManager.init()
+                } else {
+                    carAudioManager.release()
+                }
+                
+                if (!isEnabled || !carAudioManager.bluetoothLyricsEnabled) {
                     carAudioManager.stopBluetoothLyricsUpdate()
                     carAudioManager.updateMediaSessionMetadata(null)
                 } else if (carAudioManager.isCarBluetoothConnected()) {

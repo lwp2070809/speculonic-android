@@ -185,6 +185,7 @@ class BluetoothLyricsManager(
     }
 
     private fun dispatchLyricsUpdate(player: androidx.media3.common.Player, lyricLine: String?, realTitle: String, realArtist: String) {
+        if (!carConnectionState.value) return
         if (isCarEnabled() && isLyricsEnabled() && !lyricLine.isNullOrBlank()) {
             (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(lyricLine, "$realTitle - $realArtist")
         } else {

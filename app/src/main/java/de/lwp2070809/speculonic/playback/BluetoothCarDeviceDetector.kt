@@ -29,6 +29,7 @@ class BluetoothCarDeviceDetector(
     private val _carConnectionState = MutableStateFlow(false)
     val carConnectionState = _carConnectionState.asStateFlow()
 
+    private var isInitialized = false
     private var bluetoothA2dp: BluetoothA2dp? = null
     
     private val bluetoothProfileListener = object : BluetoothProfile.ServiceListener {
@@ -59,10 +60,12 @@ class BluetoothCarDeviceDetector(
     }
 
     fun init() {
+        if (isInitialized) return
         if (!hasBluetoothConnectPermission()) {
             LogManager.w("BluetoothCarDeviceDetector: 缺少 BLUETOOTH_CONNECT 权限，跳过初始化。")
             return
         }
+        isInitialized = true
         try {
             val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             bluetoothManager.adapter?.getProfileProxy(context, bluetoothProfileListener, BluetoothProfile.A2DP)
@@ -101,6 +104,7 @@ class BluetoothCarDeviceDetector(
     }
 
     fun release() {
+        if (!isInitialized) return
         try {
             audioDeviceCallback?.let {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -116,6 +120,7 @@ class BluetoothCarDeviceDetector(
         }
         bluetoothA2dp = null
         connectionDebounceJob?.cancel()
+        isInitialized = false
     }
 
     fun checkConnectionState() {
