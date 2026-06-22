@@ -184,26 +184,26 @@ class PlaybackService : MediaSessionService() {
                 observeNetworkAndPreferences(prefs)
 
                 val config = withContext(Dispatchers.IO) {
-                    val data = this@PlaybackService.dataStore.data.first()
                     val sUrl = prefs.serverUrl.first()
                     val uName = prefs.username.first()
                     val pWord = prefs.password.first()
-                    val duckFocus = data[PreferencesManager.DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true
-                    val pauseFocus = data[PreferencesManager.PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true
+                    val duckFocus = prefs.duckOnTransientFocusLoss.first()
+                    val pauseFocus = prefs.pauseOnAudioFocusLoss.first()
+                    val mCacheSize = prefs.maxCacheSize.first()
                     object {
                         val serverUrl = sUrl
                         val username = uName
                         val password = pWord
-                        val maxCacheSize = data[PreferencesManager.MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024)
+                        val maxCacheSize = mCacheSize
                         val handleAudioFocus = duckFocus && pauseFocus
                     }
                 }
 
                 audioFocusHelper.duckOnTransientFocusLoss = withContext(Dispatchers.IO) {
-                    this@PlaybackService.dataStore.data.first()[PreferencesManager.DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true
+                    prefs.duckOnTransientFocusLoss.first()
                 }
                 audioFocusHelper.pauseOnAudioFocusLoss = withContext(Dispatchers.IO) {
-                    this@PlaybackService.dataStore.data.first()[PreferencesManager.PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true
+                    prefs.pauseOnAudioFocusLoss.first()
                 }
                 audioFocusHelper.isDefaultFocusHandling = audioFocusHelper.duckOnTransientFocusLoss && audioFocusHelper.pauseOnAudioFocusLoss
 
