@@ -32,7 +32,7 @@ import de.lwp2070809.speculonic.ui.navigation.rememberNavigationState
 import de.lwp2070809.speculonic.ui.screens.player.NowPlayingViewModel
 import de.lwp2070809.speculonic.ui.screens.search.SearchScreen
 import de.lwp2070809.speculonic.ui.screens.search.SearchViewModel
-import de.lwp2070809.speculonic.ui.screens.settings.ServerConfigDialog
+import de.lwp2070809.speculonic.ui.screens.settings.components.ServerConfigDialog
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
