@@ -105,7 +105,7 @@ fun NowPlayingMobile(
         label = "dragOffset"
     )
 
-    val collapseThresholdPx = with(LocalDensity.current) { 300.dp.toPx() }
+    val collapseThresholdPx = with(LocalDensity.current) { 150.dp.toPx() }
 
     val dragModifier = Modifier.pointerInput(showLyrics) {
         detectVerticalDragGestures(
