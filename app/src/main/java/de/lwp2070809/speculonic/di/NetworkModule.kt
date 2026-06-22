@@ -198,20 +198,20 @@ object NetworkModule {
                     is java.security.cert.CertificateException,
                     is javax.net.ssl.SSLHandshakeException,
                     is javax.net.ssl.SSLException -> {
-                        "SSL证书握手失败！请检查您的自托管服务器证书是否有效或过期。当前信任所有证书(trustAll)模式为: ${DynamicSslTrustManager.trustAll}"
+                        "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current trust all certificates (trustAll) mode is: ${DynamicSslTrustManager.trustAll}"
                     }
                     is java.net.UnknownHostException -> {
-                        "DNS解析失败！找不到主机: $host。请检查您的网络连接或服务器主机名配置是否正确。"
+                        "DNS resolution failed! Host not found: $host. Please check your network connection or server hostname configuration."
                     }
                     is java.net.ConnectException,
                     is java.net.SocketTimeoutException -> {
-                        "网络连接超时或被拒绝！服务器 $host 可能已下线，或者被防火墙拦截。"
+                        "Network connection timeout or refused! Server $host might be offline or blocked by a firewall."
                     }
                     else -> {
-                        "网络请求失败: ${e.message}"
+                        "Network request failed: ${e.message}"
                     }
                 }
-                LogManager.e("网络连接诊断: $errorMsg (主机: $host)", e)
+                LogManager.e("Network connection diagnosis: $errorMsg (Host: $host)", e)
                 throw e
             }
         }
@@ -337,7 +337,7 @@ object NetworkModule {
 
         HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
         HttpsURLConnection.setDefaultHostnameVerifier(dynamicHostnameVerifier)
-        LogManager.i("NetworkModule: 已设置全局 HttpsURLConnection 默认 SSLSocketFactory（DynamicSslTrustManager）")
+        LogManager.i("NetworkModule: Global HttpsURLConnection default SSLSocketFactory (DynamicSslTrustManager) has been set")
 
         val loggingInterceptor = okhttp3.logging.HttpLoggingInterceptor().apply {
             level = if (de.lwp2070809.speculonic.BuildConfig.DEBUG) {
@@ -364,7 +364,7 @@ object NetworkModule {
     fun rebuildClientIfNeeded(trustAll: Boolean) {
         if (DynamicSslTrustManager.trustAll != trustAll) {
             DynamicSslTrustManager.trustAll = trustAll
-            LogManager.i("NetworkModule: SSL 信任模式已切换，trustAll=$trustAll（无需重建 OkHttpClient）")
+            LogManager.i("NetworkModule: SSL trust mode switched, trustAll=$trustAll (no need to rebuild OkHttpClient)")
         }
     }
 

@@ -113,17 +113,17 @@ object DownloadManagerHelper {
                     if (lastState != currentState || finalException != null) {
                         lastStates[id] = currentState
                         val stateStr = when (currentState) {
-                            Download.STATE_QUEUED -> "等待队列 (QUEUED)"
-                            Download.STATE_STOPPED -> "暂停 (STOPPED)"
-                            Download.STATE_DOWNLOADING -> "下载中 (DOWNLOADING)"
-                            Download.STATE_COMPLETED -> "已完成 (COMPLETED)"
-                            Download.STATE_FAILED -> "失败 (FAILED)"
-                            Download.STATE_REMOVING -> "移除中 (REMOVING)"
-                            Download.STATE_RESTARTING -> "重启中 (RESTARTING)"
-                            else -> "未知状态 ($currentState)"
+                            Download.STATE_QUEUED -> "QUEUED"
+                            Download.STATE_STOPPED -> "STOPPED"
+                            Download.STATE_DOWNLOADING -> "DOWNLOADING"
+                            Download.STATE_COMPLETED -> "COMPLETED"
+                            Download.STATE_FAILED -> "FAILED"
+                            Download.STATE_REMOVING -> "REMOVING"
+                            Download.STATE_RESTARTING -> "RESTARTING"
+                            else -> "UNKNOWN ($currentState)"
                         }
-                        val exMsg = if (finalException != null) ", 异常: ${finalException.message}" else ""
-                        LogManager.d("DownloadManager [$id] 状态变更 -> $stateStr$exMsg")
+                        val exMsg = if (finalException != null) ", exception: ${finalException.message}" else ""
+                        LogManager.d("DownloadManager [$id] state changed -> $stateStr$exMsg")
                     }
 
                     

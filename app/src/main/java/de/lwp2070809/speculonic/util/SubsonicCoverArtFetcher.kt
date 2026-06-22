@@ -42,7 +42,7 @@ class SubsonicCoverArtFetcher(
         
         val localBytes = extractFromId3(id)
         if (localBytes != null) {
-            LogManager.d("SubsonicCoverArtFetcher: 成功从本地已下载曲目的 ID3 中提取封面 (ID: $id)")
+            LogManager.d("SubsonicCoverArtFetcher: Successfully extracted cover art from local downloaded track ID3 (ID: $id)")
             val buffer = Buffer().apply { write(localBytes) }
             return SourceFetchResult(
                 source = ImageSource(buffer, options.fileSystem),
@@ -52,7 +52,7 @@ class SubsonicCoverArtFetcher(
         }
 
         
-        LogManager.d("SubsonicCoverArtFetcher: 缓存和本地 ID3 均未命中，准备由网络下载器发起远程封面请求 (ID: $id)")
+        LogManager.d("SubsonicCoverArtFetcher: Both cache and local ID3 missed, preparing remote cover request via network fetcher (ID: $id)")
         return null
     }
 

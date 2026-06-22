@@ -62,7 +62,7 @@ class BluetoothCarDeviceDetector(
     fun init() {
         if (isInitialized) return
         if (!hasBluetoothConnectPermission()) {
-            LogManager.w("BluetoothCarDeviceDetector: 缺少 BLUETOOTH_CONNECT 权限，跳过初始化。")
+            LogManager.w("BluetoothCarDeviceDetector: Missing BLUETOOTH_CONNECT permission, skipping initialization.")
             return
         }
         isInitialized = true
@@ -97,7 +97,7 @@ class BluetoothCarDeviceDetector(
             }
             audioManager.registerAudioDeviceCallback(audioDeviceCallback, null)
         } catch (e: SecurityException) {
-            LogManager.w("BluetoothCarDeviceDetector: init 缺少权限", e)
+            LogManager.w("BluetoothCarDeviceDetector: init missing permission", e)
         } catch (e: Exception) {
             LogManager.e("BluetoothCarDeviceDetector: Failed to init", e)
         }
@@ -180,7 +180,7 @@ class BluetoothCarDeviceDetector(
                 foundCar
             }
         } catch (e: SecurityException) {
-            LogManager.w("BluetoothCarDeviceDetector: SecurityException - 缺少 android.Manifest.permission.BLUETOOTH_CONNECT 权限，车机蓝牙音频功能将失效。")
+            LogManager.w("BluetoothCarDeviceDetector: SecurityException - Missing android.Manifest.permission.BLUETOOTH_CONNECT permission, car Bluetooth features will be disabled.")
             false
         } catch (e: Exception) {
             LogManager.e("BluetoothCarDeviceDetector: Error identifying bluetooth device", e)

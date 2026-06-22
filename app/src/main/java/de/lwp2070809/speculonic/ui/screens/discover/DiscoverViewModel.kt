@@ -67,7 +67,7 @@ class DiscoverViewModel @Inject constructor(
                 if (url.isNotBlank() && !url.contains("unconfigured")) {
                     val hasData = repository.hasLocalData()
                     if (!hasData) {
-                        LogManager.i("DiscoverViewModel: 监测到服务器配置首次就绪 - 立即触发首次全量同步以点亮主页！")
+                        LogManager.i("DiscoverViewModel: Server configuration detected ready for the first time - triggering initial full sync to light up home page!")
                         loadData()
                     }
                 }
