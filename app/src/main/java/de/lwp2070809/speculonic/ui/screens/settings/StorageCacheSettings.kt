@@ -456,7 +456,7 @@ fun StorageCacheSettings(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "正在扫描缓存",
+                        text = stringResource(R.string.scanning_cache),
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )

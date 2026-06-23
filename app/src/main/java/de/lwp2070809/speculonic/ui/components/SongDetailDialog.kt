@@ -200,18 +200,18 @@ private fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!isCached) {
             Text(
-                text = "文件尚未在本地缓存，无法读取底层元数据",
+                text = stringResource(R.string.metadata_not_cached_warning),
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium
             )
             return@Column
         }
         if (id3Metadata == null) {
-            Text("Reading metadata...")
+            Text(stringResource(R.string.reading_metadata))
             return@Column
         }
         if (id3Metadata.isEmpty()) {
-            Text("No metadata found.")
+            Text(stringResource(R.string.no_metadata_found))
             return@Column
         }
         id3Metadata.filterKeys { it != "__FORMAT_INFO__" }.forEach { (key, value) ->

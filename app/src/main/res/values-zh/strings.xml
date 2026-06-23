@@ -287,7 +287,7 @@
     <string name="last_sync_time_label">上次同步时间：%1$s</string>
     <string name="sync_status_label">当前同步状态：%1$s</string>
     <string name="sync_idle">空闲</string>
-    <string name="sync_never">从无</string>
+    <string name="sync_never">从未</string>
     <string name="storage_cache_settings">存储与缓存</string>
     <string name="download_manager">下载与缓存</string>
     <string name="preparing_offline_content">正在准备离线内容…</string>
@@ -321,4 +321,34 @@
     <string name="opensubsonic_not_supported">不支持</string>
 
     <string name="unknown_val">未知</string>
+
+    <string name="no_playlists_found">未找到歌单</string>
+    <string name="metadata_not_cached_warning">文件尚未在本地缓存，无法读取底层元数据。</string>
+    <string name="reading_metadata">正在读取元数据…</string>
+    <string name="no_metadata_found">未找到元数据。</string>
+    <string name="route_not_found">找不到路由：%1$s</string>
+    <string name="content_description_unpin_playlist">取消置顶歌单</string>
+    <string name="content_description_pin_playlist">置顶歌单</string>
+    <string name="unknown_song">未知歌曲</string>
+    <string name="content_description_pause">暂停</string>
+    <string name="content_description_resume">继续</string>
+    <string name="content_description_cancel_delete">取消/删除</string>
+    <string name="download_state_queued">排队中</string>
+    <string name="download_state_downloading">下载中</string>
+    <string name="download_state_completed">已完成</string>
+    <string name="download_state_failed">失败</string>
+    <string name="download_state_stopped">已暂停</string>
+    <string name="download_state_removing">正在删除…</string>
+    <string name="download_state_restarting">正在重试…</string>
+    <string name="download_state_unknown">未知</string>
+    <string name="sync_progress_full_sync">正在执行全量同步…</string>
+    <string name="unknown_error">未知错误</string>
+    <string name="scanning_cache">正在扫描缓存…</string>
+    <string name="server_url_placeholder">https://your-server.com</string>
+    <string name="content_description_expand_details">展开详情</string>
+    <string name="storage_ratio_songs_summary">%1$d%% (共 %2$d/%3$d 首)</string>
+    <string name="log_level_all">全部级别</string>
+    <string name="logs_copied_to_clipboard">日志已复制到剪贴板</string>
+    <string name="content_description_copy_all">复制全部</string>
+    <string name="force_sync_overwrite_local">继续同步 (覆盖本地)</string>
 </resources>

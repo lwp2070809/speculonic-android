@@ -13,6 +13,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
@@ -47,7 +48,7 @@ fun AddToPlaylistDialog(
                     CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
                 } else if (playlists.isEmpty()) {
                     Text(
-                        text = "No playlists found",
+                        text = stringResource(R.string.no_playlists_found),
                         modifier = Modifier.padding(16.dp).align(Alignment.Center)
                     )
                 } else {
@@ -59,7 +60,7 @@ fun AddToPlaylistDialog(
                                     Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) 
                                 },
                                 supportingContent = { 
-                                    Text("${playlist.songCount ?: 0} songs") 
+                                    Text(pluralStringResource(R.plurals.songs_count, playlist.songCount ?: 0, playlist.songCount ?: 0)) 
                                 },
                                 leadingContent = {
                                     if (isProcessing) {

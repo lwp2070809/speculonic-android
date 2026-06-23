@@ -324,4 +324,34 @@
     <string name="opensubsonic_not_supported">Not Supported</string>
 
     <string name="unknown_val">Unknown</string>
+
+    <string name="no_playlists_found">No playlists found</string>
+    <string name="metadata_not_cached_warning">File is not cached locally, cannot read underlying metadata.</string>
+    <string name="reading_metadata">Reading metadata…</string>
+    <string name="no_metadata_found">No metadata found.</string>
+    <string name="route_not_found">Route not found: %1$s</string>
+    <string name="content_description_unpin_playlist">Unpin playlist</string>
+    <string name="content_description_pin_playlist">Pin playlist</string>
+    <string name="unknown_song">Unknown Song</string>
+    <string name="content_description_pause">Pause</string>
+    <string name="content_description_resume">Resume</string>
+    <string name="content_description_cancel_delete">Cancel/Delete</string>
+    <string name="download_state_queued">Queued</string>
+    <string name="download_state_downloading">Downloading</string>
+    <string name="download_state_completed">Completed</string>
+    <string name="download_state_failed">Failed</string>
+    <string name="download_state_stopped">Paused</string>
+    <string name="download_state_removing">Removing…</string>
+    <string name="download_state_restarting">Restarting…</string>
+    <string name="download_state_unknown">Unknown</string>
+    <string name="sync_progress_full_sync">Performing full metadata synchronization…</string>
+    <string name="unknown_error">Unknown error</string>
+    <string name="scanning_cache">Scanning cache…</string>
+    <string name="server_url_placeholder">https://your-server.com</string>
+    <string name="content_description_expand_details">Expand details</string>
+    <string name="storage_ratio_songs_summary">%1$d%% (%2$d/%3$d songs cached)</string>
+    <string name="log_level_all">All Levels</string>
+    <string name="logs_copied_to_clipboard">Logs copied to clipboard</string>
+    <string name="content_description_copy_all">Copy All</string>
+    <string name="force_sync_overwrite_local">Force Sync (Overwrite Local)</string>
 </resources>

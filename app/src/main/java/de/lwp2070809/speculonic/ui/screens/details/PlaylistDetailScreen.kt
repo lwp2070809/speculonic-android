@@ -326,13 +326,13 @@ fun PlaylistHeader(
             if (playlist?.pinned == true) {
                 Icon(
                     Icons.Default.PushPin,
-                    contentDescription = "Unpin playlist",
+                    contentDescription = stringResource(R.string.content_description_unpin_playlist),
                     tint = MaterialTheme.colorScheme.primary
                 )
             } else {
                 Icon(
                     Icons.Outlined.PushPin,
-                    contentDescription = "Pin playlist",
+                    contentDescription = stringResource(R.string.content_description_pin_playlist),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

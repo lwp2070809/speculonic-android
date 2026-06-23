@@ -410,11 +410,11 @@ fun ServerSettings(
     if (uiState.showSafetyGuardConfirm) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelSafetyGuard() },
-            title = { Text("安全警戒线触发") },
+            title = { Text(stringResource(R.string.safety_guard_title)) },
             text = { Text(uiState.safetyGuardMessage ?: "") },
             confirmButton = {
                 TextButton(onClick = { viewModel.confirmSafetyGuard() }) {
-                    Text("继续同步 (覆盖本地)", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.force_sync_overwrite_local), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {

@@ -48,6 +48,7 @@ class LibraryViewModel @Inject constructor(
     private val syncAllDataUseCase: SyncAllDataUseCase
 ) : ViewModel() {
 
+    private val context = de.lwp2070809.speculonic.SpeculonicApp.instance
     private val _uiState = MutableStateFlow(LibraryUiState())
     
     @OptIn(kotlinx.coroutines.FlowPreview::class)
@@ -168,7 +169,7 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(
                 isLoading = true, 
-                syncProgress = "正在执行全量同步...", 
+                syncProgress = context.getString(de.lwp2070809.speculonic.R.string.sync_progress_full_sync), 
                 error = null,
                 showSafetyGuardConfirm = false
             ) }

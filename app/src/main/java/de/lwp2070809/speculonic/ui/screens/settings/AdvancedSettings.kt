@@ -234,7 +234,7 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
                                     onDismissRequest = { filterMenuExpanded = false }
                                 ) {
                                     DropdownMenuItem(
-                                        text = { Text("All Levels") },
+                                        text = { Text(stringResource(R.string.log_level_all)) },
                                         onClick = { filterLevel = null; filterMenuExpanded = false }
                                     )
                                     LogLevel.entries.forEach { level ->
@@ -250,11 +250,11 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 val clip = ClipData.newPlainText("Speculonic Logs", text)
                                 clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, "Logs copied to clipboard", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, context.getString(R.string.logs_copied_to_clipboard), Toast.LENGTH_SHORT).show()
                             }) {
                                 Icon(
                                     Icons.Default.ContentCopy,
-                                    contentDescription = "Copy All"
+                                    contentDescription = stringResource(R.string.content_description_copy_all)
                                 )
                             }
                             TextButton(onClick = { LogManager.clear() }) {

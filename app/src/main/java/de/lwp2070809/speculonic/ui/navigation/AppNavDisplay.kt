@@ -288,7 +288,7 @@ fun AppNavDisplay(
         } catch (e: Exception) {
             androidx.navigation3.runtime.NavEntry(key) { _ ->
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = androidx.compose.ui.Alignment.Center) {
-                    androidx.compose.material3.Text("Route not found: $key")
+                    androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(de.lwp2070809.speculonic.R.string.route_not_found, key))
                 }
             }
         }

@@ -135,7 +135,7 @@ fun StorageDashboardCard(
                     }
                     Icon(
                         imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = "展开详情",
+                        contentDescription = stringResource(R.string.content_description_expand_details),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                 }
@@ -315,7 +315,7 @@ fun StorageDashboardCard(
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
                     Text(
-                        text = "$ratio% (共 $cachedSongsCount/$songsCount 首)",
+                        text = stringResource(R.string.storage_ratio_songs_summary, ratio, cachedSongsCount, songsCount),
                         style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -411,7 +411,7 @@ fun CacheDetailRow(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Delete,
-                        contentDescription = "清除",
+                        contentDescription = stringResource(R.string.clear),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
                         modifier = Modifier.size(16.dp)
                     )

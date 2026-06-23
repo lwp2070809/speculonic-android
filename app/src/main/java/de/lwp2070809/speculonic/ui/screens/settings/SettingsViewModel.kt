@@ -297,7 +297,7 @@ class SettingsViewModel @Inject constructor(
             result.onSuccess {
                 _uiState.value = _uiState.value.copy(testConnectionResult = true to null)
             }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(testConnectionResult = false to (e.message ?: "Unknown error"))
+                _uiState.value = _uiState.value.copy(testConnectionResult = false to (e.message ?: context.getString(de.lwp2070809.speculonic.R.string.unknown_error)))
             }
             _uiState.value = _uiState.value.copy(isTestingConnection = false)
         }

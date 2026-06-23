@@ -253,29 +253,32 @@ fun DownloadTaskItem(
     onResumeClick: () -> Unit,
     onCancelClick: () -> Unit
 ) {
-    val title = remember(task.request.data) {
+    val unknownSong = stringResource(R.string.unknown_song)
+    val unknownArtist = stringResource(R.string.unknown_artist)
+
+    val title = remember(task.request.data, unknownSong) {
         try {
             if (task.request.data.isNotEmpty()) {
                 val json = JSONObject(Util.fromUtf8Bytes(task.request.data))
-                json.optString("title", "Unknown Song")
+                json.optString("title", unknownSong)
             } else {
-                "Unknown Song"
+                unknownSong
             }
         } catch (e: Exception) {
-            "Unknown Song"
+            unknownSong
         }
     }
 
-    val artist = remember(task.request.data) {
+    val artist = remember(task.request.data, unknownArtist) {
         try {
             if (task.request.data.isNotEmpty()) {
                 val json = JSONObject(Util.fromUtf8Bytes(task.request.data))
-                json.optString("artist", "Unknown Artist")
+                json.optString("artist", unknownArtist)
             } else {
-                "Unknown Artist"
+                unknownArtist
             }
         } catch (e: Exception) {
-            "Unknown Artist"
+            unknownArtist
         }
     }
 
@@ -380,7 +383,7 @@ fun DownloadTaskItem(
                         IconButton(onClick = onPauseClick) {
                             Icon(
                                 imageVector = Icons.Default.Pause,
-                                contentDescription = "暂停",
+                                contentDescription = stringResource(R.string.content_description_pause),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -389,7 +392,7 @@ fun DownloadTaskItem(
                         IconButton(onClick = onResumeClick) {
                             Icon(
                                 imageVector = Icons.Default.PlayArrow,
-                                contentDescription = "继续",
+                                contentDescription = stringResource(R.string.content_description_resume),
                                 tint = MaterialTheme.colorScheme.primary
                             )
                         }
@@ -399,7 +402,7 @@ fun DownloadTaskItem(
                 IconButton(onClick = onCancelClick) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "取消/删除",
+                        contentDescription = stringResource(R.string.content_description_cancel_delete),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -412,14 +415,14 @@ fun DownloadTaskItem(
 @Composable
 fun getStatusLabel(state: Int, progress: Float): String {
     return when (state) {
-        Download.STATE_QUEUED -> "排队中"
-        Download.STATE_DOWNLOADING -> "下载中"
-        Download.STATE_COMPLETED -> "已完成"
-        Download.STATE_FAILED -> "失败"
-        Download.STATE_STOPPED -> "已暂停"
-        Download.STATE_REMOVING -> "正在删除"
-        Download.STATE_RESTARTING -> "正在重试"
-        else -> "未知"
+        Download.STATE_QUEUED -> stringResource(R.string.download_state_queued)
+        Download.STATE_DOWNLOADING -> stringResource(R.string.download_state_downloading)
+        Download.STATE_COMPLETED -> stringResource(R.string.download_state_completed)
+        Download.STATE_FAILED -> stringResource(R.string.download_state_failed)
+        Download.STATE_STOPPED -> stringResource(R.string.download_state_stopped)
+        Download.STATE_REMOVING -> stringResource(R.string.download_state_removing)
+        Download.STATE_RESTARTING -> stringResource(R.string.download_state_restarting)
+        else -> stringResource(R.string.download_state_unknown)
     }
 }
 

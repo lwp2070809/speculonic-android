@@ -79,7 +79,7 @@ fun ServerConfigDialog(
                     label = { Text(stringResource(R.string.server_url)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    placeholder = { Text("https://your-server.com") },
+                    placeholder = { Text(stringResource(R.string.server_url_placeholder)) },
                     isError = uiState.urlError != null,
                     supportingText = if (uiState.urlError != null) {
                         { Text(uiState.urlError!!) }
