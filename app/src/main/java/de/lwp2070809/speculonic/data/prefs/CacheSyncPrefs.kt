@@ -7,7 +7,6 @@ interface CacheSyncPrefs {
     val maxCacheSize: Flow<Long>
     val silentCacheEnabled: Flow<Boolean>
     val autoExportSilentCache: Flow<Boolean>
-    val autoCleanCacheAfterExport: Flow<Boolean>
     val lastSyncTime: Flow<Long>
     val lastFullSyncTime: Flow<Long>
     val serverLastModified: Flow<Long>
@@ -21,7 +20,6 @@ interface CacheSyncPrefs {
     suspend fun saveMaxCacheSize(size: Long)
     suspend fun saveSilentCacheEnabled(enabled: Boolean)
     suspend fun saveAutoExportSilentCache(enabled: Boolean)
-    suspend fun saveAutoCleanCacheAfterExport(enabled: Boolean)
     suspend fun saveLastSyncTime(time: Long)
     suspend fun saveLastFullSyncTime(time: Long)
     suspend fun saveServerLastModified(time: Long)

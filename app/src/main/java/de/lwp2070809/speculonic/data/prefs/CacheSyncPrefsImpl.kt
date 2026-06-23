@@ -16,7 +16,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         private val MAX_CACHE_SIZE = longPreferencesKey("max_cache_size")
         private val SILENT_CACHE_ENABLED = booleanPreferencesKey("silent_cache_enabled")
         private val AUTO_EXPORT_SILENT_CACHE = booleanPreferencesKey("auto_export_silent_cache")
-        private val AUTO_CLEAN_CACHE_AFTER_EXPORT = booleanPreferencesKey("auto_clean_cache_after_export")
         private val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         private val LAST_FULL_SYNC_TIME = longPreferencesKey("last_full_sync_time")
         private val SERVER_LAST_MODIFIED = longPreferencesKey("server_last_modified")
@@ -31,7 +30,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override val maxCacheSize: Flow<Long> = context.dataStore.data.map { it[MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024) }
     override val silentCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[SILENT_CACHE_ENABLED] ?: true }
     override val autoExportSilentCache: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_SILENT_CACHE] ?: false }
-    override val autoCleanCacheAfterExport: Flow<Boolean> = context.dataStore.data.map { it[AUTO_CLEAN_CACHE_AFTER_EXPORT] ?: true }
     override val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC_TIME] ?: 0L }
     override val lastFullSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_FULL_SYNC_TIME] ?: 0L }
     override val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }
@@ -65,11 +63,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         }
     }
 
-    override suspend fun saveAutoCleanCacheAfterExport(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[AUTO_CLEAN_CACHE_AFTER_EXPORT] = enabled
-        }
-    }
 
     override suspend fun saveLastSyncTime(time: Long) {
         context.dataStore.edit { preferences ->

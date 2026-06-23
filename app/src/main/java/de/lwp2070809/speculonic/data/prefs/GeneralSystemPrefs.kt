@@ -11,8 +11,6 @@ interface GeneralSystemPrefs {
     val logLevel: Flow<LogLevel>
     val themeMode: Flow<ThemeMode>
     val colorMode: Flow<ColorMode>
-    val notificationReminderEnabled: Flow<Boolean>
-    val useGaussianBlurBackground: Flow<Boolean>
     val playerBackgroundMode: Flow<PlayerBackgroundMode>
     val lastSeedColorLight: Flow<Int?>
     val lastSeedColorDark: Flow<Int?>
@@ -23,13 +21,9 @@ interface GeneralSystemPrefs {
     suspend fun saveLogLevel(level: LogLevel)
     suspend fun saveThemeMode(mode: ThemeMode)
     suspend fun saveColorMode(mode: ColorMode)
-    suspend fun saveNotificationReminderEnabled(enabled: Boolean)
-    suspend fun saveUseGaussianBlurBackground(enabled: Boolean)
     suspend fun savePlayerBackgroundMode(mode: PlayerBackgroundMode)
     suspend fun saveLastSeedColor(color: Int?, isDark: Boolean)
     suspend fun saveShowOfflineToast(show: Boolean)
-    fun getShowOfflineToastSync(): Boolean
-    fun setShowOfflineToastSync(show: Boolean)
     suspend fun saveUpdateCheckInterval(interval: UpdateCheckInterval)
     suspend fun saveLastUpdateCheckTime(time: Long)
 }

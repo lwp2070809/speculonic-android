@@ -299,14 +299,12 @@ object DownloadTracker {
                 LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri")
                 
                 
-                if (preferencesManager.autoCleanCacheAfterExport.first()) {
-                    LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
-                    cache.removeResource(download.request.id)
-                    try {
-                        CacheManager.getPlaybackCache(context).removeResource(download.request.id)
-                    } catch (e: Exception) {
-                        LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
-                    }
+                LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
+                cache.removeResource(download.request.id)
+                try {
+                    CacheManager.getPlaybackCache(context).removeResource(download.request.id)
+                } catch (e: Exception) {
+                    LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
                 }
             }.onFailure {
                 LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")

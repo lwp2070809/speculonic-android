@@ -274,7 +274,7 @@ class CacheSyncWorker @AssistedInject constructor(
 
         LogManager.i("CacheSync: Found ${toMigrate.size} songs waiting for migration to SAF.")
         val total = toMigrate.size
-        val autoClean = preferencesManager.autoCleanCacheAfterExport.first()
+        val autoClean = true
 
         toMigrate.forEachIndexed { index, song ->
             val progressPercent = (index * 100 / total)

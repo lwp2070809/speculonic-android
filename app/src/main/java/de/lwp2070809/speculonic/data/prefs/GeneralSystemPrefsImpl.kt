@@ -21,8 +21,6 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         private val LOG_LEVEL = stringPreferencesKey("log_level")
         private val THEME_MODE = stringPreferencesKey("theme_mode")
         private val COLOR_MODE = stringPreferencesKey("color_mode")
-        private val NOTIFICATION_REMINDER_ENABLED = booleanPreferencesKey("notification_reminder_enabled")
-        private val USE_GAUSSIAN_BLUR_BACKGROUND = booleanPreferencesKey("use_gaussian_blur_background")
         private val PLAYER_BACKGROUND_MODE = stringPreferencesKey("player_background_mode")
         private val LAST_SEED_COLOR_LIGHT = intPreferencesKey("last_seed_color_light")
         private val LAST_SEED_COLOR_DARK = intPreferencesKey("last_seed_color_dark")
@@ -58,9 +56,6 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         }
     }
 
-    override val notificationReminderEnabled: Flow<Boolean> = context.dataStore.data.map { it[NOTIFICATION_REMINDER_ENABLED] ?: true }
-    override val useGaussianBlurBackground: Flow<Boolean> = context.dataStore.data.map { it[USE_GAUSSIAN_BLUR_BACKGROUND] ?: false }
-    
     override val playerBackgroundMode: Flow<PlayerBackgroundMode> = context.dataStore.data.map { preferences ->
         val modeName = preferences[PLAYER_BACKGROUND_MODE]
         if (modeName != null) {
@@ -70,16 +65,7 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
                 PlayerBackgroundMode.GAUSSIAN_BLUR
             }
         } else {
-            val legacyBlur = preferences[USE_GAUSSIAN_BLUR_BACKGROUND]
-            if (legacyBlur != null) {
-                if (legacyBlur) {
-                    PlayerBackgroundMode.GAUSSIAN_BLUR
-                } else {
-                    PlayerBackgroundMode.GLOW_GRADIENT
-                }
-            } else {
-                PlayerBackgroundMode.GAUSSIAN_BLUR
-            }
+            PlayerBackgroundMode.GAUSSIAN_BLUR
         }
     }
 
@@ -121,18 +107,6 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         }
     }
 
-    override suspend fun saveNotificationReminderEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[NOTIFICATION_REMINDER_ENABLED] = enabled
-        }
-    }
-
-    override suspend fun saveUseGaussianBlurBackground(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[USE_GAUSSIAN_BLUR_BACKGROUND] = enabled
-        }
-    }
-
     override suspend fun savePlayerBackgroundMode(mode: PlayerBackgroundMode) {
         context.dataStore.edit { preferences ->
             preferences[PLAYER_BACKGROUND_MODE] = mode.name
@@ -154,17 +128,6 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         context.dataStore.edit { preferences ->
             preferences[SHOW_OFFLINE_TOAST] = show
         }
-        setShowOfflineToastSync(show)
-    }
-
-    override fun getShowOfflineToastSync(): Boolean {
-        return context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
-            .getBoolean("show_offline_toast", true)
-    }
-
-    override fun setShowOfflineToastSync(show: Boolean) {
-        context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
-            .edit().putBoolean("show_offline_toast", show).apply()
     }
 
     override suspend fun saveUpdateCheckInterval(interval: UpdateCheckInterval) {
