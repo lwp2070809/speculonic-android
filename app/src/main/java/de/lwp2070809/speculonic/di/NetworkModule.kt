@@ -150,6 +150,12 @@ object NetworkModule {
             val url = request.url.toString()
             val safeUrl = url.replace(Regex("([utps])=[^&]+"), "$1=***")
 
+            val host = request.url.host
+            if (host == "unconfigured.local" || host == "invalid-url-no-protocol") {
+                LogManager.i("OfflineInterceptor: App is not configured, aborting dummy request: $safeUrl")
+                throw java.io.IOException("Unconfigured: Server is not configured yet")
+            }
+
             if (ServerReachableManager.isManualOffline) {
                 LogManager.w("OfflineInterceptor: manual offline: $safeUrl")
                 throw java.io.IOException("Offline: Manual offline mode is enabled")
@@ -187,6 +193,10 @@ object NetworkModule {
                 return response
             } catch (e: Exception) {
                 val host = request.url.host
+                if (e.message?.startsWith("Unconfigured") == true) {
+                    throw e
+                }
+
                 if (e is java.net.UnknownHostException || 
                     e is java.net.ConnectException || 
                     e is java.net.SocketTimeoutException) {
@@ -411,7 +421,7 @@ object NetworkModule {
         synchronized(this) {
             val trimmed = baseUrl.trim()
             val sanitizedUrl = when {
-                trimmed.isBlank() -> "http://localhost/"
+                trimmed.isBlank() -> "http://unconfigured.local/"
                 trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
                     if (trimmed.endsWith("/")) trimmed else "$trimmed/"
                 }
@@ -439,11 +449,11 @@ object NetworkModule {
                 cachedBaseUrl = sanitizedUrl
                 return service
             } catch (e: Exception) {
-                LogManager.w("Failed to create SubsonicService with URL: $sanitizedUrl. Falling back to http://localhost/")
+                LogManager.w("Failed to create SubsonicService with URL: $sanitizedUrl. Falling back to http://unconfigured.local/")
             }
 
             
-            val fallbackUrl = "http://localhost/"
+            val fallbackUrl = "http://unconfigured.local/"
             if (cachedService != null && cachedBaseUrl == fallbackUrl) {
                 return cachedService!!
             }

@@ -94,6 +94,7 @@ class LibraryViewModel @Inject constructor(
     
     fun loadData() {
         viewModelScope.launch {
+            if (!repository.isConfigured) return@launch
             val hasLocalData = repository.hasLocalData()
             
             if (!hasLocalData) {
