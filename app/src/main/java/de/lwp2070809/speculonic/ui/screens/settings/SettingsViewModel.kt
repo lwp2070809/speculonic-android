@@ -498,13 +498,14 @@ class SettingsViewModel @Inject constructor(
                 val now = System.currentTimeMillis()
                 if (now - lastNotifyTime >= 300L) {
                     lastNotifyTime = now
-                    viewModelScope.launch {
-                        preferencesManager.saveSyncProgress(status)
-                    }
+                    preferencesManager.saveSyncProgress(status)
                 }
             })
         } catch (e: Exception) {
             LogManager.e("Settings: Cover Art Sync Failed", e)
+        } finally {
+            preferencesManager.saveIsSyncing(false)
+            preferencesManager.saveSyncProgress(null)
         }
     }
 
@@ -538,9 +539,10 @@ class SettingsViewModel @Inject constructor(
                     (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))
                 if (shouldSyncCovers) {
                     performCoverArtSyncInternal()
+                } else {
+                    preferencesManager.saveIsSyncing(false)
+                    preferencesManager.saveSyncProgress(null)
                 }
-                preferencesManager.saveIsSyncing(false)
-                preferencesManager.saveSyncProgress(null)
             }
         }
     }

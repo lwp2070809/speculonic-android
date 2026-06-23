@@ -102,6 +102,9 @@ class CoverArtSyncManager(
                                 
                                 failCount.incrementAndGet()
                                 LogManager.w("CoverArtSyncManager: Timeout while fetching cover art $id. Skipping.")
+                            } catch (e: Exception) {
+                                failCount.incrementAndGet()
+                                LogManager.e("CoverArtSyncManager: Unexpected error while fetching cover art $id", e)
                             }
                         }
 

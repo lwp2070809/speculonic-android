@@ -137,7 +137,7 @@ fun MainTopBar(
                                 wifiHighlightJob = scope.launch {
                                     showWifiHighlightRecent = true
                                     onToggleOfflineMode()
-                                    kotlinx.coroutines.delay(4000)
+                                    kotlinx.coroutines.delay(3000)
                                     showWifiHighlightRecent = false
                                 }
                             },
