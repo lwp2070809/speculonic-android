@@ -387,19 +387,13 @@ class SettingsViewModel @Inject constructor(
     fun addBluetoothCarDeviceName(name: String) {
         if (name.isBlank()) return
         viewModelScope.launch {
-            val currentNames = preferencesManager.bluetoothCarDeviceNames.first().toMutableSet()
-            if (currentNames.add(name)) {
-                preferencesManager.saveBluetoothCarDeviceNames(currentNames)
-            }
+            preferencesManager.addBluetoothCarDeviceName(name)
         }
     }
 
     fun removeBluetoothCarDeviceName(name: String) {
         viewModelScope.launch {
-            val currentNames = preferencesManager.bluetoothCarDeviceNames.first().toMutableSet()
-            if (currentNames.remove(name)) {
-                preferencesManager.saveBluetoothCarDeviceNames(currentNames)
-            }
+            preferencesManager.removeBluetoothCarDeviceName(name)
         }
     }
 

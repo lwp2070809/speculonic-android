@@ -12,4 +12,6 @@ interface BluetoothCarPrefs {
     suspend fun saveBluetoothLyricsEnabled(enabled: Boolean)
     suspend fun saveBluetoothLyricsHideProgressBar(enabled: Boolean)
     suspend fun saveBluetoothCarDeviceNames(names: Set<String>)
+    suspend fun addBluetoothCarDeviceName(name: String)
+    suspend fun removeBluetoothCarDeviceName(name: String)
 }

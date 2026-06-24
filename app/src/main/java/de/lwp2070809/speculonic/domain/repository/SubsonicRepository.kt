@@ -75,7 +75,10 @@ class SubsonicRepository(
         }
         
         reconfigure(initialUrl, initialUser, initialPass)
-        
+        startObservingPreferences()
+    }
+
+    private fun startObservingPreferences() {
         repositoryScope.launch {
             combine(
                 preferencesManager.serverUrl,
@@ -84,7 +87,6 @@ class SubsonicRepository(
             ) { url, username, password ->
                 Triple(url, username, password)
             }.collectLatest { (url, username, password) ->
-                
                 if (url != baseUrl || username != authManager.getAuthParams().first) {
                     reconfigure(url, username, password.toCharArray())
                 }
@@ -122,6 +124,8 @@ class SubsonicRepository(
             mediaRepository = newMediaRepository,
             coverArtSyncManager = newCoverArtSyncManager
         )
+        
+        startObservingPreferences()
     }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")

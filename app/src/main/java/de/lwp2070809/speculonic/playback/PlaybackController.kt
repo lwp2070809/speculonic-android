@@ -73,11 +73,9 @@ class PlaybackController private constructor(context: Context) {
             future.get()
         } catch (e: Exception) {
             LogManager.w("PlaybackController: MediaController connection failed: ${e.message}")
-            controllerFuture = null 
             null
         } catch (e: Error) {
             LogManager.e("PlaybackController: Fatal error getting controller", e)
-            controllerFuture = null
             null
         }
     }

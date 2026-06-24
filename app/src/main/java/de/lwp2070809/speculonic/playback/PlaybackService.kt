@@ -425,8 +425,8 @@ class PlaybackService : MediaSessionService() {
             audioFocusHelper.abandonAudioFocus()
         }
         mediaSession?.run {
-            release()
             player.release()
+            release()
         }
         mediaSession = null
         fallbackSession?.run {

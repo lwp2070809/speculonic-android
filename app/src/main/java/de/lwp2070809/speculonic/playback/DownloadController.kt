@@ -24,6 +24,7 @@ class DownloadController(
     private val repository: SubsonicRepository
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
+    private val recentlyRequested = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     
     private fun Context.findActivity(): android.app.Activity? {
@@ -41,9 +42,13 @@ class DownloadController(
         if (!isSilent) {
             val activeIds = DownloadTracker.activeDownloadIds.value
             val downloadedIds = DownloadTracker.downloadedSongIds.value
-            if (activeIds.contains(song.id) || downloadedIds.contains(song.id)) {
+            if (activeIds.contains(song.id) || downloadedIds.contains(song.id) || !recentlyRequested.add(song.id)) {
                 LogManager.d("DownloadController: Song ${song.title} is already active or downloaded. Skipping AddRequest.")
                 return
+            }
+            scope.launch {
+                kotlinx.coroutines.delay(2000)
+                recentlyRequested.remove(song.id)
             }
         }
 
@@ -141,23 +146,18 @@ class DownloadController(
                 songId,
                 false
             )
-            
-            
-            scope.launch {
-                try {
-                    val playbackCache = de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(context)
-                    playbackCache.removeResource(songId)
-                    LogManager.d("DownloadController: Cleared playback cache for $songId")
-                } catch (e: Exception) {
-                    LogManager.e("DownloadController: Failed to clear playback cache for $songId", e)
-                }
-            }
         } catch (e: Exception) {
             LogManager.e("DownloadController: Failed to send RemoveDownload intent", e)
         }
 
-        
         scope.launch {
+            try {
+                val playbackCache = de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(context)
+                playbackCache.removeResource(songId)
+                LogManager.d("DownloadController: Cleared playback cache for $songId")
+            } catch (e: Exception) {
+                LogManager.e("DownloadController: Failed to clear playback cache for $songId", e)
+            }
             try {
                 val db = AppDatabase.getDatabase(context)
                 val song = db.musicDao().getSongById(songId)

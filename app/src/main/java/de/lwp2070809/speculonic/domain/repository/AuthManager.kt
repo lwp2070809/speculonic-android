@@ -41,10 +41,7 @@ class AuthManager(
 
     private fun md5WithSalt(passChars: CharArray, salt: String): String {
         val md = MessageDigest.getInstance("MD5")
-        val passBytes = ByteArray(passChars.size)
-        for (i in passChars.indices) {
-            passBytes[i] = passChars[i].code.toByte()
-        }
+        val passBytes = String(passChars).toByteArray(Charsets.UTF_8)
         val saltBytes = salt.toByteArray()
         md.update(passBytes)
         md.update(saltBytes)

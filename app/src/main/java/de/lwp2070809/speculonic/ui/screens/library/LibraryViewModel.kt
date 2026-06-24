@@ -262,7 +262,7 @@ class LibraryViewModel @Inject constructor(
 }
 
 
-fun <T> Flow<T>.debounceExceptFirst(timeoutMillis: Long): Flow<T> = channelFlow {
+private fun <T> Flow<T>.debounceExceptFirst(timeoutMillis: Long): Flow<T> = channelFlow {
     var isFirst = true
     collectLatest { value ->
         if (isFirst) {

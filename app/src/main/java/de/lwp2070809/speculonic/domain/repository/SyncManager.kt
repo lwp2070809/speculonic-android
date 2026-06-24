@@ -156,30 +156,32 @@ class SyncManager(
                             }
                         }
 
-                        withContext(Dispatchers.IO) {
-                            responseBody.byteStream().use { stream ->
-                                val streamingSerializer = SearchResult3StreamingSerializer(
-                                    artistChannel = artistChannel,
-                                    albumChannel = albumChannel,
-                                    songChannel = songChannel,
-                                    tempIdChannel = tempIdChannel,
-                                    existingAlbumsMap = existingAlbumsMap,
-                                    existingSongsMetadata = existingSongsMetadata,
-                                    entityMapper = entityMapper,
-                                    onSongCount = { serverSongCount = it },
-                                    batchSize = BATCH_SIZE
-                                )
-                                
-                                val wrapperSerializer = SubsonicResponseStreamingSerializer(streamingSerializer)
-                                json.decodeFromStream(wrapperSerializer, stream)
+                        try {
+                            withContext(Dispatchers.IO) {
+                                responseBody.byteStream().use { stream ->
+                                    val streamingSerializer = SearchResult3StreamingSerializer(
+                                        artistChannel = artistChannel,
+                                        albumChannel = albumChannel,
+                                        songChannel = songChannel,
+                                        tempIdChannel = tempIdChannel,
+                                        existingAlbumsMap = existingAlbumsMap,
+                                        existingSongsMetadata = existingSongsMetadata,
+                                        entityMapper = entityMapper,
+                                        onSongCount = { serverSongCount = it },
+                                        batchSize = BATCH_SIZE
+                                    )
+                                    
+                                    val wrapperSerializer = SubsonicResponseStreamingSerializer(streamingSerializer)
+                                    json.decodeFromStream(wrapperSerializer, stream)
+                                }
                             }
+                        } finally {
+                            artistChannel.close()
+                            albumChannel.close()
+                            songChannel.close()
+                            tempIdChannel.close()
+                            writerJob.join()
                         }
-
-                        artistChannel.close()
-                        albumChannel.close()
-                        songChannel.close()
-                        tempIdChannel.close()
-                        writerJob.join()
                     }
 
                     

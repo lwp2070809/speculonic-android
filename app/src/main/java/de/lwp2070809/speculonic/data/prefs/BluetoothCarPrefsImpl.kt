@@ -44,4 +44,22 @@ class BluetoothCarPrefsImpl(private val context: Context) : BluetoothCarPrefs {
             preferences[BLUETOOTH_CAR_DEVICE_NAMES] = names
         }
     }
+
+    override suspend fun addBluetoothCarDeviceName(name: String) {
+        context.dataStore.edit { preferences ->
+            val currentNames = preferences[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet()
+            if (!currentNames.contains(name)) {
+                preferences[BLUETOOTH_CAR_DEVICE_NAMES] = currentNames + name
+            }
+        }
+    }
+
+    override suspend fun removeBluetoothCarDeviceName(name: String) {
+        context.dataStore.edit { preferences ->
+            val currentNames = preferences[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet()
+            if (currentNames.contains(name)) {
+                preferences[BLUETOOTH_CAR_DEVICE_NAMES] = currentNames - name
+            }
+        }
+    }
 }
