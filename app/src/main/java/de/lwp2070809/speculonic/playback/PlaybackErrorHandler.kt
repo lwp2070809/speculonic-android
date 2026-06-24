@@ -21,11 +21,11 @@ class PlaybackErrorHandler(
     private val mobilePlayAllowed: () -> Boolean,
     private val dbProvider: () -> AppDatabase?
 ) {
-    private var consecutiveErrorCount = 0
+    private val consecutiveErrorCount = java.util.concurrent.atomic.AtomicInteger(0)
     private var lastErrorMediaId: String? = null
 
     fun resetErrorCount() {
-        consecutiveErrorCount = 0
+        consecutiveErrorCount.set(0)
         lastErrorMediaId = null
     }
 
@@ -34,16 +34,16 @@ class PlaybackErrorHandler(
         LogManager.e("Player error on item $currentMediaId: ${error.errorCodeName} (${error.errorCode})", error)
 
         if (currentMediaId == lastErrorMediaId) {
-            consecutiveErrorCount++
+            consecutiveErrorCount.incrementAndGet()
         } else {
             lastErrorMediaId = currentMediaId
-            consecutiveErrorCount = 1
+            consecutiveErrorCount.set(1)
         }
 
-        if (consecutiveErrorCount > 3) {
+        if (consecutiveErrorCount.get() > 3) {
             LogManager.w("Consecutive errors detected for the same item. Stopping playback to prevent infinite loop.")
             player.pause()
-            consecutiveErrorCount = 0
+            consecutiveErrorCount.set(0)
             return
         }
 

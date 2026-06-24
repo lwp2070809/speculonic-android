@@ -92,7 +92,7 @@ class PlaybackController private constructor(context: Context) {
     private var isAppVisible = true
     private var songsPlayedSinceTimerStarted = 0
     private var lastMediaId: String? = null
-    private val pendingActions = mutableListOf<(MediaController) -> Unit>()
+    private val pendingActions = java.util.concurrent.CopyOnWriteArrayList<(MediaController) -> Unit>()
 
     private fun executeWhenReady(action: (MediaController) -> Unit) {
         ensureController()

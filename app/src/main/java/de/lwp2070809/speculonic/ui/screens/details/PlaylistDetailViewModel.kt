@@ -39,8 +39,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
     
-    @Volatile
-    private var isUsingEphemeralData = false
+    private val isUsingEphemeralData = java.util.concurrent.atomic.AtomicBoolean(false)
 
     init {
         observeMetadata()
@@ -63,7 +62,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                 
                 
                 if (isSyncing && songs.isNotEmpty()) {
-                    isUsingEphemeralData = true
+                    isUsingEphemeralData.set(true)
                 }
 
                 val playlists = repository.getPlaylists(forceRefresh = forceRefresh)
@@ -101,13 +100,13 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             repository.getSongsByPlaylistFlow(playlistId).collectLatest { songs ->
                 
                 
-                if (isUsingEphemeralData && songs.isEmpty()) {
+                if (isUsingEphemeralData.get() && songs.isEmpty()) {
                     return@collectLatest
                 }
                 
                 _uiState.value = _uiState.value.copy(songs = songs)
                 if (songs.isNotEmpty()) {
-                    isUsingEphemeralData = false
+                    isUsingEphemeralData.set(false)
                 }
             }
         }

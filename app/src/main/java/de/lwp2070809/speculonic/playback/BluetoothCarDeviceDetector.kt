@@ -29,7 +29,7 @@ class BluetoothCarDeviceDetector(
     private val _carConnectionState = MutableStateFlow(false)
     val carConnectionState = _carConnectionState.asStateFlow()
 
-    private var isInitialized = false
+    private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
     private var bluetoothA2dp: BluetoothA2dp? = null
     
     private val bluetoothProfileListener = object : BluetoothProfile.ServiceListener {
@@ -51,6 +51,7 @@ class BluetoothCarDeviceDetector(
 
     private var audioDeviceCallback: AudioDeviceCallback? = null
     private var connectionDebounceJob: Job? = null
+    private val debounceMutex = kotlinx.coroutines.sync.Mutex()
 
     private fun hasBluetoothConnectPermission(): Boolean {
         return androidx.core.content.ContextCompat.checkSelfPermission(
@@ -60,12 +61,11 @@ class BluetoothCarDeviceDetector(
     }
 
     fun init() {
-        if (isInitialized) return
+        if (isInitialized.getAndSet(true)) return
         if (!hasBluetoothConnectPermission()) {
             LogManager.w("BluetoothCarDeviceDetector: Missing BLUETOOTH_CONNECT permission, skipping initialization.")
             return
         }
-        isInitialized = true
         try {
             val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             bluetoothManager.adapter?.getProfileProxy(context, bluetoothProfileListener, BluetoothProfile.A2DP)
@@ -104,7 +104,7 @@ class BluetoothCarDeviceDetector(
     }
 
     fun release() {
-        if (!isInitialized) return
+        if (!isInitialized.get()) return
         try {
             audioDeviceCallback?.let {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -120,18 +120,25 @@ class BluetoothCarDeviceDetector(
         }
         bluetoothA2dp = null
         connectionDebounceJob?.cancel()
-        isInitialized = false
+        isInitialized.set(false)
     }
 
     fun checkConnectionState() {
-        connectionDebounceJob?.cancel()
-        val isConnected = isCarBluetoothConnected()
-        if (isConnected) {
-            _carConnectionState.value = true
-        } else {
-            connectionDebounceJob = serviceScope.launch {
-                delay(500)
-                _carConnectionState.value = isCarBluetoothConnected()
+        serviceScope.launch {
+            debounceMutex.lock()
+            try {
+                connectionDebounceJob?.cancel()
+                val isConnected = isCarBluetoothConnected()
+                if (isConnected) {
+                    _carConnectionState.value = true
+                } else {
+                    connectionDebounceJob = serviceScope.launch {
+                        delay(500)
+                        _carConnectionState.value = isCarBluetoothConnected()
+                    }
+                }
+            } finally {
+                debounceMutex.unlock()
             }
         }
     }

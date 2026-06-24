@@ -18,7 +18,17 @@ class PlaybackAudioFocusHelper(
 
     private var focusRequest: AudioFocusRequest? = null
     var playWhenReadyBeforeLoss = false
+        private set
     var isTransientLossActive = false
+        private set
+    private val focusLock = Any()
+
+    fun resetLossState() {
+        synchronized(focusLock) {
+            isTransientLossActive = false
+            playWhenReadyBeforeLoss = false
+        }
+    }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
         if (isDefaultFocusHandling) return@OnAudioFocusChangeListener
@@ -32,34 +42,46 @@ class PlaybackAudioFocusHelper(
             when (focusChange) {
                 AudioManager.AUDIOFOCUS_LOSS -> {
                     if (pauseOnAudioFocusLoss) {
-                        playWhenReadyBeforeLoss = false
-                        isTransientLossActive = false
+                        synchronized(focusLock) {
+                            playWhenReadyBeforeLoss = false
+                            isTransientLossActive = false
+                        }
                         realPlayer.pause()
                         abandonAudioFocus()
                     }
                 }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
-                    playWhenReadyBeforeLoss = realPlayer.playWhenReady
-                    isTransientLossActive = true
+                    synchronized(focusLock) {
+                        playWhenReadyBeforeLoss = realPlayer.playWhenReady
+                        isTransientLossActive = true
+                    }
                     realPlayer.pause()
                 }
                 AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
                     if (duckOnTransientFocusLoss) {
                         realPlayer.volume = 0.2f
                     } else {
-                        playWhenReadyBeforeLoss = realPlayer.playWhenReady
-                        isTransientLossActive = true
+                        synchronized(focusLock) {
+                            playWhenReadyBeforeLoss = realPlayer.playWhenReady
+                            isTransientLossActive = true
+                        }
                         realPlayer.pause()
                     }
                 }
                 AudioManager.AUDIOFOCUS_GAIN -> {
                     realPlayer.volume = 1.0f
-                    if (isTransientLossActive) {
-                        isTransientLossActive = false
-                        if (playWhenReadyBeforeLoss) {
-                            realPlayer.play()
-                            playWhenReadyBeforeLoss = false
+                    var shouldPlay = false
+                    synchronized(focusLock) {
+                        if (isTransientLossActive) {
+                            isTransientLossActive = false
+                            if (playWhenReadyBeforeLoss) {
+                                shouldPlay = true
+                                playWhenReadyBeforeLoss = false
+                            }
                         }
+                    }
+                    if (shouldPlay) {
+                        realPlayer.play()
                     }
                 }
             }

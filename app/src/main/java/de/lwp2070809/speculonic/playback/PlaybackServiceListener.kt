@@ -61,8 +61,7 @@ class PlaybackServiceListener(
         if (!audioFocusHelper.isDefaultFocusHandling) {
             if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
                 audioFocusHelper.abandonAudioFocus()
-                audioFocusHelper.isTransientLossActive = false
-                audioFocusHelper.playWhenReadyBeforeLoss = false
+                audioFocusHelper.resetLossState()
             }
         }
     }
@@ -87,7 +86,7 @@ class PlaybackServiceListener(
                 if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
                     player.playWhenReady = false
                 } else {
-                    audioFocusHelper.isTransientLossActive = false
+                    audioFocusHelper.resetLossState()
                 }
             }
         }

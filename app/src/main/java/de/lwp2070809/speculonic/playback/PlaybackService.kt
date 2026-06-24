@@ -61,7 +61,7 @@ class PlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     private var cacheStrategyManager: CacheStrategyManager? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
-    private var isInitializing = false
+    private val isInitializing = java.util.concurrent.atomic.AtomicBoolean(false)
     
     private var silentCacheJob: Job? = null
     private var currentQueueTitle: String? = null
@@ -158,7 +158,7 @@ class PlaybackService : MediaSessionService() {
                 oldPlayer?.release()
                 
                 service.cacheStrategyManager = null
-                service.isInitializing = false
+                service.isInitializing.set(false)
             }
         }
 
@@ -175,8 +175,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun initializeSessionAndPlayer() {
-        if (isInitializing) return
-        isInitializing = true
+        if (!isInitializing.compareAndSet(false, true)) return
 
         serviceScope.launch {
             try {
@@ -212,7 +211,7 @@ class PlaybackService : MediaSessionService() {
                 audioFocusHelper.isDefaultFocusHandling = audioFocusHelper.duckOnTransientFocusLoss && audioFocusHelper.pauseOnAudioFocusLoss
 
                 if (config.serverUrl.isBlank()) {
-                    isInitializing = false
+                    isInitializing.set(false)
                     return@launch
                 }
                 
@@ -267,7 +266,7 @@ class PlaybackService : MediaSessionService() {
             } catch (e: Exception) {
                 LogManager.e("PlaybackService failed to initialize", e)
             } finally {
-                isInitializing = false
+                isInitializing.set(false)
             }
         }
     }
@@ -345,8 +344,7 @@ class PlaybackService : MediaSessionService() {
                     
                     if (audioFocusHelper.isDefaultFocusHandling) {
                         audioFocusHelper.abandonAudioFocus()
-                        audioFocusHelper.isTransientLossActive = false
-                        audioFocusHelper.playWhenReadyBeforeLoss = false
+                        audioFocusHelper.resetLossState()
                     }
                 }
             }
