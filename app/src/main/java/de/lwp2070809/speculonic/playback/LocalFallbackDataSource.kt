@@ -61,15 +61,14 @@ class LocalFallbackDataSource(
 
     private fun queryLocalUri(songId: String): String? {
         return try {
-            val cursor = db.openHelper.readableDatabase.query(
-                "SELECT localUri FROM songs WHERE id = ? AND isFullyCached = 1 LIMIT 1",
-                arrayOf(songId)
-            )
-            cursor.use {
-                if (it.moveToFirst()) it.getString(0) else null
+            val song = db.musicDao().getSongByIdSync(songId)
+            if (song != null && song.isFullyCached) {
+                song.localUri
+            } else {
+                null
             }
         } catch (e: Exception) {
-            LogManager.e("LocalFallbackDataSource: DB query failed for $songId", e)
+            LogManager.e("LocalFallbackDataSource: DAO query failed for $songId", e)
             null
         }
     }

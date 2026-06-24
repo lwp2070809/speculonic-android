@@ -160,13 +160,24 @@ object DownloadTracker {
                     _activeDownloadIds.update { it - download.request.id }
                 }
             }
-            updateAllDownloads(downloadManager)
+            val currentList = _allDownloads.value.toMutableList()
+            val index = currentList.indexOfFirst { it.request.id == download.request.id }
+            if (index != -1) {
+                currentList[index] = download
+            } else {
+                currentList.add(download)
+            }
+            _allDownloads.value = currentList
+            checkAndStartPolling(downloadManager)
         }
 
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
-            updateAllDownloads(downloadManager)
+            val currentList = _allDownloads.value.toMutableList()
+            currentList.removeAll { it.request.id == download.request.id }
+            _allDownloads.value = currentList
+            checkAndStartPolling(downloadManager)
             
             scope.launch {
                 val db = AppDatabase.getDatabase(context)

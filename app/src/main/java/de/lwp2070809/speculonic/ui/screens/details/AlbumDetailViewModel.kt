@@ -95,12 +95,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
         val currentAlbum = _uiState.value.album ?: return
         val isStarred = currentAlbum.starred != null
         viewModelScope.launch {
-            val success = repository.starAlbum(albumId, !isStarred)
-            if (success) {
-                _uiState.value = _uiState.value.copy(
-                    album = currentAlbum.copy(starred = if (!isStarred) "true" else null)
-                )
-            }
+            repository.starAlbum(albumId, !isStarred)
         }
     }
 }

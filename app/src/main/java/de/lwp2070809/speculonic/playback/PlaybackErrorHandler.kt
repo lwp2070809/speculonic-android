@@ -92,6 +92,10 @@ class PlaybackErrorHandler(
                     }
 
                     withContext(Dispatchers.Main) {
+                        if (player.currentMediaItem?.mediaId != currentMediaId) {
+                            LogManager.w("Auto-skip aborted: User changed the track during resolution")
+                            return@withContext
+                        }
                         if (nextCachedIndex != -1 && nextCachedIndex < player.mediaItemCount) {
                             LogManager.i("Auto-skip: Jump to cached item at index $nextCachedIndex.")
                             player.seekToDefaultPosition(nextCachedIndex)

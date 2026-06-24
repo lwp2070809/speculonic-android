@@ -5,7 +5,6 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import androidx.media3.common.Player
-import androidx.media3.exoplayer.ExoPlayer
 
 class PlaybackAudioFocusHelper(
     context: Context,
@@ -21,12 +20,15 @@ class PlaybackAudioFocusHelper(
         private set
     var isTransientLossActive = false
         private set
+    private var preDuckVolume = 1.0f
+    private var isDucking = false
     private val focusLock = Any()
 
     fun resetLossState() {
         synchronized(focusLock) {
             isTransientLossActive = false
             playWhenReadyBeforeLoss = false
+            isDucking = false
         }
     }
 
@@ -38,51 +40,60 @@ class PlaybackAudioFocusHelper(
         } else {
             player
         }
-        if (realPlayer is ExoPlayer) {
-            when (focusChange) {
-                AudioManager.AUDIOFOCUS_LOSS -> {
-                    if (pauseOnAudioFocusLoss) {
-                        synchronized(focusLock) {
-                            playWhenReadyBeforeLoss = false
-                            isTransientLossActive = false
-                        }
-                        realPlayer.pause()
-                        abandonAudioFocus()
+        
+        when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> {
+                if (pauseOnAudioFocusLoss) {
+                    synchronized(focusLock) {
+                        playWhenReadyBeforeLoss = false
+                        isTransientLossActive = false
+                        isDucking = false
                     }
+                    realPlayer.pause()
+                    abandonAudioFocus()
                 }
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> {
+                synchronized(focusLock) {
+                    playWhenReadyBeforeLoss = realPlayer.playWhenReady
+                    isTransientLossActive = true
+                }
+                realPlayer.pause()
+            }
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
+                if (duckOnTransientFocusLoss) {
+                    synchronized(focusLock) {
+                        if (!isDucking) {
+                            preDuckVolume = realPlayer.volume
+                            isDucking = true
+                        }
+                    }
+                    realPlayer.volume = preDuckVolume * 0.2f
+                } else {
                     synchronized(focusLock) {
                         playWhenReadyBeforeLoss = realPlayer.playWhenReady
                         isTransientLossActive = true
                     }
                     realPlayer.pause()
                 }
-                AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> {
-                    if (duckOnTransientFocusLoss) {
-                        realPlayer.volume = 0.2f
-                    } else {
-                        synchronized(focusLock) {
-                            playWhenReadyBeforeLoss = realPlayer.playWhenReady
-                            isTransientLossActive = true
+            }
+            AudioManager.AUDIOFOCUS_GAIN -> {
+                var shouldPlay = false
+                synchronized(focusLock) {
+                    if (isDucking) {
+                        realPlayer.volume = preDuckVolume
+                        isDucking = false
+                    }
+                    if (isTransientLossActive) {
+                        isTransientLossActive = false
+                        if (playWhenReadyBeforeLoss) {
+                            shouldPlay = true
+                            playWhenReadyBeforeLoss = false
                         }
-                        realPlayer.pause()
                     }
                 }
-                AudioManager.AUDIOFOCUS_GAIN -> {
-                    realPlayer.volume = 1.0f
-                    var shouldPlay = false
-                    synchronized(focusLock) {
-                        if (isTransientLossActive) {
-                            isTransientLossActive = false
-                            if (playWhenReadyBeforeLoss) {
-                                shouldPlay = true
-                                playWhenReadyBeforeLoss = false
-                            }
-                        }
-                    }
-                    if (shouldPlay) {
-                        realPlayer.play()
-                    }
+                if (shouldPlay) {
+                    realPlayer.play()
                 }
             }
         }

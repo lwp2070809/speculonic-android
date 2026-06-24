@@ -41,6 +41,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.sync.withLock
 import java.io.File
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
@@ -128,6 +129,8 @@ class CacheSyncWorker @AssistedInject constructor(
             val processedSongsCount = AtomicInteger(0)
             val validator = CacheValidator(context)
             val globalSemaphore = Semaphore(5)
+            val progressMutex = kotlinx.coroutines.sync.Mutex()
+            var lastReportedProgress = -1
 
             coroutineScope {
                 cachedSongs.map { song ->
@@ -161,9 +164,7 @@ class CacheSyncWorker @AssistedInject constructor(
                                     LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
                                     musicDao.updateSongCacheStatus(song.id, null, false)
                                     try {
-                                        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                            downloadManager.removeDownload(song.id)
-                                        }
+                                        downloadManager.removeDownload(song.id)
                                         LogManager.i("CacheSync: Successfully removed missing download task for ${song.title} from DownloadManager.")
                                     } catch (e: Exception) {
                                         LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
@@ -201,8 +202,13 @@ class CacheSyncWorker @AssistedInject constructor(
 
                             val processed = processedSongsCount.incrementAndGet()
                             val progressValue = (processed * 90 / totalSongs)
-                            val statusRes = if (isDeepSync) de.lwp2070809.speculonic.R.string.verifying_binary_consistency else de.lwp2070809.speculonic.R.string.scanning_local_files
-                            setProgress(workDataOf(PROGRESS to progressValue, STATUS to context.getString(statusRes, song.title)))
+                            progressMutex.withLock {
+                                if (progressValue > lastReportedProgress) {
+                                    lastReportedProgress = progressValue
+                                    val statusRes = if (isDeepSync) de.lwp2070809.speculonic.R.string.verifying_binary_consistency else de.lwp2070809.speculonic.R.string.scanning_local_files
+                                    setProgress(workDataOf(PROGRESS to progressValue, STATUS to context.getString(statusRes, song.title)))
+                                }
+                            }
                         }
                     }
                 }.awaitAll()
