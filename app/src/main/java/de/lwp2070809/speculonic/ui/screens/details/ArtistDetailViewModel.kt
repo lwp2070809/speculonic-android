@@ -64,6 +64,7 @@ class ArtistDetailViewModel @AssistedInject constructor(
                     ) 
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = e.message) }
             }
         }

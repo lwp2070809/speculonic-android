@@ -61,7 +61,7 @@ fun LibraryScreen(
         pageCount = { tabs.size }
     )
 
-    val allSongsPaged = uiState.allSongsPaged?.collectAsLazyPagingItems()
+    val allSongsPaged = viewModel.allSongsPaged.collectAsLazyPagingItems()
 
     LaunchedEffect(selectedTabIndex) {
         if (selectedTabIndex != pagerState.currentPage) {
@@ -167,9 +167,9 @@ fun LibraryScreen(
                                         isOnline = isOnline,
                                         isEffectivelyOnline = isEffectivelyOnline
                                     )
-                                    2 -> allSongsPaged?.let { songsPaged ->
+                                    2 -> {
                                         AllSongsList(
-                                            songsPaged = songsPaged,
+                                            songsPaged = allSongsPaged,
                                             isOnline = isOnline,
                                             isEffectivelyOnline = isEffectivelyOnline,
                                             isStreamingAllowed = isStreamingAllowed

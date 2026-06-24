@@ -21,8 +21,7 @@ object PaletteUtils {
     
     private val colorCache = LruCache<String, Color>(100)
     
-    
-    private val lockPool = Array(16) { Mutex() }
+    private val lockPool = Array(256) { Mutex() }
 
     
     suspend fun getSeedColorAsync(

@@ -34,7 +34,6 @@ data class LibraryUiState(
     val artists: List<Artist> = emptyList(),
     val albums: List<Album> = emptyList(),
     val playlists: List<Playlist> = emptyList(),
-    val allSongsPaged: kotlinx.coroutines.flow.Flow<PagingData<Song>>? = null,
     val favorites: List<Song> = emptyList(),
     val selectedTabIndex: Int = 0,
     val error: String? = null,
@@ -50,6 +49,8 @@ class LibraryViewModel @Inject constructor(
 
     private val context = de.lwp2070809.speculonic.SpeculonicApp.instance
     private val _uiState = MutableStateFlow(LibraryUiState())
+    
+    val allSongsPaged: Flow<PagingData<Song>> = repository.getAllSongsPaged().cachedIn(viewModelScope)
     
     @OptIn(kotlinx.coroutines.FlowPreview::class)
     val uiState: StateFlow<LibraryUiState> = combine(
@@ -70,13 +71,12 @@ class LibraryViewModel @Inject constructor(
             artists = args[4] as List<Artist>,
             favorites = args[5] as List<Song>,
             playlists = args[6] as List<Playlist>,
-            allSongsPaged = state.allSongsPaged ?: repository.getAllSongsPaged().cachedIn(viewModelScope),
             isInitialLoadComplete = true
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = LibraryUiState(allSongsPaged = repository.getAllSongsPaged().cachedIn(viewModelScope))
+        initialValue = LibraryUiState()
     )
 
     init {

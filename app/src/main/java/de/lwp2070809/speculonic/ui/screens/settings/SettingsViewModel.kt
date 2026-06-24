@@ -229,7 +229,6 @@ class SettingsViewModel @Inject constructor(
                 }
             }.collect { updater ->
                 _uiState.update { updater(it) }
-                refreshCacheSize()
             }
         }
     }
@@ -432,8 +431,13 @@ class SettingsViewModel @Inject constructor(
             }
 
             preferencesManager.saveServerSettings(url, user, pass)
-            viewModelScope.launch(Dispatchers.IO) {
-                repository.ping(force = true)
+            
+            withContext(Dispatchers.IO) {
+                try {
+                    repository.ping(force = true)
+                } catch (e: Exception) {
+                    LogManager.w("SettingsViewModel: Ping failed before sync: ${e.message}")
+                }
             }
             
             
