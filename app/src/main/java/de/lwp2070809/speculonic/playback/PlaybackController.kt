@@ -197,7 +197,7 @@ class PlaybackController private constructor(context: Context) {
                     
                     if (isRepeatOne) {
                         pauseAndStopTimer()
-                    } else if (controller.shuffleModeEnabled) {
+                    } else {
                         if (songsPlayedSinceTimerStarted >= queueSize) {
                             pauseAndStopTimer()
                         }

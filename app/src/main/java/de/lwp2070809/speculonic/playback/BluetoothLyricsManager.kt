@@ -104,17 +104,10 @@ class BluetoothLyricsManager(
                 }
 
                 var lastLineIndex = -1
-                var lastValidPosition = 0L
                 val initialMediaId = player.currentMediaItem?.mediaId
                 
                 while (isActive) {
-                    val rawPosition = player.currentPosition
-                    val position = if (rawPosition == 0L && lastValidPosition > 1000L) {
-                        lastValidPosition
-                    } else {
-                        lastValidPosition = rawPosition
-                        rawPosition
-                    }
+                    val position = player.currentPosition
                     
                     val lineIndex = currentLyricsLines.indexOfLast { it.timeMs <= position }
                     

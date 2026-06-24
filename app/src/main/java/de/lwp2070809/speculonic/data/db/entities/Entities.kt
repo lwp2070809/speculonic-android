@@ -88,10 +88,10 @@ data class PlaylistEntity(
 
 @Entity(
     tableName = "playlist_song_cross_ref",
+    primaryKeys = ["playlistId", "songId", "order"],
     indices = [Index(value = ["playlistId", "songId", "order"])]
 )
 data class PlaylistSongCrossRef(
-    @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val playlistId: String,
     val songId: String,
     val order: Int

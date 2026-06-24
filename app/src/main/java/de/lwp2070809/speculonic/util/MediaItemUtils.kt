@@ -30,7 +30,7 @@ private fun buildMediaItemInternal(
     }
 
     val rawDuration = duration?.toLong() ?: 0L
-    val durationMs = if (rawDuration < 0) {
+    val durationMs = if (rawDuration <= 0) {
         androidx.media3.common.C.TIME_UNSET
     } else {
         rawDuration * 1000
