@@ -9,8 +9,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.security.MessageDigest
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 
 class CacheValidator(private val context: Context) {
+
+    companion object {
+        private val md5Semaphore = Semaphore(2)
+    }
 
     suspend fun checkBinaryConsistency(uri: Uri, dbSong: SongEntity, deepCheck: Boolean = true): Boolean = withContext(Dispatchers.IO) {
         try {
@@ -47,22 +53,24 @@ class CacheValidator(private val context: Context) {
 
     suspend fun calculateMd5(uri: Uri): String? = withContext(Dispatchers.IO) {
         try {
-            val digest = MessageDigest.getInstance("MD5")
-            val stream = if (uri.scheme == "file") {
-                val file = File(uri.path ?: return@withContext null)
-                file.inputStream()
-            } else {
-                context.contentResolver.openInputStream(uri)
-            }
-            stream?.use { input ->
-                val buffer = ByteArray(65536)
-                var read: Int
-                while (input.read(buffer).also { read = it } != -1) {
-                    digest.update(buffer, 0, read)
+            md5Semaphore.withPermit {
+                val digest = MessageDigest.getInstance("MD5")
+                val stream = if (uri.scheme == "file") {
+                    val file = File(uri.path ?: return@withContext null)
+                    file.inputStream()
+                } else {
+                    context.contentResolver.openInputStream(uri)
                 }
+                stream?.use { input ->
+                    val buffer = ByteArray(65536)
+                    var read: Int
+                    while (input.read(buffer).also { read = it } != -1) {
+                        digest.update(buffer, 0, read)
+                    }
+                }
+                val bytes = digest.digest()
+                bytes.joinToString("") { "%02x".format(it) }
             }
-            val bytes = digest.digest()
-            bytes.joinToString("") { "%02x".format(it) }
         } catch (e: Exception) {
             LogManager.e("CacheValidator: Failed to calculate MD5", e)
             null

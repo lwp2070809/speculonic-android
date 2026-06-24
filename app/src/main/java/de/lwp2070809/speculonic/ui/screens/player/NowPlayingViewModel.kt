@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.async
 
 import javax.inject.Inject
 
@@ -47,14 +48,14 @@ class NowPlayingViewModel @Inject constructor(
     init {
         
         viewModelScope.launch {
-            val initialMode = preferencesManager.playerBackgroundMode.first()
-            val initialSleepMinutes = preferencesManager.lastSleepTimerMinutes.first()
-            val initialSleepSongCount = preferencesManager.lastSleepTimerSongCount.first()
+            val initialModeDeferred = async { preferencesManager.playerBackgroundMode.first() }
+            val initialSleepMinutesDeferred = async { preferencesManager.lastSleepTimerMinutes.first() }
+            val initialSleepSongCountDeferred = async { preferencesManager.lastSleepTimerSongCount.first() }
             
             _uiState.value = _uiState.value.copy(
-                playerBackgroundMode = initialMode,
-                lastSleepTimerMinutes = initialSleepMinutes,
-                lastSleepTimerSongCount = initialSleepSongCount
+                playerBackgroundMode = initialModeDeferred.await(),
+                lastSleepTimerMinutes = initialSleepMinutesDeferred.await(),
+                lastSleepTimerSongCount = initialSleepSongCountDeferred.await()
             )
 
             

@@ -22,6 +22,7 @@ import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.util.SubsonicCoverArtFetcher
 import de.lwp2070809.speculonic.util.SubsonicCoverArtKeyer
 import de.lwp2070809.speculonic.util.SubsonicCoverArtStringKeyer
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -35,6 +36,9 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
 
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
+
+    @Inject
+    lateinit var musicDao: MusicDao
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -86,7 +90,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
                 add(SubsonicCoverArtKeyer())
                 add(SubsonicCoverArtStringKeyer())
                 
-                add(SubsonicCoverArtFetcher.Factory(context))
+                add(SubsonicCoverArtFetcher.Factory(context, musicDao))
                 
                 add(SvgDecoder.Factory())
                 

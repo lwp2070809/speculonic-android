@@ -10,7 +10,7 @@ import coil3.fetch.FetchResult
 import coil3.fetch.Fetcher
 import coil3.fetch.SourceFetchResult
 import coil3.request.Options
-import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.Buffer
@@ -20,7 +20,8 @@ class SubsonicCoverArtFetcher(
     private val data: String,
     private val options: Options,
     private val context: Context,
-    private val imageLoader: ImageLoader
+    private val imageLoader: ImageLoader,
+    private val musicDao: MusicDao
 ) : Fetcher {
 
     override suspend fun fetch(): FetchResult? {
@@ -58,8 +59,7 @@ class SubsonicCoverArtFetcher(
 
     private suspend fun extractFromId3(id: String): ByteArray? = withContext(Dispatchers.IO) {
         try {
-            val db = AppDatabase.getDatabase(context)
-            val localUri = db.musicDao().findLocalUriByCoverArtId(id)?.toUri() ?: return@withContext null
+            val localUri = musicDao.findLocalUriByCoverArtId(id)?.toUri() ?: return@withContext null
             
             val retriever = MediaMetadataRetriever()
             try {
@@ -80,11 +80,11 @@ class SubsonicCoverArtFetcher(
         }
     }
 
-    class Factory(private val context: Context) : Fetcher.Factory<Any> {
+    class Factory(private val context: Context, private val musicDao: MusicDao) : Fetcher.Factory<Any> {
         override fun create(data: Any, options: Options, imageLoader: ImageLoader): Fetcher? {
             val dataString = data.toString()
             return if (dataString.contains("/rest/getCoverArt")) {
-                SubsonicCoverArtFetcher(dataString, options, context, imageLoader)
+                SubsonicCoverArtFetcher(dataString, options, context, imageLoader, musicDao)
             } else {
                 null
             }
