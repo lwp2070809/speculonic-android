@@ -198,6 +198,8 @@ class PlaybackService : MediaSessionService() {
                         val username = uName
                         val password = pWord
                         val maxCacheSize = mCacheSize
+                        // 只有当 duckFocus 和 pauseFocus 都开启时，才允许 ExoPlayer 原生接管焦点控制。
+                        // 如果用户自定义了只开启其中一项，则交由 custom AudioFocusHelper 处理，因此这里必须是 &&。
                         val handleAudioFocus = duckFocus && pauseFocus
                     }
                 }

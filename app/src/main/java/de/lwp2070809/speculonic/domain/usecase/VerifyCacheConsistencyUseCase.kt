@@ -22,14 +22,13 @@ sealed class VerifyCacheState {
 }
 
 class VerifyCacheConsistencyUseCase @Inject constructor(
-    @ApplicationContext private val context: Context
+    @ApplicationContext private val context: Context,
+    private val musicDao: de.lwp2070809.speculonic.data.db.dao.MusicDao
 ) {
     @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     operator fun invoke(cacheLocation: String): Flow<VerifyCacheState> = flow {
         try {
             emit(VerifyCacheState.Progress(0, context.getString(R.string.sync_preparing)))
-            val db = AppDatabase.getDatabase(context)
-            val musicDao = db.musicDao()
             val isSafEnabled = cacheLocation.isNotBlank()
             
             val downloadCache = CacheManager.getDownloadCache(context)

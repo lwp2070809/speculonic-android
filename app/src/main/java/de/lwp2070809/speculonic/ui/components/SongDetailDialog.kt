@@ -61,7 +61,7 @@ fun SongDetailDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val songEntity by repository.musicDaoGet.getSongByIdFlow(song.id).collectAsState(initial = null)
+    val songEntity by repository.getSongEntityByIdFlow(song.id).collectAsState(initial = null)
 
     var sha1 by remember { mutableStateOf<String?>(null) }
     var id3Metadata by remember { mutableStateOf<Map<String, String>?>(null) }

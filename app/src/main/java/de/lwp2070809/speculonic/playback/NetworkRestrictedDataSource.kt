@@ -23,9 +23,6 @@ class NetworkRestrictedDataSource(
     }
 
     override fun read(buffer: ByteArray, offset: Int, length: Int): Int {
-        if (checkRestriction()) {
-            throw NetworkRestrictedException("Network restricted: Metered network usage not allowed for non-cached content during playback")
-        }
         return upstream.read(buffer, offset, length)
     }
     

@@ -18,9 +18,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import javax.inject.Inject
+
 @OptIn(UnstableApi::class)
-class DownloadController(
-    private val context: Context,
+class DownloadController @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: SubsonicRepository
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)

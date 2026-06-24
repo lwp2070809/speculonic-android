@@ -31,42 +31,12 @@ class SyncAllDataUseCase @Inject constructor(
             LogManager.w("SyncAllDataUseCase: ping failed before sync, proceeding anyway")
         }
         
-        val hasLocal = repository.hasLocalData()
-        val syncManager = repository.syncManagerGet
-        val serverCapabilities = repository.serverCapabilitiesGet
-        val musicDao = repository.musicDaoGet
-        val preferencesManager = repository.preferencesManagerGet
-
-        syncManager.syncAllData(
-            serverCapabilities = serverCapabilities,
+        repository.syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
             ignoreSafetyGuard = ignoreSafetyGuard,
-            hasLocalData = hasLocal,
             keepSyncingState = keepSyncingState,
-            onProgress = onProgress,
-            onSyncComplete = { currentTime, serverLastModified ->
-                repository.getStarred(forceRefresh = true)
-                
-                repository.refreshAlbumList("newest")
-                repository.refreshAlbumList("frequent")
-                repository.refreshAlbumList("random")
-                
-                musicDao.deleteOrphanedAlbums()
-                preferencesManager.saveLastSyncTime(currentTime)
-                if (serverLastModified != 0L) {
-                    preferencesManager.saveServerLastModified(serverLastModified)
-                }
-            }
+            onProgress = onProgress
         )
-
-        
-        preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
-
-        
-        if (forceRefresh || !hasLocal) {
-            repository.preloadPlaylistsAndSongs()
-            repository.getStarred(forceRefresh = true)
-        }
     }
 }

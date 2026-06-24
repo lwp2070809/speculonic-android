@@ -23,8 +23,8 @@ object CacheManager {
 
     
     
-    var onRequireCacheRelease: (suspend () -> Unit)? = null
-    var onCacheRebuild: (() -> Unit)? = null
+    @Volatile var onRequireCacheRelease: (suspend () -> Unit)? = null
+    @Volatile var onCacheRebuild: (() -> Unit)? = null
 
     @Synchronized
     fun getDatabaseProvider(context: Context): DatabaseProvider {

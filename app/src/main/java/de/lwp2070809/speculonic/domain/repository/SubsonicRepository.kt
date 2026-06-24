@@ -134,11 +134,54 @@ class SubsonicRepository(
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")
 
-    val syncManagerGet: SyncManager get() = syncManager
     val lyricsRepositoryGet: LyricsRepository get() = lyricsRepository
-    val musicDaoGet: MusicDao get() = musicDao
-    val preferencesManagerGet: PreferencesManager get() = preferencesManager
-    val serverCapabilitiesGet: ServerCapabilities get() = serverCapabilities
+
+    val serverUrlFlow get() = preferencesManager.serverUrl
+    val currentServerCapabilities get() = serverCapabilities
+
+    fun getSongEntityByIdFlow(id: String) = musicDao.getSongByIdFlow(id)
+
+    suspend fun syncAllData(
+        forceRefresh: Boolean = false,
+        ignoreLastModified: Boolean = false,
+        ignoreSafetyGuard: Boolean = false,
+        keepSyncingState: Boolean = false,
+        onProgress: (suspend (String) -> Unit)? = null
+    ) {
+        val hasLocal = hasLocalData()
+
+        syncManager.syncAllData(
+            serverCapabilities = serverCapabilities,
+            forceRefresh = forceRefresh,
+            ignoreLastModified = ignoreLastModified,
+            ignoreSafetyGuard = ignoreSafetyGuard,
+            hasLocalData = hasLocal,
+            keepSyncingState = keepSyncingState,
+            onProgress = onProgress,
+            onSyncComplete = { currentTime, serverLastModified ->
+                repositoryScope.launch {
+                    getStarred(forceRefresh = true)
+                    
+                    refreshAlbumList("newest")
+                    refreshAlbumList("frequent")
+                    refreshAlbumList("random")
+                    
+                    musicDao.deleteOrphanedAlbums()
+                    preferencesManager.saveLastSyncTime(currentTime)
+                    if (serverLastModified != 0L) {
+                        preferencesManager.saveServerLastModified(serverLastModified)
+                    }
+                }
+            }
+        )
+
+        preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
+
+        if (forceRefresh || !hasLocal) {
+            preloadPlaylistsAndSongs()
+            getStarred(forceRefresh = true)
+        }
+    }
 
     
     fun buildStreamUrl(id: String): String = urlBuilder.buildDownloadUrl(id)

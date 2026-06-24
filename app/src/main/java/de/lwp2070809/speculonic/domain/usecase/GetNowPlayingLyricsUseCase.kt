@@ -14,7 +14,7 @@ class GetNowPlayingLyricsUseCase @Inject constructor(
         title: String?
     ): Pair<String?, List<LyricLine>> {
         val lyricsRepository = repository.lyricsRepositoryGet
-        val serverCapabilities = repository.serverCapabilitiesGet
+        val serverCapabilities = repository.currentServerCapabilities
         val hasSongLyricsExtension = serverCapabilities.extensions.contains("songLyrics")
         return lyricsRepository.getLyricsData(songId, artist, title, hasSongLyricsExtension)
     }

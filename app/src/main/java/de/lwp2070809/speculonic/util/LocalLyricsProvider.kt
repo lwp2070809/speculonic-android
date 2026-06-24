@@ -45,7 +45,7 @@ object LocalLyricsProvider {
                 }
             }
         } catch (e: Exception) {
-            
+            LogManager.e("LocalLyricsProvider: Failed to read lyrics file", e)
         }
         null
     }

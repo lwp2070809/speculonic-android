@@ -64,7 +64,7 @@ class DiscoverViewModel @Inject constructor(
 
     private fun observeServerConfigChanges() {
         viewModelScope.launch {
-            repository.preferencesManagerGet.serverUrl.collectLatest { url ->
+            repository.serverUrlFlow.collectLatest { url ->
                 if (url.isNotBlank() && !url.contains("unconfigured")) {
                     val hasData = repository.hasLocalData()
                     if (!hasData) {
