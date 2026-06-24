@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.SharingStarted
@@ -184,71 +185,50 @@ class SettingsViewModel @Inject constructor(
             }
 
             combine(group1, group2, group4, statsFlow, syncGroup) { g1, g2, g4, stats, sync ->
-                SettingsUiState(
-                    serverUrl = g1.serverUrl,
-                    username = g1.username,
-                    password = g1.password,
-                    cacheLocation = g1.cacheLocation,
-                    maxCacheSize = g1.maxCacheSize,
-                    mobilePlayAllowed = g2.mobilePlayAllowed,
-                    showOfflineToast = g4.showOfflineToast,
-                    backgroundSyncEnabled = g2.backgroundSyncEnabled,
-                    logLevel = g2.logLevel,
-                    themeMode = g2.themeMode,
-                    colorMode = g2.colorMode,
-                    playerBackgroundMode = g4.third.backgroundMode,
-                    silentCacheEnabled = g4.third.silentCacheEnabled,
-                    
-                    carBluetoothEnabled = g4.third.bluetooth.carEnabled,
-                    syncPlaybackState = g4.third.bluetooth.syncState,
-                    skipSilenceEnabled = g4.third.playback.skipSilence,
-                    duckOnTransientFocusLoss = g4.third.playback.duckOnTransientFocusLoss,
-                    pauseOnAudioFocusLoss = g4.third.playback.pauseOnAudioFocusLoss,
+                { current: SettingsUiState ->
+                    current.copy(
+                        serverUrl = g1.serverUrl,
+                        username = g1.username,
+                        password = g1.password,
+                        cacheLocation = g1.cacheLocation,
+                        maxCacheSize = g1.maxCacheSize,
+                        mobilePlayAllowed = g2.mobilePlayAllowed,
+                        showOfflineToast = g4.showOfflineToast,
+                        backgroundSyncEnabled = g2.backgroundSyncEnabled,
+                        logLevel = g2.logLevel,
+                        themeMode = g2.themeMode,
+                        colorMode = g2.colorMode,
+                        playerBackgroundMode = g4.third.backgroundMode,
+                        silentCacheEnabled = g4.third.silentCacheEnabled,
+                        
+                        carBluetoothEnabled = g4.third.bluetooth.carEnabled,
+                        syncPlaybackState = g4.third.bluetooth.syncState,
+                        skipSilenceEnabled = g4.third.playback.skipSilence,
+                        duckOnTransientFocusLoss = g4.third.playback.duckOnTransientFocusLoss,
+                        pauseOnAudioFocusLoss = g4.third.playback.pauseOnAudioFocusLoss,
 
-                    bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
-                    bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
-                    bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
-                    
-                    language = getCurrentLanguageLabel(),
-                    isPlaying = _uiState.value.isPlaying,
-                    internalCacheSize = _uiState.value.internalCacheSize,
-                    externalCacheSize = _uiState.value.externalCacheSize,
-                    showSilentCacheConfirm = _uiState.value.showSilentCacheConfirm,
-                    isInteractiveScanning = _uiState.value.isInteractiveScanning,
-                    interactiveScanProgress = _uiState.value.interactiveScanProgress,
-                    interactiveScanStatus = _uiState.value.interactiveScanStatus,
-                    showInconsistencyDialog = _uiState.value.showInconsistencyDialog,
-                    inconsistentItems = _uiState.value.inconsistentItems,
-                    trustAllCertificates = g4.trustAllCertificates,
-                    updateCheckInterval = g4.updateCheckInterval,
-                    autoOfflineOnMetered = g4.autoOfflineOnMetered,
-                    offlineModeEnabled = g4.offlineModeEnabled,
-                    isSaving = _uiState.value.isSaving,
-                    isRefreshing = _uiState.value.isRefreshing,
-                    isScanning = _uiState.value.isScanning,
-                    isSyncing = sync.first,
-                    syncProgress = sync.second,
-                    syncPercentage = _uiState.value.syncPercentage,
-                    showFirstSyncConfirm = _uiState.value.showFirstSyncConfirm,
-                    showSafetyGuardConfirm = _uiState.value.showSafetyGuardConfirm,
-                    safetyGuardMessage = _uiState.value.safetyGuardMessage,
-                    showBluetoothPermissionRequest = _uiState.value.showBluetoothPermissionRequest,
-                    isTestingConnection = _uiState.value.isTestingConnection,
-                    testConnectionResult = _uiState.value.testConnectionResult,
-                    urlError = _uiState.value.urlError,
-                    showMobileSyncConfirm = _uiState.value.showMobileSyncConfirm,
-                    showClearCacheConfirm = _uiState.value.showClearCacheConfirm,
-                    showForceSyncConfirm = _uiState.value.showForceSyncConfirm,
-                    artistsCount = stats.artists,
-                    albumsCount = stats.albums,
-                    songsCount = stats.songs,
-                    playlistsCount = stats.playlists,
-                    lastSyncTime = g1.lastSyncTime,
-                    syncCoverArtOnForce = g1.syncCoverArtOnForce,
-                    serverCapabilities = g1.serverCapabilities
-                )
-            }.collect {
-                _uiState.value = it
+                        bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
+                        bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
+                        bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
+                        
+                        language = getCurrentLanguageLabel(),
+                        trustAllCertificates = g4.trustAllCertificates,
+                        updateCheckInterval = g4.updateCheckInterval,
+                        autoOfflineOnMetered = g4.autoOfflineOnMetered,
+                        offlineModeEnabled = g4.offlineModeEnabled,
+                        isSyncing = sync.first,
+                        syncProgress = sync.second,
+                        artistsCount = stats.artists,
+                        albumsCount = stats.albums,
+                        songsCount = stats.songs,
+                        playlistsCount = stats.playlists,
+                        lastSyncTime = g1.lastSyncTime,
+                        syncCoverArtOnForce = g1.syncCoverArtOnForce,
+                        serverCapabilities = g1.serverCapabilities
+                    )
+                }
+            }.collect { updater ->
+                _uiState.update { updater(it) }
                 refreshCacheSize()
             }
         }

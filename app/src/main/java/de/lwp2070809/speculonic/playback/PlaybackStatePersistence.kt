@@ -67,8 +67,7 @@ class PlaybackStatePersistence(
 
         if (immediate) {
             saveStateJob?.cancel()
-            @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
-            kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO) {
                 prefs.savePlaybackState(mediaId, position, index, queueTitle, repeatMode, shuffleMode)
             }
         } else {

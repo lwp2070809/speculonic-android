@@ -29,6 +29,7 @@ class SyncManager(
     private val pref: PreferencesManager,
     private val entityMapper: EntityMapper
 ) {
+    private val syncMutex = Mutex()
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -422,7 +423,6 @@ class SyncManager(
     }
 
     companion object {
-        private val syncMutex = Mutex()
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L 
         private const val BATCH_SIZE = 500
         private const val SAFETY_GUARD_DROP_RATIO = 0.7

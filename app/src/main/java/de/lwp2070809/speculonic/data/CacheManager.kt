@@ -11,9 +11,11 @@ import androidx.media3.datasource.cache.NoOpCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
 import de.lwp2070809.speculonic.util.LogManager
 import java.io.File
+import kotlinx.coroutines.sync.withLock
 
 @OptIn(UnstableApi::class)
 object CacheManager {
+    private val mutex = kotlinx.coroutines.sync.Mutex()
     private var playbackCache: Cache? = null
     private var downloadCache: Cache? = null
     private var databaseProvider: DatabaseProvider? = null
@@ -74,11 +76,11 @@ object CacheManager {
     }
 
     suspend fun executeWithCacheReleaseLock(block: () -> Unit) {
-        try {
-            LogManager.i("CacheManager: Requesting active components to release caches...")
-            onRequireCacheRelease?.invoke()
-            
-            synchronized(this) {
+        mutex.withLock {
+            try {
+                LogManager.i("CacheManager: Requesting active components to release caches...")
+                onRequireCacheRelease?.invoke()
+                
                 playbackCache?.release()
                 playbackCache = null
                 downloadCache?.release()
@@ -87,14 +89,14 @@ object CacheManager {
                 LogManager.i("CacheManager: All cache instances and database provider released.")
                 
                 block()
-            }
-        } catch (e: Exception) {
-            LogManager.e("CacheManager: Error during cache release & clearance", e)
-        } finally {
-            try {
-                onCacheRebuild?.invoke()
             } catch (e: Exception) {
-                LogManager.e("CacheManager: Error in onCacheRebuild callback", e)
+                LogManager.e("CacheManager: Error during cache release & clearance", e)
+            } finally {
+                try {
+                    onCacheRebuild?.invoke()
+                } catch (e: Exception) {
+                    LogManager.e("CacheManager: Error in onCacheRebuild callback", e)
+                }
             }
         }
     }

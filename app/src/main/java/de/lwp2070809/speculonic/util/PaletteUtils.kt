@@ -62,35 +62,34 @@ object PaletteUtils {
                     .data(uri)
                     .allowHardware(false) 
                     .size(128, 128) 
-            
-            
-            if (stableKey != null) {
-                requestBuilder.diskCacheKey(stableKey)
-                requestBuilder.memoryCacheKey("${stableKey}_128")
-            }
-            
-            val request = requestBuilder.build()
-            
-            val result = imageLoader.execute(request)
-            if (result is SuccessResult) {
-                val bitmap = result.image.toBitmap()
-                val palette = Palette.from(bitmap).generate()
-                val color = extractSeedColor(palette, isDark, fallbackBackgroundColor)
                 
-                if (color != null) {
-                    colorCache.put(cacheKey, color)
+                if (stableKey != null) {
+                    requestBuilder.diskCacheKey(stableKey)
+                    requestBuilder.memoryCacheKey("${stableKey}_128")
                 }
-                color
-            } else {
-                LogManager.e("PaletteUtils: ImageLoader FAILURE for $uri, result=${result.javaClass.simpleName}")
+                
+                val request = requestBuilder.build()
+                
+                val result = imageLoader.execute(request)
+                if (result is SuccessResult) {
+                    val bitmap = result.image.toBitmap()
+                    val palette = Palette.from(bitmap).generate()
+                    val color = extractSeedColor(palette, isDark, fallbackBackgroundColor)
+                    
+                    if (color != null) {
+                        colorCache.put(cacheKey, color)
+                    }
+                    color
+                } else {
+                    LogManager.e("PaletteUtils: ImageLoader FAILURE for $uri, result=${result.javaClass.simpleName}")
+                    null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LogManager.e("PaletteUtils: 封面异步取色失败 - $uri", e)
                 null
             }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            LogManager.e("PaletteUtils: 封面异步取色失败 - $uri", e)
-            null
-        }
         } 
     }
 

@@ -48,16 +48,18 @@ class SubsonicRepository(
 
     @Volatile private var components: Components? = null
     
+    private fun requireComponents(): Components = components ?: throw IllegalStateException("SubsonicRepository components not initialized")
+    
     private val baseUrl: String get() = components?.baseUrl ?: ""
-    private val api: SubsonicService get() = components!!.api
-    private val authManager: AuthManager get() = components!!.authManager
-    private val urlBuilder: UrlBuilder get() = components!!.urlBuilder
-    private val syncManager: SyncManager get() = components!!.syncManager
-    private val playlistRepository: PlaylistRepository get() = components!!.playlistRepository
-    private val userActionRepository: UserActionRepository get() = components!!.userActionRepository
-    private val lyricsRepository: LyricsRepository get() = components!!.lyricsRepository
-    private val mediaRepository: MediaRepository get() = components!!.mediaRepository
-    private val coverArtSyncManager: CoverArtSyncManager get() = components!!.coverArtSyncManager
+    private val api: SubsonicService get() = requireComponents().api
+    private val authManager: AuthManager get() = requireComponents().authManager
+    private val urlBuilder: UrlBuilder get() = requireComponents().urlBuilder
+    private val syncManager: SyncManager get() = requireComponents().syncManager
+    private val playlistRepository: PlaylistRepository get() = requireComponents().playlistRepository
+    private val userActionRepository: UserActionRepository get() = requireComponents().userActionRepository
+    private val lyricsRepository: LyricsRepository get() = requireComponents().lyricsRepository
+    private val mediaRepository: MediaRepository get() = requireComponents().mediaRepository
+    private val coverArtSyncManager: CoverArtSyncManager get() = requireComponents().coverArtSyncManager
 
     private var serverCapabilities = ServerCapabilities()
 

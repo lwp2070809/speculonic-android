@@ -21,9 +21,9 @@ import java.io.File
 @OptIn(UnstableApi::class)
 object CacheExporter {
 
-    @Volatile
     private var cachedRootDoc: Pair<String, DocumentFile>? = null
 
+    @Synchronized
     private fun getCachedOrCreateRootDoc(context: Context, targetSafUriString: String): DocumentFile? {
         val hasPermission = context.contentResolver.persistedUriPermissions.any {
             it.uri.toString() == targetSafUriString && it.isReadPermission && it.isWritePermission

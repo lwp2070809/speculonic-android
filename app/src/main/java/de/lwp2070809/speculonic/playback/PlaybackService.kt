@@ -143,27 +143,31 @@ class PlaybackService : MediaSessionService() {
             repositoryProvider = { repository }
         )
 
+        val serviceRef = java.lang.ref.WeakReference(this)
         CacheManager.onRequireCacheRelease = {
             withContext(Dispatchers.Main) {
+                val service = serviceRef.get() ?: return@withContext
                 LogManager.w("PlaybackService: Cache release requested. Pausing playback and releasing internal player.")
-                persistence.stopPositionPersistence()
-                carAudioManager.stopBluetoothLyricsUpdate()
-                silentCacheJob?.cancel()
+                service.persistence.stopPositionPersistence()
+                service.carAudioManager.stopBluetoothLyricsUpdate()
+                service.silentCacheJob?.cancel()
                 
-                val oldPlayer = mediaSession?.player
-                val newPlaceholderPlayer = ExoPlayer.Builder(this@PlaybackService).build()
-                mediaSession?.player = newPlaceholderPlayer
+                val oldPlayer = service.mediaSession?.player
+                val newPlaceholderPlayer = ExoPlayer.Builder(service).build()
+                service.mediaSession?.player = newPlaceholderPlayer
                 oldPlayer?.release()
                 
-                cacheStrategyManager = null
-                isInitializing = false
+                service.cacheStrategyManager = null
+                service.isInitializing = false
             }
         }
 
         CacheManager.onCacheRebuild = {
-            serviceScope.launch(Dispatchers.Main) {
-                LogManager.i("PlaybackService: Rebuilding player after cache clearance.")
-                initializeSessionAndPlayer()
+            serviceRef.get()?.let { service ->
+                service.serviceScope.launch(Dispatchers.Main) {
+                    LogManager.i("PlaybackService: Rebuilding player after cache clearance.")
+                    service.initializeSessionAndPlayer()
+                }
             }
         }
         
@@ -422,6 +426,11 @@ class PlaybackService : MediaSessionService() {
             player.release()
         }
         mediaSession = null
+        fallbackSession?.run {
+            release()
+            player.release()
+        }
+        fallbackSession = null
         cacheStrategyManager = null
     }
 

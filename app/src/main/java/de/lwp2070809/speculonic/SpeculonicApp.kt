@@ -29,6 +29,8 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
     companion object {
         lateinit var instance: SpeculonicApp
             private set
+        
+        val applicationScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
     }
 
     @Inject

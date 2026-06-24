@@ -51,7 +51,7 @@ object DownloadTracker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val entityMapper = EntityMapper
 
-    private var pollJob: kotlinx.coroutines.Job? = null
+    private val pollJob = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
 
     fun clearAll() {
         _downloadedSongIds.value = emptySet()
@@ -102,17 +102,20 @@ object DownloadTracker {
     private fun checkAndStartPolling(downloadManager: DownloadManager) {
         val hasActive = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }
         if (hasActive) {
-            if (pollJob == null || pollJob?.isActive == false) {
-                pollJob = scope.launch {
+            val currentJob = pollJob.get()
+            if (currentJob == null || !currentJob.isActive) {
+                val newJob = scope.launch {
                     while (true) {
                         kotlinx.coroutines.delay(1000)
                         updateAllDownloads(downloadManager)
                     }
                 }
+                if (!pollJob.compareAndSet(currentJob, newJob)) {
+                    newJob.cancel()
+                }
             }
         } else {
-            pollJob?.cancel()
-            pollJob = null
+            pollJob.getAndSet(null)?.cancel()
         }
     }
 

@@ -19,19 +19,18 @@ class BluetoothCarManager(
     private val mediaSessionProvider: () -> MediaSession?,
     private val repositoryProvider: () -> SubsonicRepository?
 ) {
-    
+    private var isFullyInitialized = false
+
     val deviceDetector: BluetoothCarDeviceDetector = BluetoothCarDeviceDetector(context, serviceScope) {
-        
+        if (!isFullyInitialized) return@BluetoothCarDeviceDetector
         
         if (deviceDetector.isCarBluetoothConnected()) {
             (mediaSessionProvider()?.player as? CarDisguisePlayer)?.triggerCoverSync()
         }
 
-        
         if (syncPlaybackState && deviceDetector.isCarBluetoothConnected()) {
             syncPlaybackStateToBluetooth()
         }
-        
         
         if (bluetoothLyricsEnabled && deviceDetector.isCarBluetoothConnected()) {
             mediaSessionProvider()?.player?.currentMediaItem?.let {
@@ -77,6 +76,10 @@ class BluetoothCarManager(
     var bluetoothLyricsHideProgressBar = false
 
     
+
+    init {
+        isFullyInitialized = true
+    }
 
     fun init() {
         deviceDetector.init()

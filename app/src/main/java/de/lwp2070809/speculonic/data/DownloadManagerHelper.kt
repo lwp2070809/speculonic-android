@@ -20,13 +20,11 @@ object DownloadManagerHelper {
     private var downloadManager: DownloadManager? = null
     private var downloadExecutor: java.util.concurrent.ExecutorService? = null
 
-    @Volatile
-    private var isInitializing = false
+    private val isInitializing = java.util.concurrent.atomic.AtomicBoolean(false)
 
     suspend fun initializeAsync(context: Context) {
         if (downloadManager != null) return
-        if (isInitializing) return
-        isInitializing = true
+        if (isInitializing.getAndSet(true)) return
         try {
             val preferencesManager = PreferencesManager.getInstance(context)
             val maxCacheSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
@@ -41,7 +39,7 @@ object DownloadManagerHelper {
                 }
             }
         } finally {
-            isInitializing = false
+            isInitializing.set(false)
         }
     }
 
