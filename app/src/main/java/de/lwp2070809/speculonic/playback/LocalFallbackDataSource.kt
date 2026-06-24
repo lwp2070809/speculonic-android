@@ -83,7 +83,11 @@ class LocalFallbackDataSource(
     }
 
     override fun close() {
-        activeDataSource?.close()
+        var exception: Throwable? = null
+        try { upstream.close() } catch (e: Throwable) { exception = e }
+        try { contentDataSource.close() } catch (e: Throwable) { if (exception == null) exception = e }
+        try { fileDataSource.close() } catch (e: Throwable) { if (exception == null) exception = e }
         activeDataSource = null
+        if (exception != null) throw exception
     }
 }

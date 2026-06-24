@@ -12,6 +12,7 @@ import de.lwp2070809.speculonic.util.LyricsParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class LyricsRepository(
@@ -21,6 +22,10 @@ class LyricsRepository(
     private val authManager: AuthManager
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
+
+    fun close() {
+        repositoryScope.cancel()
+    }
 
     private val negativeCache = LruCache<String, Boolean>(200)
     private val positiveCache = LruCache<String, Pair<String?, List<LyricLine>>>(50)

@@ -95,6 +95,7 @@ class SubsonicRepository(
     @Synchronized
     private fun reconfigure(url: String, user: String, pass: CharArray) {
         components?.authManager?.clearPassword()
+        components?.lyricsRepository?.close()
         repositoryScope.cancel()
         repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 

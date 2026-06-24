@@ -53,7 +53,7 @@ class ConnectivityManagerNetworkMonitor(
                 if (!isConnected) {
                     
                     debounceJob?.cancel()
-                    debounceJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+                    debounceJob = launch {
                         kotlinx.coroutines.delay(1500)
                         channel.trySend(false)
                     }
@@ -103,7 +103,7 @@ class ConnectivityManagerNetworkMonitor(
 
                 if (!online) {
                     debounceJob?.cancel()
-                    debounceJob = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.Default).launch {
+                    debounceJob = launch {
                         kotlinx.coroutines.delay(1500)
                         channel.trySend(NetworkStatus(false, false))
                     }

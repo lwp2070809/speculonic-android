@@ -148,10 +148,26 @@ interface MusicDao {
     suspend fun deleteSongsNotInTemp()
 
     @Query("DELETE FROM songs WHERE albumId = :albumId AND id NOT IN (:ids)")
-    suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>)
+    suspend fun _deleteSongsByAlbumNotIn(albumId: String, ids: List<String>)
+
+    @Transaction
+    suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>) {
+        if (ids.isEmpty()) deleteSongsByAlbum(albumId) else _deleteSongsByAlbumNotIn(albumId, ids)
+    }
+
+    @Query("DELETE FROM songs WHERE albumId = :albumId")
+    suspend fun deleteSongsByAlbum(albumId: String)
 
     @Query("DELETE FROM songs WHERE parent = :parentId AND id NOT IN (:ids)")
-    suspend fun deleteSongsByParentNotIn(parentId: String, ids: List<String>)
+    suspend fun _deleteSongsByParentNotIn(parentId: String, ids: List<String>)
+
+    @Transaction
+    suspend fun deleteSongsByParentNotIn(parentId: String, ids: List<String>) {
+        if (ids.isEmpty()) deleteSongsByParent(parentId) else _deleteSongsByParentNotIn(parentId, ids)
+    }
+
+    @Query("DELETE FROM songs WHERE parent = :parentId")
+    suspend fun deleteSongsByParent(parentId: String)
 
     @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY track ASC")
     suspend fun getSongsByAlbum(albumId: String): List<SongEntity>
@@ -175,7 +191,12 @@ interface MusicDao {
     }
 
     @Query("DELETE FROM playlists WHERE id NOT IN (:ids)")
-    suspend fun deletePlaylistsNotIn(ids: List<String>)
+    suspend fun _deletePlaylistsNotIn(ids: List<String>)
+
+    @Transaction
+    suspend fun deletePlaylistsNotIn(ids: List<String>) {
+        if (ids.isEmpty()) clearAllPlaylists() else _deletePlaylistsNotIn(ids)
+    }
 
     @Query("DELETE FROM playlists")
     suspend fun clearAllPlaylists()

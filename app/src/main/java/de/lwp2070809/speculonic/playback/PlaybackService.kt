@@ -272,106 +272,111 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun observeNetworkAndPreferences(prefs: PreferencesManager) {
-        val networkMonitor = this@PlaybackService.networkMonitor
-        serviceScope.launch { networkMonitor.isMetered.collect { isMetered = it } }
-        serviceScope.launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
-        
-        serviceScope.launch {
-            prefs.carBluetoothEnabled.collect { isEnabled ->
-                carAudioManager.carBluetoothEnabled = isEnabled
-                if (isEnabled) {
-                    carAudioManager.init()
-                } else {
-                    carAudioManager.release()
-                }
-                
-                if (!isEnabled || !carAudioManager.bluetoothLyricsEnabled) {
-                    carAudioManager.stopBluetoothLyricsUpdate()
-                    carAudioManager.updateMediaSessionMetadata(null)
-                } else if (carAudioManager.isCarBluetoothConnected()) {
-                    mediaSession?.player?.currentMediaItem?.let { item -> carAudioManager.loadLyricsForBluetooth(item) }
-                }
-            }
-        }
-        
-        serviceScope.launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
-        
-        serviceScope.launch {
-            prefs.skipSilenceEnabled.collect { skip ->
-                val player = mediaSession?.player
-                if (player is BluetoothCarManager.CarDisguisePlayer) {
-                    val wrapped = player.wrappedPlayer
-                    if (wrapped is ExoPlayer) {
-                        wrapped.skipSilenceEnabled = skip
-                    }
-                } else if (player is ExoPlayer) {
-                    player.skipSilenceEnabled = skip
-                }
-            }
-        }
+    private var prefsObservationJob: Job? = null
 
-        serviceScope.launch {
-            combine(
-                prefs.duckOnTransientFocusLoss,
-                prefs.pauseOnAudioFocusLoss
-            ) { duck, pause ->
-                Pair(duck, pause)
-            }
-            .collect { (duck, pause) ->
-                audioFocusHelper.duckOnTransientFocusLoss = duck
-                audioFocusHelper.pauseOnAudioFocusLoss = pause
-                audioFocusHelper.isDefaultFocusHandling = duck && pause
-                
-                val player = mediaSession?.player
-                if (player != null) {
-                    val realPlayer = if (player is BluetoothCarManager.CarDisguisePlayer) {
-                        player.wrappedPlayer
+    private fun observeNetworkAndPreferences(prefs: PreferencesManager) {
+        prefsObservationJob?.cancel()
+        prefsObservationJob = serviceScope.launch {
+            val networkMonitor = this@PlaybackService.networkMonitor
+            launch { networkMonitor.isMetered.collect { isMetered = it } }
+            launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
+            
+            launch {
+                prefs.carBluetoothEnabled.collect { isEnabled ->
+                    carAudioManager.carBluetoothEnabled = isEnabled
+                    if (isEnabled) {
+                        carAudioManager.init()
                     } else {
-                        player
+                        carAudioManager.release()
                     }
-                    if (realPlayer is ExoPlayer) {
-                        val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
-                            .setUsage(androidx.media3.common.C.USAGE_MEDIA)
-                            .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
-                            .build()
-                        realPlayer.setAudioAttributes(audioAttributes, audioFocusHelper.isDefaultFocusHandling)
+                    
+                    if (!isEnabled || !carAudioManager.bluetoothLyricsEnabled) {
+                        carAudioManager.stopBluetoothLyricsUpdate()
+                        carAudioManager.updateMediaSessionMetadata(null)
+                    } else if (carAudioManager.isCarBluetoothConnected()) {
+                        mediaSession?.player?.currentMediaItem?.let { item -> carAudioManager.loadLyricsForBluetooth(item) }
                     }
                 }
-                
-                if (audioFocusHelper.isDefaultFocusHandling) {
-                    audioFocusHelper.abandonAudioFocus()
-                    audioFocusHelper.isTransientLossActive = false
-                    audioFocusHelper.playWhenReadyBeforeLoss = false
+            }
+            
+            launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
+            
+            launch {
+                prefs.skipSilenceEnabled.collect { skip ->
+                    val player = mediaSession?.player
+                    if (player is BluetoothCarManager.CarDisguisePlayer) {
+                        val wrapped = player.wrappedPlayer
+                        if (wrapped is ExoPlayer) {
+                            wrapped.skipSilenceEnabled = skip
+                        }
+                    } else if (player is ExoPlayer) {
+                        player.skipSilenceEnabled = skip
+                    }
                 }
             }
-        }
-        
-        serviceScope.launch {
-            prefs.bluetoothLyricsEnabled.collect {
-                if (carAudioManager.bluetoothLyricsEnabled == it) return@collect
-                carAudioManager.bluetoothLyricsEnabled = it
-                if (!it || !carAudioManager.carBluetoothEnabled) {
-                    carAudioManager.stopBluetoothLyricsUpdate()
-                    carAudioManager.updateMediaSessionMetadata(null)
-                } else if (carAudioManager.isCarBluetoothConnected()) {
-                    mediaSession?.player?.currentMediaItem?.let { item -> carAudioManager.loadLyricsForBluetooth(item) }
+
+            launch {
+                combine(
+                    prefs.duckOnTransientFocusLoss,
+                    prefs.pauseOnAudioFocusLoss
+                ) { duck, pause ->
+                    Pair(duck, pause)
+                }
+                .collect { (duck, pause) ->
+                    audioFocusHelper.duckOnTransientFocusLoss = duck
+                    audioFocusHelper.pauseOnAudioFocusLoss = pause
+                    audioFocusHelper.isDefaultFocusHandling = duck && pause
+                    
+                    val player = mediaSession?.player
+                    if (player != null) {
+                        val realPlayer = if (player is BluetoothCarManager.CarDisguisePlayer) {
+                            player.wrappedPlayer
+                        } else {
+                            player
+                        }
+                        if (realPlayer is ExoPlayer) {
+                            val audioAttributes = androidx.media3.common.AudioAttributes.Builder()
+                                .setUsage(androidx.media3.common.C.USAGE_MEDIA)
+                                .setContentType(androidx.media3.common.C.AUDIO_CONTENT_TYPE_MUSIC)
+                                .build()
+                            realPlayer.setAudioAttributes(audioAttributes, audioFocusHelper.isDefaultFocusHandling)
+                        }
+                    }
+                    
+                    if (audioFocusHelper.isDefaultFocusHandling) {
+                        audioFocusHelper.abandonAudioFocus()
+                        audioFocusHelper.isTransientLossActive = false
+                        audioFocusHelper.playWhenReadyBeforeLoss = false
+                    }
                 }
             }
-        }
-        serviceScope.launch {
-            prefs.bluetoothLyricsHideProgressBar.collect {
-                carAudioManager.bluetoothLyricsHideProgressBar = it
-                if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
-                    carAudioManager.startBluetoothLyricsUpdate()
+            
+            launch {
+                prefs.bluetoothLyricsEnabled.collect {
+                    if (carAudioManager.bluetoothLyricsEnabled == it) return@collect
+                    carAudioManager.bluetoothLyricsEnabled = it
+                    if (!it || !carAudioManager.carBluetoothEnabled) {
+                        carAudioManager.stopBluetoothLyricsUpdate()
+                        carAudioManager.updateMediaSessionMetadata(null)
+                    } else if (carAudioManager.isCarBluetoothConnected()) {
+                        mediaSession?.player?.currentMediaItem?.let { item -> carAudioManager.loadLyricsForBluetooth(item) }
+                    }
                 }
             }
-        }
-        serviceScope.launch {
-            prefs.bluetoothCarDeviceNames.collect {
-                carAudioManager.bluetoothCarDeviceNames = it
-                if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
-                    carAudioManager.startBluetoothLyricsUpdate()
+            launch {
+                prefs.bluetoothLyricsHideProgressBar.collect {
+                    carAudioManager.bluetoothLyricsHideProgressBar = it
+                    if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
+                        carAudioManager.startBluetoothLyricsUpdate()
+                    }
+                }
+            }
+            launch {
+                prefs.bluetoothCarDeviceNames.collect {
+                    carAudioManager.bluetoothCarDeviceNames = it
+                    if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
+                        carAudioManager.startBluetoothLyricsUpdate()
+                    }
                 }
             }
         }
