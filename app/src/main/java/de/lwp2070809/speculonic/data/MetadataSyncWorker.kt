@@ -96,7 +96,6 @@ class MetadataSyncWorker @AssistedInject constructor(
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
                 .setRequiredNetworkType(NetworkType.UNMETERED) 
-                .setRequiresCharging(true) 
                 .build()
 
             val syncRequest = PeriodicWorkRequestBuilder<MetadataSyncWorker>(12, TimeUnit.HOURS)
@@ -110,7 +109,7 @@ class MetadataSyncWorker @AssistedInject constructor(
                 ExistingPeriodicWorkPolicy.KEEP,
                 syncRequest
             )
-            LogManager.i("MetadataSync: Scheduled periodic sync (12h, WiFi, Charging).")
+            LogManager.i("MetadataSync: Scheduled periodic sync (12h, WiFi).")
         }
 
         fun runOnce(context: Context, forceRefresh: Boolean = false, isQuickOnly: Boolean = false) {
@@ -120,7 +119,7 @@ class MetadataSyncWorker @AssistedInject constructor(
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork(
                 SYNC_WORK_NAME + (if (isQuickOnly) "_Quick" else "_Once"),
-                ExistingWorkPolicy.KEEP,
+                ExistingWorkPolicy.REPLACE,
                 request
             )
         }

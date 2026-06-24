@@ -14,7 +14,7 @@ object LyricsParser {
     fun parse(lrcContent: String?): List<LyricLine> {
         if (lrcContent.isNullOrBlank()) return emptyList()
 
-        val lines = lrcContent.split("\n")
+        val lines = lrcContent.split(Regex("\\r?\\n"))
         val parsedLines = mutableListOf<LyricLine>()
 
 
@@ -26,10 +26,10 @@ object LyricsParser {
             if (content.isEmpty()) continue
 
             for (match in matches) {
-                val min = match.groupValues[1].toLong()
-                val sec = match.groupValues[2].toLong()
+                val min = match.groupValues[1].toLongOrNull() ?: 0L
+                val sec = match.groupValues[2].toLongOrNull() ?: 0L
                 val fractionStr = match.groupValues[3]
-                val fraction = fractionStr.takeIf { it.isNotEmpty() }?.toLong() ?: 0L
+                val fraction = fractionStr.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
                 
                 val fractionMs = when (fractionStr.length) {
                     1 -> fraction * 100

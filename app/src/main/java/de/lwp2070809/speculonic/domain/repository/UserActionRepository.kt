@@ -39,16 +39,10 @@ class UserActionRepository(
         val cachedSongs = musicDao.getStarredSongs()
         val cachedAlbums = musicDao.getStarredAlbums()
         
-        val shouldRefresh = forceRefresh || ((cachedSongs.isEmpty() && cachedAlbums.isEmpty()) && !hasLocalData)
+        val isCacheEmpty = cachedSongs.isEmpty() && cachedAlbums.isEmpty()
+        val shouldFetchFromNetwork = forceRefresh || isCacheEmpty
 
-        if (!shouldRefresh && (cachedSongs.isNotEmpty() || cachedAlbums.isNotEmpty())) {
-            return Starred2Response(
-                song = cachedSongs.map { entityMapper.toSong(it) }, 
-                album = cachedAlbums.map { entityMapper.toAlbum(it) }
-            )
-        }
-        
-        if (!forceRefresh && hasLocalData) {
+        if (!shouldFetchFromNetwork) {
             return Starred2Response(
                 song = cachedSongs.map { entityMapper.toSong(it) }, 
                 album = cachedAlbums.map { entityMapper.toAlbum(it) }

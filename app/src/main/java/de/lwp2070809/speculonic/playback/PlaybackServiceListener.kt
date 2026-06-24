@@ -15,7 +15,7 @@ class PlaybackServiceListener(
     private val onTriggerSilentCache: (MediaItem) -> Unit
 ) : Player.Listener {
 
-    private var currentActiveMediaId: String? = null
+    private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
 
     override fun onPlayerError(error: PlaybackException) {
         errorHandler.handlePlayerError(player, error)

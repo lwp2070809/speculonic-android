@@ -42,6 +42,16 @@ import javax.net.ssl.X509TrustManager
 @Retention(AnnotationRetention.BINARY)
 annotation class GithubHttpClient
 
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class StreamHttpClient
+
+@dagger.hilt.EntryPoint
+@dagger.hilt.InstallIn(SingletonComponent::class)
+interface RepositoryEntryPoint {
+    fun subsonicRepository(): de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+}
+
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
@@ -382,6 +392,36 @@ object NetworkModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         return okHttpClientInstance
+    }
+
+    @Provides
+    @Singleton
+    @StreamHttpClient
+    fun provideStreamOkHttpClient(@ApplicationContext context: android.content.Context): OkHttpClient {
+        return okHttpClientInstance.newBuilder().addInterceptor { chain ->
+            val request = chain.request()
+            val url = request.url
+            val path = url.encodedPath
+            if (path.contains("rest/stream") || path.contains("rest/download")) {
+                if (url.queryParameter("u") == null) {
+                    val entryPoint = dagger.hilt.EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
+                    val authParams = entryPoint.subsonicRepository().getCurrentAuthParams()
+                    if (authParams != null) {
+                        val (u, t, s) = authParams
+                        val newUrl = url.newBuilder()
+                            .addQueryParameter("u", u)
+                            .addQueryParameter("t", t)
+                            .addQueryParameter("s", s)
+                            .addQueryParameter("v", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_API_VERSION)
+                            .addQueryParameter("c", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_CLIENT_ID)
+                            .addQueryParameter("f", "json")
+                            .build()
+                        return@addInterceptor chain.proceed(request.newBuilder().url(newUrl).build())
+                    }
+                }
+            }
+            chain.proceed(request)
+        }.build()
     }
 
     @Provides

@@ -78,7 +78,7 @@ class DownloadService : DownloadService(
                 }
             }
         } catch (e: Exception) {
-            
+            de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to get downloads", e)
         }
         return hasActive && !hasManual
     }
@@ -176,6 +176,7 @@ class DownloadService : DownloadService(
                 json.optBoolean("isSilent", false)
             } else false
         } catch (e: Exception) {
+            de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to parse silent flag", e)
             false
         }
     }

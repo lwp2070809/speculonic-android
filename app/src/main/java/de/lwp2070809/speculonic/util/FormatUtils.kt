@@ -21,8 +21,8 @@ object FormatUtils {
     }
 
     fun formatDuration(millis: Long): String {
-        if (millis <= 0) return "00:00"
-        return formatDuration((millis / 1000).toInt())
+        if (millis <= 0L) return "00:00"
+        return formatDuration((millis / 1000L).toInt())
     }
 
     fun formatSize(bytes: Long): String {
@@ -102,7 +102,7 @@ object FormatUtils {
 
     fun replaceExtensionWithLrc(fileName: String): String {
         val lastDotIndex = fileName.lastIndexOf('.')
-        return if (lastDotIndex != -1) {
+        return if (lastDotIndex > 0) {
             fileName.substring(0, lastDotIndex) + ".lrc"
         } else {
             "$fileName.lrc"

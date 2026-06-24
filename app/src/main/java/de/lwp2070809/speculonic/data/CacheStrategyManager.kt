@@ -18,30 +18,28 @@ class CacheStrategyManager(
     repository: SubsonicRepository,
     private val preferencesManager: PreferencesManager
 ) {
-    private val scope = CoroutineScope(Dispatchers.IO)
     private val downloadController = DownloadController(context, repository)
 
     
-    fun triggerSilentCache(songId: String, title: String, artist: String, album: String, duration: Int?, coverArt: String?) {
-        scope.launch {
-            try {
-                
+    suspend fun triggerSilentCache(songId: String, title: String, artist: String, album: String, duration: Int?, coverArt: String?) {
+        try {
+            
                 if (!preferencesManager.silentCacheEnabled.first()) {
                     LogManager.d("CacheStrategy: Silent cache is disabled in settings.")
-                    return@launch
+                    return
                 }
 
                 
                 if (!canDownloadSilent()) {
                     LogManager.d("CacheStrategy: Silent cache skipped due to network constraints.")
-                    return@launch
+                    return
                 }
 
                 val db = AppDatabase.getDatabase(context)
-                val songEntity = db.musicDao().getSongById(songId) ?: return@launch
+                val songEntity = db.musicDao().getSongById(songId) ?: return
                 
                 
-                if (songEntity.isFullyCached) return@launch
+                if (songEntity.isFullyCached) return
 
                 val song = Song(
                     id = songId,
@@ -54,11 +52,10 @@ class CacheStrategyManager(
                     size = songEntity.size
                 )
 
-                LogManager.i("CacheStrategy: Triggering verified silent cache for $title")
-                downloadController.downloadSong(song, isSilent = true)
-            } catch (e: Exception) {
-                LogManager.e("CacheStrategy: Error in silent cache trigger", e)
-            }
+            LogManager.i("CacheStrategy: Triggering verified silent cache for $title")
+            downloadController.downloadSong(song, isSilent = true)
+        } catch (e: Exception) {
+            LogManager.e("CacheStrategy: Error in silent cache trigger", e)
         }
     }
 

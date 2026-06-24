@@ -331,7 +331,7 @@ interface MusicDao {
     fun getAllSongsPagingSource(): androidx.paging.PagingSource<Int, SongEntity>
 
     
-    @Query("SELECT * FROM songs ORDER BY title ASC LIMIT 3000")
+    @Query("SELECT * FROM songs ORDER BY title ASC")
     fun getAllSongsFlow(): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE isFullyCached = 1")

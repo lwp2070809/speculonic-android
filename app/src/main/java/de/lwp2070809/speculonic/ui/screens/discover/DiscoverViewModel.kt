@@ -47,7 +47,8 @@ private data class DiscoverDataPackage(
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
     private val repository: SubsonicRepository,
-    private val syncAllDataUseCase: SyncAllDataUseCase
+    private val syncAllDataUseCase: SyncAllDataUseCase,
+    private val playbackController: de.lwp2070809.speculonic.playback.PlaybackController
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DiscoverUiState())
@@ -176,10 +177,9 @@ class DiscoverViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                val starredAlbums = repository.getStarredAlbums(forceRefresh = true)
+                repository.getStarredAlbums(forceRefresh = true)
                 _uiState.update { state ->
                     state.copy(
-                        favoriteAlbums = if (starredAlbums.isNotEmpty()) starredAlbums.take(10) else state.favoriteAlbums,
                         isLoading = false
                     )
                 }
@@ -190,7 +190,7 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
-    fun playFavoriteSong(song: Song, playbackController: PlaybackController) {
+    fun playFavoriteSong(song: Song) {
         viewModelScope.launch {
             try {
                 val allFavoriteSongs = repository.getStarred()

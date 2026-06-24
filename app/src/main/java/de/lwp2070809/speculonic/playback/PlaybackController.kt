@@ -441,9 +441,8 @@ class PlaybackController private constructor(context: Context) {
             if (index >= 0 && index < controller.mediaItemCount) {
                 controller.seekTo(index, 0L)
                 controller.play()
-            } else if (controller.mediaItemCount > 0) {
-                controller.seekTo(controller.mediaItemCount - 1, 0L)
-                controller.play()
+            } else {
+                LogManager.w("PlaybackController: skipToQueueItem out of bounds ($index), ignoring.")
             }
         }
     }

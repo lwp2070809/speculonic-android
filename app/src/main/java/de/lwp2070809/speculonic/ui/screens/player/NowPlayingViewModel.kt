@@ -41,6 +41,7 @@ class NowPlayingViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(NowPlayingUiState())
     val uiState: StateFlow<NowPlayingUiState> = _uiState.asStateFlow()
 
+    @Volatile
     private var currentSongId: String? = null
     private var starObservationJob: Job? = null
     private var lyricsJob: Job? = null

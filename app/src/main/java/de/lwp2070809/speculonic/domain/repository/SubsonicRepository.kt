@@ -61,6 +61,10 @@ class SubsonicRepository(
     private val mediaRepository: MediaRepository get() = requireComponents().mediaRepository
     private val coverArtSyncManager: CoverArtSyncManager get() = requireComponents().coverArtSyncManager
 
+    fun getCurrentAuthParams(): Triple<String, String, String>? {
+        return components?.authManager?.getAuthParams()
+    }
+
     private var serverCapabilities = ServerCapabilities()
 
     init {

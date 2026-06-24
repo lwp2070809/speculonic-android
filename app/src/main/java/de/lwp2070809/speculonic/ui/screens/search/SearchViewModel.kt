@@ -63,7 +63,7 @@ class SearchViewModel @Inject constructor(
                             _uiState.value = _uiState.value.copy(results = results, isLoading = false, error = null)
                         } catch (e: Exception) {
                             if (e !is kotlinx.coroutines.CancellationException) {
-                                _uiState.value = _uiState.value.copy(isLoading = false, error = e.message)
+                                _uiState.value = _uiState.value.copy(results = SearchResult3(), isLoading = false, error = e.message)
                             }
                         }
                     }

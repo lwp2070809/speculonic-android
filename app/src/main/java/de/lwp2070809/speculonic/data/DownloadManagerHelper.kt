@@ -66,7 +66,7 @@ object DownloadManagerHelper {
         val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
         val playbackCache = CacheManager.getPlaybackCache(context)
         
-        val okHttpClient = NetworkModule.provideOkHttpClient()
+        val okHttpClient = NetworkModule.provideStreamOkHttpClient(context)
         val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
         
         

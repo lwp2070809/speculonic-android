@@ -192,7 +192,7 @@ fun DiscoverScreen(
                             isEffectivelyOnline = isEffectivelyOnline,
                             isStreamingAllowed = isStreamingAllowed,
                             onSongClick = { song ->
-                                viewModel.playFavoriteSong(song, playbackController)
+                                viewModel.playFavoriteSong(song)
                             }
                         )
                     }

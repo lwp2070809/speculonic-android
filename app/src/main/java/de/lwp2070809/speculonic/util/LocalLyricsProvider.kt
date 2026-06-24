@@ -55,21 +55,6 @@ object LocalLyricsProvider {
         if (lrcContent.isBlank()) return@withContext false
         try {
             if (audioUriString.startsWith("content://")) {
-                val lrcUriString = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(audioUriString)
-                val lrcUri = lrcUriString.toUri()
-                
-                
-                try {
-                    context.contentResolver.openOutputStream(lrcUri, "wt")?.use { out ->
-                        out.write(lrcContent.toByteArray())
-                        LogManager.d("LocalLyricsProvider: Saved lyrics directly to existing .lrc URI")
-                        return@withContext true
-                    }
-                } catch (e: Exception) {
-                    
-                }
-
-                
                 val preferencesManager = de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context)
                 val targetSafUriString = preferencesManager.cacheLocation.first()
                 if (targetSafUriString.isNotBlank()) {

@@ -62,7 +62,7 @@ object LogManager {
     private fun triggerEasterEggGroup(id: Int) {
         val group = easterEggs.find { it.id == id } ?: return
         group.messages.forEach { msg ->
-            addLog(LogLevel.INFO, "${msg.speaker}: ${msg.message}", isEasterEgg = true)
+            addLogAndPrint(LogLevel.INFO, "${msg.speaker}: ${msg.message}", isEasterEgg = true)
         }
     }
 
@@ -71,7 +71,7 @@ object LogManager {
         if (available.isEmpty()) return
         val group = available.random()
         group.messages.forEach { msg ->
-            addLog(LogLevel.INFO, "${msg.speaker}: ${msg.message}", isEasterEgg = true)
+            addLogAndPrint(LogLevel.INFO, "${msg.speaker}: ${msg.message}", isEasterEgg = true)
         }
     }
 
@@ -85,56 +85,46 @@ object LogManager {
     }
 
     fun d(message: String) {
-        if (shouldLog(LogLevel.DEBUG)) {
-            addLog(LogLevel.DEBUG, message)
-            Log.d(TAG, message)
-        }
+        addLogAndPrint(LogLevel.DEBUG, message)
     }
 
     fun i(message: String) {
-        if (shouldLog(LogLevel.INFO)) {
-            addLog(LogLevel.INFO, message)
-            Log.i(TAG, message)
-        }
+        addLogAndPrint(LogLevel.INFO, message)
     }
 
     fun w(message: String, throwable: Throwable? = null) {
-        if (shouldLog(LogLevel.WARN)) {
-            val msg = if (throwable != null) {
-                "$message\n${Log.getStackTraceString(throwable)}"
-            } else {
-                message
-            }
-            addLog(LogLevel.WARN, msg)
-            Log.w(TAG, msg)
-        }
+        addLogAndPrint(LogLevel.WARN, message, throwable)
     }
 
     fun e(message: String, throwable: Throwable? = null) {
-        if (shouldLog(LogLevel.ERROR)) {
-            val msg = if (throwable != null) {
-                "$message\n${Log.getStackTraceString(throwable)}"
-            } else {
-                message
-            }
-            addLog(LogLevel.ERROR, msg)
-            Log.e(TAG, msg)
-        }
-    }
-
-    @Synchronized
-    private fun shouldLog(level: LogLevel): Boolean {
-        val effectiveMin = if (minLevel == LogLevel.KAGUYA) LogLevel.INFO.ordinal else minLevel.ordinal
-        val effectiveLevel = if (level == LogLevel.KAGUYA) LogLevel.INFO.ordinal else level.ordinal
-        return effectiveLevel >= effectiveMin
+        addLogAndPrint(LogLevel.ERROR, message, throwable)
     }
 
     private val buffer = java.util.ArrayDeque<LogEntry>(MAX_LOGS)
 
     @Synchronized
-    private fun addLog(level: LogLevel, message: String, isEasterEgg: Boolean = false) {
+    private fun addLogAndPrint(level: LogLevel, message: String, throwable: Throwable? = null, isEasterEgg: Boolean = false) {
+        val effectiveMin = if (minLevel == LogLevel.KAGUYA) LogLevel.INFO.ordinal else minLevel.ordinal
+        val effectiveLevel = if (level == LogLevel.KAGUYA) LogLevel.INFO.ordinal else level.ordinal
+        if (effectiveLevel < effectiveMin) return
+
+        val msg = if (throwable != null) {
+            "$message\n${Log.getStackTraceString(throwable)}"
+        } else {
+            message
+        }
+
+        if (!isEasterEgg) {
+            when (level) {
+                LogLevel.DEBUG -> Log.d(TAG, msg)
+                LogLevel.INFO, LogLevel.KAGUYA -> Log.i(TAG, msg)
+                LogLevel.WARN -> Log.w(TAG, msg)
+                LogLevel.ERROR -> Log.e(TAG, msg)
+            }
+        }
+
         val timestamp = dateFormat.format(Date())
-        val entry = LogEntry(timestamp, level, message, isEasterEgg)
+        val entry = LogEntry(timestamp, level, msg, isEasterEgg)
         
         if (buffer.size >= MAX_LOGS) {
             buffer.removeFirst()

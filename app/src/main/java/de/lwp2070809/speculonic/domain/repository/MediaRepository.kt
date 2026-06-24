@@ -311,6 +311,7 @@ class MediaRepository(
                 song.copy(localUri = local?.localUri, isFullyCached = local?.isFullyCached ?: false)
             })
         } catch (e: Exception) {
+            de.lwp2070809.speculonic.util.LogManager.e("MediaRepository: search failed for query '$query'", e)
             SearchResult3()
         }
     }

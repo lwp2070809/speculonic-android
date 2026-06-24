@@ -255,7 +255,7 @@ class SettingsViewModel @Inject constructor(
     
     private fun validateUrl(url: String): Boolean {
         val trimmed = url.trim()
-        if (trimmed.isEmpty()) return true 
+        if (trimmed.isEmpty()) return false
         if (!trimmed.startsWith("http://") && !trimmed.startsWith("https://")) return false
         return try {
             java.net.URL(trimmed).toURI() != null

@@ -126,27 +126,40 @@ class BluetoothCarManager(
         private var syncTimestamp: Long = 0L
         private var coverSyncTimestamp: Long = 0L
 
-        private inner class WrappedListener(val delegate: Player.Listener) : Player.Listener by delegate {
-            override fun onMediaMetadataChanged(metadata: androidx.media3.common.MediaMetadata) {
-                delegate.onMediaMetadataChanged(this@CarDisguisePlayer.mediaMetadata)
-            }
-            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                delegate.onMediaItemTransition(this@CarDisguisePlayer.currentMediaItem, reason)
-            }
-            override fun onEvents(player: Player, events: Player.Events) {
-                delegate.onEvents(this@CarDisguisePlayer, events)
-            }
-            override fun equals(other: Any?): Boolean {
-                if (this === other) return true
-                if (other === delegate) return true
-                if (other is WrappedListener && delegate == other.delegate) return true
-                return false
-            }
-            override fun hashCode(): Int = delegate.hashCode()
-        }
-
         override fun addListener(listener: Player.Listener) {
-            val wrapped = WrappedListener(listener)
+            val wrapped = java.lang.reflect.Proxy.newProxyInstance(
+                Player.Listener::class.java.classLoader,
+                arrayOf(Player.Listener::class.java)
+            ) { _, method, args ->
+                when (method.name) {
+                    "onMediaMetadataChanged" -> {
+                        method.invoke(listener, this@CarDisguisePlayer.mediaMetadata)
+                    }
+                    "onMediaItemTransition" -> {
+                        method.invoke(listener, this@CarDisguisePlayer.currentMediaItem, args?.get(1))
+                    }
+                    "onEvents" -> {
+                        method.invoke(listener, this@CarDisguisePlayer, args?.get(1))
+                    }
+                    "equals" -> {
+                        val other = args?.get(0)
+                        if (other != null && java.lang.reflect.Proxy.isProxyClass(other.javaClass)) {
+                            java.lang.reflect.Proxy.getInvocationHandler(this) == java.lang.reflect.Proxy.getInvocationHandler(other)
+                        } else {
+                            false
+                        }
+                    }
+                    "hashCode" -> listener.hashCode()
+                    "toString" -> "CarDisguisePlayer.Proxy(${listener.toString()})"
+                    else -> {
+                        if (args == null) {
+                            method.invoke(listener)
+                        } else {
+                            method.invoke(listener, *args)
+                        }
+                    }
+                }
+            } as Player.Listener
             listenerMap[listener] = wrapped
             super.addListener(wrapped)
         }

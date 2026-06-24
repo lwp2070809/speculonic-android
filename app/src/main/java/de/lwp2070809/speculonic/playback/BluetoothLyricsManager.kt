@@ -29,12 +29,12 @@ class BluetoothLyricsManager(
     private val isLyricsEnabled: () -> Boolean
 ) {
     private var bluetoothLyricsJob: Job? = null
-    private var currentLyricsLines: List<LyricLine> = emptyList()
+    @Volatile private var currentLyricsLines: List<LyricLine> = emptyList()
     private var currentLyricsJob: Job? = null
     private var lastUpdateTimestamp = 0L
     private var pendingUpdateJob: Job? = null
     @Volatile var isPlayPauseJitterProtected = false
-    private var currentLoadedMediaId: String? = null
+    @Volatile private var currentLoadedMediaId: String? = null
 
     fun release() {
         stopBluetoothLyricsUpdate()

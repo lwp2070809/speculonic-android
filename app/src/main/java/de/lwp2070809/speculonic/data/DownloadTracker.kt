@@ -234,7 +234,7 @@ object DownloadTracker {
             val maxCacheSize = preferencesManager.maxCacheSize.first()
             
             val cache = CacheManager.getDownloadCache(context, maxCacheSize)
-            val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideOkHttpClient())
+            val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideStreamOkHttpClient(context))
             val cacheDataSourceFactory = CacheDataSource.Factory()
                 .setCache(cache)
                 .setUpstreamDataSourceFactory(httpDataSourceFactory)

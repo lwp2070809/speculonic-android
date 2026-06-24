@@ -15,6 +15,8 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+import de.lwp2070809.speculonic.util.LogManager
+
 class PlaybackStatePersistence(
     private val serviceScope: CoroutineScope,
     private val preferencesManagerProvider: () -> PreferencesManager?,
@@ -24,6 +26,7 @@ class PlaybackStatePersistence(
 ) {
     private var saveStateJob: Job? = null
     private var positionPersistenceJob: Job? = null
+    private var saveQueueJob: Job? = null
 
     suspend fun restorePlaybackState(player: Player, repo: SubsonicRepository) {
         withContext(Dispatchers.IO) {
@@ -40,12 +43,20 @@ class PlaybackStatePersistence(
                 val lastIndex = prefs.lastQueueIndex.first().coerceIn(0, mediaItems.size - 1)
                 val lastPosition = prefs.lastPosition.first()
 
-                withContext(Dispatchers.Main) {
-                    onQueueTitleRestored(lastQueueTitle)
-                    player.repeatMode = lastRepeatMode
-                    player.shuffleModeEnabled = lastShuffleMode
-                    player.setMediaItems(mediaItems, lastIndex, lastPosition)
-                    player.prepare()
+                try {
+                    withContext(Dispatchers.Main) {
+                        onQueueTitleRestored(lastQueueTitle)
+                        player.repeatMode = lastRepeatMode
+                        player.shuffleModeEnabled = lastShuffleMode
+                        player.setMediaItems(mediaItems, lastIndex, lastPosition)
+                        player.prepare()
+                    }
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    LogManager.e("PlaybackStatePersistence: Failed to restore playback state", e)
+                    withContext(Dispatchers.Main) {
+                        player.clearMediaItems()
+                    }
                 }
             } else {
                 withContext(Dispatchers.Main) {
@@ -83,7 +94,9 @@ class PlaybackStatePersistence(
         val currentDb = dbProvider() ?: return
         val mediaItems = (0 until player.mediaItemCount).map { player.getMediaItemAt(it) }
 
-        serviceScope.launch(Dispatchers.IO) {
+        saveQueueJob?.cancel()
+        saveQueueJob = serviceScope.launch(Dispatchers.IO) {
+            delay(1000)
             currentDb.musicDao().updatePlaybackQueue(mediaItems.mapIndexed { index, item ->
                 PlaybackQueueEntity(index, item.mediaId)
             })
@@ -107,6 +120,7 @@ class PlaybackStatePersistence(
 
     fun cancelAll() {
         saveStateJob?.cancel()
+        saveQueueJob?.cancel()
         stopPositionPersistence()
     }
 }

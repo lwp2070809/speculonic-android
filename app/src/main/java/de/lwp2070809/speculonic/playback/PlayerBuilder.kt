@@ -30,7 +30,7 @@ class PlayerBuilder(private val context: Context) {
         checkRestriction: () -> Boolean
     ): ExoPlayer {
         
-        val okHttpClient = NetworkModule.provideOkHttpClient()
+        val okHttpClient = NetworkModule.provideStreamOkHttpClient(context)
         val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
 
         val restrictedHttpDataSourceFactory = DataSource.Factory {

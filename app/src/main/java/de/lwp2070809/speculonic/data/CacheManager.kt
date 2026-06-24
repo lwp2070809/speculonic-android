@@ -16,9 +16,10 @@ import kotlinx.coroutines.sync.withLock
 @OptIn(UnstableApi::class)
 object CacheManager {
     private val mutex = kotlinx.coroutines.sync.Mutex()
-    private var playbackCache: Cache? = null
-    private var downloadCache: Cache? = null
-    private var databaseProvider: DatabaseProvider? = null
+    @Volatile private var playbackCache: Cache? = null
+    @Volatile private var downloadCache: Cache? = null
+    @Volatile private var databaseProvider: DatabaseProvider? = null
+    @Volatile private var currentDownloadCacheSize: Long = -2L
 
     
     
@@ -46,6 +47,12 @@ object CacheManager {
 
     @Synchronized
     fun getDownloadCache(context: Context, maxCacheSize: Long = 1024L * 1024 * 1024): Cache {
+        if (downloadCache != null && currentDownloadCacheSize != maxCacheSize) {
+            LogManager.i("Persistent Download Cache size changed from $currentDownloadCacheSize to $maxCacheSize. Rebuilding...")
+            downloadCache?.release()
+            downloadCache = null
+        }
+        
         if (downloadCache == null) {
             val externalDir = context.getExternalFilesDir(null)
             val targetDir = if (externalDir != null) {
@@ -66,6 +73,7 @@ object CacheManager {
             
             try {
                 downloadCache = SimpleCache(targetDir, evictor, getDatabaseProvider(context))
+                currentDownloadCacheSize = maxCacheSize
                 LogManager.i("Persistent Download Cache (Internal) initialized at: ${targetDir.absolutePath} with size $safeCacheSize")
             } catch (e: Exception) {
                 LogManager.e("Failed to initialize Download Cache!", e)

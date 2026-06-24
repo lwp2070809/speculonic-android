@@ -8,6 +8,7 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -23,60 +24,6 @@ class ConnectivityManagerNetworkMonitor(
     context: Context
 ) : NetworkMonitor {
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
-
-    override val isOnline: Flow<Boolean> = observeCapabilities {
-        it.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-    }
-
-    override val isMetered: Flow<Boolean> = observeCapabilities {
-        !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-    }
-
-    private fun observeCapabilities(predicate: (NetworkCapabilities) -> Boolean): Flow<Boolean> = callbackFlow {
-        if (connectivityManager == null) {
-            channel.trySend(false)
-            channel.close()
-            return@callbackFlow
-        }
-
-        var debounceJob: kotlinx.coroutines.Job? = null
-
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                debounceJob?.cancel()
-                channel.trySend(predicate(capabilities))
-            }
-
-            override fun onLost(network: Network) {
-                
-                val isConnected = connectivityManager.isCurrentlyConnected(predicate)
-                if (!isConnected) {
-                    
-                    debounceJob?.cancel()
-                    debounceJob = launch {
-                        kotlinx.coroutines.delay(1500)
-                        channel.trySend(false)
-                    }
-                } else {
-                    channel.trySend(true)
-                }
-            }
-        }
-
-        channel.trySend(connectivityManager.isCurrentlyConnected(predicate))
-
-        connectivityManager.registerDefaultNetworkCallback(callback)
-
-        awaitClose {
-            debounceJob?.cancel()
-            connectivityManager.unregisterNetworkCallback(callback)
-        }
-    }
-    .distinctUntilChanged()
-
-    private fun ConnectivityManager.isCurrentlyConnected(predicate: (NetworkCapabilities) -> Boolean): Boolean {
-        return activeNetwork?.let(::getNetworkCapabilities)?.let(predicate) ?: false
-    }
 
     override val networkStatus: Flow<NetworkStatus> = callbackFlow {
         if (connectivityManager == null) {
@@ -127,4 +74,8 @@ class ConnectivityManagerNetworkMonitor(
         }
     }
     .distinctUntilChanged()
+
+    override val isOnline: Flow<Boolean> = networkStatus.map { it.isOnline }.distinctUntilChanged()
+
+    override val isMetered: Flow<Boolean> = networkStatus.map { it.isMetered }.distinctUntilChanged()
 }
