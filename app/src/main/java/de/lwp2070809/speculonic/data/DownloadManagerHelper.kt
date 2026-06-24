@@ -89,7 +89,7 @@ object DownloadManagerHelper {
             context.applicationContext,
             databaseProvider,
             downloadCache,
-            httpDataSourceFactory,
+            upstreamDataSourceFactory,
             newExecutor
         ).apply {
             maxParallelDownloads = 5 
