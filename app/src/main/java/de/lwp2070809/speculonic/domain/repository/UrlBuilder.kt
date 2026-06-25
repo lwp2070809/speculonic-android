@@ -24,18 +24,19 @@ class UrlBuilder(
         return builder
     }
 
-    fun buildStreamUrl(id: String): String {
-        return buildBaseUri("stream", includeAuthParams = false)
+    private fun buildMediaUrl(endpoint: String, id: String): String {
+        return buildBaseUri(endpoint, includeAuthParams = false)
             .appendQueryParameter("id", id)
             .appendQueryParameter("format", "raw")
             .build().toString()
     }
 
+    fun buildStreamUrl(id: String): String {
+        return buildMediaUrl("stream", id)
+    }
+
     fun buildDownloadUrl(id: String): String {
-        return buildBaseUri("download", includeAuthParams = false)
-            .appendQueryParameter("id", id)
-            .appendQueryParameter("format", "raw")
-            .build().toString()
+        return buildMediaUrl("download", id)
     }
 
     fun buildCoverArtUrl(id: String): String {

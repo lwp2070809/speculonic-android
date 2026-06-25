@@ -44,11 +44,6 @@ class CoverArtSyncManager(
             requestBuilder.memoryCacheKey(if (size != null) "${stableKey}_$size" else stableKey)
         }
 
-        if (preferLocal) {
-            requestBuilder.diskCachePolicy(CachePolicy.ENABLED)
-            requestBuilder.networkCachePolicy(CachePolicy.ENABLED)
-        }
-        
         return requestBuilder.build()
     }
 

@@ -21,7 +21,7 @@ data class AlbumEntity(
     val artistId: String? = null,
     val coverArt: String? = null,
     val songCount: Int = 0,
-    val duration: Int = 0,
+    val duration: Long = 0,
     val year: Int? = null,
     val genre: String? = null,
     val starred: Boolean = false,
@@ -79,7 +79,7 @@ data class PlaylistEntity(
     val owner: String? = null,
     val `public`: Boolean = false,
     val songCount: Int = 0,
-    val duration: Int = 0,
+    val duration: Long = 0,
     val coverArt: String? = null,
     val pinned: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()

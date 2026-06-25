@@ -37,7 +37,8 @@ class UpdateManager(
             val intervalMs = when (interval) {
                 UpdateCheckInterval.DAILY -> 24 * 60 * 60 * 1000L
                 UpdateCheckInterval.WEEKLY -> 7 * 24 * 60 * 60 * 1000L
-                else -> 0L
+                UpdateCheckInterval.STARTUP -> 0L
+                UpdateCheckInterval.DISABLED -> 0L
             }
 
             if (intervalMs > 0 && currentTime - lastCheckTime < intervalMs) {

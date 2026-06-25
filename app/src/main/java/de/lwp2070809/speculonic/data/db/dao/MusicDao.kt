@@ -344,6 +344,7 @@ interface MusicDao {
         SELECT localUri FROM songs 
         WHERE (coverArt = :id OR albumId = :id OR id = :id) 
         AND localUri IS NOT NULL 
+        ORDER BY (coverArt = :id) DESC, (albumId = :id) DESC
         LIMIT 1
     """)
     suspend fun findLocalUriByCoverArtId(id: String): String?

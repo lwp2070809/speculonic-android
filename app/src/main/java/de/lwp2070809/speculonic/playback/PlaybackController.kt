@@ -362,10 +362,6 @@ class PlaybackController private constructor(context: Context) {
                     controller.repeatMode = Player.REPEAT_MODE_ALL
                     controller.shuffleModeEnabled = true
                 }
-                controller.shuffleModeEnabled -> {
-                    controller.repeatMode = Player.REPEAT_MODE_ALL
-                    controller.shuffleModeEnabled = false
-                }
                 else -> {
                     controller.repeatMode = Player.REPEAT_MODE_ALL
                     controller.shuffleModeEnabled = false

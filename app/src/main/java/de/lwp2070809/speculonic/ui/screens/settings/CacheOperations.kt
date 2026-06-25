@@ -21,7 +21,7 @@ import kotlin.math.pow
 class CacheOperations(private val context: Context) {
     
     suspend fun clearAllCache() = withContext(Dispatchers.IO) {
-        DownloadManagerHelper.reset()
+        DownloadManagerHelper.release()
 
         CacheManager.executeWithCacheReleaseLock {
             File(context.cacheDir, "media_playback_buffer").deleteRecursively()
@@ -59,7 +59,7 @@ class CacheOperations(private val context: Context) {
     }
 
     suspend fun clearSongDownloads() = withContext(Dispatchers.IO) {
-        DownloadManagerHelper.reset()
+        DownloadManagerHelper.release()
         CacheManager.executeWithCacheReleaseLock {
             val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
             internalPersistentDir.deleteRecursively()

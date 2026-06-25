@@ -351,4 +351,7 @@
     <string name="logs_copied_to_clipboard">日志已复制到剪贴板</string>
     <string name="content_description_copy_all">复制全部</string>
     <string name="force_sync_overwrite_local">继续同步 (覆盖本地)</string>
+    <string name="healing_cover_art">正在补全专辑封面…</string>
+    <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
+    <string name="export_failed">导出失败: %1$s</string>
 </resources>

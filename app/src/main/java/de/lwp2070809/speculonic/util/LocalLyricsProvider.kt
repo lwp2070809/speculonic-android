@@ -84,6 +84,10 @@ object LocalLyricsProvider {
                 val lrcFile = java.io.File(lrcPath)
                 val tempFile = java.io.File(lrcPath + ".tmp")
                 tempFile.parentFile?.mkdirs()
+                // 我们先将歌词数据写入一个临时文件 (.lrc.tmp)，然后使用 
+                // 原子重命名 (renameTo) 来应用它。
+                // 这可以确保如果应用程序在写入过程中崩溃或断电，
+                // 我们不会留下一个损坏或只写了一半的 .lrc 文件。
                 tempFile.writeText(lrcContent)
                 if (tempFile.renameTo(lrcFile)) {
                     LogManager.i("LocalLyricsProvider: Saved companion .lrc file to local storage (atomic)")

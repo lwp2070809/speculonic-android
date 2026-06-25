@@ -53,7 +53,7 @@ class PlaylistRepository(
                                 owner = playlist.owner,
                                 `public` = playlist.public ?: false,
                                 songCount = finalCount,
-                                duration = playlist.duration ?: 0,
+                                duration = playlist.duration?.toLong() ?: 0L,
                                 coverArt = playlist.coverArt,
                                 pinned = local?.pinned ?: false
                             )

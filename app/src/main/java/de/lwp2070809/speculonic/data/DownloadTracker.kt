@@ -70,10 +70,10 @@ object DownloadTracker {
     }
 
     private fun loadDownloads(downloadManager: DownloadManager) {
-        updateAllDownloads(downloadManager)
+        refreshDownloads(downloadManager)
     }
 
-    private fun updateAllDownloads(downloadManager: DownloadManager) {
+    private fun refreshDownloads(downloadManager: DownloadManager) {
         val all = mutableListOf<Download>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
@@ -107,7 +107,7 @@ object DownloadTracker {
                 val newJob = scope.launch {
                     while (true) {
                         kotlinx.coroutines.delay(1000)
-                        updateAllDownloads(downloadManager)
+                        refreshDownloads(downloadManager)
                     }
                 }
                 if (!pollJob.compareAndSet(currentJob, newJob)) {

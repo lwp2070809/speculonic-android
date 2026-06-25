@@ -90,7 +90,10 @@ class PlayerBuilder(private val context: Context) {
             .build()
             
         
-        val (minBuffer, maxBuffer, playBuffer, rebuffer) = listOf(15_000, 30_000, 1_500, 2_500)
+        val minBuffer = 15_000
+        val maxBuffer = 30_000
+        val playBuffer = 1_500
+        val rebuffer = 2_500
 
         val loadControl = DefaultLoadControl.Builder()
             .setBufferDurationsMs(minBuffer, maxBuffer, playBuffer, rebuffer)

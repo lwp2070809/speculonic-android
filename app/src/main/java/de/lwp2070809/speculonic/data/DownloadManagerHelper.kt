@@ -159,8 +159,4 @@ object DownloadManagerHelper {
             downloadExecutor = null
         }
     }
-    
-    fun reset() {
-        release()
-    }
 }

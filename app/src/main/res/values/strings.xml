@@ -354,4 +354,7 @@
     <string name="logs_copied_to_clipboard">Logs copied to clipboard</string>
     <string name="content_description_copy_all">Copy All</string>
     <string name="force_sync_overwrite_local">Force Sync (Overwrite Local)</string>
+    <string name="healing_cover_art">Healing album covers…</string>
+    <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
+    <string name="export_failed">Export failed: %1$s</string>
 </resources>

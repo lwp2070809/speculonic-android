@@ -94,7 +94,7 @@ object EntityMapper {
             artistId = album.artistId,
             coverArt = album.coverArt,
             songCount = album.songCount ?: existing?.songCount ?: 0,
-            duration = album.duration ?: existing?.duration ?: 0,
+            duration = album.duration?.toLong() ?: existing?.duration ?: 0L,
             year = album.year ?: existing?.year,
             genre = album.genre ?: existing?.genre,
             starred = finalStarred,
@@ -111,7 +111,7 @@ object EntityMapper {
             artistId = entity.artistId,
             coverArt = entity.coverArt,
             songCount = entity.songCount,
-            duration = entity.duration,
+            duration = entity.duration.toInt(),
             year = entity.year,
             genre = entity.genre,
             starred = if (entity.starred) formatIsoTime(entity.lastUpdated) else null,
@@ -147,7 +147,7 @@ object EntityMapper {
             owner = entity.owner,
             `public` = entity.`public`,
             songCount = entity.songCount,
-            duration = entity.duration,
+            duration = entity.duration.toInt(),
             coverArt = entity.coverArt,
             pinned = entity.pinned
         )

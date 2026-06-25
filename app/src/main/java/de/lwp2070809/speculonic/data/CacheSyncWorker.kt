@@ -249,7 +249,7 @@ class CacheSyncWorker @AssistedInject constructor(
 
         if (shouldHealCovers) {
             try {
-                setProgress(workDataOf(PROGRESS to 98, STATUS to "正在补全专辑封面..."))
+                setProgress(workDataOf(PROGRESS to 98, STATUS to context.getString(de.lwp2070809.speculonic.R.string.healing_cover_art)))
                 LogManager.i("CacheSync: Executing cover art healing sync...")
                 repository.syncAllCoverArt(onProgress = { progressStatus ->
                     setProgress(workDataOf(PROGRESS to 98, STATUS to progressStatus))
@@ -280,14 +280,13 @@ class CacheSyncWorker @AssistedInject constructor(
 
         LogManager.i("CacheSync: Found ${toMigrate.size} songs waiting for migration to SAF.")
         val total = toMigrate.size
-        val autoClean = true
 
         toMigrate.forEachIndexed { index, song ->
             val progressPercent = (index * 100 / total)
             val progressValue = 5 + (progressPercent * 40 / 100)
             setProgress(workDataOf(
                 PROGRESS to progressValue,
-                STATUS to "正在导出历史缓存 (${index + 1}/$total): ${song.title}"
+                STATUS to context.getString(de.lwp2070809.speculonic.R.string.exporting_historical_cache, index + 1, total, song.title)
             ))
 
             val songModel = Song(
@@ -342,19 +341,17 @@ class CacheSyncWorker @AssistedInject constructor(
                     }
                 }
 
-                if (autoClean) {
-                    LogManager.d("CacheSync: autoClean is enabled. Cleaning private cache for ${song.title}.")
-                    try {
-                        CacheManager.getDownloadCache(context).removeResource(song.id)
-                        CacheManager.getPlaybackCache(context).removeResource(song.id)
-                    } catch (e: Exception) {
-                        LogManager.e("CacheSync: Failed to clean playback/download cache for migrated ${song.title}", e)
-                    }
+                LogManager.d("CacheSync: Cleaning private cache for ${song.title}.")
+                try {
+                    CacheManager.getDownloadCache(context).removeResource(song.id)
+                    CacheManager.getPlaybackCache(context).removeResource(song.id)
+                } catch (e: Exception) {
+                    LogManager.e("CacheSync: Failed to clean playback/download cache for migrated ${song.title}", e)
                 }
             }.onFailure {
                 LogManager.e("CacheSync: Migration failed for ${song.title}: ${it.message}")
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.export_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
                 }
             }
         }

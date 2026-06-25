@@ -36,6 +36,10 @@ class SubsonicCoverArtFetcher(
             val snapshot = imageLoader.diskCache?.openSnapshot(diskCacheKey)
             if (snapshot != null) {
                 snapshot.close()
+                // 发现缓存存在时关闭 snapshot 并返回 null。
+                // 返回 null 是向 Coil 声明当前 Fetcher 放弃提供图片源，
+                // 从而让 Coil 自动回退并使用其内部默认的 DiskCache 进行直接解码。
+                // 这避免了重复的网络请求或本地 ID3 提取工作。
                 return null 
             }
         }

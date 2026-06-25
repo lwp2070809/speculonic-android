@@ -52,16 +52,16 @@ class SyncManager(
         }
         try {
             val lastSync = pref.lastSyncTime.first()
-        val lastServerModified = pref.serverLastModified.first()
-        val currentTime = System.currentTimeMillis()
-        
-        if (!forceRefresh && (currentTime - lastSync < SYNC_DEBOUNCE_MILLIS) && hasLocalData) {
-            LogManager.d("SyncManager: syncAllData skipped due to rate limiting")
-            return
-        }
+            val lastServerModified = pref.serverLastModified.first()
+            val currentTime = System.currentTimeMillis()
+            
+            if (!forceRefresh && (currentTime - lastSync < SYNC_DEBOUNCE_MILLIS) && hasLocalData) {
+                LogManager.d("SyncManager: syncAllData skipped due to rate limiting")
+                return
+            }
 
-        pref.saveIsSyncing(true)
-        pref.saveSyncProgress(null)
+            pref.saveIsSyncing(true)
+            pref.saveSyncProgress(null)
 
         try {
             val (u, t, s) = authManager.getAuthParams()
