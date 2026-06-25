@@ -44,6 +44,7 @@ class CacheOperations(private val context: Context) {
             LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
         }
         DownloadTracker.clearAll()
+        DownloadTracker.init(context)
     }
 
     suspend fun clearPlaybackCache() = withContext(Dispatchers.IO) {
@@ -79,6 +80,7 @@ class CacheOperations(private val context: Context) {
             LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
         }
         DownloadTracker.clearAll()
+        DownloadTracker.init(context)
     }
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {

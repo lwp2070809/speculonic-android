@@ -70,7 +70,7 @@ fun SongListItem(
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
-    val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
+    val isDownloaded = song.isFullyCached
     
     val isEnabled = isDownloaded || isStreamingAllowed
     val alpha = if (isEnabled) 1.0f else 0.38f

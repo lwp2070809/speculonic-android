@@ -74,11 +74,11 @@ fun PlaylistDetailScreen(
 
     
     val isAllDownloaded = remember(downloadedIds, uiState.songs) {
-        uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
+        uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
 
     val isPlayActionsEnabled = remember(uiState.songs, downloadedIds, isStreamingAllowed) {
-        isStreamingAllowed || uiState.songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+        isStreamingAllowed || uiState.songs.any { it.isFullyCached }
     }
     val playlistTitle = stringResource(R.string.playlists)
 
@@ -136,7 +136,7 @@ fun PlaylistDetailScreen(
                                 },
                                 onDownloadAll = {
                                     uiState.songs.forEach { song ->
-                                        val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
+                                        val isDownloaded = song.isFullyCached
                                         if (!isDownloaded) {
                                             downloadController.downloadSong(song)
                                         }
@@ -156,7 +156,7 @@ fun PlaylistDetailScreen(
                     itemsIndexed(uiState.songs) { index, song ->
                         var showItemMenu by remember { mutableStateOf(false) }
                         var showDetailDialog by remember { mutableStateOf(false) }
-                        val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
+                        val isDownloaded = song.isFullyCached
                         
                         if (showDetailDialog) {
                             de.lwp2070809.speculonic.ui.components.SongDetailDialog(song = song, onDismiss = { showDetailDialog = false })

@@ -95,11 +95,11 @@ fun DownloadManagerScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val manualDownloads = remember(allDownloads) {
-        allDownloads.filter { !isSilentDownload(it) }
+        allDownloads.filter { !isSilentDownload(it.task) }
     }
 
     val silentDownloads = remember(allDownloads) {
-        allDownloads.filter { isSilentDownload(it) }
+        allDownloads.filter { isSilentDownload(it.task) }
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -127,8 +127,8 @@ fun DownloadManagerScreen(
             ) {
                 TextButton(
                     onClick = {
-                        currentTasks.forEach { task ->
-                            downloadController.cancelDownloadTaskOnly(task.request.id)
+                        currentTasks.forEach { info ->
+                            downloadController.cancelDownloadTaskOnly(info.task.request.id)
                         }
                     },
                     colors = ButtonDefaults.textButtonColors(
@@ -152,9 +152,9 @@ fun DownloadManagerScreen(
 
                 TextButton(
                     onClick = {
-                        currentTasks.forEach { task ->
-                            if (task.state == Download.STATE_DOWNLOADING || task.state == Download.STATE_QUEUED) {
-                                downloadController.pauseDownload(task.request.id)
+                        currentTasks.forEach { info ->
+                            if (info.state == Download.STATE_DOWNLOADING || info.state == Download.STATE_QUEUED) {
+                                downloadController.pauseDownload(info.task.request.id)
                             }
                         }
                     },
@@ -176,9 +176,9 @@ fun DownloadManagerScreen(
 
                 TextButton(
                     onClick = {
-                        currentTasks.forEach { task ->
-                            if (task.state == Download.STATE_STOPPED) {
-                                downloadController.resumeDownload(task.request.id)
+                        currentTasks.forEach { info ->
+                            if (info.state == Download.STATE_STOPPED) {
+                                downloadController.resumeDownload(info.task.request.id)
                             }
                         }
                     },
@@ -231,12 +231,14 @@ fun DownloadManagerScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp)
                 ) {
-                    items(currentTasks, key = { it.request.id }) { task ->
+                    items(currentTasks, key = { it.task.request.id }) { info ->
                         DownloadTaskItem(
-                            task = task,
-                            onPauseClick = { downloadController.pauseDownload(task.request.id) },
-                            onResumeClick = { downloadController.resumeDownload(task.request.id) },
-                            onCancelClick = { downloadController.cancelDownloadTaskOnly(task.request.id) }
+                            task = info.task,
+                            progress = info.progress.coerceAtLeast(0f),
+                            state = info.state,
+                            onPauseClick = { downloadController.pauseDownload(info.task.request.id) },
+                            onResumeClick = { downloadController.resumeDownload(info.task.request.id) },
+                            onCancelClick = { downloadController.cancelDownloadTaskOnly(info.task.request.id) }
                         )
                     }
                 }
@@ -249,6 +251,8 @@ fun DownloadManagerScreen(
 @Composable
 fun DownloadTaskItem(
     task: Download,
+    progress: Float,
+    state: Int,
     onPauseClick: () -> Unit,
     onResumeClick: () -> Unit,
     onCancelClick: () -> Unit
@@ -281,8 +285,6 @@ fun DownloadTaskItem(
             unknownArtist
         }
     }
-
-    val progress = task.percentDownloaded.coerceAtLeast(0f)
 
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -321,13 +323,13 @@ fun DownloadTaskItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 val isSilent = isSilentDownload(task)
-                val isSilentBufferingOrQueuing = isSilent && progress == 0f && (task.state == Download.STATE_DOWNLOADING || task.state == Download.STATE_QUEUED)
+                val isSilentBufferingOrQueuing = isSilent && progress == 0f && (state == Download.STATE_DOWNLOADING || state == Download.STATE_QUEUED)
 
                 val statusLabel = if (isSilentBufferingOrQueuing) {
-                    if (task.state == Download.STATE_QUEUED) stringResource(R.string.silent_queued_status)
+                    if (state == Download.STATE_QUEUED) stringResource(R.string.silent_queued_status)
                     else stringResource(R.string.silent_downloading_status)
                 } else {
-                    getStatusLabel(task.state, progress)
+                    getStatusLabel(state, progress)
                 }
 
                 Row(
@@ -338,9 +340,9 @@ fun DownloadTaskItem(
                     Text(
                         text = statusLabel,
                         fontSize = 11.sp,
-                        color = getStatusColor(task.state)
+                        color = getStatusColor(state)
                     )
-                    if (!isSilentBufferingOrQueuing && (task.state == Download.STATE_DOWNLOADING || task.state == Download.STATE_STOPPED)) {
+                    if (!isSilentBufferingOrQueuing && (state == Download.STATE_DOWNLOADING || state == Download.STATE_STOPPED)) {
                         Text(
                             text = "${progress.toInt()}%",
                             fontSize = 11.sp,
@@ -360,7 +362,7 @@ fun DownloadTaskItem(
                         color = MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
-                } else if (task.state == Download.STATE_DOWNLOADING || task.state == Download.STATE_STOPPED) {
+                } else if (state == Download.STATE_DOWNLOADING || state == Download.STATE_STOPPED) {
                     Spacer(modifier = Modifier.height(4.dp))
                     LinearProgressIndicator(
                         progress = { progress / 100f },
@@ -368,7 +370,7 @@ fun DownloadTaskItem(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = if (task.state == Download.STATE_STOPPED) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                        color = if (state == Download.STATE_STOPPED) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 }
@@ -378,7 +380,7 @@ fun DownloadTaskItem(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                when (task.state) {
+                when (state) {
                     Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
                         IconButton(onClick = onPauseClick) {
                             Icon(

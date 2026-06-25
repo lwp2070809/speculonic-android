@@ -119,7 +119,7 @@ fun AppNavDisplay(
                 onDownloadClick = { downloadController.downloadSong(it) },
                 onDownloadAllClick = {
                     uiState.favorites.forEach { song ->
-                        val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
+                        val isDownloaded = song.isFullyCached
                         if (!isDownloaded) {
                             downloadController.downloadSong(song)
                         }

@@ -35,6 +35,12 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
+data class DownloadTaskInfo(
+    val task: Download,
+    val progress: Float = task.percentDownloaded,
+    val state: Int = task.state
+)
+
 @OptIn(UnstableApi::class)
 object DownloadTracker {
     private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
@@ -43,7 +49,7 @@ object DownloadTracker {
     private val _activeDownloadIds = MutableStateFlow<Set<String>>(emptySet())
     val activeDownloadIds = _activeDownloadIds.asStateFlow()
 
-    private val _allDownloads = MutableStateFlow<List<Download>>(emptyList())
+    private val _allDownloads = MutableStateFlow<List<DownloadTaskInfo>>(emptyList())
     val allDownloadsFlow = _allDownloads.asStateFlow()
 
     private val isInitialized = AtomicBoolean(false)
@@ -57,6 +63,8 @@ object DownloadTracker {
         _downloadedSongIds.value = emptySet()
         _activeDownloadIds.value = emptySet()
         _allDownloads.value = emptyList()
+        isInitialized.set(false)
+        pollJob.getAndSet(null)?.cancel()
     }
 
     fun init(context: Context) {
@@ -74,7 +82,7 @@ object DownloadTracker {
     }
 
     private fun refreshDownloads(downloadManager: DownloadManager) {
-        val all = mutableListOf<Download>()
+        val all = mutableListOf<DownloadTaskInfo>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
         val currentActiveDownloads = downloadManager.currentDownloads
@@ -83,7 +91,7 @@ object DownloadTracker {
             while (cursor.moveToNext()) {
                 val dbDownload = cursor.download
                 val download = currentActiveMap[dbDownload.request.id] ?: dbDownload
-                all.add(download)
+                all.add(DownloadTaskInfo(download))
                 if (download.state == Download.STATE_COMPLETED) {
                     downloaded.add(download.request.id)
                 } else if (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED) {
@@ -161,11 +169,11 @@ object DownloadTracker {
                 }
             }
             val currentList = _allDownloads.value.toMutableList()
-            val index = currentList.indexOfFirst { it.request.id == download.request.id }
+            val index = currentList.indexOfFirst { it.task.request.id == download.request.id }
             if (index != -1) {
-                currentList[index] = download
+                currentList[index] = DownloadTaskInfo(download)
             } else {
-                currentList.add(download)
+                currentList.add(DownloadTaskInfo(download))
             }
             _allDownloads.value = currentList
             checkAndStartPolling(downloadManager)
@@ -175,7 +183,7 @@ object DownloadTracker {
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
             val currentList = _allDownloads.value.toMutableList()
-            currentList.removeAll { it.request.id == download.request.id }
+            currentList.removeAll { it.task.request.id == download.request.id }
             _allDownloads.value = currentList
             checkAndStartPolling(downloadManager)
             
@@ -312,6 +320,7 @@ object DownloadTracker {
                 db.musicDao().updateSongCacheStatus(download.request.id, localUri, true)
                 LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri")
                 
+
                 
                 LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
                 cache.removeResource(download.request.id)

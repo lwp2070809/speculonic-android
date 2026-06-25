@@ -98,6 +98,7 @@ class CacheSyncWorker @AssistedInject constructor(
 
         if (isSafEnabled) {
             migratePrivateCacheToSaf(context, musicDao)
+            cleanupOrphanedPrivateFiles(context, musicDao)
         }
 
         var safFiles: Array<DocumentFile>? = null
@@ -352,6 +353,30 @@ class CacheSyncWorker @AssistedInject constructor(
                 LogManager.e("CacheSync: Migration failed for ${song.title}: ${it.message}")
                 Handler(Looper.getMainLooper()).post {
                     Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.export_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
+                }
+            }
+        }
+    }
+
+    private suspend fun cleanupOrphanedPrivateFiles(context: Context, musicDao: MusicDao) {
+        val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+        if (privateExportedDir.exists()) {
+            val validPrivatePaths = musicDao.getAllCachedSongs()
+                .mapNotNull { it.localUri }
+                .filter { it.startsWith("file:") }
+                .mapNotNull { Uri.parse(it).path }
+                .toSet()
+                
+            privateExportedDir.listFiles()?.forEach { file ->
+                if (file.isFile && file.name != ".nomedia") {
+                    if (!validPrivatePaths.contains(file.absolutePath)) {
+                        val isLrc = file.name.endsWith(".lrc")
+                        val isAudio = de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(file.name)
+                        if (isAudio || isLrc) {
+                            file.delete()
+                            LogManager.i("CacheSync: Deleted orphaned private file: ${file.name}")
+                        }
+                    }
                 }
             }
         }

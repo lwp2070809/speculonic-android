@@ -63,11 +63,11 @@ fun FavoriteList(
         songs.any { activeDownloads.contains(it.id) }
     }
     val isAllDownloaded = remember(downloadedIds, songs) {
-        songs.isNotEmpty() && songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
+        songs.isNotEmpty() && songs.all { it.isFullyCached }
     }
 
     val isPlayActionsEnabled = remember(songs, downloadedIds, isStreamingAllowed) {
-        isStreamingAllowed || songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+        isStreamingAllowed || songs.any { it.isFullyCached }
     }
 
     var lastStarClickTime by remember { mutableLongStateOf(0L) }

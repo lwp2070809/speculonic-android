@@ -58,6 +58,7 @@
     <string name="download_channel_name">Download Service</string>
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
+    <string name="download_server_limit_toast">the currently playing song will download after skipping or finishing.</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
     <string name="auto_offline_disabled_toast">Auto-offline mode has been automatically disabled.</string>
     <string name="offline_mode_enabled_toast">Offline mode enabled</string>

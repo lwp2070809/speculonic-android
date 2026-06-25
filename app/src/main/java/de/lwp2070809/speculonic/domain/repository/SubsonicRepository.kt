@@ -184,7 +184,7 @@ class SubsonicRepository(
     }
 
     
-    fun buildStreamUrl(id: String): String = urlBuilder.buildDownloadUrl(id)
+    fun buildStreamUrl(id: String): String = urlBuilder.buildStreamUrl(id)
     fun buildDownloadUrl(id: String): String = urlBuilder.buildDownloadUrl(id)
     fun buildCoverArtUrl(id: String): String = urlBuilder.buildCoverArtUrl(id)
 

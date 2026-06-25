@@ -58,6 +58,7 @@
     <string name="download_channel_name">下载服务</string>
     <string name="download_channel_description">后台下载服务</string>
     <string name="unlimited">不限制</string>
+    <string name="download_server_limit_toast">当前播放歌曲的下载将在播放完毕后自动开始。</string>
     <string name="mobile_play_allowed">允许计费网络播放</string>
     <string name="auto_offline_disabled_toast">自动离线模式已自动关闭</string>
     <string name="offline_mode_enabled_toast">离线模式已开启</string>

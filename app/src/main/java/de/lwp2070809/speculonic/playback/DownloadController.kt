@@ -54,6 +54,12 @@ class DownloadController @Inject constructor(
                 recentlyRequested.remove(song.id)
             }
         }
+        val playbackState = de.lwp2070809.speculonic.playback.PlaybackController.getInstance(context).playbackState.value
+        if (!isSilent && playbackState.currentSongId == song.id) {
+            android.os.Handler(android.os.Looper.getMainLooper()).post {
+                android.widget.Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.download_server_limit_toast), android.widget.Toast.LENGTH_LONG).show()
+            }
+        }
 
         if (!isSilent && android.os.Build.VERSION.SDK_INT >= 33) {
             val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(

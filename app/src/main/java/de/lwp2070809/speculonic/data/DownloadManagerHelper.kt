@@ -71,11 +71,7 @@ object DownloadManagerHelper {
         
         
         
-        val upstreamDataSourceFactory = androidx.media3.datasource.cache.CacheDataSource.Factory()
-            .setCache(playbackCache)
-            .setUpstreamDataSourceFactory(httpDataSourceFactory)
-            .setCacheWriteDataSinkFactory(null) 
-            .setFlags(androidx.media3.datasource.cache.CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val upstreamDataSourceFactory = httpDataSourceFactory
 
         val databaseProvider = CacheManager.getDatabaseProvider(context)
         

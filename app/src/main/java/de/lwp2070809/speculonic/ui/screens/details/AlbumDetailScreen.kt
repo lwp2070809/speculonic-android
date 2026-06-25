@@ -98,11 +98,11 @@ fun AlbumDetailScreen(
 
     
     val isAllDownloaded = remember(downloadedIds, uiState.songs) {
-        uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached || downloadedIds.contains(it.id) }
+        uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
 
     val isPlayActionsEnabled = remember(uiState.songs, downloadedIds, isStreamingAllowed) {
-        isStreamingAllowed || uiState.songs.any { it.isFullyCached || downloadedIds.contains(it.id) }
+        isStreamingAllowed || uiState.songs.any { it.isFullyCached }
     }
 
     PullToRefreshBox(
@@ -137,7 +137,7 @@ fun AlbumDetailScreen(
                                 },
                                 onDownloadAll = {
                                     uiState.songs.forEach { song ->
-                                        val isDownloaded = song.isFullyCached || downloadedIds.contains(song.id)
+                                        val isDownloaded = song.isFullyCached
                                         if (!isDownloaded) {
                                             downloadController.downloadSong(song)
                                         }
