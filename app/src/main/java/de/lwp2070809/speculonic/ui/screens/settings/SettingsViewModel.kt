@@ -94,7 +94,7 @@ class SettingsViewModel @Inject constructor(
                 preferencesManager.username,
                 preferencesManager.password,
                 preferencesManager.cacheLocation,
-                preferencesManager.maxCacheSize,
+                preferencesManager.maxCoverCacheSize,
                 preferencesManager.syncCoverArtOnForce,
                 preferencesManager.lastSyncTime,
                 preferencesManager.serverCapabilities
@@ -104,7 +104,7 @@ class SettingsViewModel @Inject constructor(
                     username = flows[1] as String,
                     password = flows[2] as String,
                     cacheLocation = flows[3] as String,
-                    maxCacheSize = flows[4] as Long,
+                    maxCoverCacheSize = flows[4] as Long,
                     syncCoverArtOnForce = flows[5] as Boolean,
                     lastSyncTime = flows[6] as Long,
                     serverCapabilities = flows[7] as de.lwp2070809.speculonic.domain.repository.ServerCapabilities?
@@ -191,7 +191,7 @@ class SettingsViewModel @Inject constructor(
                         username = g1.username,
                         password = g1.password,
                         cacheLocation = g1.cacheLocation,
-                        maxCacheSize = g1.maxCacheSize,
+                        maxCoverCacheSize = g1.maxCoverCacheSize,
                         mobilePlayAllowed = g2.mobilePlayAllowed,
                         showOfflineToast = g4.showOfflineToast,
                         backgroundSyncEnabled = g2.backgroundSyncEnabled,
@@ -297,7 +297,7 @@ class SettingsViewModel @Inject constructor(
             }
         }
     }
-    fun updateMaxCacheSize(size: Long) { viewModelScope.launch { preferencesManager.saveMaxCacheSize(size) } }
+    fun updateMaxCoverCacheSize(size: Long) { viewModelScope.launch { preferencesManager.saveMaxCoverCacheSize(size) } }
     
     fun updateMobilePlayAllowed(allowed: Boolean) { 
         viewModelScope.launch { 
@@ -685,22 +685,23 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             val location = preferencesManager.cacheLocation.first()
             val breakdown = cacheOperations.calculateCacheSizes(location)
-            val freeSpace = try {
-                context.cacheDir.freeSpace
-            } catch (e: Exception) {
-                0L
-            }
-            val cachedSongs = withContext(Dispatchers.IO) {
-                database.musicDao().getAllCachedSongs().size
+            val (freeSpace, totalSpace, cachedSongs) = withContext(Dispatchers.IO) {
+                val free = try { context.cacheDir.freeSpace } catch (e: Exception) { 0L }
+                val total = try { context.cacheDir.totalSpace } catch (e: Exception) { 0L }
+                val songsCount = database.musicDao().getAllCachedSongs().size
+                Triple(free, total, songsCount)
             }
             val totalInternal = breakdown.playbackBytes + breakdown.coverArtBytes + breakdown.songBytes + breakdown.otherBytes
+            val isCoverOverQuota = breakdown.coverArtBytes > _uiState.value.maxCoverCacheSize
             _uiState.value = _uiState.value.copy(
                 internalCacheSize = cacheOperations.formatFileSize(totalInternal),
                 externalCacheSize = cacheOperations.formatFileSize(breakdown.externalBytes),
                 internalCacheBytes = totalInternal,
                 externalCacheBytes = breakdown.externalBytes,
                 freeSpaceBytes = freeSpace,
+                totalSpaceBytes = totalSpace,
                 cachedSongsCount = cachedSongs,
+                isCoverOverQuota = isCoverOverQuota,
                 playbackCacheBytes = breakdown.playbackBytes,
                 coverArtCacheBytes = breakdown.coverArtBytes,
                 songCacheBytes = breakdown.songBytes,

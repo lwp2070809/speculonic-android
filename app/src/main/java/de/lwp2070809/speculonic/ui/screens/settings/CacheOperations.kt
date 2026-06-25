@@ -84,12 +84,14 @@ class CacheOperations(private val context: Context) {
     }
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {
-        val playbackBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
+        val playbackBufferBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
+        val persistentCacheBytes = getDirectorySize(File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache"))
+        val playbackBytes = playbackBufferBytes + persistentCacheBytes
+
         val coverArtBytes = getDirectorySize(File(context.cacheDir, "image_cache"))
         
-        val privatePersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
         val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-        val songBytes = getDirectorySize(privatePersistentDir) + getDirectorySize(privateExportedDir)
+        val songBytes = getDirectorySize(privateExportedDir)
         
         var externalBytes = 0L
         

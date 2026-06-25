@@ -12,7 +12,8 @@ data class SettingsUiState(
     val cacheLocation: String = "",
     val internalCacheSize: String = "0 B",
     val externalCacheSize: String = "0 B",
-    val maxCacheSize: Long = 1024L * 1024 * 1024,
+    val maxCoverCacheSize: Long = 512L * 1024 * 1024,
+    val isCoverOverQuota: Boolean = false,
     val mobilePlayAllowed: Boolean = true,
     val showOfflineToast: Boolean = true,
     val backgroundSyncEnabled: Boolean = true,
@@ -72,6 +73,7 @@ data class SettingsUiState(
     val internalCacheBytes: Long = 0L,
     val externalCacheBytes: Long = 0L,
     val freeSpaceBytes: Long = 0L,
+    val totalSpaceBytes: Long = 0L,
     val cachedSongsCount: Int = 0,
     val playbackCacheBytes: Long = 0L,
     val coverArtCacheBytes: Long = 0L,
@@ -86,7 +88,7 @@ data class SettingsUiState(
 
 internal data class PrefsGroup1(
     val serverUrl: String, val username: String, val password: String,
-    val cacheLocation: String, val maxCacheSize: Long,
+    val cacheLocation: String, val maxCoverCacheSize: Long,
     val syncCoverArtOnForce: Boolean, val lastSyncTime: Long,
     val serverCapabilities: de.lwp2070809.speculonic.domain.repository.ServerCapabilities?
 )

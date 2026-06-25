@@ -1,12 +1,6 @@
 package de.lwp2070809.speculonic.ui.screens.settings.components
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,22 +16,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -56,46 +43,34 @@ fun StorageDashboardCard(
     coverArtBytes: Long,
     songBytes: Long,
     otherBytes: Long,
-    internalBytes: Long,
-    maxCacheBytes: Long,
-    cachedSongsCount: Int,
-    songsCount: Int,
+    totalSpaceBytes: Long,
+    maxCoverBytes: Long,
+    isCoverOverQuota: Boolean,
     playbackSizeLabel: String,
     coverArtSizeLabel: String,
     songSizeLabel: String,
     otherSizeLabel: String,
-    onClearCacheClick: () -> Unit,
     onClearPlaybackClick: () -> Unit,
     onClearCoverArtClick: () -> Unit,
     onClearSongsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var expanded by remember { mutableStateOf(false) }
-
-    val brush = Brush.linearGradient(
-        colors = listOf(
-            MaterialTheme.colorScheme.primaryContainer,
-            MaterialTheme.colorScheme.tertiaryContainer
-        )
-    )
-
-    val isOverQuota = remember(maxCacheBytes, internalBytes) {
-        maxCacheBytes != -1L && internalBytes > maxCacheBytes
+    val isUnlimited = maxCoverBytes == -1L || maxCoverBytes == 5L * 1024 * 1024 * 1024
+    val coverProgress = if (isUnlimited) {
+        1.0f
+    } else {
+        (coverArtBytes.toFloat() / maxCoverBytes.coerceAtLeast(1L).toFloat()).coerceIn(0f, 1f)
     }
 
     Card(
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(brush)
-            .clickable { expanded = !expanded }
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+        modifier = modifier.fillMaxWidth()
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -103,180 +78,82 @@ fun StorageDashboardCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = stringResource(R.string.cache_label),
+                    text = stringResource(R.string.app_cache_title),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    if (isOverQuota) {
-                        IconButton(
-                            onClick = {
-                                onClearCacheClick()
-                            },
-                            modifier = Modifier
-                                .background(
-                                    MaterialTheme.colorScheme.errorContainer,
-                                    shape = CircleShape
-                                )
-                                .size(32.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = stringResource(R.string.clear_cache_quota_warning),
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(18.dp)
+                if (isCoverOverQuota) {
+                    IconButton(
+                        onClick = onClearCoverArtClick,
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.errorContainer,
+                                shape = CircleShape
                             )
-                        }
-                    }
-                    Icon(
-                        imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                        contentDescription = stringResource(R.string.content_description_expand_details),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                }
-            }
-
-            val total = maxCacheBytes.coerceAtLeast(1L).toFloat()
-            val progressWeight = if (maxCacheBytes == -1L) 1.0f else (internalBytes.toFloat() / total).coerceAtMost(1f)
-
-            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(10.dp)
-                        .clip(RoundedCornerShape(5.dp))
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                ) {
-                    if (expanded) {
-                        val playbackWeight = if (internalBytes > 0) (playbackBytes.toFloat() / internalBytes) * progressWeight else 0f
-                        val coverArtWeight = if (internalBytes > 0) (coverArtBytes.toFloat() / internalBytes) * progressWeight else 0f
-                        val songWeight = if (internalBytes > 0) (songBytes.toFloat() / internalBytes) * progressWeight else 0f
-                        val otherWeight = if (internalBytes > 0) (otherBytes.toFloat() / internalBytes) * progressWeight else 0f
-
-                        if (songWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(songWeight)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF2196F3))
-                            )
-                        }
-                        if (coverArtWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(coverArtWeight)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF4CAF50))
-                            )
-                        }
-                        if (playbackWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(playbackWeight)
-                                    .fillMaxSize()
-                                    .background(Color(0xFFFF9800))
-                            )
-                        }
-                        if (otherWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(otherWeight)
-                                    .fillMaxSize()
-                                    .background(Color(0xFF9C27B0))
-                            )
-                        }
-                        if (1f - progressWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(1f - progressWeight)
-                                    .fillMaxSize()
-                            )
-                        }
-                    } else {
-                        val progressColor = if (isOverQuota) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                        if (progressWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(progressWeight)
-                                    .fillMaxSize()
-                                    .background(progressColor)
-                            )
-                        }
-                        if (1f - progressWeight > 0.001f) {
-                            Spacer(
-                                modifier = Modifier
-                                    .weight(1f - progressWeight)
-                                    .fillMaxSize()
-                            )
-                        }
+                            .size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = stringResource(R.string.clear_cache_quota_warning),
+                            tint = MaterialTheme.colorScheme.error,
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.Start
-                ) {
-                    LegendItem(
-                        label = stringResource(R.string.internal_cache_color_label),
-                        size = if (maxCacheBytes == -1L) FormatUtils.formatSize(internalBytes) else "${FormatUtils.formatSize(internalBytes)} / ${FormatUtils.formatSize(maxCacheBytes)}",
-                        color = if (isOverQuota) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                    )
-                }
             }
 
-            AnimatedVisibility(
-                visible = expanded,
-                enter = expandVertically() + fadeIn(),
-                exit = shrinkVertically() + fadeOut()
-            ) {
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
-                    
-                    CacheDetailRow(
-                        label = stringResource(R.string.song_cache_color_label),
-                        size = songSizeLabel,
-                        color = Color(0xFF2196F3),
-                        onClearClick = onClearSongsClick
-                    )
-
-                    CacheDetailRow(
-                        label = stringResource(R.string.cover_art_cache_color_label),
-                        size = coverArtSizeLabel,
-                        color = Color(0xFF4CAF50),
-                        onClearClick = onClearCoverArtClick
-                    )
-
-                    CacheDetailRow(
-                        label = stringResource(R.string.playback_cache_color_label),
-                        size = playbackSizeLabel,
-                        color = Color(0xFFFF9800),
-                        onClearClick = onClearPlaybackClick
-                    )
-
-                    CacheDetailRow(
-                        label = stringResource(R.string.other_cache_color_label),
-                        size = otherSizeLabel,
-                        color = Color(0xFF9C27B0),
-                        onClearClick = null
-                    )
-                }
+            // 1. 专辑封面
+            val coverLimitLabel = if (isUnlimited) {
+                coverArtSizeLabel
+            } else {
+                "$coverArtSizeLabel / ${FormatUtils.formatSize(maxCoverBytes)}"
             }
-
-            Text(
-                text = stringResource(R.string.internal_cache_description),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.5f)
+            StorageItemRow(
+                label = stringResource(R.string.cover_art_cache_color_label),
+                sizeLabel = coverLimitLabel,
+                progress = coverProgress,
+                color = if (isCoverOverQuota) MaterialTheme.colorScheme.error else Color(0xFF4CAF50),
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
+                onClearClick = onClearCoverArtClick
             )
 
-            if (isOverQuota) {
+            // 2. 播放缓冲
+            val playbackMax = 1024L * 1024 * 1024 // 1 GB
+            val playbackProgress = (playbackBytes.toFloat() / playbackMax.toFloat()).coerceIn(0f, 1f)
+            StorageItemRow(
+                label = stringResource(R.string.playback_cache_color_label),
+                sizeLabel = "$playbackSizeLabel / 1 GB",
+                progress = playbackProgress,
+                color = Color(0xFFFF9800),
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
+                onClearClick = onClearPlaybackClick
+            )
+
+            // 3. 已缓存歌曲
+            val songTotal = totalSpaceBytes
+            val songProgress = if (songTotal > 0) (songBytes.toFloat() / songTotal.toFloat()).coerceIn(0f, 1f) else 0f
+            StorageItemRow(
+                label = stringResource(R.string.song_cache_color_label),
+                sizeLabel = "$songSizeLabel / ${FormatUtils.formatSize(totalSpaceBytes)}",
+                progress = songProgress,
+                color = Color(0xFF2196F3),
+                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
+                onClearClick = onClearSongsClick
+            )
+
+            // 4. 其他缓存 (无进度条)
+            StorageItemRow(
+                label = stringResource(R.string.other_cache_color_label),
+                sizeLabel = otherSizeLabel,
+                progress = null,
+                color = Color(0xFF9C27B0),
+                trackColor = Color.Transparent,
+                onClearClick = null
+            )
+
+            if (isCoverOverQuota) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -292,133 +169,90 @@ fun StorageDashboardCard(
                         modifier = Modifier.size(16.dp)
                     )
                     Text(
-                        text = stringResource(R.string.cache_quota_exceeded),
+                        text = stringResource(R.string.cover_quota_exceeded),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onErrorContainer,
                         fontWeight = FontWeight.Bold
                     )
                 }
             }
+        }
+    }
+}
 
-            HorizontalDivider(color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f))
-
+@Composable
+fun StorageItemRow(
+    label: String,
+    sizeLabel: String,
+    progress: Float?,
+    color: Color,
+    trackColor: Color,
+    onClearClick: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                val ratio = if (songsCount == 0) 0 else (cachedSongsCount * 100) / songsCount
-                Column {
-                    Text(
-                        text = stringResource(R.string.cached_songs_ratio),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
-                    )
-                    Text(
-                        text = stringResource(R.string.storage_ratio_songs_summary, ratio, cachedSongsCount, songsCount),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                }
-                CircularProgressIndicator(
-                    progress = { ratio.toFloat() / 100f },
-                    modifier = Modifier.size(36.dp),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.15f),
-                    strokeWidth = 3.dp
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .clip(CircleShape)
+                        .background(color)
+                )
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-        }
-    }
-}
-
-@Composable
-fun LegendItem(
-    label: String,
-    size: String,
-    color: androidx.compose.ui.graphics.Color
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .size(8.dp)
-                .clip(CircleShape)
-                .background(color)
-        )
-        Column {
-            Text(
-                text = label,
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.6f)
-            )
-            Text(
-                text = size,
-                fontSize = 11.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-    }
-}
-
-@Composable
-fun CacheDetailRow(
-    label: String,
-    size: String,
-    color: androidx.compose.ui.graphics.Color,
-    onClearClick: (() -> Unit)?
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(8.dp)
-                    .clip(CircleShape)
-                    .background(color)
-            )
-            Text(
-                text = label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-        }
-        
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = size,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onPrimaryContainer
-            )
-            if (onClearClick != null) {
-                IconButton(
-                    onClick = onClearClick,
-                    modifier = Modifier.size(24.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.clear),
-                        tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f),
-                        modifier = Modifier.size(16.dp)
-                    )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = sizeLabel,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (onClearClick != null) {
+                    IconButton(
+                        onClick = onClearClick,
+                        modifier = Modifier.size(24.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Delete,
+                            contentDescription = stringResource(R.string.clear),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(16.dp)
+                        )
+                    }
+                } else {
+                    Spacer(modifier = Modifier.width(24.dp))
                 }
-            } else {
-                Spacer(modifier = Modifier.width(24.dp))
             }
+        }
+        if (progress != null) {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(6.dp)
+                    .clip(RoundedCornerShape(3.dp)),
+                color = color,
+                trackColor = trackColor
+            )
         }
     }
 }

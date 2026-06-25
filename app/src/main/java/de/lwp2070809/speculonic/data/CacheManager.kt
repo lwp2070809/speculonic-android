@@ -46,13 +46,8 @@ object CacheManager {
     }
 
     @Synchronized
-    fun getDownloadCache(context: Context, maxCacheSize: Long = 1024L * 1024 * 1024): Cache {
-        if (downloadCache != null && currentDownloadCacheSize != maxCacheSize) {
-            LogManager.i("Persistent Download Cache size changed from $currentDownloadCacheSize to $maxCacheSize. Rebuilding...")
-            downloadCache?.release()
-            downloadCache = null
-        }
-        
+    fun getDownloadCache(context: Context): Cache {
+        val fixedCacheSize = 900L * 1024 * 1024L // 900 MB
         if (downloadCache == null) {
             val externalDir = context.getExternalFilesDir(null)
             val targetDir = if (externalDir != null) {
@@ -68,13 +63,12 @@ object CacheManager {
                 LogManager.e("Failed to create .nomedia file", e)
             }
 
-            val safeCacheSize = if (maxCacheSize == -1L) -1L else maxOf(maxCacheSize, 50L * 1024 * 1024)
-            val evictor = if (safeCacheSize == -1L) NoOpCacheEvictor() else LeastRecentlyUsedCacheEvictor(safeCacheSize)
+            val evictor = LeastRecentlyUsedCacheEvictor(fixedCacheSize)
             
             try {
                 downloadCache = SimpleCache(targetDir, evictor, getDatabaseProvider(context))
-                currentDownloadCacheSize = maxCacheSize
-                LogManager.i("Persistent Download Cache (Internal) initialized at: ${targetDir.absolutePath} with size $safeCacheSize")
+                currentDownloadCacheSize = fixedCacheSize
+                LogManager.i("Persistent Download Cache (Internal) initialized at: ${targetDir.absolutePath} with size $fixedCacheSize")
             } catch (e: Exception) {
                 LogManager.e("Failed to initialize Download Cache!", e)
                 throw e

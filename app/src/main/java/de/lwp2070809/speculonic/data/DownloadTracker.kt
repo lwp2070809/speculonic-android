@@ -35,6 +35,7 @@ import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
+@OptIn(UnstableApi::class)
 data class DownloadTaskInfo(
     val task: Download,
     val progress: Float = task.percentDownloaded,
@@ -219,8 +220,7 @@ object DownloadTracker {
                     }
                     
                     try {
-                        val maxCacheSize = PreferencesManager.getInstance(context).maxCacheSize.first()
-                        val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
+                        val downloadCache = CacheManager.getDownloadCache(context)
                         downloadCache.removeResource(songId)
                     } catch (e: Exception) {
                         LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
@@ -239,9 +239,7 @@ object DownloadTracker {
             val isSilent = isSilentDownload(download)
             LogManager.d("DownloadTracker: Preparing export for ${download.request.id}. Silent: $isSilent")
 
-            val maxCacheSize = preferencesManager.maxCacheSize.first()
-            
-            val cache = CacheManager.getDownloadCache(context, maxCacheSize)
+            val cache = CacheManager.getDownloadCache(context)
             val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideStreamOkHttpClient(context))
             val cacheDataSourceFactory = CacheDataSource.Factory()
                 .setCache(cache)

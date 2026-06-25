@@ -221,7 +221,7 @@ class PlaybackService : MediaSessionService() {
 
                 val (playbackCache, downloadCache) = withContext(Dispatchers.IO) {
                     val pCache = de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(this@PlaybackService)
-                    val dCache = de.lwp2070809.speculonic.data.CacheManager.getDownloadCache(this@PlaybackService, config.maxCacheSize)
+                    val dCache = de.lwp2070809.speculonic.data.CacheManager.getDownloadCache(this@PlaybackService)
                     Pair(pCache, dCache)
                 }
 

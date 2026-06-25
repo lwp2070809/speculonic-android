@@ -17,7 +17,8 @@
     <string name="username">用户名</string>
     <string name="password">密码</string>
     <string name="metadata_sync">元数据同步</string>
-    <string name="playback_cache">播放缓存</string>
+    <string name="playback_cache">缓存</string>
+    <string name="app_cache_title">APP缓存</string>
     <string name="persistent_storage">持久化存储</string>
     <string name="maintenance_tools">维护与工具</string>
     <string name="used_space">已用空间: %1$s</string>
@@ -113,7 +114,8 @@
     <string name="scan_local_files">扫描本地文件</string>
     <string name="verify_cache">校验缓存一致性</string>
     <string name="verify_description">深度比对本地文件与服务器元数据。</string>
-    <string name="max_internal_cache">最大内部缓存空间</string>
+    <string name="max_cover_cache">最大专辑封面缓存</string>
+    <string name="cover_cache_restart_hint">封面缓存限制修改将在应用下次启动时生效。</string>
     <string name="clear_internal_cache">清除所有缓存</string>
     <string name="mobile_data_warning">计费网络警告</string>
     <string name="mobile_verify_confirm">当前处于计费网络。校验过程可能会消耗流量，是否继续？</string>
@@ -294,14 +296,16 @@
     <string name="preparing_offline_content">正在准备离线内容…</string>
     <string name="offline_downloads">离线下载</string>
     <string name="silent_cache_tab">静默缓存</string>
-    <string name="cache_quota_exceeded">播放缓存已超过配额！</string>
+    <string name="cover_quota_exceeded">专辑封面缓存已超过配额！</string>
 
     <string name="cached_songs_ratio">已缓存歌曲占比</string>
-    <string name="internal_cache_color_label">私有缓存</string>
+    <string name="internal_cache_color_label">封面图片缓存</string>
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
 
-    <string name="cache_label">缓存</string>
-    <string name="internal_cache_description">内部缓存包含播放缓冲、专辑封面缓存等写入内部存储的数据。</string>
+    <string name="cache_label">存储与缓存</string>
+    <string name="internal_cache_description">存储统计包含专辑封面、播放缓冲、离线歌曲等写入设备的数据。</string>
+    <string name="cached_songs_storage_label">离线已下载歌曲（受磁盘容量限制）</string>
+    <string name="system_cache_managed_label">中转与播放缓冲（自动托管）</string>
     <string name="clear_queue_keep_cache">清除队列</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部开始</string>
@@ -309,7 +313,7 @@
     <string name="silent_downloading_status">边播边存缓冲中…</string>
     <string name="playback_cache_color_label">播放缓冲</string>
     <string name="cover_art_cache_color_label">专辑封面</string>
-    <string name="song_cache_color_label">本地歌曲</string>
+    <string name="song_cache_color_label">已缓存歌曲</string>
     <string name="other_cache_color_label">其他缓存</string>
     <string name="no_download_tasks">无下载任务</string>
     <string name="server_dashboard_title">服务器信息</string>

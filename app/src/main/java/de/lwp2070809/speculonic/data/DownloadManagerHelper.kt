@@ -27,15 +27,12 @@ object DownloadManagerHelper {
         if (isInitializing.getAndSet(true)) return
         try {
             val preferencesManager = PreferencesManager.getInstance(context)
-            val maxCacheSize = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                preferencesManager.maxCacheSize.first()
-            }
             val mobilePlayAllowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 preferencesManager.mobilePlayAllowed.first()
             }
             synchronized(this) {
                 if (downloadManager == null) {
-                    initialize(context, maxCacheSize, mobilePlayAllowed)
+                    initialize(context, mobilePlayAllowed)
                 }
             }
         } finally {
@@ -47,8 +44,7 @@ object DownloadManagerHelper {
         return downloadManager ?: synchronized(this) {
             downloadManager ?: run {
                 LogManager.w("DownloadManagerHelper: getDownloadManager called before async init, initializing with defaults")
-                val defaultCacheSize = 1024L * 1024 * 1024 // 1GB
-                initialize(context, defaultCacheSize, mobilePlayAllowed = true)
+                initialize(context, mobilePlayAllowed = true)
                 downloadManager!!
             }
         }
@@ -61,9 +57,9 @@ object DownloadManagerHelper {
         return downloadManager!!
     }
 
-    private fun initialize(context: Context, maxCacheSize: Long, mobilePlayAllowed: Boolean) {
+    private fun initialize(context: Context, mobilePlayAllowed: Boolean) {
         
-        val downloadCache = CacheManager.getDownloadCache(context, maxCacheSize)
+        val downloadCache = CacheManager.getDownloadCache(context)
         val playbackCache = CacheManager.getPlaybackCache(context)
         
         val okHttpClient = NetworkModule.provideStreamOkHttpClient(context)

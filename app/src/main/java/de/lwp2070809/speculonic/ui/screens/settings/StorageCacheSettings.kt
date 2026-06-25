@@ -167,15 +167,13 @@ fun StorageCacheSettings(
                 coverArtBytes = uiState.coverArtCacheBytes,
                 songBytes = uiState.songCacheBytes,
                 otherBytes = uiState.otherCacheBytes,
-                internalBytes = uiState.internalCacheBytes,
-                maxCacheBytes = uiState.maxCacheSize,
-                cachedSongsCount = uiState.cachedSongsCount,
-                songsCount = uiState.songsCount,
+                totalSpaceBytes = uiState.totalSpaceBytes,
+                maxCoverBytes = uiState.maxCoverCacheSize,
+                isCoverOverQuota = uiState.isCoverOverQuota,
                 playbackSizeLabel = uiState.playbackCacheSize,
                 coverArtSizeLabel = uiState.coverArtCacheSize,
                 songSizeLabel = uiState.songCacheSize,
                 otherSizeLabel = uiState.otherCacheSize,
-                onClearCacheClick = { viewModel.requestClearCache() },
                 onClearPlaybackClick = { viewModel.clearPlaybackCache() },
                 onClearCoverArtClick = { viewModel.clearCoverArtCache() },
                 onClearSongsClick = { viewModel.clearSongDownloads() },
@@ -193,48 +191,56 @@ fun StorageCacheSettings(
 
             var expandedCacheSize by remember { mutableStateOf(false) }
             val cacheSizes = listOf(
+                256L * 1024 * 1024 to "256 MB",
                 512L * 1024 * 1024 to "512 MB",
                 1024L * 1024 * 1024 to "1 GB",
-                2L * 1024 * 1024 * 1024 to "2 GB",
-                5L * 1024 * 1024 * 1024 to "5 GB",
-                -1L to stringResource(R.string.unlimited)
+                2048L * 1024 * 1024 to "2 GB",
+                5L * 1024 * 1024 * 1024 to stringResource(R.string.unlimited)
             )
-            val currentCacheSizeLabel = cacheSizes.find { it.first == uiState.maxCacheSize }?.second 
-                ?: if (uiState.maxCacheSize == -1L) stringResource(R.string.unlimited) else "${uiState.maxCacheSize / (1024 * 1024)} MB"
+            val currentCacheSizeLabel = cacheSizes.find { it.first == uiState.maxCoverCacheSize }?.second 
+                ?: "${uiState.maxCoverCacheSize / (1024 * 1024)} MB"
 
-            Box(modifier = Modifier.fillMaxWidth().padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)) {
-                ExposedDropdownMenuBox(
-                    expanded = expandedCacheSize,
-                    onExpandedChange = { expandedCacheSize = !expandedCacheSize },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    OutlinedTextField(
-                        value = currentCacheSizeLabel,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text(stringResource(R.string.max_internal_cache)) },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCacheSize) },
-                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-                    )
-                    ExposedDropdownMenu(
+            Column(modifier = Modifier.fillMaxWidth().padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)) {
+                Box(modifier = Modifier.fillMaxWidth().padding(horizontal = SettingsConstants.PAGE_PADDING)) {
+                    ExposedDropdownMenuBox(
                         expanded = expandedCacheSize,
-                        onDismissRequest = { expandedCacheSize = false }
+                        onExpandedChange = { expandedCacheSize = !expandedCacheSize },
+                        modifier = Modifier.fillMaxWidth()
                     ) {
-                        cacheSizes.forEach { (size, label) ->
-                            DropdownMenuItem(
-                                text = { Text(label) },
-                                onClick = {
-                                    viewModel.updateMaxCacheSize(size)
-                                    expandedCacheSize = false
-                                },
-                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
-                            )
+                        OutlinedTextField(
+                            value = currentCacheSizeLabel,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text(stringResource(R.string.max_cover_cache)) },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedCacheSize) },
+                            colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                        )
+                        ExposedDropdownMenu(
+                            expanded = expandedCacheSize,
+                            onDismissRequest = { expandedCacheSize = false }
+                        ) {
+                            cacheSizes.forEach { (size, label) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        viewModel.updateMaxCoverCacheSize(size)
+                                        expandedCacheSize = false
+                                    },
+                                    contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                                )
+                            }
                         }
                     }
                 }
+                Text(
+                    text = stringResource(R.string.cover_cache_restart_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                    modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING + 4.dp, vertical = 6.dp)
+                )
             }
 
             ListItem(

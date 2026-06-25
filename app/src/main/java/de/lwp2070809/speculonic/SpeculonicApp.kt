@@ -24,6 +24,8 @@ import de.lwp2070809.speculonic.util.SubsonicCoverArtKeyer
 import de.lwp2070809.speculonic.util.SubsonicCoverArtStringKeyer
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import javax.inject.Inject
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 
 @HiltAndroidApp
 class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration.Provider {
@@ -74,14 +76,10 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
 
     
     override fun newImageLoader(context: Context): ImageLoader {
-        val cacheDir = context.cacheDir
-        val storageManager = context.getSystemService(StorageManager::class.java)
-        val usableSpace = try {
-            storageManager.getAllocatableBytes(StorageManager.UUID_DEFAULT)
-        } catch (e: Exception) {
-            cacheDir.usableSpace
+        val prefsManager = PreferencesManager.getInstance(context)
+        val maxCoverLimit = runBlocking {
+            prefsManager.maxCoverCacheSize.first()
         }
-        val imageCacheLimit = (usableSpace * 0.05).toLong().coerceIn(256 * 1024 * 1024L, 1024 * 1024 * 1024L)
 
         return ImageLoader.Builder(context)
             .components {
@@ -105,7 +103,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
             .diskCache {
                 DiskCache.Builder()
                     .directory(context.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(imageCacheLimit) 
+                    .maxSizeBytes(maxCoverLimit) 
                     .build()
             }
             .crossfade(true)
