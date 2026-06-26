@@ -100,6 +100,7 @@ class DownloadService : DownloadService(
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onStartCommand action=$action flags=$flags startId=$startId")
+
         if (isSilentOnly() && (action == "androidx.media3.exoplayer.downloadService.action.INIT" 
                 || action == "androidx.media3.exoplayer.downloadService.action.RESTART"
                 || intent == null)) {
@@ -107,7 +108,16 @@ class DownloadService : DownloadService(
             stopSelf()
             return START_NOT_STICKY
         }
-        val result = super.onStartCommand(intent, flags, startId)
+        val result = try {
+            super.onStartCommand(intent, flags, startId)
+        } catch (e: IllegalStateException) {
+            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true) {
+                de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Caught generic IllegalStateException (likely dead thread), stopping self.")
+                stopSelf()
+                return START_NOT_STICKY
+            }
+            throw e
+        }
         checkAndStopIfSilent()
         return result
     }
@@ -115,7 +125,7 @@ class DownloadService : DownloadService(
     override fun onDestroy() {
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onDestroy")
         try {
-            getDownloadManager().removeListener(downloadListener)
+            DownloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.removeListener(downloadListener)
         } catch (e: java.lang.Exception) {
             de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Failed to remove download listener", e)
         }

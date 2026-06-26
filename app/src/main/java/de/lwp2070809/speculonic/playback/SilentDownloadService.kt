@@ -13,7 +13,6 @@ import de.lwp2070809.speculonic.data.DownloadManagerHelper
 class SilentDownloadService : DownloadService(
     FOREGROUND_NOTIFICATION_ID_NONE
 ) {
-
     override fun getDownloadManager(): DownloadManager {
         return DownloadManagerHelper.getDownloadManager(this)
     }
@@ -24,5 +23,19 @@ class SilentDownloadService : DownloadService(
 
     override fun getForegroundNotification(downloads: List<Download>, notMetRequirements: Int): android.app.Notification {
         throw UnsupportedOperationException("SilentDownloadService should not show notifications")
+    }
+
+    override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        return try {
+            super.onStartCommand(intent, flags, startId)
+        } catch (e: IllegalStateException) {
+            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true) {
+                de.lwp2070809.speculonic.util.LogManager.e("SilentDownloadService: Caught generic IllegalStateException (likely dead thread), stopping self.")
+                stopSelf()
+                START_NOT_STICKY
+            } else {
+                throw e
+            }
+        }
     }
 }

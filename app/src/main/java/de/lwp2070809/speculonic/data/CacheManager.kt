@@ -83,6 +83,16 @@ object CacheManager {
                 LogManager.i("CacheManager: Requesting active components to release caches...")
                 onRequireCacheRelease?.invoke()
                 
+                // Atomically release DownloadManager before releasing its underlying cache
+                DownloadManagerHelper.release()
+                
+                try {
+                    androidx.media3.exoplayer.offline.DownloadService.clearDownloadManagerHelpers()
+                    LogManager.i("CacheManager: Cleared Media3 DownloadManagerHelpers static cache.")
+                } catch (e: Exception) {
+                    LogManager.e("CacheManager: Failed to clear DownloadManagerHelpers", e)
+                }
+                
                 playbackCache?.release()
                 playbackCache = null
                 downloadCache?.release()

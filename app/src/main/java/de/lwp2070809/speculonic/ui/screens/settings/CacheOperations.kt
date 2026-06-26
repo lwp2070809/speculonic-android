@@ -21,7 +21,12 @@ import kotlin.math.pow
 class CacheOperations(private val context: Context) {
     
     suspend fun clearAllCache() = withContext(Dispatchers.IO) {
-        DownloadManagerHelper.release()
+        try {
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+        }
 
         CacheManager.executeWithCacheReleaseLock {
             File(context.cacheDir, "media_playback_buffer").deleteRecursively()
@@ -48,19 +53,38 @@ class CacheOperations(private val context: Context) {
     }
 
     suspend fun clearPlaybackCache() = withContext(Dispatchers.IO) {
+        try {
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+        }
+        
         CacheManager.executeWithCacheReleaseLock {
             File(context.cacheDir, "media_playback_buffer").deleteRecursively()
         }
     }
 
     suspend fun clearCoverArtCache() = withContext(Dispatchers.IO) {
+        try {
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+        }
+        
         CacheManager.executeWithCacheReleaseLock {
             File(context.cacheDir, "image_cache").deleteRecursively()
         }
     }
 
     suspend fun clearSongDownloads() = withContext(Dispatchers.IO) {
-        DownloadManagerHelper.release()
+        try {
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+        } catch (e: Exception) {
+            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+        }
         CacheManager.executeWithCacheReleaseLock {
             val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
             internalPersistentDir.deleteRecursively()

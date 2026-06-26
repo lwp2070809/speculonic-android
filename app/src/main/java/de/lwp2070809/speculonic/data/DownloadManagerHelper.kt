@@ -57,6 +57,12 @@ object DownloadManagerHelper {
         return downloadManager!!
     }
 
+    fun getDownloadManagerOnlyIfInitialized(): DownloadManager? {
+        synchronized(this) {
+            return downloadManager
+        }
+    }
+
     private fun initialize(context: Context, mobilePlayAllowed: Boolean) {
         
         val downloadCache = CacheManager.getDownloadCache(context)
