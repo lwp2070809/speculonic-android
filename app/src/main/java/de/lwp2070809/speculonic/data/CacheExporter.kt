@@ -73,6 +73,7 @@ object CacheExporter {
             return@withContext Result.failure(Exception("无法获取文件长度"))
         }
 
+        var docFile: DocumentFile? = null
         try {
             val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
             if (rootDoc == null) {
@@ -87,7 +88,7 @@ object CacheExporter {
             
             val existingFile = rootDoc.findFile(finalFileName)
             val mimeType = de.lwp2070809.speculonic.util.FormatUtils.getMimeTypeFromExtension(suffix)
-            val docFile = existingFile ?: rootDoc.createFile(mimeType, finalFileName)
+            docFile = existingFile ?: rootDoc.createFile(mimeType, finalFileName)
             
             if (docFile == null) {
                 LogManager.e("CacheExporter: Could not create file in SAF: $finalFileName")
@@ -133,7 +134,17 @@ object CacheExporter {
             LogManager.i("CacheExporter: Bit-perfect export complete for ${song.id}")
             return@withContext Result.success(docFile.uri.toString())
         } catch (e: Exception) {
-            LogManager.e("CacheExporter: Export failed for ${song.id}", e)
+            if (e !is kotlinx.coroutines.CancellationException) {
+                LogManager.e("CacheExporter: Export failed for ${song.id}", e)
+            }
+            try {
+                if (docFile != null && docFile.exists()) {
+                    docFile.delete()
+                }
+            } catch (cleanupEx: Exception) {
+                LogManager.e("CacheExporter: Failed to clean up half-written SAF file", cleanupEx)
+            }
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -162,6 +173,7 @@ object CacheExporter {
             return@withContext Result.failure(Exception("无法获取文件长度"))
         }
 
+        var targetFile: File? = null
         try {
             val privateDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
             if (!privateDir.exists()) {
@@ -172,7 +184,7 @@ object CacheExporter {
             val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val suffix = if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
             val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
-            val targetFile = File(privateDir, finalFileName)
+            targetFile = File(privateDir, finalFileName)
 
             LogManager.d("CacheExporter: Streaming ${song.id} directly to private storage: ${targetFile.absolutePath}")
 
@@ -209,7 +221,17 @@ object CacheExporter {
             LogManager.i("CacheExporter: Private export complete for ${song.id}: $uriString")
             return@withContext Result.success(uriString)
         } catch (e: Exception) {
-            LogManager.e("CacheExporter: Private export failed for ${song.id}", e)
+            if (e !is kotlinx.coroutines.CancellationException) {
+                LogManager.e("CacheExporter: Private export failed for ${song.id}", e)
+            }
+            try {
+                if (targetFile != null && targetFile.exists()) {
+                    targetFile.delete()
+                }
+            } catch (cleanupEx: Exception) {
+                LogManager.e("CacheExporter: Failed to clean up half-written private file", cleanupEx)
+            }
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -222,6 +244,7 @@ object CacheExporter {
         val preferencesManager = PreferencesManager.getInstance(context)
         val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext Result.failure(Exception("SAF未配置"))
 
+        var docFile: DocumentFile? = null
         try {
             val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString) ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
             val sourceUri = Uri.parse(privateFileUriString)
@@ -237,7 +260,7 @@ object CacheExporter {
 
             val existingFile = rootDoc.findFile(finalFileName)
             
-            val docFile = if (existingFile != null && existingFile.exists()) {
+            docFile = if (existingFile != null && existingFile.exists()) {
                 if (existingFile.length() == sourceFile.length()) {
                     LogManager.i("CacheExporter: File already exists in SAF with matching size, skipping stream write: $finalFileName")
                     existingFile
@@ -285,7 +308,17 @@ object CacheExporter {
             LogManager.i("CacheExporter: Exported private file to SAF: ${docFile.uri}")
             return@withContext Result.success(docFile.uri.toString())
         } catch (e: Exception) {
-            LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
+            if (e !is kotlinx.coroutines.CancellationException) {
+                LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
+            }
+            try {
+                if (docFile != null && docFile.exists()) {
+                    docFile.delete()
+                }
+            } catch (cleanupEx: Exception) {
+                LogManager.e("CacheExporter: Failed to clean up half-written SAF file", cleanupEx)
+            }
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }

@@ -58,6 +58,8 @@ object DownloadTracker {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val entityMapper = EntityMapper
 
+    private val exportJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+
     private val pollJob = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
 
     fun clearAll() {
@@ -149,9 +151,14 @@ object DownloadTracker {
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
                     
-                    scope.launch {
-                        exportDownloadedSong(context, download)
+                    val job = scope.launch {
+                        try {
+                            exportDownloadedSong(context, download)
+                        } finally {
+                            exportJobs.remove(download.request.id)
+                        }
                     }
+                    exportJobs[download.request.id] = job
                 }
                 Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
                     if (!isSilentDownload(download)) {
@@ -181,6 +188,9 @@ object DownloadTracker {
         }
 
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            val activeJob = exportJobs.remove(download.request.id)
+            activeJob?.cancel()
+
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
             val currentList = _allDownloads.value.toMutableList()
@@ -285,6 +295,7 @@ object DownloadTracker {
                     }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DownloadTracker: Failed to fetch additional metadata for export", e)
             }
 
@@ -328,9 +339,14 @@ object DownloadTracker {
                     LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
                 }
             }.onFailure {
-                LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")
-                Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
+                if (it is kotlinx.coroutines.CancellationException) {
+                    LogManager.i("DownloadTracker: Export cancelled for ${song.title}")
+                    throw it
+                } else {
+                    LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
+                    }
                 }
             }
         }
