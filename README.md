@@ -30,6 +30,7 @@ The project is built on the philosophy of treating the application as a local mi
 - [ ] Refactor tablet UI layout
 - [ ] Provide Android X86 builds
 - [x] Deliver compatibility updates within 3 months of new Android API releases
+- [ ] Release v1.0.0 Stable
 
 ## Build
 
@@ -91,6 +92,7 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 - [ ] 重构平板电脑的 UI
 - [ ] 提供 Android X86 版本
 - [x] 在 Android 新 API 版本发布 3 个月内提供适配
+- [ ] 发布`v1.0.0` 正式版
 
 ## 本地构建
 

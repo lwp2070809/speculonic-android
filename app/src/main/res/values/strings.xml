@@ -140,7 +140,7 @@
     <string name="force_full_sync">Force Full Sync</string>
     <string name="force_full_sync_description">Ignore server timestamps and perform a complete metadata rebuild.</string>
     <string name="silent_cache">Silent Cache</string>
-    <string name="silent_cache_description">Automatically download songs to persistent storage after 5s of playback.</string>
+    <string name="silent_cache_description">Automatically download songs after 5s of playback.</string>
     <string name="silent_cache_warning_title">Disable Silent Cache?</string>
     <string name="silent_cache_warning_message">Disabling silent cache will prevent songs from being saved locally while listening. You will consume more data if you listen to the same songs again. Are you sure?</string>
     <string name="sync_progress_status">Status: %1$s</string>
@@ -306,9 +306,6 @@
     <string name="clear_cache_quota_warning">Clear Playback Cache</string>
 
     <string name="cache_label">Storage &amp; Cache</string>
-    <string name="internal_cache_description">Storage statistics show album covers, playback buffers, offline songs, and other files.</string>
-    <string name="cached_songs_storage_label">Offline Downloaded Songs (Disk capacity limited)</string>
-    <string name="system_cache_managed_label">Transit &amp; Playback Buffer (Auto managed)</string>
     <string name="clear_queue_keep_cache">Clear Queue</string>
     <string name="pause_all">Pause All</string>
     <string name="resume_all">Start All</string>

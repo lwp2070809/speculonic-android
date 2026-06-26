@@ -140,7 +140,7 @@
     <string name="force_full_sync">强制全量同步</string>
     <string name="force_full_sync_description">忽略服务器时间戳，执行完整的元数据重建。</string>
     <string name="silent_cache">静默缓存</string>
-    <string name="silent_cache_description">播放 5 秒后自动将歌曲下载至持久存储。</string>
+    <string name="silent_cache_description">播放 5 秒后自动下载歌曲。</string>
     <string name="silent_cache_warning_title">关闭静默缓存？</string>
     <string name="silent_cache_warning_message">关闭后，收听过的歌曲将不会自动保存到本地，下次收听相同歌曲时将重新消耗网络流量。是否确认关闭？</string>
     <string name="sync_progress_status">当前状态：%1$s</string>
@@ -303,9 +303,6 @@
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
 
     <string name="cache_label">存储与缓存</string>
-    <string name="internal_cache_description">存储统计包含专辑封面、播放缓冲、离线歌曲等写入设备的数据。</string>
-    <string name="cached_songs_storage_label">离线已下载歌曲（受磁盘容量限制）</string>
-    <string name="system_cache_managed_label">中转与播放缓冲（自动托管）</string>
     <string name="clear_queue_keep_cache">清除队列</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部开始</string>
