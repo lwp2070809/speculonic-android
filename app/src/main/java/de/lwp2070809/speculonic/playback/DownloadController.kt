@@ -96,8 +96,13 @@ class DownloadController @Inject constructor(
 
         try {
             if (isSilent) {
-                de.lwp2070809.speculonic.data.DownloadManagerHelper.getDownloadManager(context).addDownload(downloadRequest)
-                LogManager.i("DownloadController: Silent download added directly to DownloadManager for ${song.id}")
+                DownloadService.sendAddDownload(
+                    context,
+                    de.lwp2070809.speculonic.playback.SilentDownloadService::class.java,
+                    downloadRequest,
+                    false
+                )
+                LogManager.i("DownloadController: Silent download added via SilentDownloadService for ${song.id}")
             } else {
                 DownloadService.sendAddDownload(
                     context,

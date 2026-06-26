@@ -394,6 +394,25 @@ object NetworkModule {
         return okHttpClientInstance
     }
 
+    private fun extractErrorMessage(body: String): String {
+        if (body.isBlank()) return "Unknown error"
+        try {
+            val jsonMessageRegex = """"(?:message|value)"\s*:\s*"([^"]+)"""".toRegex()
+            val matchJson = jsonMessageRegex.find(body)
+            if (matchJson != null) {
+                return matchJson.groupValues[1]
+            }
+            val xmlMessageRegex = """message="([^"]+)"""".toRegex()
+            val matchXml = xmlMessageRegex.find(body)
+            if (matchXml != null) {
+                return matchXml.groupValues[1]
+            }
+        } catch (e: Exception) {
+            // Ignore
+        }
+        return body.take(200)
+    }
+
     @Provides
     @Singleton
     @StreamHttpClient
@@ -402,25 +421,40 @@ object NetworkModule {
             val request = chain.request()
             val url = request.url
             val path = url.encodedPath
-            if (path.contains("rest/stream") || path.contains("rest/download")) {
-                if (url.queryParameter("u") == null) {
-                    val entryPoint = dagger.hilt.EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
-                    val authParams = entryPoint.subsonicRepository().getCurrentAuthParams()
-                    if (authParams != null) {
-                        val (u, t, s) = authParams
-                        val newUrl = url.newBuilder()
-                            .addQueryParameter("u", u)
-                            .addQueryParameter("t", t)
-                            .addQueryParameter("s", s)
-                            .addQueryParameter("v", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_API_VERSION)
-                            .addQueryParameter("c", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_CLIENT_ID)
-                            .addQueryParameter("f", "json")
-                            .build()
-                        return@addInterceptor chain.proceed(request.newBuilder().url(newUrl).build())
-                    }
+            val isMediaRequest = path.contains("rest/stream") || path.contains("rest/download")
+            
+            val finalRequest = if (isMediaRequest && url.queryParameter("u") == null) {
+                val entryPoint = dagger.hilt.EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
+                val authParams = entryPoint.subsonicRepository().getCurrentAuthParams()
+                if (authParams != null) {
+                    val (u, t, s) = authParams
+                    val newUrl = url.newBuilder()
+                        .addQueryParameter("u", u)
+                        .addQueryParameter("t", t)
+                        .addQueryParameter("s", s)
+                        .addQueryParameter("v", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_API_VERSION)
+                        .addQueryParameter("c", de.lwp2070809.speculonic.util.AppConstants.SUBSONIC_CLIENT_ID)
+                        .build()
+                    request.newBuilder().url(newUrl).build()
+                } else {
+                    request
+                }
+            } else {
+                request
+            }
+
+            val response = chain.proceed(finalRequest)
+
+            if (isMediaRequest) {
+                val contentType = response.body.contentType()?.toString()?.lowercase() ?: ""
+                if (contentType.contains("json") || contentType.contains("xml")) {
+                    val bodyString = response.body.string()
+                    LogManager.e("Stream/Download request returned non-audio response: $bodyString")
+                    val errorMessage = extractErrorMessage(bodyString)
+                    throw java.io.IOException("Subsonic server returned error: $errorMessage")
                 }
             }
-            chain.proceed(request)
+            response
         }.build()
     }
 
