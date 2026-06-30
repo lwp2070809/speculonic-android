@@ -63,6 +63,9 @@ class PlaybackService : MediaSessionService() {
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val isInitializing = java.util.concurrent.atomic.AtomicBoolean(false)
     
+    @Volatile private var lastInitializedServerUrl: String? = null
+    @Volatile private var lastInitializedUsername: String? = null
+
     private var silentCacheJob: Job? = null
     private var currentQueueTitle: String? = null
 
@@ -251,6 +254,9 @@ class PlaybackService : MediaSessionService() {
                     val oldPlayer = mediaSession?.player
                     mediaSession?.player = sessionPlayer
                     
+                    lastInitializedServerUrl = config.serverUrl
+                    lastInitializedUsername = config.username
+
                     if (oldPlayer is BluetoothCarManager.CarDisguisePlayer) {
                          oldPlayer.wrappedPlayer.release()
                     } else {
@@ -281,6 +287,26 @@ class PlaybackService : MediaSessionService() {
             val networkMonitor = this@PlaybackService.networkMonitor
             launch { networkMonitor.isMetered.collect { isMetered = it } }
             launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
+            
+            launch {
+                kotlinx.coroutines.flow.combine(
+                    prefs.serverUrl,
+                    prefs.username
+                ) { url, username ->
+                    Pair(url, username)
+                }.collect { (url, username) ->
+                    if (isInitializing.get()) {
+                        return@collect
+                    }
+                    if (url.isNotBlank() && username.isNotBlank() && 
+                        (url != lastInitializedServerUrl || username != lastInitializedUsername)) {
+                        LogManager.i("PlaybackService: Server config changed from '$lastInitializedServerUrl' to '$url'. Re-initializing player...")
+                        withContext(Dispatchers.Main) {
+                            initializeSessionAndPlayer()
+                        }
+                    }
+                }
+            }
             
             launch {
                 prefs.carBluetoothEnabled.collect { isEnabled ->

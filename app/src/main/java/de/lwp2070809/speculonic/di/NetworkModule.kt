@@ -447,11 +447,24 @@ object NetworkModule {
 
             if (isMediaRequest) {
                 val contentType = response.body.contentType()?.toString()?.lowercase() ?: ""
-                if (contentType.contains("json") || contentType.contains("xml")) {
-                    val bodyString = response.body.string()
-                    LogManager.e("Stream/Download request returned non-audio response: $bodyString")
+                val isSuccessful = response.isSuccessful
+                
+                val isExplicitTextOrError = contentType.contains("json") || 
+                                            contentType.contains("xml") || 
+                                            contentType.contains("text/")
+                                            
+                val shouldIntercept = !isSuccessful || isExplicitTextOrError
+                
+                if (shouldIntercept) {
+                    val bodyString = try {
+                        response.peekBody(10240).string()
+                    } catch (e: Exception) {
+                        "Failed to read body: ${e.message}"
+                    }
+                    LogManager.e("Stream/Download request returned non-audio response: code=${response.code}, contentType=$contentType, body=$bodyString")
+                    
                     val errorMessage = extractErrorMessage(bodyString)
-                    throw java.io.IOException("Subsonic server returned error: $errorMessage")
+                    throw java.io.IOException("Subsonic server returned error (code ${response.code}): $errorMessage")
                 }
             }
             response
