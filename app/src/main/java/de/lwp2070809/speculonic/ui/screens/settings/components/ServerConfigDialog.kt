@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Error
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -180,7 +179,7 @@ fun ServerConfigDialog(
                         val result = uiState.testConnectionResult
                         if (result != null) {
                             Icon(
-                                imageVector = if (result.first) Icons.Default.CheckCircle else Icons.Default.Error,
+                                painter = if (result.first) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.CheckCircle) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_error),
                                 contentDescription = null,
                                 tint = if (result.first) Color.Green else MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(start = 8.dp)

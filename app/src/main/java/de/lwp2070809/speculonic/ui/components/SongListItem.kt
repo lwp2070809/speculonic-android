@@ -13,14 +13,10 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistAdd
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -175,7 +171,7 @@ fun SongListItem(
                         modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                     ) {
                         Icon(
-                            imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                            painter = if (isStarred) rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
                             contentDescription = "Star",
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -191,7 +187,7 @@ fun SongListItem(
                             if (isDownloaded) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.remove_download)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete), contentDescription = null) },
                                     onClick = { 
                                         onRemoveDownloadClick()
                                         showMenu = false
@@ -200,7 +196,7 @@ fun SongListItem(
                             } else {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.download)) },
-                                    leadingIcon = { Icon(Icons.Outlined.Download, contentDescription = null) },
+                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = null) },
                                     onClick = { 
                                         onDownloadClick()
                                         showMenu = false
@@ -210,7 +206,7 @@ fun SongListItem(
                             }
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.song_details)) },
-                                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info), contentDescription = null) },
                                 onClick = { 
                                     showDetailDialog = true
                                     showMenu = false
@@ -218,7 +214,7 @@ fun SongListItem(
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.add_to_playlist)) },
-                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.PlaylistAdd, contentDescription = null) },
+                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_add), contentDescription = null) },
                                 onClick = { 
                                     showAddToPlaylistDialog = true
                                     showMenu = false

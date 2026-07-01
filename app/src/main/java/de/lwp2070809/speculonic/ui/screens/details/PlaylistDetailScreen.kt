@@ -11,13 +11,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
-import androidx.compose.material.icons.filled.PushPin
-import androidx.compose.material.icons.outlined.Delete
-import androidx.compose.material.icons.outlined.Download
-import androidx.compose.material.icons.outlined.FavoriteBorder
-import androidx.compose.material.icons.outlined.Info
-import androidx.compose.material.icons.outlined.PushPin
-import androidx.compose.material.icons.outlined.RemoveCircleOutline
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -197,7 +190,7 @@ fun PlaylistDetailScreen(
                                         modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                                     ) {
                                         Icon(
-                                            imageVector = if (isStarred) Icons.Default.Favorite else Icons.Outlined.FavoriteBorder,
+                                            painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
                                             contentDescription = "Star",
                                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -213,7 +206,7 @@ fun PlaylistDetailScreen(
                                             if (isDownloaded) {
                                                 DropdownMenuItem(
                                                     text = { Text(stringResource(R.string.remove_download)) },
-                                                    leadingIcon = { Icon(Icons.Outlined.Delete, contentDescription = null) },
+                                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete), contentDescription = null) },
                                                     onClick = {
                                                         showItemMenu = false
                                                         downloadController.removeDownload(song.id)
@@ -222,7 +215,7 @@ fun PlaylistDetailScreen(
                                             } else {
                                                 DropdownMenuItem(
                                                     text = { Text(stringResource(R.string.download)) },
-                                                    leadingIcon = { Icon(Icons.Outlined.Download, contentDescription = null) },
+                                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = null) },
                                                     onClick = {
                                                         showItemMenu = false
                                                         downloadController.downloadSong(song)
@@ -232,7 +225,7 @@ fun PlaylistDetailScreen(
                                             }
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.song_details)) },
-                                                leadingIcon = { Icon(Icons.Outlined.Info, contentDescription = null) },
+                                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info), contentDescription = null) },
                                                 onClick = {
                                                     showDetailDialog = true
                                                     showItemMenu = false
@@ -241,7 +234,7 @@ fun PlaylistDetailScreen(
                                             HorizontalDivider()
                                             DropdownMenuItem(
                                                 text = { Text(stringResource(R.string.remove_from_playlist)) },
-                                                leadingIcon = { Icon(Icons.Outlined.RemoveCircleOutline, contentDescription = null) },
+                                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
                                                 onClick = {
                                                     showItemMenu = false
                                                     scope.launch {
@@ -325,13 +318,13 @@ fun PlaylistHeader(
         IconButton(onClick = onTogglePinned) {
             if (playlist?.pinned == true) {
                 Icon(
-                    Icons.Default.PushPin,
+                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_push_pin_filled),
                     contentDescription = stringResource(R.string.content_description_unpin_playlist),
                     tint = MaterialTheme.colorScheme.primary
                 )
             } else {
                 Icon(
-                    Icons.Outlined.PushPin,
+                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_push_pin),
                     contentDescription = stringResource(R.string.content_description_pin_playlist),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )

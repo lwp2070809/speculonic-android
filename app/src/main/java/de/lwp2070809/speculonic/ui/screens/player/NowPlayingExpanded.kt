@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -117,7 +116,7 @@ fun NowPlayingExpanded(
                         modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp)
                     )
                     IconButton(onClick = onShowQueue) {
-                        Icon(Icons.AutoMirrored.Filled.PlaylistPlay, contentDescription = "Queue")
+                        Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play), contentDescription = "Queue")
                     }
                 }
 

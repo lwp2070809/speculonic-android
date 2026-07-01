@@ -18,14 +18,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Wifi
-import androidx.compose.material.icons.filled.WifiOff
-import androidx.compose.material.icons.outlined.Cloud
-import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -194,7 +187,7 @@ fun MainTopBar(
                             Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp)) {
                                 if (activeDownloadsCount > 0) {
                                     Icon(
-                                        imageVector = Icons.Default.ArrowDownward,
+                                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier
@@ -213,7 +206,7 @@ fun MainTopBar(
                                     )
                                 } else {
                                     Icon(
-                                        imageVector = Icons.Default.ArrowDownward,
+                                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                                         modifier = Modifier.size(20.dp)
@@ -315,7 +308,7 @@ private fun CloudSyncIcon(
     ) {
         Box(modifier = Modifier.alpha(doneAlpha)) {
             Icon(
-                imageVector = Icons.Outlined.CloudDone,
+                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_cloud_done),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp)
@@ -324,7 +317,7 @@ private fun CloudSyncIcon(
 
         Box(modifier = Modifier.alpha(syncingAlpha)) {
             Icon(
-                imageVector = Icons.Outlined.Cloud,
+                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_cloud),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp)
@@ -357,7 +350,7 @@ private fun CloudSyncIcon(
                     .padding(1.dp)
             ) {
                 Icon(
-                    imageVector = Icons.Default.Sync,
+                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -392,7 +385,7 @@ private fun WifiOfflineIcon(
     )
 
     Icon(
-        imageVector = if (offlineMode) Icons.Default.WifiOff else Icons.Default.Wifi,
+        painter = if (offlineMode) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi_off) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi),
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = modifier

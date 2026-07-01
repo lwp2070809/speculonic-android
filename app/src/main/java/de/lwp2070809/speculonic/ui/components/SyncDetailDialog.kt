@@ -24,14 +24,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Album
-import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.automirrored.filled.PlaylistPlay
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 
 @Composable
 fun SyncDetailDialog(
@@ -131,26 +130,26 @@ fun SyncDetailDialog(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                             StatItem(
+                                 icon = rememberVectorPainter(Icons.Default.Person),
+                                 label = stringResource(R.string.artists),
+                                 value = uiState.artistsCount.toString(),
+                                 modifier = Modifier.weight(1f)
+                             )
                             StatItem(
-                                icon = Icons.Default.Person,
-                                label = stringResource(R.string.artists),
-                                value = uiState.artistsCount.toString(),
-                                modifier = Modifier.weight(1f)
-                            )
-                            StatItem(
-                                icon = Icons.Default.Album,
+                                icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_album),
                                 label = stringResource(R.string.albums),
                                 value = uiState.albumsCount.toString(),
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
-                                icon = Icons.Default.MusicNote,
+                                icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note),
                                 label = stringResource(R.string.songs),
                                 value = uiState.songsCount.toString(),
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
-                                icon = Icons.AutoMirrored.Filled.PlaylistPlay,
+                                icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play),
                                 label = stringResource(R.string.playlists),
                                 value = uiState.playlistsCount.toString(),
                                 modifier = Modifier.weight(1f)
@@ -170,7 +169,7 @@ fun SyncDetailDialog(
 
 @Composable
 private fun StatItem(
-    icon: ImageVector,
+    icon: Painter,
     label: String,
     value: String,
     modifier: Modifier = Modifier
@@ -181,7 +180,7 @@ private fun StatItem(
         verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         Icon(
-            imageVector = icon,
+            painter = icon,
             contentDescription = null,
             modifier = Modifier.size(24.dp),
             tint = MaterialTheme.colorScheme.primary

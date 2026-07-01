@@ -16,10 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -137,7 +134,7 @@ fun DownloadManagerScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.ClearAll,
+                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_clear_all),
                         contentDescription = null,
                         modifier = Modifier.size(14.dp)
                     )
@@ -161,7 +158,7 @@ fun DownloadManagerScreen(
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Pause,
+                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause),
                         contentDescription = null,
                         modifier = Modifier.size(14.dp)
                     )
@@ -211,7 +208,7 @@ fun DownloadManagerScreen(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Download,
+                            painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download_filled),
                             contentDescription = null,
                             modifier = Modifier.size(48.dp),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
@@ -384,7 +381,7 @@ fun DownloadTaskItem(
                     Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
                         IconButton(onClick = onPauseClick) {
                             Icon(
-                                imageVector = Icons.Default.Pause,
+                                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause),
                                 contentDescription = stringResource(R.string.content_description_pause),
                                 tint = MaterialTheme.colorScheme.primary
                             )

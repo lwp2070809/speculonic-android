@@ -8,15 +8,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Bluetooth
-import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.NetworkCheck
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.Sync
-import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
@@ -26,6 +19,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
@@ -51,50 +46,50 @@ fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         SettingsCategoryItem(
             title = stringResource(R.string.server),
-            icon = Icons.Default.Dns,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_dns),
             onClick = { onNavigate(AppRoute.SettingsServer) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.play),
-            icon = Icons.Default.PlayArrow,
+            icon = rememberVectorPainter(Icons.Default.PlayArrow),
             onClick = { onNavigate(AppRoute.SettingsPlayback) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.bluetooth_audio),
-            icon = Icons.Default.Bluetooth,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_bluetooth),
             onClick = { onNavigate(AppRoute.SettingsBluetooth) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.appearance),
-            icon = Icons.Default.Palette,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_palette),
             onClick = { onNavigate(AppRoute.SettingsAppearance) }
         )
 
         SettingsCategoryItem(
             title = stringResource(R.string.storage_cache_settings),
-            icon = Icons.Default.Storage,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_storage),
             onClick = { onNavigate(AppRoute.StorageCacheSettings) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.network),
-            icon = Icons.Default.NetworkCheck,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_network_check),
             onClick = { onNavigate(AppRoute.SettingsNetwork) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.advanced),
-            icon = Icons.Default.Terminal,
+            icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_terminal),
             onClick = { onNavigate(AppRoute.SettingsAdvanced) }
         )
         SettingsCategoryItem(
             title = stringResource(R.string.about),
-            icon = Icons.Default.Info,
+            icon = rememberVectorPainter(Icons.Default.Info),
             onClick = { onNavigate(AppRoute.SettingsAbout) }
         )
     }
 }
 
 @Composable
-fun SettingsCategoryItem(title: String, icon: ImageVector, onClick: () -> Unit) {
+fun SettingsCategoryItem(title: String, icon: Painter, onClick: () -> Unit) {
     ListItem(
         headlineContent = { Text(title) },
         leadingContent = { Icon(icon, contentDescription = null) },

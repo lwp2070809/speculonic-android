@@ -22,8 +22,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.FilterList
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -225,7 +223,7 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
                             Box {
                                 IconButton(onClick = { filterMenuExpanded = true }) {
                                     Icon(
-                                        Icons.Default.FilterList,
+                                        androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_filter_list),
                                         contentDescription = "Filter"
                                     )
                                 }
@@ -253,7 +251,7 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
                                 Toast.makeText(context, context.getString(R.string.logs_copied_to_clipboard), Toast.LENGTH_SHORT).show()
                             }) {
                                 Icon(
-                                    Icons.Default.ContentCopy,
+                                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_content_copy),
                                     contentDescription = stringResource(R.string.content_description_copy_all)
                                 )
                             }

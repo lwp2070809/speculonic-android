@@ -11,15 +11,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
-import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Repeat
-import androidx.compose.material.icons.filled.RepeatOne
-import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SkipNext
-import androidx.compose.material.icons.filled.SkipPrevious
-import androidx.compose.material.icons.filled.Timer
-import androidx.compose.material.icons.outlined.Info
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -91,9 +83,9 @@ fun MainControls(
             onClick = { playbackController.togglePlaybackMode() }
         ) {
             val icon = when {
-                playbackState.shuffleModeEnabled -> Icons.Default.Shuffle
-                playbackState.repeatMode == Player.REPEAT_MODE_ONE -> Icons.Default.RepeatOne
-                else -> Icons.Default.Repeat
+                playbackState.shuffleModeEnabled -> androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_shuffle)
+                playbackState.repeatMode == Player.REPEAT_MODE_ONE -> androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_repeat_one)
+                else -> androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_repeat)
             }
             Icon(
                 icon, 
@@ -108,7 +100,7 @@ fun MainControls(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             IconButton(onClick = { playbackController.skipToPrevious() }) {
-                Icon(Icons.Default.SkipPrevious, contentDescription = "Previous", modifier = Modifier.size(36.dp))
+                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous), contentDescription = "Previous", modifier = Modifier.size(36.dp))
             }
             
             FloatingActionButton(
@@ -119,14 +111,14 @@ fun MainControls(
                 modifier = Modifier.size(72.dp)
             ) {
                 Icon(
-                    if (playbackState.isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                    painter = if (playbackState.isPlaying) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause) else androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.PlayArrow),
                     contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
                     modifier = Modifier.size(40.dp)
                 )
             }
 
             IconButton(onClick = { playbackController.skipToNext() }) {
-                Icon(Icons.Default.SkipNext, contentDescription = "Next", modifier = Modifier.size(36.dp))
+                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next), contentDescription = "Next", modifier = Modifier.size(36.dp))
             }
         }
 
@@ -135,7 +127,7 @@ fun MainControls(
             onClick = { onShowSongInfo() }
         ) {
             Icon(
-                Icons.Outlined.Info,
+                androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info),
                 contentDescription = stringResource(R.string.song_info),
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -174,7 +166,7 @@ fun ExtraControls(
         }
         TextButton(onClick = onShowSleepTimer) {
             Icon(
-                imageVector = Icons.Default.Timer, 
+                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_timer), 
                 contentDescription = null, 
                 modifier = Modifier.size(20.dp),
                 tint = if (playbackState.isSleepTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface

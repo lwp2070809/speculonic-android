@@ -20,18 +20,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.filled.Dns
-import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Code
-import androidx.compose.material.icons.filled.DoneAll
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.rememberScrollState
@@ -153,7 +148,7 @@ fun ServerSettings(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            imageVector = Icons.Default.Dns,
+                            painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_dns),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(32.dp)
@@ -216,21 +211,21 @@ fun ServerSettings(
                     val apiVer = caps?.subsonicApiVersion ?: stringResource(R.string.unknown_val)
 
                     DashboardItem(
-                        icon = Icons.Default.Storage,
+                        icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_storage),
                         label = stringResource(R.string.server_type),
                         value = type
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
                     DashboardItem(
-                        icon = Icons.Default.Info,
+                        icon = rememberVectorPainter(Icons.Default.Info),
                         label = stringResource(R.string.server_version),
                         value = serverVer
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f))
 
                     DashboardItem(
-                        icon = Icons.Default.Code,
+                        icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_code),
                         label = stringResource(R.string.subsonic_api_version),
                         value = apiVer
                     )
@@ -245,7 +240,7 @@ fun ServerSettings(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                imageVector = Icons.Default.DoneAll,
+                                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_done_all),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
@@ -294,7 +289,7 @@ fun ServerSettings(
                             enabled = !uiState.isSyncing && isEffectivelyOnline
                         ) {
                             Icon(
-                                imageVector = if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
+                                painter = if (uiState.isSyncing) rememberVectorPainter(Icons.Default.Refresh) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
                                 contentDescription = stringResource(R.string.force_full_sync),
                                 modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
                             )

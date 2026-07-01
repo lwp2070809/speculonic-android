@@ -54,7 +54,7 @@ androidx-navigation-compose = { group = "androidx.navigation", name = "navigatio
 androidx-navigation3-ui = { group = "androidx.navigation3", name = "navigation3-ui", version.ref = "navigation3" }
 androidx-navigation3-runtime = { group = "androidx.navigation3", name = "navigation3-runtime", version.ref = "navigation3" }
 androidx-lifecycle-viewmodel-navigation3 = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-navigation3", version.ref = "lifecycleRuntimeKtx" }
-androidx-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+androidx-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
 io-coil-kt-coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coilCompose" }
 io-coil-kt-coil-network = { group = "io.coil-kt.coil3", name = "coil-network-okhttp", version.ref = "coilCompose" }
 io-coil-kt-coil-svg = { group = "io.coil-kt.coil3", name = "coil-svg", version.ref = "coilCompose" }

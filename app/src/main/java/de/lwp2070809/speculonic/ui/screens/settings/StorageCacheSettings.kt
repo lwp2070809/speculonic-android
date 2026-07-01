@@ -34,15 +34,12 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Sync
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
@@ -365,7 +362,7 @@ fun StorageCacheSettings(
                 },
                 leadingContent = {
                     Icon(
-                        if (uiState.isSyncing) Icons.Default.Refresh else Icons.Default.Sync,
+                        painter = if (uiState.isSyncing) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Refresh) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
                         contentDescription = null,
                         modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
                     )

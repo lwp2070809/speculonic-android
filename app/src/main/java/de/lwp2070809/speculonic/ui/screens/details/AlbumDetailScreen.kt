@@ -9,7 +9,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
-import androidx.compose.material.icons.filled.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -73,7 +72,7 @@ fun AlbumDetailScreen(
                 ) {
                     val isStarred = uiState.album?.starred != null
                     Icon(
-                        if (isStarred) Icons.Default.Star else Icons.Default.StarBorder,
+                        painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Star) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_star_border),
                         contentDescription = "Star",
                         tint = if (isStarred) MaterialTheme.colorScheme.primary else LocalContentColor.current
                     )

@@ -4,9 +4,7 @@ import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -75,7 +73,7 @@ fun ActionButtonsRow(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 8.dp)
         ) {
-            Icon(Icons.Default.Shuffle, contentDescription = null)
+            Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_shuffle), contentDescription = null)
             Spacer(Modifier.width(4.dp))
             Text(stringResource(R.string.shuffle), maxLines = 1)
         }
@@ -92,7 +90,7 @@ fun ActionButtonsRow(
                 onClick = { showDownloadAllDialog = true },
                 enabled = isStreamingAllowed && isDownloadEnabled
             ) {
-                Icon(Icons.Default.Download, contentDescription = stringResource(R.string.download_all))
+                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download_filled), contentDescription = stringResource(R.string.download_all))
             }
         }
     }

@@ -6,7 +6,6 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
@@ -150,11 +149,11 @@ private fun MainContent(
     val searchViewModel: SearchViewModel = hiltViewModel(key = "search_$serverUrl")
     val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_$serverUrl")
 
-    data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: ImageVector)
+    data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: @Composable () -> Unit)
     val navItems = listOf(
-        NavItem(AppRoute.Discover, R.string.discover, Icons.Default.Home),
-        NavItem(AppRoute.Library, R.string.library, Icons.Default.LibraryMusic),
-        NavItem(AppRoute.Settings, R.string.settings, Icons.Default.Settings)
+        NavItem(AppRoute.Discover, R.string.discover, { Icon(Icons.Default.Home, contentDescription = null) }),
+        NavItem(AppRoute.Library, R.string.library, { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_symbol_library_music), contentDescription = null) }),
+        NavItem(AppRoute.Settings, R.string.settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     )
     val currentRoute = navigationState.getRetainedKeys().lastOrNull()
 
@@ -228,7 +227,7 @@ private fun MainContent(
                     navItems.forEach { item ->
                         val isSelected = navigationState.topLevelRoute == item.route
                         item(
-                            icon = { Icon(item.icon, contentDescription = null) },
+                            icon = item.icon,
                             label = { Text(androidx.compose.ui.res.stringResource(item.title)) },
                             selected = isSelected,
                             onClick = { navigator.navigate(item.route) },
