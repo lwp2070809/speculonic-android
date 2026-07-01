@@ -91,6 +91,22 @@ fun SyncDetailDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
+                if (uiState.syncError != null) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(
+                            text = uiState.syncError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
                 HorizontalDivider()
 
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {

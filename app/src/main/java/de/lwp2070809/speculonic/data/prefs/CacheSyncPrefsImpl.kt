@@ -22,6 +22,7 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         private val SERVER_LAST_MODIFIED = longPreferencesKey("server_last_modified")
         private val IS_SYNCING = booleanPreferencesKey("is_syncing")
         private val SYNC_PROGRESS = stringPreferencesKey("sync_progress")
+        private val SYNC_ERROR = stringPreferencesKey("sync_error")
         private val BACKGROUND_SYNC_ENABLED = booleanPreferencesKey("background_sync_enabled")
         private val LAST_CACHE_SCAN_TIME = longPreferencesKey("last_cache_scan_time")
         private val SYNC_COVER_ART_ON_FORCE = booleanPreferencesKey("sync_cover_art_on_force")
@@ -37,6 +38,7 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }
     override val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }
     override val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }
+    override val syncError: Flow<String?> = context.dataStore.data.map { it[SYNC_ERROR] }
     override val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: false }
     override val lastCacheScanTime: Flow<Long> = context.dataStore.data.map { it[LAST_CACHE_SCAN_TIME] ?: 0L }
     override val syncCoverArtOnForce: Flow<Boolean> = context.dataStore.data.map { it[SYNC_COVER_ART_ON_FORCE] ?: false }
@@ -100,6 +102,13 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         context.dataStore.edit { preferences ->
             if (progress == null) preferences.remove(SYNC_PROGRESS)
             else preferences[SYNC_PROGRESS] = progress
+        }
+    }
+
+    override suspend fun saveSyncError(error: String?) {
+        context.dataStore.edit { preferences ->
+            if (error == null) preferences.remove(SYNC_ERROR)
+            else preferences[SYNC_ERROR] = error
         }
     }
 

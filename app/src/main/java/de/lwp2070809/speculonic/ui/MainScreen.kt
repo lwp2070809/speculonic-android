@@ -209,6 +209,7 @@ private fun MainContent(
                     onSearchClick = { showSearch = true },
                     isSyncing = isSyncing,
                     syncProgress = settingsUiState.syncProgress,
+                    syncError = settingsUiState.syncError,
                     onSyncStatusClick = { showSyncDetailDialog = true },
                     activeDownloadsCount = activeDownloadsCount,
                     onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },

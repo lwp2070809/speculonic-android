@@ -68,6 +68,12 @@ class SettingsViewModel @Inject constructor(
         started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
         initialValue = null
     )
+
+    val syncError: StateFlow<String?> = preferencesManager.syncError.stateIn(
+        scope = viewModelScope,
+        started = kotlinx.coroutines.flow.SharingStarted.WhileSubscribed(5000),
+        initialValue = null
+    )
     
     private val context = SpeculonicApp.instance
     private val cacheOperations = CacheOperations(context)
@@ -179,9 +185,10 @@ class SettingsViewModel @Inject constructor(
 
             val syncGroup = combine(
                 preferencesManager.isSyncing,
-                preferencesManager.syncProgress
-            ) { isSyncing, syncProgress ->
-                isSyncing to syncProgress
+                preferencesManager.syncProgress,
+                preferencesManager.syncError
+            ) { isSyncing, syncProgress, syncError ->
+                Triple(isSyncing, syncProgress, syncError)
             }
 
             combine(group1, group2, group4, statsFlow, syncGroup) { g1, g2, g4, stats, sync ->
@@ -218,6 +225,7 @@ class SettingsViewModel @Inject constructor(
                         offlineModeEnabled = g4.offlineModeEnabled,
                         isSyncing = sync.first,
                         syncProgress = sync.second,
+                        syncError = sync.third,
                         artistsCount = stats.artists,
                         albumsCount = stats.albums,
                         songsCount = stats.songs,
@@ -494,6 +502,7 @@ class SettingsViewModel @Inject constructor(
                 (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))
             var success = false
             try {
+                preferencesManager.saveSyncError(null)
                 preferencesManager.saveIsSyncing(true)
                 preferencesManager.saveSyncProgress(context.getString(de.lwp2070809.speculonic.R.string.sync_preparing))
                 syncAllDataUseCase(
@@ -512,6 +521,7 @@ class SettingsViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 LogManager.e("Settings: Initial sync failed", e)
+                preferencesManager.saveSyncError(e.message ?: e.toString())
             } finally {
                 val shouldSyncCovers = success && repository.isConfigured && 
                     (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))

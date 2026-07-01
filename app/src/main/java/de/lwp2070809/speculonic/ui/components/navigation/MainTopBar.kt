@@ -21,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Sync
+import androidx.compose.material.icons.filled.Error
 import androidx.compose.material.icons.filled.Wifi
 import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.outlined.Cloud
@@ -60,6 +61,7 @@ fun MainTopBar(
     onSearchClick: () -> Unit,
     isSyncing: Boolean = false,
     syncProgress: String? = null,
+    syncError: String? = null,
     onSyncStatusClick: () -> Unit = {},
     activeDownloadsCount: Int = 0,
     onDownloadManagerClick: () -> Unit = {},
@@ -127,7 +129,8 @@ fun MainTopBar(
                         ) {
                             CloudSyncIcon(
                                 isSyncing = isSyncing,
-                                showCloudDoneRecent = showCloudDoneRecent
+                                showCloudDoneRecent = showCloudDoneRecent,
+                                hasError = syncError != null
                             )
                         }
 
@@ -270,6 +273,7 @@ fun MainTopBar(
 private fun CloudSyncIcon(
     isSyncing: Boolean,
     showCloudDoneRecent: Boolean,
+    hasError: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val targetAlpha = if (isSyncing || showCloudDoneRecent) 1f else 0.4f
@@ -288,12 +292,21 @@ private fun CloudSyncIcon(
         label = "syncingAlpha"
     )
     val doneAlpha by animateFloatAsState(
-        targetValue = if (isSyncing) 0f else 1f,
+        targetValue = if (isSyncing || hasError) 0f else 1f,
         animationSpec = tween(
             durationMillis = 500,
             delayMillis = if (isSyncing) 0 else 500
         ),
         label = "doneAlpha"
+    )
+
+    val errorAlpha by animateFloatAsState(
+        targetValue = if (!isSyncing && hasError) 1f else 0f,
+        animationSpec = tween(
+            durationMillis = 500,
+            delayMillis = if (isSyncing) 0 else 500
+        ),
+        label = "errorAlpha"
     )
 
     Box(
@@ -352,6 +365,15 @@ private fun CloudSyncIcon(
                         .rotate(rotationState.value)
                 )
             }
+        }
+
+        Box(modifier = Modifier.alpha(errorAlpha)) {
+            Icon(
+                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_cloud_alert),
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(26.dp)
+            )
         }
     }
 }

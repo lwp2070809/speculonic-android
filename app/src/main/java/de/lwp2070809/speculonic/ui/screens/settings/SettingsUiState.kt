@@ -38,6 +38,7 @@ data class SettingsUiState(
     val isSyncing: Boolean = false,
     val isPlaying: Boolean = false,
     val syncProgress: String? = null,
+    val syncError: String? = null,
     val syncPercentage: Int? = null,
     val showFirstSyncConfirm: Boolean = false,
     val showSafetyGuardConfirm: Boolean = false,

@@ -13,6 +13,7 @@ interface CacheSyncPrefs {
     val serverLastModified: Flow<Long>
     val isSyncing: Flow<Boolean>
     val syncProgress: Flow<String?>
+    val syncError: Flow<String?>
     val backgroundSyncEnabled: Flow<Boolean>
     val lastCacheScanTime: Flow<Long>
     val syncCoverArtOnForce: Flow<Boolean>
@@ -27,6 +28,7 @@ interface CacheSyncPrefs {
     suspend fun saveServerLastModified(time: Long)
     suspend fun saveIsSyncing(syncing: Boolean)
     suspend fun saveSyncProgress(progress: String?)
+    suspend fun saveSyncError(error: String?)
     suspend fun saveBackgroundSyncEnabled(enabled: Boolean)
     suspend fun saveLastCacheScanTime(time: Long)
     suspend fun saveSyncCoverArtOnForce(enabled: Boolean)
