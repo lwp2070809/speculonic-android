@@ -10,7 +10,17 @@
 
 Speculonic is an open-source OpenSubsonic / Subsonic (v1.16.1) music client built with native Android technologies. Compatibility with Navidrome servers has been fully verified.
 
+## Design Philosophy
+
 The project is built on the philosophy of treating the application as a local mirror of the remote Subsonic server. It provides synchronization and diff capabilities with remote Subsonic servers, alongside the performance and extensibility of a high-performance local music player.
+
+Based on this design philosophy, the app always prioritizes fetching and playing the original resources from the server, including original audio files and original album art, to ensure that the content on the device remains strictly consistent with the server, avoiding any additional discrepancies caused by client-side processing.
+
+Therefore, some common features found in mainstream Subsonic clients will not be provided at present, including:
+
+* Audio transcoding
+* Playback bitrate selection
+* Album art download quality selection
 
 ## Features
 
@@ -26,11 +36,13 @@ The project is built on the philosophy of treating the application as a local mi
 ## Roadmap
 
 - [x] Provide Github Action builds
+- [x] Deliver compatibility updates within 3 months of new Android API releases
 - [ ] Publish on F-Droid
 - [ ] Refactor tablet UI layout
 - [ ] Provide Android X86 builds
-- [x] Deliver compatibility updates within 3 months of new Android API releases
-- [ ] Release v1.0.0 Stable
+- [ ] Add "Check for Updates" button in the About section
+- [ ] Support navigating to corresponding albums and artists from song details
+- [ ] Release v1.0.0 Stable (Currently under active development, but features are becoming stable)
 
 ## Build
 
@@ -72,7 +84,17 @@ If you distribute a modified version of this software:
 
 Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Subsonic (v1.16.1) 音乐客户端, 已验证与 Navidrome 服务器的兼容性.
 
+## 设计理念
+
 本项目基于 "将 App 作为远程 Subsonic 服务器的本地镜像" 的设计理念, 具备与远程 Subsonic 服务器同步与对比差异的能力, 同时具备本地播放器的高性能与扩展接口.
+
+基于这一设计理念，APP 始终优先获取并播放服务器上的原始资源, 包括原始音频文件和原始专辑封面, 以确保设备上的内容与服务器保持严格一致, 避免因客户端处理而产生额外的差异.
+
+因此，主流 Subsonic 客户端中一些常见的功能在目前不会提供，包括: 
+
+* 音频转码播放
+* 播放码率选择
+* 专辑封面下载质量选择
 
 ## 功能特性
 
@@ -88,11 +110,13 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 ## 开发路线图
 
 - [x] 提供 Github Action 构建
+- [x] 在 Android 新 API 版本发布 3 个月内提供适配
 - [ ] 上架 F-Droid
 - [ ] 重构平板电脑的 UI
 - [ ] 提供 Android X86 版本
-- [x] 在 Android 新 API 版本发布 3 个月内提供适配
-- [ ] 发布`v1.0.0` 正式版
+- [ ] 在关于中添加立刻检查更新按钮
+- [ ] 在歌曲详情中可以跳转到对应的专辑和艺术家
+- [ ] 发布`v1.0.0` 正式版 (当前处于积极开发阶段, 但功能已趋于稳定)
 
 ## 本地构建
 

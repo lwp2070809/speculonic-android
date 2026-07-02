@@ -37,5 +37,33 @@
         {"speaker": "Iroha", "message": "If you screw up, I'll just leave you behind."}
       ]
     }
+  },
+  {
+    "id": 4,
+    "messages": {
+      "zh": [
+        {"speaker": "ヤチヨ", "message": "我一直期待着, 也许触碰到你时会感到温暖."},
+        {"speaker": "彩葉", "message": "还没有结束, 这个故事还有续集."}
+      ],
+      "en": [
+        {"speaker": "Yachiyo", "message": "I keep hoping maybe it'll feel warm when I touch you."},
+        {"speaker": "Iroha", "message": "It's not over. There's still more to this story."}
+      ]
+    }
+  },
+  {
+    "id": 4,
+    "messages": {
+      "zh": [
+        {"speaker": "彩葉", "message": "Happy End"},
+        {"speaker": "かぐや", "message": "Happy End"},
+        {"speaker": "ヤチヨ", "message": "Happy End"}
+      ],
+      "en": [
+        {"speaker": "Iroha", "message": "Happy End"},
+        {"speaker": "Kaguya", "message": "Happy End"},
+        {"speaker": "Yachiyo", "message": "Happy End"}
+      ]
+    }
   }
 ]
