@@ -70,8 +70,18 @@ class SyncManager(
             onProgress?.invoke(progressMsg)
             pref.saveSyncProgress(progressMsg)
             val serverLastModified: Long = try {
-                val indexesResponse = api.getIndexes(u, t, s)
-                indexesResponse.response.indexes?.lastModified ?: 0L
+                val ifModifiedSince = if (!ignoreLastModified && hasLocalData) lastServerModified else null
+                val indexesResponse = api.getIndexes(u, t, s, ifModifiedSince = ifModifiedSince)
+                if (indexesResponse.response.status == "ok") {
+                    val returnedLastModified = indexesResponse.response.indexes?.lastModified
+                    if (returnedLastModified != null) {
+                        returnedLastModified
+                    } else {
+                        if (ifModifiedSince != null) lastServerModified else 0L
+                    }
+                } else {
+                    0L
+                }
             } catch (e: Exception) {
                 LogManager.w("SyncManager: Failed to get lastModified from getIndexes - ${e.message}")
                 0L

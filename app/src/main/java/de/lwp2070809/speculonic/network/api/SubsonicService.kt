@@ -173,7 +173,8 @@ interface SubsonicService {
         @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
         @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json",
-        @Query("musicFolderId") musicFolderId: String? = null
+        @Query("musicFolderId") musicFolderId: String? = null,
+        @Query("ifModifiedSince") ifModifiedSince: Long? = null
     ): SubsonicResponse<SubsonicIndexesResponse>
 
     @GET("rest/search3")
@@ -214,7 +215,7 @@ interface SubsonicService {
         @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
         @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
-    ): SubsonicResponse<SubsonicBaseResponse>
+    ): SubsonicResponse<SubsonicPlaylistResponse>
 
     @GET("rest/deletePlaylist")
     suspend fun deletePlaylist(
