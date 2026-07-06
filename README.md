@@ -37,11 +37,12 @@ Therefore, some common features found in mainstream Subsonic clients will not be
 
 - [x] Provide Github Action builds
 - [x] Deliver compatibility updates within 3 months of new Android API releases
-- [ ] Publish on F-Droid
 - [ ] Refactor tablet UI layout
-- [ ] Provide Android X86 builds
 - [ ] Add "Check for Updates" button in the About section
 - [ ] Support navigating to corresponding albums and artists from song details
+- [ ] Provide Android X86 builds
+- [ ] Supports bilingual lyrics (work in progress)
+- [ ] Publish on F-Droid
 - [ ] Release v1.0.0 Stable (Currently under active development, but features are becoming stable)
 
 ## Build
@@ -111,11 +112,12 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 - [x] 提供 Github Action 构建
 - [x] 在 Android 新 API 版本发布 3 个月内提供适配
-- [ ] 上架 F-Droid
 - [ ] 重构平板电脑的 UI
-- [ ] 提供 Android X86 版本
 - [ ] 在关于中添加立刻检查更新按钮
 - [ ] 在歌曲详情中可以跳转到对应的专辑和艺术家
+- [ ] 提供 Android X86 版本
+- [ ] 支持双语歌词 (正在研究)
+- [ ] 上架 F-Droid
 - [ ] 发布`v1.0.0` 正式版 (当前处于积极开发阶段, 但功能已趋于稳定)
 
 ## 本地构建
