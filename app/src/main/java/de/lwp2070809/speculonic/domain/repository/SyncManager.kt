@@ -62,6 +62,7 @@ class SyncManager(
 
             pref.saveIsSyncing(true)
             pref.saveSyncProgress(null)
+            pref.saveSyncError(null)
 
         try {
             val (u, t, s) = authManager.getAuthParams()
@@ -238,6 +239,7 @@ class SyncManager(
             onSyncComplete(currentTime, serverLastModified)
             pref.saveSyncProgress(null)
         } catch (e: Exception) {
+            pref.saveSyncError(e.message ?: e.toString())
             throw e
         } finally {
             if (!keepSyncingState) {
