@@ -197,8 +197,8 @@ class SyncManager(
 
                     
                     val localSongCount = musicDao.getSongsCount()
-                    if (!ignoreSafetyGuard && localSongCount > 0) {
-                        val dropThreshold = maxOf(localSongCount * SAFETY_GUARD_DROP_RATIO, 10.0)
+                    if (!ignoreSafetyGuard && localSongCount >= MIN_SONGS_FOR_SAFETY) {
+                        val dropThreshold = localSongCount * SAFETY_GUARD_DROP_RATIO
                         if (serverSongCount < dropThreshold) {
                             throw SafetyGuardException("安全保护触发：服务器返回歌曲数 ($serverSongCount) 远低于本地基数 ($localSongCount)。同步已中止以防止误删。")
                         }
@@ -440,5 +440,6 @@ class SyncManager(
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L 
         private const val BATCH_SIZE = 500
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
+        private const val MIN_SONGS_FOR_SAFETY = 10
     }
 }
