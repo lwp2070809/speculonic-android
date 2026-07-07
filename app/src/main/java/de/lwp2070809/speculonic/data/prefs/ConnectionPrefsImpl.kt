@@ -16,6 +16,7 @@ import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
 import de.lwp2070809.speculonic.util.LogLevel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import java.util.concurrent.ConcurrentHashMap
@@ -83,7 +84,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
                     }
                 }
             }
-        }
+        }.distinctUntilChanged()
     }
 
     override val serverUrl: Flow<String> = readEncryptedOrMigrate(ENC_SERVER_URL, SERVER_URL)
@@ -129,7 +130,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
         }
     }
 
-    override val allowInsecureConnections: Flow<Boolean> = context.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }
+    override val allowInsecureConnections: Flow<Boolean> = context.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }.distinctUntilChanged()
 
     override suspend fun saveAllowInsecureConnections(allow: Boolean) {
         context.dataStore.edit { preferences ->
@@ -185,9 +186,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
             .edit().putString("server_capabilities_json", jsonString).apply()
     }
 
-    override val lastPingTime: Flow<Long> = context.dataStore.data.map { preferences ->
-        preferences[LAST_PING_TIME] ?: 0L
-    }
+    override val lastPingTime: Flow<Long> = context.dataStore.data.map { it[LAST_PING_TIME] ?: 0L }.distinctUntilChanged()
 
     override suspend fun saveLastPingTime(time: Long) {
         context.dataStore.edit { preferences ->
@@ -206,9 +205,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
             .edit().putLong("last_ping_time", time).apply()
     }
 
-    override val offlineModeEnabled: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[OFFLINE_MODE_ENABLED] ?: false
-    }
+    override val offlineModeEnabled: Flow<Boolean> = context.dataStore.data.map { it[OFFLINE_MODE_ENABLED] ?: false }.distinctUntilChanged()
 
     override suspend fun saveOfflineModeEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -216,9 +213,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
         }
     }
 
-    override val autoOfflineOnMetered: Flow<Boolean> = context.dataStore.data.map { preferences ->
-        preferences[AUTO_OFFLINE_ON_METERED] ?: false
-    }
+    override val autoOfflineOnMetered: Flow<Boolean> = context.dataStore.data.map { it[AUTO_OFFLINE_ON_METERED] ?: false }.distinctUntilChanged()
 
     override suspend fun saveAutoOfflineOnMetered(enabled: Boolean) {
         context.dataStore.edit { preferences ->
