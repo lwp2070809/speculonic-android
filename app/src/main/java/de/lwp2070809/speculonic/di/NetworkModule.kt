@@ -186,6 +186,12 @@ object NetworkModule {
                 }
             }
 
+            val isHttps = request.url.isHttps
+            if (!isHttps && !DynamicSslTrustManager.allowInsecureConnections) {
+                LogManager.w("OfflineInterceptor: Insecure connection blocked: $safeUrl")
+                throw java.io.IOException("Insecure connection blocked: HTTP is not allowed by default. Please use HTTPS or enable 'Allow insecure connections' in settings.")
+            }
+
             if (de.lwp2070809.speculonic.BuildConfig.DEBUG) {
                 LogManager.d("Network Request: ${request.method} $safeUrl")
             }
@@ -218,7 +224,7 @@ object NetworkModule {
                     is java.security.cert.CertificateException,
                     is javax.net.ssl.SSLHandshakeException,
                     is javax.net.ssl.SSLException -> {
-                        "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current trust all certificates (trustAll) mode is: ${DynamicSslTrustManager.trustAll}"
+                        "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current allow insecure connections mode is: ${DynamicSslTrustManager.allowInsecureConnections}"
                     }
                     is java.net.UnknownHostException -> {
                         "DNS resolution failed! Host not found: $host. Please check your network connection or server hostname configuration."
@@ -260,7 +266,7 @@ object NetworkModule {
     object DynamicSslTrustManager : X509TrustManager {
         
         @Volatile
-        var trustAll: Boolean = false
+        var allowInsecureConnections: Boolean = false
 
         
         private val systemTrustManager: X509TrustManager by lazy {
@@ -272,7 +278,7 @@ object NetworkModule {
         override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
 
         override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
-            if (trustAll) {
+            if (allowInsecureConnections) {
                 
                 return
             }
@@ -281,7 +287,7 @@ object NetworkModule {
         }
 
         override fun getAcceptedIssuers(): Array<X509Certificate> {
-            return if (trustAll) arrayOf() else systemTrustManager.acceptedIssuers
+            return if (allowInsecureConnections) arrayOf() else systemTrustManager.acceptedIssuers
         }
     }
 
@@ -352,7 +358,7 @@ object NetworkModule {
 
         val defaultHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
         val dynamicHostnameVerifier = javax.net.ssl.HostnameVerifier { hostname, session ->
-            DynamicSslTrustManager.trustAll || defaultHostnameVerifier.verify(hostname, session)
+            DynamicSslTrustManager.allowInsecureConnections || defaultHostnameVerifier.verify(hostname, session)
         }
 
         HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
@@ -381,10 +387,10 @@ object NetworkModule {
     }
 
     
-    fun rebuildClientIfNeeded(trustAll: Boolean) {
-        if (DynamicSslTrustManager.trustAll != trustAll) {
-            DynamicSslTrustManager.trustAll = trustAll
-            LogManager.i("NetworkModule: SSL trust mode switched, trustAll=$trustAll (no need to rebuild OkHttpClient)")
+    fun rebuildClientIfNeeded(allowInsecureConnections: Boolean) {
+        if (DynamicSslTrustManager.allowInsecureConnections != allowInsecureConnections) {
+            DynamicSslTrustManager.allowInsecureConnections = allowInsecureConnections
+            LogManager.i("NetworkModule: Security mode switched, allowInsecureConnections=$allowInsecureConnections (no need to rebuild OkHttpClient)")
         }
     }
 

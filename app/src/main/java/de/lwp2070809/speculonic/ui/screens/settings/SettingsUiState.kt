@@ -60,7 +60,7 @@ data class SettingsUiState(
     val showMobileSyncConfirm: Boolean = false,
     val showClearCacheConfirm: Boolean = false,
     val showForceSyncConfirm: Boolean = false,
-    val trustAllCertificates: Boolean = false,
+    val allowInsecureConnections: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
     val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED,
     val autoOfflineOnMetered: Boolean = false,
@@ -119,7 +119,7 @@ internal data class PrefsGroup3(
 )
 
 internal data class PrefsGroup4(
-    val trustAllCertificates: Boolean,
+    val allowInsecureConnections: Boolean,
     val showOfflineToast: Boolean,
     val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval,
     val autoOfflineOnMetered: Boolean,

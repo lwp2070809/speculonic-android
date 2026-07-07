@@ -9,7 +9,7 @@ interface ConnectionPrefs {
     val password: Flow<String>
     val serverCapabilities: Flow<ServerCapabilities?>
     val lastPingTime: Flow<Long>
-    val trustAllCertificates: Flow<Boolean>
+    val allowInsecureConnections: Flow<Boolean>
     val offlineModeEnabled: Flow<Boolean>
     val autoOfflineOnMetered: Flow<Boolean>
 
@@ -23,13 +23,13 @@ interface ConnectionPrefs {
     fun getLastPingTimeSync(): Long
     fun setLastPingTimeSync(time: Long)
 
-    fun getTrustAllCertificatesSync(): Boolean
-    fun setTrustAllCertificatesSync(trust: Boolean)
+    fun getAllowInsecureConnectionsSync(): Boolean
+    fun setAllowInsecureConnectionsSync(allow: Boolean)
 
     suspend fun saveServerSettings(url: String, user: String, pass: String)
     suspend fun saveServerCapabilities(caps: ServerCapabilities?)
     suspend fun saveLastPingTime(time: Long)
-    suspend fun saveTrustAllCertificates(trust: Boolean)
+    suspend fun saveAllowInsecureConnections(allow: Boolean)
     suspend fun saveOfflineModeEnabled(enabled: Boolean)
     suspend fun saveAutoOfflineOnMetered(enabled: Boolean)
 }

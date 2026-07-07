@@ -53,7 +53,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
         
         
         val prefsManager = PreferencesManager.getInstance(this)
-        val trustAll = prefsManager.getTrustAllCertificatesSync()
+        val trustAll = prefsManager.getAllowInsecureConnectionsSync()
         if (trustAll) {
             NetworkModule.rebuildClientIfNeeded(true)
         }

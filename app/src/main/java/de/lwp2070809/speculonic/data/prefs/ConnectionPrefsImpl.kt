@@ -129,23 +129,23 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
         }
     }
 
-    override val trustAllCertificates: Flow<Boolean> = context.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }
+    override val allowInsecureConnections: Flow<Boolean> = context.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }
 
-    override suspend fun saveTrustAllCertificates(trust: Boolean) {
+    override suspend fun saveAllowInsecureConnections(allow: Boolean) {
         context.dataStore.edit { preferences ->
-            preferences[TRUST_ALL_CERTIFICATES] = trust
+            preferences[TRUST_ALL_CERTIFICATES] = allow
         }
-        setTrustAllCertificatesSync(trust)
+        setAllowInsecureConnectionsSync(allow)
     }
 
-    override fun getTrustAllCertificatesSync(): Boolean {
+    override fun getAllowInsecureConnectionsSync(): Boolean {
         return context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
             .getBoolean("trust_all_certificates", false)
     }
 
-    override fun setTrustAllCertificatesSync(trust: Boolean) {
+    override fun setAllowInsecureConnectionsSync(allow: Boolean) {
         context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
-            .edit().putBoolean("trust_all_certificates", trust).apply()
+            .edit().putBoolean("trust_all_certificates", allow).apply()
     }
 
     override val serverCapabilities: Flow<ServerCapabilities?> = context.dataStore.data.map { preferences ->

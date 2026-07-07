@@ -54,8 +54,8 @@ fun ServerConfigDialog(
     var user by remember { mutableStateOf(initialUser) }
     var pass by remember { mutableStateOf(initialPass) }
     val uiState by viewModel.uiState.collectAsState()
-    var trustAllCerts by remember { mutableStateOf(uiState.trustAllCertificates) }
-    var showTrustAllWarning by remember { mutableStateOf(false) }
+    var allowInsecureConnections by remember { mutableStateOf(uiState.allowInsecureConnections) }
+    var showInsecureWarning by remember { mutableStateOf(false) }
     var syncCoverArt by remember { mutableStateOf(false) }
 
     AlertDialog(
@@ -136,24 +136,24 @@ fun ServerConfigDialog(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = stringResource(R.string.trust_all_certificates),
+                            text = stringResource(R.string.allow_insecure_connections),
                             style = MaterialTheme.typography.bodyMedium
                         )
                         Text(
-                            text = stringResource(R.string.trust_all_certificates_description),
+                            text = stringResource(R.string.allow_insecure_connections_description),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Switch(
-                        checked = trustAllCerts,
+                        checked = allowInsecureConnections,
                         onCheckedChange = { isChecked ->
                             if (isChecked) {
-                                showTrustAllWarning = true
+                                showInsecureWarning = true
                             } else {
-                                trustAllCerts = false
-                                viewModel.updateTrustAllCertificates(false)
+                                allowInsecureConnections = false
+                                viewModel.updateAllowInsecureConnections(false)
                             }
                         }
                     )
@@ -217,22 +217,22 @@ fun ServerConfigDialog(
         } else null
     )
 
-    if (showTrustAllWarning) {
+    if (showInsecureWarning) {
         AlertDialog(
-            onDismissRequest = { showTrustAllWarning = false },
+            onDismissRequest = { showInsecureWarning = false },
             title = { Text(stringResource(R.string.warning_title)) },
-            text = { Text(stringResource(R.string.trust_all_certs_warning_message), color = MaterialTheme.colorScheme.error) },
+            text = { Text(stringResource(R.string.allow_insecure_connections_warning_message), color = MaterialTheme.colorScheme.error) },
             confirmButton = {
                 TextButton(onClick = {
-                    trustAllCerts = true
-                    viewModel.updateTrustAllCertificates(true)
-                    showTrustAllWarning = false
+                    allowInsecureConnections = true
+                    viewModel.updateAllowInsecureConnections(true)
+                    showInsecureWarning = false
                 }) {
                     Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showTrustAllWarning = false }) {
+                TextButton(onClick = { showInsecureWarning = false }) {
                     Text(stringResource(R.string.cancel))
                 }
             }

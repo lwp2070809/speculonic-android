@@ -211,10 +211,10 @@
 
     
     <string name="error_invalid_url">URL must start with http:// or https://</string>
-    <string name="trust_all_certificates">Trust All SSL Certificates</string>
-    <string name="trust_all_certificates_description">Bypass SSL verification for self-hosted servers with untrusted certificates. Use only if you trust your server.</string>
+    <string name="allow_insecure_connections">Allow Insecure Connections</string>
+    <string name="allow_insecure_connections_description">Allow unencrypted HTTP connections and bypass SSL verification for untrusted certificates. Use only for trusted local servers.</string>
     <string name="warning_title">Warning</string>
-    <string name="trust_all_certs_warning_message">Enabling this option disables SSL/TLS certificate verification, making your connection susceptible to man-in-the-middle attacks. Only use this if you are connecting to a trusted home network or self-hosted server. Do you want to continue?</string>
+    <string name="allow_insecure_connections_warning_message">Enabling this option allows unencrypted HTTP traffic and disables SSL/TLS certificate verification, making your connection susceptible to man-in-the-middle attacks. Only use this if you are connecting to a trusted home network or self-hosted server. Do you want to continue?</string>
     <string name="server_offline_toast">Offline: Server unreachable</string>
     <string name="pref_show_offline_toast_title">Offline Notification</string>
     <string name="pref_show_offline_toast_summary">Show a toast when the server is unreachable due to continuous connection failures</string>

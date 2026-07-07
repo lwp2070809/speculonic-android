@@ -208,10 +208,10 @@
 
     
     <string name="error_invalid_url">URL 必须以 http:// 或 https:// 开头</string>
-    <string name="trust_all_certificates">信任所有 SSL 证书</string>
-    <string name="trust_all_certificates_description">跳过证书验证，适用于使用自签名或私有 CA 证书的自托管服务器。请仅在信任您的服务器时启用。</string>
+    <string name="allow_insecure_connections">允许不安全连接</string>
+    <string name="allow_insecure_connections_description">允许使用未加密的 HTTP 明文连接服务器，并信任所有自签名的 HTTPS 证书。请仅在信任您的服务器时启用。</string>
     <string name="warning_title">警告</string>
-    <string name="trust_all_certs_warning_message">开启此选项后将不再验证服务器的 SSL/TLS 证书，容易受到中间人攻击。请仅在连接信任的家用网络或自建服务器时使用。是否继续？</string>
+    <string name="allow_insecure_connections_warning_message">开启此选项后，将允许明文 HTTP 传输，并且不再验证服务器的 SSL/TLS 证书，容易受到中间人攻击。请仅在连接信任的家用网络或自建服务器时使用。是否继续？</string>
 
     <string name="server_offline_toast">已离线：服务器无法连接</string>
     <string name="pref_show_offline_toast_title">断网提示</string>

@@ -157,7 +157,7 @@ class SettingsViewModel @Inject constructor(
             }
 
             val group4 = combine(
-                preferencesManager.trustAllCertificates,
+                preferencesManager.allowInsecureConnections,
                 preferencesManager.showOfflineToast,
                 preferencesManager.updateCheckInterval,
                 preferencesManager.autoOfflineOnMetered,
@@ -165,7 +165,7 @@ class SettingsViewModel @Inject constructor(
                 group3
             ) { flows ->
                 PrefsGroup4(
-                    trustAllCertificates = flows[0] as Boolean,
+                    allowInsecureConnections = flows[0] as Boolean,
                     showOfflineToast = flows[1] as Boolean,
                     updateCheckInterval = flows[2] as de.lwp2070809.speculonic.data.UpdateCheckInterval,
                     autoOfflineOnMetered = flows[3] as Boolean,
@@ -219,7 +219,7 @@ class SettingsViewModel @Inject constructor(
                         bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
                         
                         language = getCurrentLanguageLabel(),
-                        trustAllCertificates = g4.trustAllCertificates,
+                        allowInsecureConnections = g4.allowInsecureConnections,
                         updateCheckInterval = g4.updateCheckInterval,
                         autoOfflineOnMetered = g4.autoOfflineOnMetered,
                         offlineModeEnabled = g4.offlineModeEnabled,
@@ -364,11 +364,11 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateTrustAllCertificates(trust: Boolean) {
+    fun updateAllowInsecureConnections(allow: Boolean) {
         viewModelScope.launch {
-            preferencesManager.saveTrustAllCertificates(trust)
+            preferencesManager.saveAllowInsecureConnections(allow)
             
-            NetworkModule.rebuildClientIfNeeded(trust)
+            NetworkModule.rebuildClientIfNeeded(allow)
         }
     }
 
