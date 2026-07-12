@@ -1,5 +1,5 @@
-import java.util.Properties
 import java.io.FileInputStream
+import java.util.Properties
 
 plugins {
     alias(libs.plugins.android.application)
@@ -19,7 +19,7 @@ android {
         minSdk = 31
         targetSdk = 36
         versionCode = 1
-        versionName = "0.9.8"
+        versionName = "0.9.8.1"
 
         val localProperties = Properties()
         val localPropertiesFile = rootProject.file("local.properties")
