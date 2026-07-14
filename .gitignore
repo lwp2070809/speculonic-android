@@ -10,4 +10,6 @@
 local.properties
 keystore/
 app/release/
+app/github/
+app/fdroid/
 local.gradle.kts

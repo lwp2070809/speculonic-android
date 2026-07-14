@@ -19,22 +19,7 @@ android {
         minSdk = 31
         targetSdk = 36
         versionCode = 1
-        versionName = "0.9.8.1"
-
-        val localProperties = Properties()
-        val localPropertiesFile = rootProject.file("local.properties")
-        if (localPropertiesFile.exists()) {
-            FileInputStream(localPropertiesFile).use { stream -> localProperties.load(stream) }
-        }
-        val envGithubRepo = System.getenv("GITHUB_REPO")
-        val propGithubRepo = project.findProperty("githubRepo")?.toString()
-        val localPropGithubRepo = localProperties.getProperty("githubRepo")
-
-        val githubRepo = envGithubRepo ?: propGithubRepo ?: localPropGithubRepo ?: ""
-        val updateCheckEnabled = githubRepo.isNotEmpty()
-        
-        buildConfigField("boolean", "UPDATE_CHECK_ENABLED", updateCheckEnabled.toString())
-        buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
+        versionName = "0.9.9"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -53,6 +38,33 @@ android {
             )
         }
     }
+
+    flavorDimensions.add("distribution")
+    productFlavors {
+        create("github") {
+            dimension = "distribution"
+
+            val localProperties = Properties()
+            val localPropertiesFile = rootProject.file("local.properties")
+            if (localPropertiesFile.exists()) {
+                FileInputStream(localPropertiesFile).use { stream -> localProperties.load(stream) }
+            }
+            val envGithubRepo = System.getenv("GITHUB_REPO")
+            val propGithubRepo = project.findProperty("githubRepo")?.toString()
+            val localPropGithubRepo = localProperties.getProperty("githubRepo")
+
+            val githubRepo = envGithubRepo ?: propGithubRepo ?: localPropGithubRepo ?: ""
+            val updateCheckEnabled = githubRepo.isNotEmpty()
+
+            buildConfigField("boolean", "UPDATE_CHECK_ENABLED", updateCheckEnabled.toString())
+            buildConfigField("String", "GITHUB_REPO", "\"$githubRepo\"")
+        }
+        create("fdroid") {
+            dimension = "distribution"
+            buildConfigField("boolean", "UPDATE_CHECK_ENABLED", "false")
+            buildConfigField("String", "GITHUB_REPO", "\"\"")
+        }
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
@@ -63,18 +75,17 @@ android {
     }
 
     sourceSets {
-        val hasLocalExtension = file("${rootDir}/local.gradle.kts").exists()
         getByName("debug") {
-            if (hasLocalExtension) {
-                res.srcDirs("build/generated/res/easter-eggs")
-            }
             java.srcDir("build/generated/ksp/debug/java")
         }
         getByName("release") {
+            java.srcDir("build/generated/ksp/release/java")
+        }
+        val hasLocalExtension = file("${rootDir}/local.gradle.kts").exists()
+        getByName("github") {
             if (hasLocalExtension) {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
-            java.srcDir("build/generated/ksp/release/java")
         }
     }
 }
@@ -166,6 +177,7 @@ detekt {
 
 
 val localGradle = file("${rootDir}/local.gradle.kts")
-if (localGradle.exists()) {
+val isFdroidTask = gradle.startParameter.taskNames.any { it.contains("fdroid", ignoreCase = true) }
+if (localGradle.exists() && !isFdroidTask) {
     apply(from = localGradle)
 }
