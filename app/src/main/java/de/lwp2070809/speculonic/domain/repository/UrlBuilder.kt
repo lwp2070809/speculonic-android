@@ -24,19 +24,45 @@ class UrlBuilder(
         return builder
     }
 
-    private fun buildMediaUrl(endpoint: String, id: String): String {
-        return buildBaseUri(endpoint, includeAuthParams = false)
+    private fun buildMediaUrl(
+        endpoint: String,
+        id: String,
+        suffix: String? = null,
+        transcodeIncompatible: Boolean = false,
+        targetFormat: String = "mp3"
+    ): String {
+        val builder = buildBaseUri(endpoint, includeAuthParams = false)
             .appendQueryParameter("id", id)
-            .appendQueryParameter("format", "raw")
-            .build().toString()
+
+        val isDirectSupported = de.lwp2070809.speculonic.util.MediaFormatUtils.isDirectPlaybackSupported(suffix)
+
+        if (transcodeIncompatible && !isDirectSupported) {
+            builder.appendQueryParameter("format", targetFormat)
+        } else {
+            builder.appendQueryParameter("format", "raw")
+        }
+
+        return builder.build().toString()
     }
 
-    fun buildStreamUrl(id: String): String {
-        return buildMediaUrl("stream", id)
+    fun buildStreamUrl(
+        id: String,
+        suffix: String? = null,
+        transcodeIncompatible: Boolean = false,
+        targetFormat: String = "mp3"
+    ): String {
+        return buildMediaUrl("stream", id, suffix, transcodeIncompatible, targetFormat)
     }
 
-    fun buildDownloadUrl(id: String): String {
-        return buildMediaUrl("download", id)
+    fun buildDownloadUrl(
+        id: String,
+        suffix: String? = null,
+        transcodeIncompatible: Boolean = false,
+        targetFormat: String = "mp3"
+    ): String {
+        val isDirectSupported = de.lwp2070809.speculonic.util.MediaFormatUtils.isDirectPlaybackSupported(suffix)
+        val endpoint = if (transcodeIncompatible && !isDirectSupported) "stream" else "download"
+        return buildMediaUrl(endpoint, id, suffix, transcodeIncompatible, targetFormat)
     }
 
     fun buildCoverArtUrl(id: String): String {

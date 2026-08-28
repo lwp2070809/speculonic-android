@@ -269,13 +269,19 @@ interface MusicDao {
     @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached WHERE id = :songId")
     suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean)
 
+    @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached, isTranscoded = :isTranscoded WHERE id = :songId")
+    suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean, isTranscoded: Boolean)
+
+    @Query("UPDATE songs SET isTranscoded = :isTranscoded WHERE id = :songId")
+    suspend fun updateSongTranscodedStatus(songId: String, isTranscoded: Boolean)
+
     @Query("UPDATE songs SET localUri = :localUri WHERE id = :songId")
     suspend fun updateSongLocalUri(songId: String, localUri: String?)
 
-    @Query("UPDATE songs SET isFullyCached = 0, localUri = NULL")
+    @Query("UPDATE songs SET isFullyCached = 0, localUri = NULL, isTranscoded = 0")
     suspend fun resetAllCacheStatus()
 
-    @Query("SELECT id, localUri, isFullyCached, starred, lastUpdated FROM songs")
+    @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred, lastUpdated FROM songs")
     suspend fun getAllSongsMetadata(): List<SongMetadata>
 
     @Query("SELECT * FROM songs WHERE id = :songId")

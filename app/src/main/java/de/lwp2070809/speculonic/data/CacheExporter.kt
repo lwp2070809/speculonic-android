@@ -51,7 +51,8 @@ object CacheExporter {
         song: Song,
         lyrics: String? = null,
         coverArtBytes: ByteArray? = null,
-        cacheDataSourceFactory: CacheDataSource.Factory
+        cacheDataSourceFactory: CacheDataSource.Factory,
+        targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val preferencesManager = PreferencesManager.getInstance(context)
         val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext Result.failure(Exception("SAF未配置"))
@@ -83,7 +84,11 @@ object CacheExporter {
             
             val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val suffix = if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            val suffix = if (song.isTranscoded) {
+                targetTranscodeFormat?.lowercase() ?: preferencesManager.targetTranscodeFormat.first().lowercase()
+            } else {
+                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            }
             val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
             
             val existingFile = rootDoc.findFile(finalFileName)
@@ -154,7 +159,8 @@ object CacheExporter {
         song: Song,
         lyrics: String? = null,
         coverArtBytes: ByteArray? = null,
-        cacheDataSourceFactory: CacheDataSource.Factory
+        cacheDataSourceFactory: CacheDataSource.Factory,
+        targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val cache = cacheDataSourceFactory.cache ?: return@withContext Result.failure(Exception("缓存实例缺失"))
         val cachedSpans = cache.getCachedSpans(song.id)
@@ -180,9 +186,14 @@ object CacheExporter {
                 privateDir.mkdirs()
             }
 
+            val preferencesManager = PreferencesManager.getInstance(context)
             val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val suffix = if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            val suffix = if (song.isTranscoded) {
+                targetTranscodeFormat?.lowercase() ?: preferencesManager.targetTranscodeFormat.first().lowercase()
+            } else {
+                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            }
             val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
             targetFile = File(privateDir, finalFileName)
 
@@ -255,7 +266,13 @@ object CacheExporter {
 
             val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val suffix = if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            val suffix = if (sourceFile.extension.isNotBlank()) {
+                sourceFile.extension.lowercase()
+            } else if (song.isTranscoded) {
+                preferencesManager.targetTranscodeFormat.first().lowercase()
+            } else {
+                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+            }
             val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
 
             val existingFile = rootDoc.findFile(finalFileName)

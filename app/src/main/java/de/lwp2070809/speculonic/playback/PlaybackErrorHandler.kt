@@ -22,10 +22,13 @@ class PlaybackErrorHandler(
     private val dbProvider: () -> AppDatabase?
 ) {
     private val consecutiveErrorCount = java.util.concurrent.atomic.AtomicInteger(0)
+    private val consecutiveFormatSkipCount = java.util.concurrent.atomic.AtomicInteger(0)
     private var lastErrorMediaId: String? = null
+    @Volatile private var lastToastTime = 0L
 
     fun resetErrorCount() {
         consecutiveErrorCount.set(0)
+        consecutiveFormatSkipCount.set(0)
         lastErrorMediaId = null
     }
 
@@ -54,8 +57,52 @@ class PlaybackErrorHandler(
                 error.errorCode == PlaybackException.ERROR_CODE_IO_FILE_NOT_FOUND ||
                 error.cause is IOException
 
+        val isFormatOrDecoderError = error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_UNSUPPORTED ||
+                error.errorCode == PlaybackException.ERROR_CODE_PARSING_CONTAINER_MALFORMED ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_UNSUPPORTED ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODING_FORMAT_EXCEEDS_CAPABILITIES ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODER_INIT_FAILED ||
+                error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
+
         if (error.cause is NetworkRestrictedException) {
             de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.emitEvent(de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.NetworkRestricted)
+        }
+
+        if (isFormatOrDecoderError) {
+            val title = player.currentMediaItem?.mediaMetadata?.title?.toString() ?: "Unknown"
+            val now = System.currentTimeMillis()
+            if (now - lastToastTime > 1500L) {
+                lastToastTime = now
+                android.os.Handler(android.os.Looper.getMainLooper()).post {
+                    android.widget.Toast.makeText(
+                        context,
+                        context.getString(de.lwp2070809.speculonic.R.string.unsupported_format_skipped, title),
+                        android.widget.Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+
+            val skipCount = consecutiveFormatSkipCount.incrementAndGet()
+            val maxAllowedSkips = minOf(player.mediaItemCount.coerceAtLeast(1), 5)
+
+            if (skipCount >= maxAllowedSkips) {
+                LogManager.w("Auto-skip: Consecutive format skips reached limit ($skipCount >= $maxAllowedSkips). Pausing to break loop.")
+                player.pause()
+                consecutiveFormatSkipCount.set(0)
+                return
+            }
+
+            if (player.hasNextMediaItem()) {
+                LogManager.i("Auto-skip: Unrecognized/Unsupported format. Skipping to next item (attempt $skipCount/$maxAllowedSkips).")
+                player.seekToNextMediaItem()
+                player.prepare()
+                player.play()
+            } else {
+                LogManager.w("Auto-skip: Unsupported format on last item in playlist. Pausing.")
+                player.pause()
+                consecutiveFormatSkipCount.set(0)
+            }
+            return
         }
 
         if (isNetworkRestricted || isNetworkError) {

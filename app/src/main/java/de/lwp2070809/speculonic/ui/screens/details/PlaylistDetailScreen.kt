@@ -70,8 +70,15 @@ fun PlaylistDetailScreen(
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
 
-    val isPlayActionsEnabled = remember(uiState.songs, downloadedIds, isStreamingAllowed) {
-        isStreamingAllowed || uiState.songs.any { it.isFullyCached }
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+
+    val playableSongs = remember(uiState.songs, transcodeIncompatible) {
+        uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    }
+
+    val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {
+        playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
     }
     val playlistTitle = stringResource(R.string.playlists)
 
@@ -120,12 +127,16 @@ fun PlaylistDetailScreen(
                         item {
                             ActionButtonsRow(
                                 onPlayAll = {
-                                    val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
-                                    playbackController.play(mediaItems, 0, queueTitle = uiState.playlist?.name)
+                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    if (mediaItems.isNotEmpty()) {
+                                        playbackController.play(mediaItems, 0, queueTitle = uiState.playlist?.name)
+                                    }
                                 },
                                 onShuffle = {
-                                    val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
-                                    playbackController.play(mediaItems, if (mediaItems.isNotEmpty()) mediaItems.indices.random() else 0, shuffle = true, queueTitle = uiState.playlist?.name)
+                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    if (mediaItems.isNotEmpty()) {
+                                        playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = uiState.playlist?.name)
+                                    }
                                 },
                                 onDownloadAll = {
                                     uiState.songs.forEach { song ->
@@ -161,9 +172,15 @@ fun PlaylistDetailScreen(
                             isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
                             isStreamingAllowed = isStreamingAllowed,
+                            transcodeIncompatible = transcodeIncompatible,
                             onClick = {
-                                val mediaItems = uiState.songs.map { it.toMediaItem(repository) }
-                                playbackController.play(mediaItems, index, queueTitle = uiState.playlist?.name)
+                                val playIndex = playableSongs.indexOfFirst { it.id == song.id }
+                                if (playIndex != -1) {
+                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    if (mediaItems.isNotEmpty()) {
+                                        playbackController.play(mediaItems, playIndex, queueTitle = uiState.playlist?.name)
+                                    }
+                                }
                             },
                             onStarClick = { star ->
                                 scope.launch {

@@ -76,6 +76,9 @@ fun SearchScreen(
     val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+    
     BackHandler(onBack = onClose)
 
     val uiState by viewModel.uiState.collectAsState()
@@ -169,8 +172,15 @@ fun SearchScreen(
                                 isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
+                                transcodeIncompatible = transcodeIncompatible,
                                 onClick = {
-                                    playbackController.play(listOf(song.toMediaItem(repository)))
+                                    val songIndex = uiState.results.song.indexOf(song)
+                                    val subsequentSongs = if (songIndex != -1) uiState.results.song.drop(songIndex) else listOf(song)
+                                    val playableSongs = subsequentSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    if (mediaItems.isNotEmpty()) {
+                                        playbackController.play(mediaItems, 0)
+                                    }
                                 },
                                 onStarClick = { star ->
                                     scope.launch {

@@ -18,6 +18,7 @@ object EntityMapper {
         artistId: String? = null,
         localUri: String? = null,
         isCached: Boolean = false,
+        isTranscoded: Boolean? = null,
         parentId: String? = null,
         isStarred: Boolean? = null,
         lastUpdated: Long? = null
@@ -50,6 +51,7 @@ object EntityMapper {
             starred = finalStarred,
             localUri = localUri,
             isFullyCached = isCached,
+            isTranscoded = isTranscoded ?: song.isTranscoded,
             lastUpdated = lastUpdated ?: serverStarredTime ?: System.currentTimeMillis()
         )
     }
@@ -78,7 +80,8 @@ object EntityMapper {
             isVideo = entity.isVideo,
             starred = if (entity.starred) formatIsoTime(entity.lastUpdated) else null,
             localUri = entity.localUri,
-            isFullyCached = entity.isFullyCached
+            isFullyCached = entity.isFullyCached,
+            isTranscoded = entity.isTranscoded
         )
     }
 

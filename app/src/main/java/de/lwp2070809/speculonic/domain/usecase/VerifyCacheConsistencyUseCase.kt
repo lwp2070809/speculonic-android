@@ -80,16 +80,14 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                 emit(VerifyCacheState.Progress(95, context.getString(R.string.sync_scanning_orphans)))
                 try {
                     val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                    val idPattern = java.util.regex.Pattern.compile(".*\\[(.+)\\]\\.(mp3|flac|m4a|wav|aac|ogg|alac|aiff|dsf|lrc)$", java.util.regex.Pattern.CASE_INSENSITIVE)
-                    val audioExtensions = de.lwp2070809.speculonic.util.FormatUtils.SUPPORTED_AUDIO_EXTENSIONS + "lrc"
+                    val audioExtensions = de.lwp2070809.speculonic.util.MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS + de.lwp2070809.speculonic.util.MediaFormatUtils.EXTENSION_LRC
                     
                     rootDoc?.listFiles()?.forEach { file ->
                         val fileName = file.name ?: ""
-                        val matcher = idPattern.matcher(fileName)
+                        val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
                         val extension = fileName.substringAfterLast('.', "").lowercase()
                         
-                        if (matcher.matches()) {
-                            val songId = matcher.group(1) ?: ""
+                        if (songId != null) {
                             val songInDb = musicDao.getSongById(songId)
                             if (songInDb == null) {
                                 inconsistentList.add(InconsistentItem(fileName, fileName, InconsistentItem.Type.ORPHANED_FILE, file.uri.toString(), null))

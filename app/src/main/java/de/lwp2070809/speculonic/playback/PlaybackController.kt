@@ -231,11 +231,27 @@ class PlaybackController private constructor(context: Context) {
         }
     }
 
+    private fun getEffectiveDuration(controller: Player, mediaItem: MediaItem? = controller.currentMediaItem): Long {
+        val rawDuration = controller.duration
+        if (rawDuration > 0L && rawDuration != androidx.media3.common.C.TIME_UNSET) {
+            return rawDuration
+        }
+        val metaDuration = mediaItem?.mediaMetadata?.durationMs
+        if (metaDuration != null && metaDuration > 0L && metaDuration != androidx.media3.common.C.TIME_UNSET) {
+            return metaDuration
+        }
+        val extrasDuration = mediaItem?.mediaMetadata?.extras?.getLong("durationMs", 0L) ?: 0L
+        if (extrasDuration > 0L) {
+            return extrasDuration
+        }
+        return 0L
+    }
+
     private fun updatePosition() {
         val controller = controller ?: return
         _playbackState.value = _playbackState.value.copy(
             currentPosition = controller.currentPosition,
-            duration = controller.duration
+            duration = getEffectiveDuration(controller)
         )
     }
 
@@ -267,7 +283,7 @@ class PlaybackController private constructor(context: Context) {
             artworkId = artworkId,
             isPlaying = controller.isPlaying,
             currentPosition = controller.currentPosition,
-            duration = controller.duration,
+            duration = getEffectiveDuration(controller, currentMediaItem),
             repeatMode = controller.repeatMode,
             shuffleModeEnabled = controller.shuffleModeEnabled,
             currentQueue = queue,

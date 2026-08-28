@@ -76,7 +76,9 @@ data class Song(
     @kotlinx.serialization.Transient
     val localUri: String? = null,
     @kotlinx.serialization.Transient
-    val isFullyCached: Boolean = false
+    val isFullyCached: Boolean = false,
+    @kotlinx.serialization.Transient
+    val isTranscoded: Boolean = false
 )
 
 @Serializable

@@ -359,4 +359,14 @@
     <string name="healing_cover_art">Healing album covers…</string>
     <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
     <string name="export_failed">Export failed: %1$s</string>
+    <string name="transcode_incompatible_formats">Transcode Incompatible Formats on Server</string>
+    <string name="transcode_incompatible_formats_description">Transcode formats not natively supported by Android (such as APE, WV) into a compatible format on the server. Note: This breaks the app\'s 1:1 bit-perfect mirror design.</string>
+    <string name="target_transcode_format">Target Transcode Format</string>
+    <string name="target_transcode_format_description">Select target audio format for server transcoding</string>
+    <string name="unsupported_format_hint">Format %1$s is not natively supported. You can enable transcoding in Settings.</string>
+    <string name="unsupported_format_skipped">Skipped unsupported format: %1$s</string>
+    <string name="format_mp3">MP3 (Recommended)</string>
+    <string name="format_flac">FLAC (Lossless)</string>
+    <string name="format_opus">Opus</string>
+    <string name="incompatible_downloaded_hint">The downloaded file is in an unsupported raw format (%1$s). Please delete the download to re-cache via transcoding.</string>
 </resources>

@@ -403,6 +403,7 @@ class SyncManager(
                         artistId = artistId ?: song.artistId,
                         localUri = local?.localUri, 
                         isCached = local?.isFullyCached ?: false,
+                        isTranscoded = local?.isTranscoded ?: false,
                         parentId = id,
                         isStarred = if (song.starred != null) true else local?.starred,
                         lastUpdated = local?.lastUpdated

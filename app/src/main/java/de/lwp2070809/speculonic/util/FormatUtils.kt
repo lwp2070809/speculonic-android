@@ -91,13 +91,11 @@ object FormatUtils {
         }
     }
 
-    val SUPPORTED_AUDIO_EXTENSIONS = listOf(
-        "mp3", "flac", "m4a", "wav", "aac", "ogg", "alac", "aiff", "dsf"
-    )
+    val SUPPORTED_AUDIO_EXTENSIONS: List<String>
+        get() = MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS.toList()
 
     fun isSupportedAudioFile(fileName: String): Boolean {
-        val extension = fileName.substringAfterLast('.', "").lowercase(Locale.getDefault())
-        return SUPPORTED_AUDIO_EXTENSIONS.contains(extension)
+        return MediaFormatUtils.isSupportedAudioFile(fileName)
     }
 
     fun replaceExtensionWithLrc(fileName: String): String {
@@ -110,14 +108,6 @@ object FormatUtils {
     }
 
     fun getMimeTypeFromExtension(extension: String?): String {
-        return when (extension?.lowercase(Locale.getDefault())) {
-            "flac" -> "audio/flac"
-            "m4a", "aac", "alac" -> "audio/mp4"
-            "ogg" -> "audio/ogg"
-            "wav" -> "audio/wav"
-            "aiff" -> "audio/x-aiff"
-            "dsf" -> "audio/x-dsf"
-            else -> "audio/mpeg" 
-        }
+        return MediaFormatUtils.getMimeTypeFromExtension(extension)
     }
 }

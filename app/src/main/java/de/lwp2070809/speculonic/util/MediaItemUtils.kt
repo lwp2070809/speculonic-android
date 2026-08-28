@@ -18,22 +18,26 @@ private fun buildMediaItemInternal(
     album: String?,
     duration: Int?,
     coverArt: String?,
+    suffix: String?,
     repository: SubsonicRepository
 ): MediaItem {
-    val playbackUri = repository.buildStreamUrl(id).toUri()
+    val playbackUri = repository.buildStreamUrl(id, suffix).toUri()
     val coverArtUrl = coverArt?.let { repository.buildCoverArtUrl(it) }
+
+    val rawDuration = duration?.toLong() ?: 0L
+    val durationMs = if (rawDuration <= 0L) {
+        androidx.media3.common.C.TIME_UNSET
+    } else {
+        rawDuration * 1000L
+    }
 
     val extras = Bundle().apply {
         putString("coverArtId", coverArt)
         putString("realTitle", title)
         putString("realArtist", artist)
-    }
-
-    val rawDuration = duration?.toLong() ?: 0L
-    val durationMs = if (rawDuration <= 0) {
-        androidx.media3.common.C.TIME_UNSET
-    } else {
-        rawDuration * 1000
+        if (durationMs > 0L && durationMs != androidx.media3.common.C.TIME_UNSET) {
+            putLong("durationMs", durationMs)
+        }
     }
 
     val metadata = MediaMetadata.Builder()
@@ -64,6 +68,7 @@ fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
         album = this.album,
         duration = this.duration,
         coverArt = this.coverArt,
+        suffix = this.suffix,
         repository = repository
     )
 }
@@ -77,6 +82,7 @@ fun SongEntity.toMediaItem(repository: SubsonicRepository): MediaItem {
         album = this.album,
         duration = this.duration,
         coverArt = this.coverArt,
+        suffix = this.suffix,
         repository = repository
     )
 }

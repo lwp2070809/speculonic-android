@@ -27,6 +27,8 @@ data class SettingsUiState(
     val skipSilenceEnabled: Boolean = false,
     val duckOnTransientFocusLoss: Boolean = true,
     val pauseOnAudioFocusLoss: Boolean = true,
+    val transcodeIncompatibleFormats: Boolean = false,
+    val targetTranscodeFormat: String = "mp3",
 
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
@@ -109,7 +111,9 @@ internal data class BluetoothPrefs(
 internal data class PlaybackPrefs(
     val skipSilence: Boolean,
     val duckOnTransientFocusLoss: Boolean,
-    val pauseOnAudioFocusLoss: Boolean
+    val pauseOnAudioFocusLoss: Boolean,
+    val transcodeIncompatibleFormats: Boolean,
+    val targetTranscodeFormat: String
 )
 internal data class PrefsGroup3(
     val silentCacheEnabled: Boolean,

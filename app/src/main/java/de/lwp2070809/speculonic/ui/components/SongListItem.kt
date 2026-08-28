@@ -60,22 +60,27 @@ fun SongListItem(
     modifier: Modifier = Modifier,
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadClick: () -> Unit = {},
+    transcodeIncompatible: Boolean? = null,
     trailingContentOverride: @Composable (() -> Unit)? = null
 ) {
     val repository = LocalSubsonicRepository.current
+    val context = LocalContext.current
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isDownloaded = song.isFullyCached
     
-    val isEnabled = isDownloaded || isStreamingAllowed
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val effectiveTranscodeIncompatible = transcodeIncompatible ?: preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false).value
+    val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(song, effectiveTranscodeIncompatible)
+
+    val isEnabled = isPlayable && (isDownloaded || isStreamingAllowed)
     val alpha = if (isEnabled) 1.0f else 0.38f
 
     var showMenu by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
     
-    val context = LocalContext.current
     val successMsg = stringResource(R.string.add_to_playlist_success)
     val existsMsg = stringResource(R.string.song_already_in_playlist)
     val errorMsg = stringResource(R.string.add_to_playlist_error)
@@ -227,6 +232,21 @@ fun SongListItem(
             }
         },
         modifier = modifier
-            .clickable(enabled = isEnabled) { onClick() }
+            .clickable {
+                if (!isPlayable) {
+                    val suffixText = (song.suffix ?: "UNKNOWN").uppercase()
+                    val isDirectSupported = de.lwp2070809.speculonic.util.MediaFormatUtils.isDirectPlaybackSupported(song.suffix)
+                    val isRawIncompatibleCached = song.isFullyCached && !song.isTranscoded && !isDirectSupported
+
+                    val toastText = if (isRawIncompatibleCached) {
+                        context.getString(R.string.incompatible_downloaded_hint, suffixText)
+                    } else {
+                        context.getString(R.string.unsupported_format_hint, suffixText)
+                    }
+                    Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
+                } else if (isDownloaded || isStreamingAllowed) {
+                    onClick()
+                }
+            }
     )
 }

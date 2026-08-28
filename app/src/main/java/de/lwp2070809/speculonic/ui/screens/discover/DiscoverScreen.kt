@@ -55,6 +55,9 @@ fun DiscoverScreen(
     val uiState by viewModel.uiState.collectAsState()
     val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
+    val context = LocalContext.current
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
 
     val isEmpty = uiState.pinnedPlaylists.isEmpty() &&
             uiState.recentlyAdded.isEmpty() &&
@@ -189,6 +192,7 @@ fun DiscoverScreen(
                             isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
                             isStreamingAllowed = isStreamingAllowed,
+                            transcodeIncompatible = transcodeIncompatible,
                             onSongClick = { song ->
                                 viewModel.playFavoriteSong(song)
                             }
@@ -293,6 +297,7 @@ fun FavoriteSongsRow(
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
+    transcodeIncompatible: Boolean,
     onSongClick: (Song) -> Unit
 ) {
     val repository = LocalSubsonicRepository.current
@@ -311,6 +316,7 @@ fun FavoriteSongsRow(
                 isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
+                transcodeIncompatible = transcodeIncompatible,
                 onClick = { onSongClick(song) },
                 onStarClick = { star ->
                     scope.launch {

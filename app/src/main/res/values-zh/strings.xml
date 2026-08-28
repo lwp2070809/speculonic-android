@@ -356,4 +356,14 @@
     <string name="healing_cover_art">正在补全专辑封面…</string>
     <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
     <string name="export_failed">导出失败: %1$s</string>
+    <string name="transcode_incompatible_formats">服务端转码不兼容格式</string>
+    <string name="transcode_incompatible_formats_description">在服务端将 Android 原生无法直接解码的音频格式（如 APE、WV 等）实时转码为兼容格式。注意：此选项会破坏本 APP 对服务器的 1:1 完全镜像设计。</string>
+    <string name="target_transcode_format">转码目标格式</string>
+    <string name="target_transcode_format_description">选择服务端转码的目标输出格式</string>
+    <string name="unsupported_format_hint">当前格式(%1$s)暂不支持直接播放，可在设置中开启转码</string>
+    <string name="unsupported_format_skipped">已跳过不支持的音频格式: %1$s</string>
+    <string name="format_mp3">MP3 (推荐)</string>
+    <string name="format_flac">FLAC (无损)</string>
+    <string name="format_opus">Opus</string>
+    <string name="incompatible_downloaded_hint">已下载文件为不支持的原始格式(%1$s)，请删除下载后重新转码缓存</string>
 </resources>

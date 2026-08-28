@@ -68,6 +68,7 @@ data class SongEntity(
     val starred: Boolean = false,
     val localUri: String? = null, 
     val isFullyCached: Boolean = false,
+    val isTranscoded: Boolean = false,
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
@@ -113,6 +114,7 @@ data class SongMetadata(
     val id: String,
     val localUri: String?,
     val isFullyCached: Boolean,
+    val isTranscoded: Boolean = false,
     val starred: Boolean,
     val lastUpdated: Long
 )

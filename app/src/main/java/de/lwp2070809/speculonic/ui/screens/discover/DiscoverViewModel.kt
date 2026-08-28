@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -48,7 +49,8 @@ private data class DiscoverDataPackage(
 class DiscoverViewModel @Inject constructor(
     private val repository: SubsonicRepository,
     private val syncAllDataUseCase: SyncAllDataUseCase,
-    private val playbackController: de.lwp2070809.speculonic.playback.PlaybackController
+    private val playbackController: de.lwp2070809.speculonic.playback.PlaybackController,
+    private val preferencesManager: de.lwp2070809.speculonic.data.PreferencesManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(DiscoverUiState())
@@ -193,11 +195,17 @@ class DiscoverViewModel @Inject constructor(
     fun playFavoriteSong(song: Song) {
         viewModelScope.launch {
             try {
+                val transcodeIncompatible = preferencesManager.transcodeIncompatibleFormats.first()
                 val allFavoriteSongs = repository.getStarred()
-                val mediaItems = allFavoriteSongs.map { it.toMediaItem(repository) }
-                val index = allFavoriteSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-                if (mediaItems.isNotEmpty()) {
-                    playbackController.play(mediaItems, index, queueTitle = "Favorite")
+                val playableSongs = allFavoriteSongs.filter {
+                    de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible)
+                }
+                val index = playableSongs.indexOfFirst { it.id == song.id }
+                if (index != -1) {
+                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                    if (mediaItems.isNotEmpty()) {
+                        playbackController.play(mediaItems, index, queueTitle = "Favorite")
+                    }
                 }
             } catch (e: Exception) {
                 LogManager.e("DiscoverViewModel: Play favorite song failed", e)

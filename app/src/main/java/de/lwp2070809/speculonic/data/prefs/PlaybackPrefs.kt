@@ -15,6 +15,8 @@ interface PlaybackPrefs {
     val duckOnTransientFocusLoss: Flow<Boolean>
     val pauseOnAudioFocusLoss: Flow<Boolean>
     val syncPlaybackState: Flow<Boolean>
+    val transcodeIncompatibleFormats: Flow<Boolean>
+    val targetTranscodeFormat: Flow<String>
 
     suspend fun saveMobilePlayAllowed(allowed: Boolean)
     suspend fun savePlaybackState(
@@ -31,4 +33,6 @@ interface PlaybackPrefs {
     suspend fun saveSkipSilenceEnabled(enabled: Boolean)
     suspend fun saveDuckOnTransientFocusLoss(enabled: Boolean)
     suspend fun savePauseOnAudioFocusLoss(enabled: Boolean)
+    suspend fun saveTranscodeIncompatibleFormats(enabled: Boolean)
+    suspend fun saveTargetTranscodeFormat(format: String)
 }

@@ -171,6 +171,7 @@ class MediaRepository(
                         albumId = song.albumId ?: directoryId, 
                         localUri = local?.localUri, 
                         isCached = local?.isFullyCached ?: false,
+                        isTranscoded = local?.isTranscoded ?: false,
                         parentId = directoryId,
                         lastUpdated = local?.lastUpdated
                     )
@@ -223,6 +224,7 @@ class MediaRepository(
                             albumId = id, 
                             localUri = local?.localUri, 
                             isCached = local?.isFullyCached ?: false,
+                            isTranscoded = local?.isTranscoded ?: false,
                             parentId = song.parent ?: id,
                             lastUpdated = local?.lastUpdated
                         )

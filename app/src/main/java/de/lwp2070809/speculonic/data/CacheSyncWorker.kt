@@ -108,16 +108,12 @@ class CacheSyncWorker @AssistedInject constructor(
             if (isSafEnabled) {
                 try {
                     val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                    val idPattern = Pattern.compile(".*\\[(.+)\\]\\.(mp3|flac|m4a|wav|aac|ogg|alac|aiff|dsf|lrc)$", Pattern.CASE_INSENSITIVE)
                     safFiles = rootDoc?.listFiles()
                     safFiles?.forEach { file ->
                         val fileName = file.name ?: ""
-                        val matcher = idPattern.matcher(fileName)
-                        if (matcher.matches()) {
-                            val songId = matcher.group(1) ?: ""
-                            if (de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(fileName)) {
-                                existingSafSongIds.add(songId)
-                            }
+                        val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
+                        if (songId != null && de.lwp2070809.speculonic.util.MediaFormatUtils.isSupportedAudioFile(fileName)) {
+                            existingSafSongIds.add(songId)
                         }
                     }
                     LogManager.i("CacheSync: Batch pre-loaded ${existingSafSongIds.size} SAF files. Disabling O(N) IPC queries.")
@@ -223,22 +219,22 @@ class CacheSyncWorker @AssistedInject constructor(
                     val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
                     safFiles = rootDoc?.listFiles()
                 }
-                val idPattern = Pattern.compile(".*\\[(.+)\\]\\.(mp3|flac|m4a|wav|aac|ogg|alac|aiff|dsf|lrc)$", Pattern.CASE_INSENSITIVE)
                 
                 safFiles?.forEach { file ->
                     val fileName = file.name ?: ""
-                    val matcher = idPattern.matcher(fileName)
+                    val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
                     
-                    if (matcher.matches()) {
-                        val songId = matcher.group(1) ?: ""
+                    if (songId != null) {
                         val songInDb = musicDao.getSongById(songId)
                         
                         if (songInDb == null) {
                             LogManager.i("CacheSync: Orphaned file detected: $fileName. Ignoring to prevent accidental deletion in non-exclusive directories.")
-                        } else if (de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(fileName)) {
+                        } else if (de.lwp2070809.speculonic.util.MediaFormatUtils.isSupportedAudioFile(fileName)) {
                             if (!songInDb.isFullyCached || songInDb.localUri == null) {
-                                LogManager.i("CacheSync: Linked file by ID for ${songInDb.title} ($songId)")
-                                musicDao.updateSongCacheStatus(songId, file.uri.toString(), true)
+                                val fileExt = fileName.substringAfterLast('.', "").lowercase()
+                                val isTranscoded = fileExt != (songInDb.suffix ?: "").lowercase()
+                                LogManager.i("CacheSync: Linked file by ID for ${songInDb.title} ($songId, isTranscoded: $isTranscoded)")
+                                musicDao.updateSongCacheStatus(songId, file.uri.toString(), true, isTranscoded)
                             }
                         }
                     }

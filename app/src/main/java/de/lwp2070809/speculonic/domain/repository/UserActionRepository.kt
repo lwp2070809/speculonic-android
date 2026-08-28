@@ -65,6 +65,7 @@ class UserActionRepository(
                             albumId = null, 
                             localUri = local?.localUri, 
                             isCached = local?.isFullyCached ?: false,
+                            isTranscoded = local?.isTranscoded ?: false,
                             lastUpdated = local?.lastUpdated
                         )
                     }

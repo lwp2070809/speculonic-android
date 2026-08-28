@@ -51,6 +51,9 @@ fun AllSongsList(
     val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     val allSongsTitle = stringResource(R.string.all_songs)
+
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
  
     Column(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
@@ -70,16 +73,20 @@ fun AllSongsList(
                         isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
                         isStreamingAllowed = isStreamingAllowed,
+                        transcodeIncompatible = transcodeIncompatible,
                         onClick = {
                             scope.launch {
                                 val windowStart = index
                                 val windowEnd = minOf(index + 100, songsPaged.itemCount)
                                 val windowSongs = (windowStart until windowEnd).mapNotNull { songsPaged.peek(it) }
+                                val playableSongs = windowSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
 
                                 val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                    windowSongs.map { it.toMediaItem(repository) }
+                                    playableSongs.map { it.toMediaItem(repository) }
                                 }
-                                playbackController.play(mediaItems, 0, queueTitle = allSongsTitle)
+                                if (mediaItems.isNotEmpty()) {
+                                    playbackController.play(mediaItems, 0, queueTitle = allSongsTitle)
+                                }
                             }
                         },
                         onStarClick = { star ->

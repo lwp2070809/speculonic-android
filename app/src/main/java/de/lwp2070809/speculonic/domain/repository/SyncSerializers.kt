@@ -94,6 +94,7 @@ class SearchResult3StreamingSerializer(
                                     albumId = song.albumId ?: song.parent,
                                     localUri = meta?.localUri,
                                     isCached = meta?.isFullyCached ?: false,
+                                    isTranscoded = meta?.isTranscoded ?: false,
                                     isStarred = isStarred,
                                     lastUpdated = meta?.lastUpdated
                                 )
@@ -109,7 +110,6 @@ class SearchResult3StreamingSerializer(
             }
         }
     }
-
     private fun <T> decodeArray(decoder: CompositeDecoder, index: Int, serializer: KSerializer<T>, onChunk: (List<T>) -> Unit) {
         val chunk = mutableListOf<T>()
         decoder.decodeSerializableElement(descriptor, index, StreamingListSerializer(serializer) { element ->

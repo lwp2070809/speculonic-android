@@ -142,9 +142,11 @@ class SettingsViewModel @Inject constructor(
             val playbackGroup = combine(
                 preferencesManager.skipSilenceEnabled,
                 preferencesManager.duckOnTransientFocusLoss,
-                preferencesManager.pauseOnAudioFocusLoss
-            ) { skipSilence, duck, pause ->
-                PlaybackPrefs(skipSilence, duck, pause)
+                preferencesManager.pauseOnAudioFocusLoss,
+                preferencesManager.transcodeIncompatibleFormats,
+                preferencesManager.targetTranscodeFormat
+            ) { skipSilence, duck, pause, transcodeIncompatible, targetFormat ->
+                PlaybackPrefs(skipSilence, duck, pause, transcodeIncompatible, targetFormat)
             }
 
             val group3 = combine(
@@ -213,6 +215,8 @@ class SettingsViewModel @Inject constructor(
                         skipSilenceEnabled = g4.third.playback.skipSilence,
                         duckOnTransientFocusLoss = g4.third.playback.duckOnTransientFocusLoss,
                         pauseOnAudioFocusLoss = g4.third.playback.pauseOnAudioFocusLoss,
+                        transcodeIncompatibleFormats = g4.third.playback.transcodeIncompatibleFormats,
+                        targetTranscodeFormat = g4.third.playback.targetTranscodeFormat,
 
                         bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
                         bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
@@ -387,6 +391,8 @@ class SettingsViewModel @Inject constructor(
     fun updateSkipSilenceEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSkipSilenceEnabled(enabled) } }
     fun updateDuckOnTransientFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveDuckOnTransientFocusLoss(enabled) } }
     fun updatePauseOnAudioFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.savePauseOnAudioFocusLoss(enabled) } }
+    fun updateTranscodeIncompatibleFormats(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveTranscodeIncompatibleFormats(enabled) } }
+    fun updateTargetTranscodeFormat(format: String) { viewModelScope.launch { preferencesManager.saveTargetTranscodeFormat(format) } }
 
     fun updateBluetoothLyricsEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsEnabled(enabled) } }
     fun updateBluetoothLyricsHideProgressBar(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsHideProgressBar(enabled) } }

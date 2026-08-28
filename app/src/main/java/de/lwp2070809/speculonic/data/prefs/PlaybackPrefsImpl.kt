@@ -26,6 +26,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         private val DUCK_ON_TRANSIENT_FOCUS_LOSS = booleanPreferencesKey("duck_on_transient_focus_loss")
         private val PAUSE_ON_AUDIO_FOCUS_LOSS = booleanPreferencesKey("pause_on_audio_focus_loss")
         private val SYNC_PLAYBACK_STATE = booleanPreferencesKey("sync_playback_state")
+        private val TRANSCODE_INCOMPATIBLE_FORMATS = booleanPreferencesKey("transcode_incompatible_formats")
+        private val TARGET_TRANSCODE_FORMAT = stringPreferencesKey("target_transcode_format")
     }
 
     override val mobilePlayAllowed: Flow<Boolean> = context.dataStore.data.map { it[MOBILE_PLAY_ALLOWED] ?: true }
@@ -92,6 +94,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     override val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }
     override val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }
     override val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }
+    override val transcodeIncompatibleFormats: Flow<Boolean> = context.dataStore.data.map { it[TRANSCODE_INCOMPATIBLE_FORMATS] ?: false }
+    override val targetTranscodeFormat: Flow<String> = context.dataStore.data.map { it[TARGET_TRANSCODE_FORMAT] ?: "mp3" }
 
     override suspend fun saveSkipSilenceEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -114,6 +118,18 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     override suspend fun saveSyncPlaybackState(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[SYNC_PLAYBACK_STATE] = enabled
+        }
+    }
+
+    override suspend fun saveTranscodeIncompatibleFormats(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[TRANSCODE_INCOMPATIBLE_FORMATS] = enabled
+        }
+    }
+
+    override suspend fun saveTargetTranscodeFormat(format: String) {
+        context.dataStore.edit { preferences ->
+            preferences[TARGET_TRANSCODE_FORMAT] = format
         }
     }
 }

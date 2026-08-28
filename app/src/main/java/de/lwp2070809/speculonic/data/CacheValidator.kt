@@ -30,6 +30,17 @@ class CacheValidator(private val context: Context) {
                 docFile.length()
             }
 
+            if (length <= 0) {
+                LogManager.i("CacheValidator: File is empty for ${dbSong.title}")
+                return@withContext false
+            }
+
+            // 如果该文件是服务端转码后导出的，其大小和哈希必然不同于服务端的 Raw 原始元数据，豁免严格比对
+            if (dbSong.isTranscoded) {
+                LogManager.d("CacheValidator: ${dbSong.title} is marked as transcoded. Size/MD5 check skipped.")
+                return@withContext true
+            }
+
             if (dbSong.size != null && dbSong.size > 0) {
                 if (length != dbSong.size) {
                     LogManager.i("CacheValidator: Size mismatch for ${dbSong.title}. Local: $length, Expected: ${dbSong.size}")

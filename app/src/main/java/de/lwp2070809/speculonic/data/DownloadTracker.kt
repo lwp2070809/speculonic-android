@@ -257,7 +257,14 @@ object DownloadTracker {
 
             val db = AppDatabase.getDatabase(context)
             val songEntity = db.musicDao().getSongById(download.request.id) ?: return
-            val song = entityMapper.toSong(songEntity)
+            val (isTranscoded, targetFormat) = try {
+                if (download.request.data.isNotEmpty()) {
+                    val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
+                    Pair(json.optBoolean("isTranscoded", false), json.optString("targetFormat").takeIf { it.isNotBlank() })
+                } else Pair(false, null)
+            } catch (e: Exception) { Pair(false, null) }
+
+            val song = entityMapper.toSong(songEntity).copy(isTranscoded = isTranscoded)
             
             var lyrics: String? = null
             var coverArtBytes: ByteArray? = null
@@ -306,7 +313,8 @@ object DownloadTracker {
                         song,
                         lyrics,
                         coverArtBytes,
-                        cacheDataSourceFactory
+                        cacheDataSourceFactory,
+                        targetTranscodeFormat = targetFormat
                     )
                 } else {
                     CacheExporter.exportToPrivate(
@@ -314,7 +322,8 @@ object DownloadTracker {
                         song,
                         lyrics,
                         coverArtBytes,
-                        cacheDataSourceFactory
+                        cacheDataSourceFactory,
+                        targetTranscodeFormat = targetFormat
                     )
                 }
             } catch (e: SecurityException) {
@@ -326,8 +335,8 @@ object DownloadTracker {
             }
 
             localUriResult.onSuccess { localUri ->
-                db.musicDao().updateSongCacheStatus(download.request.id, localUri, true)
-                LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri")
+                db.musicDao().updateSongCacheStatus(download.request.id, localUri, true, isTranscoded)
+                LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri (Transcoded: $isTranscoded)")
                 
 
                 

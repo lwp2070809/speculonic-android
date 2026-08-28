@@ -66,8 +66,15 @@ fun FavoriteList(
         songs.isNotEmpty() && songs.all { it.isFullyCached }
     }
 
-    val isPlayActionsEnabled = remember(songs, downloadedIds, isStreamingAllowed) {
-        isStreamingAllowed || songs.any { it.isFullyCached }
+    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+
+    val playableSongs = remember(songs, transcodeIncompatible) {
+        songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    }
+
+    val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {
+        playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
     }
 
     var lastStarClickTime by remember { mutableLongStateOf(0L) }
@@ -94,12 +101,16 @@ fun FavoriteList(
                 item {
                     ActionButtonsRow(
                         onPlayAll = {
-                            val mediaItems = songs.map { it.toMediaItem(repository) }
-                            playbackController.play(mediaItems, 0, queueTitle = "Favorite")
+                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            if (mediaItems.isNotEmpty()) {
+                                playbackController.play(mediaItems, 0, queueTitle = "Favorite")
+                            }
                         },
                         onShuffle = {
-                            val mediaItems = songs.map { it.toMediaItem(repository) }
-                            playbackController.play(mediaItems, if (mediaItems.isNotEmpty()) mediaItems.indices.random() else 0, shuffle = true, queueTitle = "Favorite")
+                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            if (mediaItems.isNotEmpty()) {
+                                playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = "Favorite")
+                            }
                         },
                         onDownloadAll = onDownloadAllClick,
                         isOnline = isOnline,
@@ -113,16 +124,22 @@ fun FavoriteList(
                 }
             }
 
-            itemsIndexed(songs, key = { _, song -> song.id }) { index, song ->
+            itemsIndexed(songs, key = { _, song -> song.id }) { _, song ->
                 SongListItem(
                     song = song,
                     isCurrent = song.id == currentSongId,
                     isOnline = isOnline,
                     isEffectivelyOnline = isEffectivelyOnline,
                     isStreamingAllowed = isStreamingAllowed,
+                    transcodeIncompatible = transcodeIncompatible,
                     onClick = {
-                        val mediaItems = songs.map { it.toMediaItem(repository) }
-                        playbackController.play(mediaItems, index, queueTitle = "Favorite")
+                        val playIndex = playableSongs.indexOfFirst { it.id == song.id }
+                        if (playIndex != -1) {
+                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            if (mediaItems.isNotEmpty()) {
+                                playbackController.play(mediaItems, playIndex, queueTitle = "Favorite")
+                            }
+                        }
                     },
                     onStarClick = { star ->
                         val now = System.currentTimeMillis()

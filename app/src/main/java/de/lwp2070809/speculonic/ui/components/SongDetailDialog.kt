@@ -47,6 +47,7 @@ import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.FileInputStream
@@ -77,7 +78,7 @@ fun SongDetailDialog(
             if (pagerState.currentPage == 0 && sha1 == null) {
                 sha1 = withContext(Dispatchers.IO) { calculateSha1(uri, context) }
             } else if (pagerState.currentPage == 1 && id3Metadata == null) {
-                id3Metadata = withContext(Dispatchers.IO) { extractId3(uri, songEntity?.suffix, context) }
+                id3Metadata = withContext(Dispatchers.IO) { extractId3(uri, songEntity?.suffix, songEntity?.isTranscoded ?: false, context) }
             }
         }
     }
@@ -375,8 +376,14 @@ private suspend fun calculateSha1(uriString: String, context: Context): String? 
     }
 }
 
-private suspend fun extractId3(uriString: String, suffix: String?, context: Context): Map<String, String>? {
+private suspend fun extractId3(
+    uriString: String, 
+    suffix: String?, 
+    isTranscoded: Boolean,
+    context: Context
+): Map<String, String>? {
     return withContext(Dispatchers.IO) {
+        var tempFile: java.io.File? = null
         try {
             org.jaudiotagger.tag.TagOptionSingleton.getInstance().isAndroid = true
             
@@ -384,14 +391,21 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
             var file = java.io.File(physicalPath)
             
             if ((!file.exists() || !file.canRead()) && uriString.startsWith("content://")) {
-                val ext = suffix?.lowercase() ?: uriString.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotEmpty() } ?: "mp3"
-                val tempFile = java.io.File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
+                val ext = if (isTranscoded) {
+                    val decodedUri = android.net.Uri.decode(uriString)
+                    val segmentExt = decodedUri.substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotBlank() }
+                    segmentExt ?: de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context).targetTranscodeFormat.first().lowercase()
+                } else {
+                    suffix?.lowercase() ?: android.net.Uri.decode(uriString).substringAfterLast('.', "").substringBefore('?').lowercase().takeIf { it.isNotEmpty() } ?: "mp3"
+                }
+                val createdTemp = java.io.File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
+                tempFile = createdTemp
                 context.contentResolver.openInputStream(uriString.toUri())?.use { input ->
-                    tempFile.outputStream().use { output ->
+                    createdTemp.outputStream().use { output ->
                         input.copyTo(output)
                     }
                 }
-                file = tempFile
+                file = createdTemp
             }
             
             if (!file.exists() || !file.canRead()) return@withContext emptyMap()
@@ -453,14 +467,12 @@ private suspend fun extractId3(uriString: String, suffix: String?, context: Cont
                 metadataMap["Embedded Cover"] = if (hasCover) "Yes" else "No"
             }
             
-            if (file.absolutePath.contains(context.cacheDir.absolutePath)) {
-                file.delete()
-            }
-            
             metadataMap.filterValues { it.isNotEmpty() }
         } catch (e: Exception) {
             e.printStackTrace()
             emptyMap()
+        } finally {
+            tempFile?.delete()
         }
     }
 }

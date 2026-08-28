@@ -66,9 +66,10 @@ class SubsonicRepository(
     }
 
     private var serverCapabilities = ServerCapabilities()
+    @Volatile private var transcodeIncompatible: Boolean = false
+    @Volatile private var targetTranscodeFormat: String = "mp3"
 
     init {
-        
         val initialUrl = preferencesManager.getServerUrlSync()
         val initialUser = preferencesManager.getUsernameSync()
         val initialPass = preferencesManager.getPasswordSync()
@@ -94,6 +95,16 @@ class SubsonicRepository(
                 if (url != baseUrl || username != authManager.getAuthParams().first) {
                     reconfigure(url, username, password.toCharArray())
                 }
+            }
+        }
+        repositoryScope.launch {
+            preferencesManager.transcodeIncompatibleFormats.collectLatest {
+                transcodeIncompatible = it
+            }
+        }
+        repositoryScope.launch {
+            preferencesManager.targetTranscodeFormat.collectLatest {
+                targetTranscodeFormat = it
             }
         }
     }
@@ -184,8 +195,20 @@ class SubsonicRepository(
     }
 
     
-    fun buildStreamUrl(id: String): String = urlBuilder.buildStreamUrl(id)
-    fun buildDownloadUrl(id: String): String = urlBuilder.buildDownloadUrl(id)
+    fun buildStreamUrl(
+        id: String,
+        suffix: String? = null,
+        transcodeIncompatible: Boolean = this.transcodeIncompatible,
+        targetFormat: String = this.targetTranscodeFormat
+    ): String = urlBuilder.buildStreamUrl(id, suffix, transcodeIncompatible, targetFormat)
+
+    fun buildDownloadUrl(
+        id: String,
+        suffix: String? = null,
+        transcodeIncompatible: Boolean = this.transcodeIncompatible,
+        targetFormat: String = this.targetTranscodeFormat
+    ): String = urlBuilder.buildDownloadUrl(id, suffix, transcodeIncompatible, targetFormat)
+
     fun buildCoverArtUrl(id: String): String = urlBuilder.buildCoverArtUrl(id)
 
     fun getCoverArtCacheKey(id: String): String {
