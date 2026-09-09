@@ -159,74 +159,22 @@ class DownloadController @Inject constructor(
     
     fun removeDownload(songId: String) {
         LogManager.i("DownloadController: Requesting removal of download for $songId")
-        
-        
-        try {
-            DownloadService.sendRemoveDownload(
-                context,
-                de.lwp2070809.speculonic.playback.DownloadService::class.java,
-                songId,
-                false
-            )
-        } catch (e: Exception) {
-            LogManager.e("DownloadController: Failed to send RemoveDownload intent", e)
-        }
-
-        scope.launch {
+        if (DownloadTracker.hasDownload(songId)) {
+            DownloadTracker.markForFileDeletion(songId)
             try {
-                val playbackCache = de.lwp2070809.speculonic.data.CacheManager.getPlaybackCache(context)
-                playbackCache.removeResource(songId)
-                LogManager.d("DownloadController: Cleared playback cache for $songId")
+                DownloadService.sendRemoveDownload(
+                    context,
+                    de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                    songId,
+                    false
+                )
             } catch (e: Exception) {
-                LogManager.e("DownloadController: Failed to clear playback cache for $songId", e)
+                LogManager.e("DownloadController: Failed to send RemoveDownload intent", e)
             }
-            try {
-                val db = AppDatabase.getDatabase(context)
-                val song = db.musicDao().getSongById(songId)
-                song?.localUri?.let { uriString ->
-                    LogManager.d("DownloadController: Removing exported file from SAF: $uriString")
-                    val uri = uriString.toUri()
-                    
-                    val docFile = try { DocumentFile.fromSingleUri(context, uri) } catch (e: Exception) { null }
-                    
-                    if (docFile?.exists() == true) {
-                        val fileName = docFile.name
-                        val parentDir = docFile.parentFile
-                        
-                        
-                        val audioDeleted = docFile.delete()
-                        
-                        
-                        if (fileName != null && de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(fileName)) {
-                            val lrcName = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(fileName)
-                            
-                            val lrcFile = parentDir?.findFile(lrcName)
-                            if (lrcFile?.exists() == true) {
-                                if (lrcFile.delete()) {
-                                    LogManager.i("DownloadController: Successfully deleted associated .lrc file for $songId")
-                                }
-                            } else {
-                                
-                                try {
-                                    val lrcUri = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(uriString).toUri()
-                                    DocumentFile.fromSingleUri(context, lrcUri)?.takeIf { it.exists() }?.delete()
-                                } catch (e: Exception) {
-                                    LogManager.w("DownloadController: Fallback LRC deletion failed", e)
-                                }
-                            }
-                        }
-
-                        if (audioDeleted) {
-                            LogManager.i("DownloadController: Successfully deleted SAF file for $songId")
-                        } else {
-                            LogManager.w("DownloadController: Failed to delete SAF file for $songId")
-                        }
-                    }
-                    db.musicDao().updateSongLocalUri(songId, null)
-                    db.musicDao().updateSongCacheStatus(songId, null, false)
-                }
-            } catch (e: Exception) {
-                LogManager.e("DownloadController: Error while removing SAF file for $songId", e)
+        } else {
+            scope.launch {
+                LogManager.i("DownloadController: Standalone file cleanup for $songId (task was not in Media3)")
+                DownloadTracker.deleteExportedSongAndCache(context, songId)
             }
         }
     }

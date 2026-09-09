@@ -147,6 +147,13 @@ class SubsonicRepository(
 
     val lyricsRepositoryGet: LyricsRepository get() = lyricsRepository
 
+    suspend fun getLyricsData(
+        songId: String,
+        artist: String?,
+        title: String?,
+        hasSongLyricsExtension: Boolean = false
+    ): Pair<String?, List<LyricLine>> = lyricsRepository.getLyricsData(songId, artist, title, hasSongLyricsExtension)
+
     val serverUrlFlow get() = preferencesManager.serverUrl
     val currentServerCapabilities get() = serverCapabilities
 

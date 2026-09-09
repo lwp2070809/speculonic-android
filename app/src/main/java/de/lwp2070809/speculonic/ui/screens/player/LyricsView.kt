@@ -101,11 +101,13 @@ fun LyricsView(
         }
 
         
-        LaunchedEffect(currentLineIndex, viewHeightPx) {
-            val currentTime = System.currentTimeMillis()
-            if (lyricsLines.isNotEmpty() && !isDragged && (currentTime - lastUserInteractionTime > 3000)) {
-                
-                
+        LaunchedEffect(currentLineIndex, isDragged, lastUserInteractionTime) {
+            if (lyricsLines.isEmpty() || isDragged) return@LaunchedEffect
+            val elapsed = System.currentTimeMillis() - lastUserInteractionTime
+            if (lastUserInteractionTime > 0L && elapsed < 3000L) {
+                kotlinx.coroutines.delay(3000L - elapsed)
+            }
+            if (!isDragged && currentLineIndex in lyricsLines.indices) {
                 listState.animateScrollToItem(currentLineIndex, scrollOffset = 0)
             }
         }

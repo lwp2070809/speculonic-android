@@ -49,6 +49,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+private val BT_SYNC_TS_REGEX = Regex("[?&]bt_sync_ts=[^&]*")
+
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
     @Inject
@@ -263,7 +265,20 @@ class MainActivity : AppCompatActivity() {
             }
             
             
-            val artworkUri = remember { derivedStateOf { artworkUriState } }
+            val normalizedArtworkUri = remember {
+                derivedStateOf {
+                    val uri = artworkUriState ?: return@derivedStateOf null
+                    val uriStr = uri.toString()
+                    if (uriStr.contains("bt_sync_ts=")) {
+                        val cleaned = uriStr.replace(BT_SYNC_TS_REGEX, "").let {
+                            if (it.contains("?") || !it.contains("&")) it else it.replaceFirst("&", "?")
+                        }
+                        android.net.Uri.parse(cleaned)
+                    } else {
+                        uri
+                    }
+                }
+            }
             val savedSeedColorLight by preferencesManager.lastSeedColorLight.collectAsState(initial = null)
             val savedSeedColorDark by preferencesManager.lastSeedColorDark.collectAsState(initial = null)
             var activeSeedColor by remember { mutableStateOf<Color?>(null) }
@@ -289,7 +304,7 @@ class MainActivity : AppCompatActivity() {
 
             
             
-            LaunchedEffect(artworkUri.value, colorMode, darkTheme) {
+            LaunchedEffect(normalizedArtworkUri.value, colorMode, darkTheme) {
                 if (colorMode == ColorMode.SYSTEM_COLOR) {
                     activeSeedColor = null
                     hasEvaluatedColor = true
@@ -300,7 +315,7 @@ class MainActivity : AppCompatActivity() {
                     return@LaunchedEffect
                 }
 
-                val uri = artworkUri.value
+                val uri = normalizedArtworkUri.value
                 val isPlaybackReady = currentSongIdState.isNotEmpty()
 
                 if (uri != null) {

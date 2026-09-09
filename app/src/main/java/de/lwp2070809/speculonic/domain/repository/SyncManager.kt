@@ -122,6 +122,7 @@ class SyncManager(
                     val existingSongsMetadata = musicDao.getAllSongsMetadata().associateBy { it.id }
                     val existingAlbumsMap = musicDao.getAlbums().associateBy { it.id }
 
+                    val localSongCountSnapshot = musicDao.getSongsCount()
                     musicDao.clearSyncTempIds()
 
                     coroutineScope {
@@ -196,11 +197,10 @@ class SyncManager(
                     }
 
                     
-                    val localSongCount = musicDao.getSongsCount()
-                    if (!ignoreSafetyGuard && localSongCount >= MIN_SONGS_FOR_SAFETY) {
-                        val dropThreshold = localSongCount * SAFETY_GUARD_DROP_RATIO
+                    if (!ignoreSafetyGuard && localSongCountSnapshot >= MIN_SONGS_FOR_SAFETY) {
+                        val dropThreshold = localSongCountSnapshot * SAFETY_GUARD_DROP_RATIO
                         if (serverSongCount < dropThreshold) {
-                            throw SafetyGuardException("安全保护触发：服务器返回歌曲数 ($serverSongCount) 远低于本地基数 ($localSongCount)。同步已中止以防止误删。")
+                            throw SafetyGuardException("安全保护触发：服务器返回歌曲数 ($serverSongCount) 远低于本地基数 ($localSongCountSnapshot)。同步已中止以防止误删。")
                         }
                     }
 
@@ -222,7 +222,12 @@ class SyncManager(
                     pref.saveSyncProgress(null)
                     return
                 } catch (e: Exception) {
-                    musicDao.clearSyncTempIds()
+                    runCatching {
+                        musicDao.clearSyncTempIds()
+                        musicDao.repairAndCount()
+                    }.onFailure { cleanupEx ->
+                        LogManager.e("SyncManager: cleanup/repair failed during sync error handling", cleanupEx)
+                    }
                     if (e is SafetyGuardException) throw e
                     LogManager.e("SyncManager: search3 sync failed", e)
                     throw e 

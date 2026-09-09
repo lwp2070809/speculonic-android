@@ -137,7 +137,7 @@ class PlaybackController private constructor(context: Context) {
                 LogManager.e("PlaybackController: Failed to setup controller after connection", e)
                 controllerFuture = null
             }
-        }, MoreExecutors.directExecutor())
+        }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
     }
 
     private fun setupController() {

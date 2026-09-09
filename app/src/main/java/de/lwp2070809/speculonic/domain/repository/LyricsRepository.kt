@@ -46,7 +46,7 @@ class LyricsRepository(
         }
 
         val deferred = activeFetches.computeIfAbsent(songId) {
-            repositoryScope.async {
+            val def = repositoryScope.async {
                 val result = fetchLyricsDataInternal(songId, artist, title, hasSongLyricsExtension)
                 if (result.second.isNotEmpty() || !result.first.isNullOrBlank()) {
                     synchronized(positiveCache) {
@@ -55,13 +55,13 @@ class LyricsRepository(
                 }
                 result
             }
+            def.invokeOnCompletion {
+                activeFetches.remove(songId)
+            }
+            def
         }
         
-        try {
-            return deferred.await()
-        } finally {
-            activeFetches.remove(songId)
-        }
+        return deferred.await()
     }
 
     private suspend fun fetchLyricsDataInternal(

@@ -23,6 +23,7 @@ import de.lwp2070809.speculonic.domain.repository.LyricsRepository
 import de.lwp2070809.speculonic.domain.repository.UrlBuilder
 import de.lwp2070809.speculonic.util.LogManager
 import androidx.documentfile.provider.DocumentFile
+import androidx.core.net.toUri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -59,8 +60,79 @@ object DownloadTracker {
     private val entityMapper = EntityMapper
 
     private val exportJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
+    private val pendingFileDeletionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     private val pollJob = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
+
+    fun markForFileDeletion(songId: String) {
+        pendingFileDeletionIds.add(songId)
+    }
+
+    fun consumePendingFileDeletion(songId: String): Boolean {
+        return pendingFileDeletionIds.remove(songId)
+    }
+
+    fun hasDownload(songId: String): Boolean {
+        return _allDownloads.value.any { it.task.request.id == songId }
+    }
+
+    suspend fun deleteExportedSongAndCache(context: Context, songId: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
+        val db = AppDatabase.getDatabase(context)
+        val song = db.musicDao().getSongById(songId)
+        song?.localUri?.let { uriString ->
+            LogManager.d("DownloadTracker: Removing exported file: $uriString")
+            val uri = uriString.toUri()
+            val docFile = try { DocumentFile.fromSingleUri(context, uri) } catch (e: Exception) { null }
+            if (docFile?.exists() == true) {
+                val fileName = docFile.name
+                val parentDir = docFile.parentFile
+                val audioDeleted = docFile.delete()
+                if (fileName != null && de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(fileName)) {
+                    val lrcName = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(fileName)
+                    val lrcFile = parentDir?.findFile(lrcName)
+                    if (lrcFile?.exists() == true) {
+                        lrcFile.delete()
+                    } else {
+                        try {
+                            val lrcUri = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(uriString).toUri()
+                            DocumentFile.fromSingleUri(context, lrcUri)?.takeIf { it.exists() }?.delete()
+                        } catch (e: Exception) {
+                            LogManager.w("DownloadTracker: Fallback LRC deletion failed", e)
+                        }
+                    }
+                }
+                if (audioDeleted) {
+                    LogManager.i("DownloadTracker: Successfully deleted SAF file for $songId")
+                }
+            } else if (uriString.startsWith("file:")) {
+                try {
+                    val path = uri.path
+                    if (path != null) {
+                        val file = java.io.File(path)
+                        if (file.exists()) {
+                            file.delete()
+                            val lrcFile = java.io.File(de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(file.absolutePath))
+                            if (lrcFile.exists()) lrcFile.delete()
+                        }
+                    }
+                } catch (e: Exception) {
+                    LogManager.e("DownloadTracker: Failed to delete private file for $songId", e)
+                }
+            }
+        }
+        db.musicDao().updateSongLocalUri(songId, null)
+        db.musicDao().updateSongCacheStatus(songId, null, false)
+        try {
+            CacheManager.getPlaybackCache(context).removeResource(songId)
+        } catch (e: Exception) {
+            LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
+        }
+        try {
+            CacheManager.getDownloadCache(context).removeResource(songId)
+        } catch (e: Exception) {
+            LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
+        }
+    }
 
     fun clearAll() {
         _downloadedSongIds.value = emptySet()
@@ -198,11 +270,13 @@ object DownloadTracker {
             _allDownloads.value = currentList
             checkAndStartPolling(downloadManager)
             
+            val isExplicitlyDeleted = consumePendingFileDeletion(download.request.id)
+
             scope.launch {
                 val db = AppDatabase.getDatabase(context)
                 val songEntity = db.musicDao().getSongById(download.request.id)
                 var keepCacheStatus = false
-                if (songEntity?.localUri != null && songEntity.isFullyCached) {
+                if (!isExplicitlyDeleted && songEntity?.localUri != null && songEntity.isFullyCached) {
                     val uri = android.net.Uri.parse(songEntity.localUri)
                     val exists = if (songEntity.localUri.startsWith("file:")) {
                         val path = uri.path
@@ -220,23 +294,9 @@ object DownloadTracker {
                 }
 
                 if (!keepCacheStatus) {
-                    db.musicDao().updateSongCacheStatus(download.request.id, null, false)
-                    
-                    val songId = download.request.id
-                    try {
-                        CacheManager.getPlaybackCache(context).removeResource(songId)
-                    } catch (e: Exception) {
-                        LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
-                    }
-                    
-                    try {
-                        val downloadCache = CacheManager.getDownloadCache(context)
-                        downloadCache.removeResource(songId)
-                    } catch (e: Exception) {
-                        LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
-                    }
+                    deleteExportedSongAndCache(context, download.request.id)
                 } else {
-                    LogManager.i("DownloadTracker: Keep cache status for " + download.request.id)
+                    LogManager.i("DownloadTracker: Keep cache status for ${download.request.id}")
                 }
             }
         }
@@ -270,21 +330,17 @@ object DownloadTracker {
             var coverArtBytes: ByteArray? = null
             
             try {
-                val baseUrl = preferencesManager.serverUrl.first()
-                val user = preferencesManager.username.first()
-                val pass = preferencesManager.password.first()
-                
-                if (baseUrl.isNotBlank() && user.isNotBlank()) {
-                    val api = NetworkModule.provideSubsonicService(baseUrl)
-                    val authManager = AuthManager(user, pass.toCharArray())
-                    
-                    val lyricsRepo = LyricsRepository(context, api, db.musicDao(), authManager)
-                    val (rawLyrics, _) = lyricsRepo.getLyricsData(song.id, song.artist, song.title, true)
+                val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
+                    context.applicationContext,
+                    de.lwp2070809.speculonic.di.RepositoryEntryPoint::class.java
+                )
+                val repository = entryPoint.subsonicRepository()
+                if (repository.isConfigured) {
+                    val (rawLyrics, _) = repository.getLyricsData(song.id, song.artist, song.title, true)
                     lyrics = rawLyrics
-                    
+
                     if (!song.coverArt.isNullOrBlank()) {
-                        val urlBuilder = UrlBuilder(baseUrl, authManager)
-                        val coverUrl = urlBuilder.buildCoverArtUrl(song.coverArt)
+                        val coverUrl = repository.buildCoverArtUrl(song.coverArt)
                         val imageLoader = SingletonImageLoader.get(context)
                         val request = coil3.request.ImageRequest.Builder(context)
                             .data(coverUrl)
