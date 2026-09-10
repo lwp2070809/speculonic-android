@@ -103,6 +103,7 @@ object CacheManager {
                 block()
             } catch (e: Exception) {
                 LogManager.e("CacheManager: Error during cache release & clearance", e)
+                throw e
             } finally {
                 try {
                     onCacheRebuild?.invoke()

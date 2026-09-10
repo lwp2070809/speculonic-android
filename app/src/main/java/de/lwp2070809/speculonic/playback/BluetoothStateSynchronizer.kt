@@ -7,8 +7,10 @@ import android.media.AudioManager
 import androidx.media3.session.MediaSession
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 
 class BluetoothStateSynchronizer(
@@ -82,7 +84,7 @@ class BluetoothStateSynchronizer(
                 try {
                     delay(100)
                 } finally {
-                    try {
+                    withContext(NonCancellable) {
                         try {
                             if (player.playbackState != androidx.media3.common.Player.STATE_IDLE) {
                                 player.pause()
@@ -92,9 +94,6 @@ class BluetoothStateSynchronizer(
                         } finally {
                             player.volume = originalVolume
                             LogManager.i("BluetoothStateSynchronizer: Successfully triggered silent Play-Pause jitter wake-up, MediaSession activated.")
-                        }
-                    } finally {
-                        launch {
                             delay(150)
                             setJitterProtected(false)
                         }

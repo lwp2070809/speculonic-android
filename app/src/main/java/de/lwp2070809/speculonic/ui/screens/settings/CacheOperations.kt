@@ -20,91 +20,107 @@ import kotlin.math.pow
 @OptIn(UnstableApi::class)
 class CacheOperations(private val context: Context) {
     
-    suspend fun clearAllCache() = withContext(Dispatchers.IO) {
-        try {
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-        }
-
-        CacheManager.executeWithCacheReleaseLock {
-            File(context.cacheDir, "media_playback_buffer").deleteRecursively()
-            File(context.cacheDir, "image_cache").deleteRecursively()
-            val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
-            internalPersistentDir.deleteRecursively()
-            val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-            privateExportedDir.deleteRecursively()
+    suspend fun clearAllCache(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
             try {
-                context.deleteDatabase("exoplayer_internal.db")
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
             } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearAllCache", e)
+                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
             }
-        }
 
-        try {
-            val db = AppDatabase.getDatabase(context)
-            db.musicDao().resetAllCacheStatus()
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
-        }
-        DownloadTracker.clearAll()
-        DownloadTracker.init(context)
-    }
+            CacheManager.executeWithCacheReleaseLock {
+                File(context.cacheDir, "media_playback_buffer").deleteRecursively()
+                File(context.cacheDir, "image_cache").deleteRecursively()
+                val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
+                internalPersistentDir.deleteRecursively()
+                val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+                privateExportedDir.deleteRecursively()
+                try {
+                    context.deleteDatabase("exoplayer_internal.db")
+                } catch (e: Exception) {
+                    LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearAllCache", e)
+                }
+            }
 
-    suspend fun clearPlaybackCache() = withContext(Dispatchers.IO) {
-        try {
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-        }
-        
-        CacheManager.executeWithCacheReleaseLock {
-            File(context.cacheDir, "media_playback_buffer").deleteRecursively()
-        }
-    }
-
-    suspend fun clearCoverArtCache() = withContext(Dispatchers.IO) {
-        try {
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-        }
-        
-        CacheManager.executeWithCacheReleaseLock {
-            File(context.cacheDir, "image_cache").deleteRecursively()
-        }
-    }
-
-    suspend fun clearSongDownloads() = withContext(Dispatchers.IO) {
-        try {
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-            context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-        }
-        CacheManager.executeWithCacheReleaseLock {
-            val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
-            internalPersistentDir.deleteRecursively()
-            val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-            privateExportedDir.deleteRecursively()
             try {
-                context.deleteDatabase("exoplayer_internal.db")
+                val db = AppDatabase.getDatabase(context)
+                db.musicDao().resetAllCacheStatus()
             } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearSongDownloads", e)
+                LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
             }
+            DownloadTracker.clearAll()
+            DownloadTracker.init(context)
+        }.onFailure { e ->
+            LogManager.e("CacheOperations: clearAllCache failed", e)
         }
+    }
 
-        try {
-            val db = AppDatabase.getDatabase(context)
-            db.musicDao().resetAllCacheStatus()
-        } catch (e: Exception) {
-            LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
+    suspend fun clearPlaybackCache(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            try {
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+            }
+            
+            CacheManager.executeWithCacheReleaseLock {
+                File(context.cacheDir, "media_playback_buffer").deleteRecursively()
+            }
+        }.onFailure { e ->
+            LogManager.e("CacheOperations: clearPlaybackCache failed", e)
         }
-        DownloadTracker.clearAll()
-        DownloadTracker.init(context)
+    }
+
+    suspend fun clearCoverArtCache(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            try {
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+            }
+            
+            CacheManager.executeWithCacheReleaseLock {
+                File(context.cacheDir, "image_cache").deleteRecursively()
+            }
+        }.onFailure { e ->
+            LogManager.e("CacheOperations: clearCoverArtCache failed", e)
+        }
+    }
+
+    suspend fun clearSongDownloads(): Result<Unit> = withContext(Dispatchers.IO) {
+        runCatching {
+            try {
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
+                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+            }
+            CacheManager.executeWithCacheReleaseLock {
+                val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
+                internalPersistentDir.deleteRecursively()
+                val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+                privateExportedDir.deleteRecursively()
+                try {
+                    context.deleteDatabase("exoplayer_internal.db")
+                } catch (e: Exception) {
+                    LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearSongDownloads", e)
+                }
+            }
+
+            try {
+                val db = AppDatabase.getDatabase(context)
+                db.musicDao().resetAllCacheStatus()
+            } catch (e: Exception) {
+                LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
+            }
+            DownloadTracker.clearAll()
+            DownloadTracker.init(context)
+        }.onFailure { e ->
+            LogManager.e("CacheOperations: clearSongDownloads failed", e)
+        }
     }
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {

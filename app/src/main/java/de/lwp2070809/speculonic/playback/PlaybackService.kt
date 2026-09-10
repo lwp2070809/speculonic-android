@@ -453,8 +453,8 @@ class PlaybackService : MediaSessionService() {
             audioFocusHelper.abandonAudioFocus()
         }
         mediaSession?.run {
-            player.release()
             release()
+            player.release()
         }
         mediaSession = null
         fallbackSession?.run {

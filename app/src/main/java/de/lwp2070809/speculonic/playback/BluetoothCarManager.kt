@@ -4,10 +4,21 @@ package de.lwp2070809.speculonic.playback
 
 import android.content.Context
 import androidx.core.net.toUri
+import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.DeviceInfo
 import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MediaMetadata
+import androidx.media3.common.Metadata
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
+import androidx.media3.common.TrackSelectionParameters
+import androidx.media3.common.Tracks
+import androidx.media3.common.VideoSize
+import androidx.media3.common.text.CueGroup
 import androidx.media3.session.MediaSession
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import kotlinx.coroutines.CoroutineScope
@@ -127,39 +138,7 @@ class BluetoothCarManager(
         private var coverSyncTimestamp: Long = 0L
 
         override fun addListener(listener: Player.Listener) {
-            val wrapped = java.lang.reflect.Proxy.newProxyInstance(
-                Player.Listener::class.java.classLoader,
-                arrayOf(Player.Listener::class.java)
-            ) { _, method, args ->
-                when (method.name) {
-                    "onMediaMetadataChanged" -> {
-                        method.invoke(listener, this@CarDisguisePlayer.mediaMetadata)
-                    }
-                    "onMediaItemTransition" -> {
-                        method.invoke(listener, this@CarDisguisePlayer.currentMediaItem, args?.get(1))
-                    }
-                    "onEvents" -> {
-                        method.invoke(listener, this@CarDisguisePlayer, args?.get(1))
-                    }
-                    "equals" -> {
-                        val other = args?.get(0)
-                        if (other != null && java.lang.reflect.Proxy.isProxyClass(other.javaClass)) {
-                            java.lang.reflect.Proxy.getInvocationHandler(this) == java.lang.reflect.Proxy.getInvocationHandler(other)
-                        } else {
-                            false
-                        }
-                    }
-                    "hashCode" -> listener.hashCode()
-                    "toString" -> "CarDisguisePlayer.Proxy(${listener.toString()})"
-                    else -> {
-                        if (args == null) {
-                            method.invoke(listener)
-                        } else {
-                            method.invoke(listener, *args)
-                        }
-                    }
-                }
-            } as Player.Listener
+            val wrapped = DisguisedPlayerListener(this, listener)
             listenerMap[listener] = wrapped
             super.addListener(wrapped)
         }
@@ -319,4 +298,63 @@ class BluetoothCarManager(
             }
         }
     }
+}
+
+private class DisguisedPlayerListener(
+    private val player: Player,
+    private val target: Player.Listener
+) : Player.Listener {
+    override fun onMediaMetadataChanged(mediaMetadata: MediaMetadata) {
+        target.onMediaMetadataChanged(player.mediaMetadata)
+    }
+
+    override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        target.onMediaItemTransition(player.currentMediaItem, reason)
+    }
+
+    override fun onEvents(p: Player, events: Player.Events) {
+        target.onEvents(player, events)
+    }
+
+    override fun onTimelineChanged(timeline: Timeline, reason: Int) = target.onTimelineChanged(timeline, reason)
+    override fun onTracksChanged(tracks: Tracks) = target.onTracksChanged(tracks)
+    override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) = target.onTrackSelectionParametersChanged(parameters)
+    override fun onIsLoadingChanged(isLoading: Boolean) = target.onIsLoadingChanged(isLoading)
+    override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = target.onAvailableCommandsChanged(availableCommands)
+    override fun onPlaybackStateChanged(playbackState: Int) = target.onPlaybackStateChanged(playbackState)
+    override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) = target.onPlayWhenReadyChanged(playWhenReady, reason)
+    override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) = target.onPlaybackSuppressionReasonChanged(playbackSuppressionReason)
+    override fun onIsPlayingChanged(isPlaying: Boolean) = target.onIsPlayingChanged(isPlaying)
+    override fun onRepeatModeChanged(repeatMode: Int) = target.onRepeatModeChanged(repeatMode)
+    override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = target.onShuffleModeEnabledChanged(shuffleModeEnabled)
+    override fun onPlayerError(error: PlaybackException) = target.onPlayerError(error)
+    override fun onPlayerErrorChanged(error: PlaybackException?) = target.onPlayerErrorChanged(error)
+    override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) =
+        target.onPositionDiscontinuity(oldPosition, newPosition, reason)
+    override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) = target.onPlaybackParametersChanged(playbackParameters)
+    override fun onSeekBackIncrementChanged(seekBackIncrementMs: Long) = target.onSeekBackIncrementChanged(seekBackIncrementMs)
+    override fun onSeekForwardIncrementChanged(seekForwardIncrementMs: Long) = target.onSeekForwardIncrementChanged(seekForwardIncrementMs)
+    override fun onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs: Long) = target.onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs)
+    override fun onAudioSessionIdChanged(audioSessionId: Int) = target.onAudioSessionIdChanged(audioSessionId)
+    override fun onAudioAttributesChanged(audioAttributes: AudioAttributes) = target.onAudioAttributesChanged(audioAttributes)
+    override fun onVolumeChanged(volume: Float) = target.onVolumeChanged(volume)
+    override fun onSkipSilenceEnabledChanged(skipSilenceEnabled: Boolean) = target.onSkipSilenceEnabledChanged(skipSilenceEnabled)
+    override fun onDeviceInfoChanged(deviceInfo: DeviceInfo) = target.onDeviceInfoChanged(deviceInfo)
+    override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) = target.onDeviceVolumeChanged(volume, muted)
+    override fun onVideoSizeChanged(videoSize: VideoSize) = target.onVideoSizeChanged(videoSize)
+    override fun onSurfaceSizeChanged(width: Int, height: Int) = target.onSurfaceSizeChanged(width, height)
+    override fun onRenderedFirstFrame() = target.onRenderedFirstFrame()
+    override fun onCues(cueGroup: CueGroup) = target.onCues(cueGroup)
+    override fun onMetadata(metadata: Metadata) = target.onMetadata(metadata)
+    override fun onPlaylistMetadataChanged(mediaMetadata: MediaMetadata) = target.onPlaylistMetadataChanged(mediaMetadata)
+
+    override fun equals(other: Any?): Boolean {
+        if (this === other) return true
+        if (other !is DisguisedPlayerListener) return false
+        return target == other.target
+    }
+
+    override fun hashCode(): Int = target.hashCode()
+
+    override fun toString(): String = "DisguisedPlayerListener($target)"
 }

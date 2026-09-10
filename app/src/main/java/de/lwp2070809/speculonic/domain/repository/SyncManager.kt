@@ -238,12 +238,36 @@ class SyncManager(
             val p5 = "正在使用传统模式同步..."
             onProgress?.invoke(p5)
             pref.saveSyncProgress(p5)
-            syncAllArtistsAndSongs()
-            syncAllAlbums()
+            val localSongCountSnapshot = musicDao.getSongsCount()
+            musicDao.clearSyncTempIds()
+            val syncResult = syncAllArtistsAndSongs()
+            syncAllAlbums(recordTempIds = true)
+
+            if (syncResult.totalCount > 0 && syncResult.failCount == 0) {
+                if (!ignoreSafetyGuard && localSongCountSnapshot >= MIN_SONGS_FOR_SAFETY) {
+                    val dropThreshold = localSongCountSnapshot * SAFETY_GUARD_DROP_RATIO
+                    if (syncResult.songCount < dropThreshold) {
+                        throw SafetyGuardException("安全保护触发：传统模式返回歌曲数 (${syncResult.songCount}) 远低于本地基数 ($localSongCountSnapshot)。同步已中止以防止误删。")
+                    }
+                }
+                LogManager.d("SyncManager: Performing legacy surgical sync-deletion via temp tables (zero directory failure)...")
+                musicDao.deleteSongsNotInTemp()
+                musicDao.deleteAlbumsNotInTemp()
+                musicDao.deleteArtistsNotInTemp()
+            } else if (syncResult.failCount > 0) {
+                LogManager.w("SyncManager: Directory fetch encountered failures (${syncResult.failCount}/${syncResult.totalCount} failed). Strict safety policy skipped surgical deletion to prevent accidental data loss.")
+            }
+            musicDao.clearSyncTempIds()
             musicDao.repairAndCount()
             onSyncComplete(currentTime, serverLastModified)
             pref.saveSyncProgress(null)
         } catch (e: Exception) {
+            runCatching {
+                musicDao.clearSyncTempIds()
+                musicDao.repairAndCount()
+            }.onFailure { cleanupEx ->
+                LogManager.e("SyncManager: cleanup/repair failed during sync error handling", cleanupEx)
+            }
             pref.saveSyncError(e.message ?: e.toString())
             throw e
         } finally {
@@ -273,20 +297,21 @@ class SyncManager(
             
             
             syncAllAlbums(type = "newest")
-            
+            musicDao.repairAndCount()
             
             onComplete(currentTime)
         } catch (e: Exception) {
             LogManager.e("SyncManager: quickSync failed", e)
             throw e
         } finally {
+            runCatching { musicDao.clearSyncTempIds() }
             pref.saveIsSyncing(false)
             pref.saveSyncProgress(null)
             syncMutex.unlock()
         }
     }
 
-    suspend fun syncAllAlbums(type: String = "alphabeticalByName") {
+    suspend fun syncAllAlbums(type: String = "alphabeticalByName", recordTempIds: Boolean = false) {
         var offset = 0
         val pageSize = 500
         while (true) {
@@ -295,7 +320,7 @@ class SyncManager(
             val albums = response.response.albumList2?.album ?: emptyList()
             if (albums.isEmpty()) break
             
-            saveAlbumList(type, albums, offset)
+            saveAlbumList(type, albums, offset, recordTempIds = recordTempIds)
             
             offset += albums.size
             if (albums.size < pageSize) break
@@ -306,7 +331,8 @@ class SyncManager(
         listType: String,
         albums: List<Album>,
         offset: Int = 0,
-        starredOverride: Boolean? = null
+        starredOverride: Boolean? = null,
+        recordTempIds: Boolean = false
     ) {
         if (albums.isEmpty()) return
         
@@ -325,6 +351,10 @@ class SyncManager(
             listItems.add(de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity(listType, album.id, index + offset))
         }
         
+        if (recordTempIds && albums.isNotEmpty()) {
+            musicDao.insertSyncTempIds(albums.map { SyncTempIdEntity(it.id, "album") })
+        }
+
         if (listType == "starred") {
             musicDao.syncStarredAlbums(listType, albumEntities, listItems)
         } else {
@@ -337,20 +367,23 @@ class SyncManager(
         }
     }
 
+    data class LegacySyncResult(val totalCount: Int, val failCount: Int, val songCount: Int)
+
     private sealed class SyncDirResult {
-        data class Success(val subDirs: List<Pair<String, String?>>) : SyncDirResult()
+        data class Success(val subDirs: List<Pair<String, String?>>, val songCount: Int) : SyncDirResult()
         object Failure : SyncDirResult()
     }
 
-    suspend fun syncAllArtistsAndSongs() {
+    suspend fun syncAllArtistsAndSongs(): LegacySyncResult {
         val (u, t, s) = authManager.getAuthParams()
         val response = api.getIndexes(u, t, s)
-        val indexes = response.response.indexes ?: return
+        val indexes = response.response.indexes ?: return LegacySyncResult(0, 0, 0)
         
         val allArtists = indexes.index.flatMap { it.artist }
         if (allArtists.isNotEmpty()) {
             allArtists.chunked(500).forEach { chunk ->
                 musicDao.insertArtists(chunk.map { ArtistEntity(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount ?: 0) })
+                musicDao.insertSyncTempIds(chunk.map { SyncTempIdEntity(it.id, "artist") })
             }
         }
 
@@ -359,6 +392,7 @@ class SyncManager(
         
         var failCount = 0
         var totalCount = 0
+        var totalSongCount = 0
         
         while (queue.isNotEmpty()) {
             val chunk = queue.take(10)
@@ -375,7 +409,10 @@ class SyncManager(
             
             nextDirs.forEach { result ->
                 when (result) {
-                    is SyncDirResult.Success -> queue.addAll(result.subDirs)
+                    is SyncDirResult.Success -> {
+                        queue.addAll(result.subDirs)
+                        totalSongCount += result.songCount
+                    }
                     is SyncDirResult.Failure -> failCount++
                 }
             }
@@ -384,12 +421,13 @@ class SyncManager(
         if (totalCount > 0 && (failCount.toDouble() / totalCount) > 0.5) {
             throw java.io.IOException("Legacy sync failure rate too high: $failCount/$totalCount directories failed")
         }
+        return LegacySyncResult(totalCount, failCount, totalSongCount)
     }
 
     private suspend fun syncSingleDirectory(id: String, artistId: String?, u: String, t: String, s: String): SyncDirResult {
         try {
             val response = api.getMusicDirectory(id, u, t, s)
-            val directory = response.response.directory ?: return SyncDirResult.Success(emptyList())
+            val directory = response.response.directory ?: return SyncDirResult.Success(emptyList(), 0)
             val children = directory.child
             
             val songs = children.filter { !it.isDir }
@@ -415,6 +453,12 @@ class SyncManager(
                     )
                 }
                 entities.chunked(500).forEach { musicDao.insertSongs(it) }
+                musicDao.insertSyncTempIds(songs.map { SyncTempIdEntity(it.id, "song") })
+                
+                val albumIds = entities.mapNotNull { it.albumId }.distinct()
+                if (albumIds.isNotEmpty()) {
+                    musicDao.insertSyncTempIds(albumIds.map { SyncTempIdEntity(it, "album") })
+                }
                 
                 entities.groupBy { it.albumId }.forEach { (albumId, songsInAlbum) ->
                     if (albumId != null) {
@@ -435,7 +479,7 @@ class SyncManager(
                 }
             }
 
-            return SyncDirResult.Success(subDirs.map { it.id to artistId })
+            return SyncDirResult.Success(subDirs.map { it.id to artistId }, songs.size)
         } catch (e: Exception) {
             LogManager.e("SyncManager: syncSingleDirectory failed for id=$id", e)
             return SyncDirResult.Failure

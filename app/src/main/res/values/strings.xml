@@ -369,4 +369,5 @@
     <string name="format_flac">FLAC (Lossless)</string>
     <string name="format_opus">Opus</string>
     <string name="incompatible_downloaded_hint">The downloaded file is in an unsupported raw format (%1$s). Please delete the download to re-cache via transcoding.</string>
+    <string name="clear_cache_failed">Failed to clear cache: %1$s</string>
 </resources>

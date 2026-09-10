@@ -36,10 +36,18 @@ class ConnectivityManagerNetworkMonitor(
 
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
-                debounceJob?.cancel()
                 val online = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
                 val metered = !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-                channel.trySend(NetworkStatus(online, metered))
+                if (online) {
+                    debounceJob?.cancel()
+                    channel.trySend(NetworkStatus(true, metered))
+                } else {
+                    debounceJob?.cancel()
+                    debounceJob = launch {
+                        kotlinx.coroutines.delay(1500)
+                        channel.trySend(NetworkStatus(false, metered))
+                    }
+                }
             }
 
             override fun onLost(network: Network) {
@@ -55,6 +63,7 @@ class ConnectivityManagerNetworkMonitor(
                         channel.trySend(NetworkStatus(false, false))
                     }
                 } else {
+                    debounceJob?.cancel()
                     channel.trySend(NetworkStatus(true, metered))
                 }
             }

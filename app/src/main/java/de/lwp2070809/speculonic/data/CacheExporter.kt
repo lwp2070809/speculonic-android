@@ -21,6 +21,7 @@ import java.io.File
 @OptIn(UnstableApi::class)
 object CacheExporter {
 
+    @Volatile
     private var cachedRootDoc: Pair<String, DocumentFile>? = null
 
     private fun getCachedOrCreateRootDoc(context: Context, targetSafUriString: String): DocumentFile? {
@@ -28,7 +29,9 @@ object CacheExporter {
             it.uri.toString() == targetSafUriString && it.isReadPermission && it.isWritePermission
         }
         if (!hasPermission) {
-            cachedRootDoc = null
+            synchronized(this) {
+                cachedRootDoc = null
+            }
             LogManager.w("CacheExporter: SAF permissions revoked for $targetSafUriString")
             throw SecurityException("SAF_PERMISSION_EXPIRED")
         }
@@ -36,14 +39,22 @@ object CacheExporter {
         if (cached != null && cached.first == targetSafUriString) {
             return cached.second
         }
-        val targetUri = targetSafUriString.toUri()
-        return DocumentFile.fromTreeUri(context, targetUri)?.also {
-            cachedRootDoc = targetSafUriString to it
+        synchronized(this) {
+            val secondCheck = cachedRootDoc
+            if (secondCheck != null && secondCheck.first == targetSafUriString) {
+                return secondCheck.second
+            }
+            val targetUri = targetSafUriString.toUri()
+            return DocumentFile.fromTreeUri(context, targetUri)?.also {
+                cachedRootDoc = targetSafUriString to it
+            }
         }
     }
 
     fun invalidateCache() {
-        cachedRootDoc = null
+        synchronized(this) {
+            cachedRootDoc = null
+        }
     }
 
     suspend fun exportToSaf(

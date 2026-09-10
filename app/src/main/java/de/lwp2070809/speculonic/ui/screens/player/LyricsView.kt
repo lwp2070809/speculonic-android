@@ -152,14 +152,12 @@ fun LyricsView(
                         label = "LyricColor"
                     )
                     
-                    
-                    val scale by animateFloatAsState(
+                    val scaleState = animateFloatAsState(
                         targetValue = if (isCurrent) 1.1f else 0.9f,
                         label = "LyricScale"
                     )
 
-                    
-                    val alpha by animateFloatAsState(
+                    val alphaState = animateFloatAsState(
                         targetValue = if (isCurrent) 1f else 0.4f,
                         label = "LyricAlpha"
                     )
@@ -169,7 +167,6 @@ fun LyricsView(
                         style = MaterialTheme.typography.titleMedium.copy(
                             fontSize = 22.sp,
                             lineHeight = (22 * 1.4f).sp,
-                            
                             fontWeight = FontWeight.Bold
                         ),
                         textAlign = TextAlign.Center,
@@ -178,9 +175,9 @@ fun LyricsView(
                             .fillMaxWidth()
                             .padding(vertical = 12.dp, horizontal = 24.dp)
                             .graphicsLayer {
-                                scaleX = scale
-                                scaleY = scale
-                                this.alpha = alpha
+                                scaleX = scaleState.value
+                                scaleY = scaleState.value
+                                this.alpha = alphaState.value
                             }
                     )
                 }

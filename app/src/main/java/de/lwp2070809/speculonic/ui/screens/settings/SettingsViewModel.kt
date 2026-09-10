@@ -8,6 +8,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.widget.Toast
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.core.os.LocaleListCompat
 import androidx.lifecycle.ViewModel
@@ -440,7 +441,9 @@ class SettingsViewModel @Inject constructor(
             if (oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)) {
                 withContext(Dispatchers.IO) {
                     database.clearAllTables()
-                    cacheOperations.clearAllCache()
+                    cacheOperations.clearAllCache().onFailure { e ->
+                        LogManager.e("SettingsViewModel: clearAllCache failed during server change", e)
+                    }
                 }
             }
 
@@ -549,7 +552,9 @@ class SettingsViewModel @Inject constructor(
             preferencesManager.saveServerSettings("", "", "")
             
             database.clearAllTables()
-            cacheOperations.clearAllCache()
+            cacheOperations.clearAllCache().onFailure { e ->
+                LogManager.e("SettingsViewModel: clearAllCache failed during server deletion", e)
+            }
             
             withContext(Dispatchers.Main) {
                 _uiState.value = _uiState.value.copy(
@@ -570,9 +575,13 @@ class SettingsViewModel @Inject constructor(
     fun clearCache() {
         _uiState.value = _uiState.value.copy(showClearCacheConfirm = false)
         viewModelScope.launch {
-            cacheOperations.clearAllCache()
-            LogManager.i("Settings: Internal cache cleared.")
-            scanLocalFiles()
+            val result = cacheOperations.clearAllCache()
+            result.onSuccess {
+                LogManager.i("Settings: Internal cache cleared.")
+                scanLocalFiles()
+            }.onFailure { e ->
+                showCacheOperationFailureToast(e)
+            }
         }
     }
 
@@ -730,24 +739,43 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    private fun showCacheOperationFailureToast(error: Throwable) {
+        viewModelScope.launch(Dispatchers.Main) {
+            val msg = error.message ?: error.toString()
+            Toast.makeText(context, context.getString(R.string.clear_cache_failed, msg), Toast.LENGTH_SHORT).show()
+        }
+    }
+
     fun clearPlaybackCache() {
         viewModelScope.launch {
-            cacheOperations.clearPlaybackCache()
-            refreshCacheSize()
+            val result = cacheOperations.clearPlaybackCache()
+            result.onSuccess {
+                refreshCacheSize()
+            }.onFailure { e ->
+                showCacheOperationFailureToast(e)
+            }
         }
     }
 
     fun clearCoverArtCache() {
         viewModelScope.launch {
-            cacheOperations.clearCoverArtCache()
-            refreshCacheSize()
+            val result = cacheOperations.clearCoverArtCache()
+            result.onSuccess {
+                refreshCacheSize()
+            }.onFailure { e ->
+                showCacheOperationFailureToast(e)
+            }
         }
     }
 
     fun clearSongDownloads() {
         viewModelScope.launch {
-            cacheOperations.clearSongDownloads()
-            refreshCacheSize()
+            val result = cacheOperations.clearSongDownloads()
+            result.onSuccess {
+                refreshCacheSize()
+            }.onFailure { e ->
+                showCacheOperationFailureToast(e)
+            }
         }
     }
 
