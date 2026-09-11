@@ -31,7 +31,7 @@ import androidx.navigation3.ui.NavDisplay
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailScreen
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailViewModel
 import de.lwp2070809.speculonic.ui.screens.details.ArtistDetailScreen
@@ -105,9 +105,7 @@ fun AppNavDisplay(
         entry<AppRoute.FavoriteSongs> {
             val uiState by libraryViewModel.uiState.collectAsState()
             val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
-            val context = LocalContext.current
-            val repository = LocalSubsonicRepository.current
-            val downloadController = remember(repository) { DownloadController(context, repository) }
+            val downloadController = LocalDownloadController.current
 
             FavoriteList(
                 songs = uiState.favorites,
@@ -124,6 +122,9 @@ fun AppNavDisplay(
                             downloadController.downloadSong(song)
                         }
                     }
+                },
+                onStarClick = { songId, star, onResult ->
+                    libraryViewModel.toggleStarSong(songId, star, onResult)
                 }
             )
         }
@@ -294,21 +295,9 @@ fun AppNavDisplay(
         }
     }
 
-    val context = androidx.compose.ui.platform.LocalContext.current
     NavDisplay(
         backStack = navigationState.getRetainedKeys(),
-        onBack = {
-            val stack = navigationState.backStacks[navigationState.topLevelRoute] ?: emptyList()
-            if (stack.size > 1) {
-                navigator.goBack()
-            } else {
-                if (navigationState.topLevelRoute != AppRoute.Discover) {
-                    navigator.navigate(AppRoute.Discover)
-                } else {
-                    (context as? android.app.Activity)?.moveTaskToBack(true)
-                }
-            }
-        },
+        onBack = { navigator.goBack() },
         modifier = modifier.fillMaxSize(),
         entryDecorators = listOf(
             rememberSaveableStateHolderNavEntryDecorator(),

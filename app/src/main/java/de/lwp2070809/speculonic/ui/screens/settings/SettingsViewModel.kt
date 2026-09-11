@@ -43,8 +43,12 @@ import javax.inject.Inject
 
 
 
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.collect
+
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val preferencesManager: PreferencesManager,
     private val playbackController: PlaybackController,
     private val repository: SubsonicRepository,
@@ -76,7 +80,6 @@ class SettingsViewModel @Inject constructor(
         initialValue = null
     )
     
-    private val context = SpeculonicApp.instance
     private val cacheOperations = CacheOperations(context)
 
     init {
@@ -92,157 +95,164 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    
     private fun observePreferences() {
+        // 1. 服务端与连接凭据配置
         viewModelScope.launch {
-            
-            val group1 = combine<Any?, PrefsGroup1>(
+            combine(
                 preferencesManager.serverUrl,
                 preferencesManager.username,
                 preferencesManager.password,
-                preferencesManager.cacheLocation,
-                preferencesManager.maxCoverCacheSize,
-                preferencesManager.syncCoverArtOnForce,
-                preferencesManager.lastSyncTime,
-                preferencesManager.serverCapabilities
-            ) { flows ->
-                PrefsGroup1(
-                    serverUrl = flows[0] as String,
-                    username = flows[1] as String,
-                    password = flows[2] as String,
-                    cacheLocation = flows[3] as String,
-                    maxCoverCacheSize = flows[4] as Long,
-                    syncCoverArtOnForce = flows[5] as Boolean,
-                    lastSyncTime = flows[6] as Long,
-                    serverCapabilities = flows[7] as de.lwp2070809.speculonic.domain.repository.ServerCapabilities?
-                )
-            }
+                preferencesManager.serverCapabilities,
+                preferencesManager.allowInsecureConnections
+            ) { url, user, pass, caps, allowInsecure ->
+                _uiState.update { current ->
+                    current.copy(
+                        serverUrl = url,
+                        username = user,
+                        password = pass,
+                        serverCapabilities = caps,
+                        allowInsecureConnections = allowInsecure
+                    )
+                }
+            }.collect()
+        }
 
-            
-            val group2 = combine(
-                preferencesManager.mobilePlayAllowed,
-                preferencesManager.backgroundSyncEnabled,
-                preferencesManager.logLevel,
-                preferencesManager.themeMode,
-                preferencesManager.colorMode,
-            ) { mobilePlayAllowed, backgroundSyncEnabled, logLevel, themeMode, colorMode ->
-                PrefsGroup2(mobilePlayAllowed, backgroundSyncEnabled, logLevel, themeMode, colorMode)
-            }
+        // 2. 音频控制与播放策略配置
+        viewModelScope.launch {
+            combine(
+                preferencesManager.skipSilenceEnabled,
+                preferencesManager.duckOnTransientFocusLoss,
+                preferencesManager.pauseOnAudioFocusLoss,
+                preferencesManager.transcodeIncompatibleFormats,
+                preferencesManager.targetTranscodeFormat
+            ) { skip, duck, pause, transcode, targetFmt ->
+                _uiState.update { current ->
+                    current.copy(
+                        skipSilenceEnabled = skip,
+                        duckOnTransientFocusLoss = duck,
+                        pauseOnAudioFocusLoss = pause,
+                        transcodeIncompatibleFormats = transcode,
+                        targetTranscodeFormat = targetFmt
+                    )
+                }
+            }.collect()
+        }
 
-            
-            val bluetoothGroup = combine(
+        // 3. 车载蓝牙与歌词推送配置
+        viewModelScope.launch {
+            combine(
                 preferencesManager.carBluetoothEnabled,
                 preferencesManager.syncPlaybackState,
                 preferencesManager.bluetoothLyricsEnabled,
                 preferencesManager.bluetoothLyricsHideProgressBar,
                 preferencesManager.bluetoothCarDeviceNames
             ) { carEnabled, syncState, lyricsEnabled, hideProgress, deviceNames ->
-                BluetoothPrefs(carEnabled, syncState, lyricsEnabled, hideProgress, deviceNames)
-            }
-            
-            val playbackGroup = combine(
-                preferencesManager.skipSilenceEnabled,
-                preferencesManager.duckOnTransientFocusLoss,
-                preferencesManager.pauseOnAudioFocusLoss,
-                preferencesManager.transcodeIncompatibleFormats,
-                preferencesManager.targetTranscodeFormat
-            ) { skipSilence, duck, pause, transcodeIncompatible, targetFormat ->
-                PlaybackPrefs(skipSilence, duck, pause, transcodeIncompatible, targetFormat)
-            }
+                _uiState.update { current ->
+                    current.copy(
+                        carBluetoothEnabled = carEnabled,
+                        syncPlaybackState = syncState,
+                        bluetoothLyricsEnabled = lyricsEnabled,
+                        bluetoothLyricsHideProgressBar = hideProgress,
+                        bluetoothCarDeviceNames = deviceNames
+                    )
+                }
+            }.collect()
+        }
 
-            val group3 = combine(
-                preferencesManager.silentCacheEnabled,
-                preferencesManager.playerBackgroundMode,
-                bluetoothGroup,
-                playbackGroup
-            ) { silentCacheEnabled, backgroundMode, bluetooth, playback ->
-                PrefsGroup3(silentCacheEnabled, backgroundMode, bluetooth, playback)
-            }
-
-            val group4 = combine(
-                preferencesManager.allowInsecureConnections,
-                preferencesManager.showOfflineToast,
-                preferencesManager.updateCheckInterval,
-                preferencesManager.autoOfflineOnMetered,
-                preferencesManager.offlineModeEnabled,
-                group3
-            ) { flows ->
-                PrefsGroup4(
-                    allowInsecureConnections = flows[0] as Boolean,
-                    showOfflineToast = flows[1] as Boolean,
-                    updateCheckInterval = flows[2] as de.lwp2070809.speculonic.data.UpdateCheckInterval,
-                    autoOfflineOnMetered = flows[3] as Boolean,
-                    offlineModeEnabled = flows[4] as Boolean,
-                    third = flows[5] as PrefsGroup3
-                )
-            }
-
-            val statsFlow = combine(
+        // 4. 存储、缓存限制与曲库统计
+        viewModelScope.launch {
+            combine(
+                preferencesManager.cacheLocation,
+                preferencesManager.maxCoverCacheSize,
+                preferencesManager.syncCoverArtOnForce,
+                preferencesManager.silentCacheEnabled
+            ) { loc, maxCover, syncCover, silentCache ->
+                _uiState.update { current ->
+                    current.copy(
+                        cacheLocation = loc,
+                        maxCoverCacheSize = maxCover,
+                        syncCoverArtOnForce = syncCover,
+                        silentCacheEnabled = silentCache
+                    )
+                }
+            }.collect()
+        }
+        viewModelScope.launch {
+            combine(
                 database.musicDao().getArtistsCountFlow(),
                 database.musicDao().getAlbumsCountFlow(),
                 database.musicDao().getSongsCountFlow(),
                 database.musicDao().getPlaylistsCountFlow()
             ) { artists, albums, songs, playlists ->
-                StatsGroup(artists, albums, songs, playlists)
-            }
-
-            val syncGroup = combine(
-                preferencesManager.isSyncing,
-                preferencesManager.syncProgress,
-                preferencesManager.syncError
-            ) { isSyncing, syncProgress, syncError ->
-                Triple(isSyncing, syncProgress, syncError)
-            }
-
-            combine(group1, group2, group4, statsFlow, syncGroup) { g1, g2, g4, stats, sync ->
-                { current: SettingsUiState ->
+                _uiState.update { current ->
                     current.copy(
-                        serverUrl = g1.serverUrl,
-                        username = g1.username,
-                        password = g1.password,
-                        cacheLocation = g1.cacheLocation,
-                        maxCoverCacheSize = g1.maxCoverCacheSize,
-                        mobilePlayAllowed = g2.mobilePlayAllowed,
-                        showOfflineToast = g4.showOfflineToast,
-                        backgroundSyncEnabled = g2.backgroundSyncEnabled,
-                        logLevel = g2.logLevel,
-                        themeMode = g2.themeMode,
-                        colorMode = g2.colorMode,
-                        playerBackgroundMode = g4.third.backgroundMode,
-                        silentCacheEnabled = g4.third.silentCacheEnabled,
-                        
-                        carBluetoothEnabled = g4.third.bluetooth.carEnabled,
-                        syncPlaybackState = g4.third.bluetooth.syncState,
-                        skipSilenceEnabled = g4.third.playback.skipSilence,
-                        duckOnTransientFocusLoss = g4.third.playback.duckOnTransientFocusLoss,
-                        pauseOnAudioFocusLoss = g4.third.playback.pauseOnAudioFocusLoss,
-                        transcodeIncompatibleFormats = g4.third.playback.transcodeIncompatibleFormats,
-                        targetTranscodeFormat = g4.third.playback.targetTranscodeFormat,
-
-                        bluetoothLyricsEnabled = g4.third.bluetooth.lyricsEnabled,
-                        bluetoothLyricsHideProgressBar = g4.third.bluetooth.hideProgress,
-                        bluetoothCarDeviceNames = g4.third.bluetooth.deviceNames,
-                        
-                        language = getCurrentLanguageLabel(),
-                        allowInsecureConnections = g4.allowInsecureConnections,
-                        updateCheckInterval = g4.updateCheckInterval,
-                        autoOfflineOnMetered = g4.autoOfflineOnMetered,
-                        offlineModeEnabled = g4.offlineModeEnabled,
-                        isSyncing = sync.first,
-                        syncProgress = sync.second,
-                        syncError = sync.third,
-                        artistsCount = stats.artists,
-                        albumsCount = stats.albums,
-                        songsCount = stats.songs,
-                        playlistsCount = stats.playlists,
-                        lastSyncTime = g1.lastSyncTime,
-                        syncCoverArtOnForce = g1.syncCoverArtOnForce,
-                        serverCapabilities = g1.serverCapabilities
+                        artistsCount = artists,
+                        albumsCount = albums,
+                        songsCount = songs,
+                        playlistsCount = playlists
                     )
                 }
-            }.collect { updater ->
-                _uiState.update { updater(it) }
-            }
+            }.collect()
+        }
+
+        // 5. 同步状态
+        viewModelScope.launch {
+            combine(
+                preferencesManager.isSyncing,
+                preferencesManager.syncProgress,
+                preferencesManager.syncError,
+                preferencesManager.lastSyncTime
+            ) { syncing, progress, error, lastSync ->
+                _uiState.update { current ->
+                    current.copy(
+                        isSyncing = syncing,
+                        syncProgress = progress,
+                        syncError = error,
+                        lastSyncTime = lastSync
+                    )
+                }
+            }.collect()
+        }
+
+        // 6. 系统偏好、外观主题与网络策略
+        viewModelScope.launch {
+            combine(
+                preferencesManager.mobilePlayAllowed,
+                preferencesManager.backgroundSyncEnabled,
+                preferencesManager.logLevel,
+                preferencesManager.themeMode,
+                preferencesManager.colorMode
+            ) { mobile, bgSync, log, theme, color ->
+                _uiState.update { current ->
+                    current.copy(
+                        mobilePlayAllowed = mobile,
+                        backgroundSyncEnabled = bgSync,
+                        logLevel = log,
+                        themeMode = theme,
+                        colorMode = color
+                    )
+                }
+            }.collect()
+        }
+        viewModelScope.launch {
+            combine(
+                preferencesManager.showOfflineToast,
+                preferencesManager.updateCheckInterval,
+                preferencesManager.autoOfflineOnMetered,
+                preferencesManager.offlineModeEnabled,
+                preferencesManager.playerBackgroundMode
+            ) { showToast, interval, autoOffline, offlineMode, bgMode ->
+                _uiState.update { current ->
+                    current.copy(
+                        showOfflineToast = showToast,
+                        updateCheckInterval = interval,
+                        autoOfflineOnMetered = autoOffline,
+                        offlineModeEnabled = offlineMode,
+                        playerBackgroundMode = bgMode,
+                        language = getCurrentLanguageLabel()
+                    )
+                }
+            }.collect()
         }
     }
 

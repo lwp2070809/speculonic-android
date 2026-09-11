@@ -15,28 +15,26 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import androidx.hilt.navigation.compose.hiltViewModel
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.PlaylistAddResult
 import de.lwp2070809.speculonic.network.model.Song
-import kotlinx.coroutines.launch
 
 @Composable
 fun AddToPlaylistDialog(
     song: Song,
-    repository: SubsonicRepository,
     onDismiss: () -> Unit,
-    onResult: (PlaylistAddResult) -> Unit
+    onResult: (PlaylistAddResult) -> Unit,
+    viewModel: AddToPlaylistViewModel = hiltViewModel()
 ) {
-    var playlists by remember { mutableStateOf<List<Playlist>>(emptyList()) }
-    var isLoading by remember { mutableStateOf(true) }
-    var processingPlaylistId by remember { mutableStateOf<String?>(null) }
-    val scope = rememberCoroutineScope()
-
     LaunchedEffect(Unit) {
-        playlists = repository.getPlaylists()
-        isLoading = false
+        viewModel.loadPlaylists()
     }
+
+    val uiState by viewModel.uiState.collectAsState()
+    val playlists = uiState.playlists
+    val isLoading = uiState.isLoading
+    val processingPlaylistId = uiState.processingPlaylistId
 
     AlertDialog(
         onDismissRequest = { if (processingPlaylistId == null) onDismiss() },
@@ -69,24 +67,7 @@ fun AddToPlaylistDialog(
                                     }
                                 },
                                 modifier = Modifier.clickable(enabled = processingPlaylistId == null) {
-                                    processingPlaylistId = playlist.id
-                                    scope.launch {
-                                        try {
-                                            
-                                            val existingSongs = repository.getPlaylist(playlist.id)
-                                            if (existingSongs.any { it.id == song.id }) {
-                                                onResult(PlaylistAddResult.ALREADY_EXISTS)
-                                                onDismiss()
-                                            } else {
-                                                
-                                                val success = repository.addToPlaylist(playlist.id, song.id)
-                                                onResult(if (success) PlaylistAddResult.SUCCESS else PlaylistAddResult.ERROR)
-                                                onDismiss()
-                                            }
-                                        } finally {
-                                            processingPlaylistId = null
-                                        }
-                                    }
+                                    viewModel.addSongToPlaylist(playlist, song, onResult, onDismiss)
                                 }
                             )
                         }

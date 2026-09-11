@@ -44,7 +44,6 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -56,13 +55,13 @@ import java.security.MessageDigest
 @Composable
 fun SongDetailDialog(
     song: Song,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    viewModel: SongDetailViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
-    val repository = LocalSubsonicRepository.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
-    val songEntity by repository.getSongEntityByIdFlow(song.id).collectAsState(initial = null)
+    val songEntity by viewModel.getSongEntityByIdFlow(song.id).collectAsState(initial = null)
 
     var sha1 by remember { mutableStateOf<String?>(null) }
     var id3Metadata by remember { mutableStateOf<Map<String, String>?>(null) }
@@ -90,7 +89,7 @@ fun SongDetailDialog(
                 remoteError = "OFFLINE"
             } else {
                 remoteLoading = true
-                val result = repository.getSongRemote(song.id)
+                val result = viewModel.getSongRemote(song.id)
                 if (result.isSuccess) {
                     remoteSong = result.getOrNull()
                 } else {

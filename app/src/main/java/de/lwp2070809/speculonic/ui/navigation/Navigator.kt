@@ -55,7 +55,7 @@ class Navigator(
                 if (navigationState.topLevelRoute != navigationState.startRoute) {
                     navigationState.navigateToTopLevelRoute(navigationState.startRoute)
                 } else {
-                    context?.findActivity()?.finish()
+                    context?.findActivity()?.moveTaskToBack(true)
                 }
             }
         }

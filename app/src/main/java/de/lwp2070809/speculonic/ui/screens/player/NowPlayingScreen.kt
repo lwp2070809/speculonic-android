@@ -80,7 +80,6 @@ import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
 import de.lwp2070809.speculonic.playback.SleepTimerMode
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -94,7 +93,6 @@ fun NowPlayingScreen(
     isEffectivelyOnline: Boolean,
     onCollapse: () -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     val playbackState by playbackController.playbackState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()

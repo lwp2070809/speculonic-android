@@ -38,7 +38,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.buildRequest
 
 @Composable
 fun MiniPlayer(
@@ -48,7 +49,7 @@ fun MiniPlayer(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val playbackController = LocalPlaybackController.current
     
     val playbackStateState = playbackController.playbackState.collectAsState()
@@ -77,11 +78,9 @@ fun MiniPlayer(
             ) {
                 
                 if (artworkUri != null || artworkId != null) {
-                    val context = LocalContext.current
                     val model = remember(artworkId, artworkUri) {
-                        repository.buildCoverArtRequest(
+                        coverRequester.buildRequest(
                             id = artworkId,
-                            context = context,
                             preferLocal = true
                         )
                     }

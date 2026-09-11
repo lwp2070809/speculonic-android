@@ -75,4 +75,14 @@ class SearchViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(query = query)
         searchQuery.value = query
     }
+
+    fun toggleStarSong(songId: String, star: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.starSong(songId, star)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.e("SearchViewModel: toggleStarSong failed", e)
+            }
+        }
+    }
 }

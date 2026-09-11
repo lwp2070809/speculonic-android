@@ -30,15 +30,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.data.PlayerBackgroundMode
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import kotlinx.coroutines.launch
 
 @Composable
 fun ArtworkView(
     artworkId: String?,
     artworkUri: android.net.Uri?,
-    repository: SubsonicRepository
+    coverRequester: CoverArtRequester = LocalCoverArtRequester.current
 ) {
     if (artworkUri != null || artworkId != null) {
         val context = LocalContext.current
@@ -54,7 +54,7 @@ fun ArtworkView(
         LaunchedEffect(artworkId, artworkUri) {
             if (artworkId == null && artworkUri == null) return@LaunchedEffect
 
-            val newModel = repository.buildCoverArtRequest(
+            val newModel = coverRequester.buildCoverArtRequest(
                 id = artworkId,
                 context = context,
                 preferLocal = true,
@@ -173,7 +173,7 @@ fun PlayerBlurBackground(
 ) {
     if (playerBackgroundMode != PlayerBackgroundMode.GAUSSIAN_BLUR) return
 
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -199,7 +199,7 @@ fun PlayerBlurBackground(
 
         val isAppVisible = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
 
-        val newModel = repository.buildCoverArtRequest(
+        val newModel = coverRequester.buildCoverArtRequest(
             id = debouncedArtworkId,
             context = context,
             preferLocal = true,

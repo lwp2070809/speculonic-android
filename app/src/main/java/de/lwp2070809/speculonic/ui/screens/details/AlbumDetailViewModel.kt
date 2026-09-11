@@ -102,4 +102,14 @@ class AlbumDetailViewModel @AssistedInject constructor(
             repository.starAlbum(albumId, !isStarred)
         }
     }
+
+    fun toggleStarSong(songId: String, star: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.starSong(songId, star)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.e("AlbumDetailViewModel: toggleStarSong failed", e)
+            }
+        }
+    }
 }

@@ -171,7 +171,8 @@ fun LibraryScreen(
                                             songsPaged = allSongsPaged,
                                             isOnline = isOnline,
                                             isEffectivelyOnline = isEffectivelyOnline,
-                                            isStreamingAllowed = isStreamingAllowed
+                                            isStreamingAllowed = isStreamingAllowed,
+                                            onStarClick = { songId, star -> viewModel.toggleStarSong(songId, star) }
                                         )
                                     }
                                     3 -> ArtistsList(

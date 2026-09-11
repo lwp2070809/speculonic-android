@@ -300,12 +300,7 @@
     <string name="offline_downloads">Downloads</string>
     <string name="silent_cache_tab">Cache</string>
     <string name="cover_quota_exceeded">Album cover cache has exceeded quota!</string>
-
-    <string name="cached_songs_ratio">Cached Songs Ratio</string>
-    <string name="internal_cache_color_label">Cover Art Cache</string>
     <string name="clear_cache_quota_warning">Clear Playback Cache</string>
-
-    <string name="cache_label">Storage &amp; Cache</string>
     <string name="clear_queue_keep_cache">Clear Queue</string>
     <string name="pause_all">Pause All</string>
     <string name="resume_all">Start All</string>
@@ -350,8 +345,6 @@
     <string name="unknown_error">Unknown error</string>
     <string name="scanning_cache">Scanning cache…</string>
     <string name="server_url_placeholder">https://your-server.com</string>
-    <string name="content_description_expand_details">Expand details</string>
-    <string name="storage_ratio_songs_summary">%1$d%% (%2$d/%3$d songs cached)</string>
     <string name="log_level_all">All Levels</string>
     <string name="logs_copied_to_clipboard">Logs copied to clipboard</string>
     <string name="content_description_copy_all">Copy All</string>
@@ -362,7 +355,6 @@
     <string name="transcode_incompatible_formats">Transcode Incompatible Formats on Server</string>
     <string name="transcode_incompatible_formats_description">Transcode formats not natively supported by Android (such as APE, WV) into a compatible format on the server. Note: This breaks the app\'s 1:1 bit-perfect mirror design.</string>
     <string name="target_transcode_format">Target Transcode Format</string>
-    <string name="target_transcode_format_description">Select target audio format for server transcoding</string>
     <string name="unsupported_format_hint">Format %1$s is not natively supported. You can enable transcoding in Settings.</string>
     <string name="unsupported_format_skipped">Skipped unsupported format: %1$s</string>
     <string name="format_mp3">MP3 (Recommended)</string>

@@ -266,8 +266,8 @@ fun MainTopBar(
 private fun CloudSyncIcon(
     isSyncing: Boolean,
     showCloudDoneRecent: Boolean,
-    hasError: Boolean = false,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    hasError: Boolean = false
 ) {
     val targetAlpha = if (isSyncing || showCloudDoneRecent) 1f else 0.4f
     val alpha by animateFloatAsState(

@@ -51,9 +51,10 @@ import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
-import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -67,13 +68,13 @@ fun SearchScreen(
     onArtistClick: (String) -> Unit,
     onClose: () -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
+    val mediaItemConverter = LocalMediaItemConverter.current
+    val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
 
     val context = LocalContext.current
-    val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
@@ -177,15 +178,13 @@ fun SearchScreen(
                                     val songIndex = uiState.results.song.indexOf(song)
                                     val subsequentSongs = if (songIndex != -1) uiState.results.song.drop(songIndex) else listOf(song)
                                     val playableSongs = subsequentSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, 0)
                                     }
                                 },
                                 onStarClick = { star ->
-                                    scope.launch {
-                                        repository.starSong(song.id, star)
-                                    }
+                                    viewModel.toggleStarSong(song.id, star)
                                 },
                                 onDownloadClick = { downloadController.downloadSong(song) },
                                 onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
@@ -214,10 +213,10 @@ fun SectionHeader(title: String) {
 
 @Composable
 fun ArtistSearchItem(artist: Artist, onClick: () -> Unit) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val model = androidx.compose.runtime.remember(artist.coverArt) {
-        repository.buildCoverArtRequest(artist.coverArt, context, preferLocal = true)
+        coverRequester.buildCoverArtRequest(artist.coverArt, context, preferLocal = true)
     }
     ListItem(
         headlineContent = { Text(artist.name) },
@@ -235,10 +234,10 @@ fun ArtistSearchItem(artist: Artist, onClick: () -> Unit) {
 
 @Composable
 fun AlbumSearchItem(album: Album, onClick: () -> Unit) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val model = androidx.compose.runtime.remember(album.coverArt) {
-        repository.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+        coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
     }
     ListItem(
         headlineContent = { Text(album.name) },

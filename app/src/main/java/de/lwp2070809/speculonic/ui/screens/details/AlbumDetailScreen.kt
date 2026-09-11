@@ -29,10 +29,11 @@ import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
-import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -47,14 +48,14 @@ fun AlbumDetailScreen(
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
+    val mediaItemConverter = LocalMediaItemConverter.current
+    val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val uiState by viewModel.uiState.collectAsState()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val downloadController = remember(repository) { DownloadController(context, repository) }
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     
@@ -134,13 +135,13 @@ fun AlbumDetailScreen(
                         item {
                             ActionButtonsRow(
                                 onPlayAll = {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, 0, queueTitle = uiState.album?.name)
                                     }
                                 },
                                 onShuffle = {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = uiState.album?.name)
                                     }
@@ -175,16 +176,14 @@ fun AlbumDetailScreen(
                             onClick = {
                                 val playIndex = playableSongs.indexOfFirst { it.id == song.id }
                                 if (playIndex != -1) {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, playIndex, queueTitle = uiState.album?.name)
                                     }
                                 }
                             },
                             onStarClick = { star ->
-                                scope.launch {
-                                     repository.starSong(song.id, star)
-                                }
+                                viewModel.toggleStarSong(song.id, star)
                             },
                             onDownloadClick = {
                                 downloadController.downloadSong(song)
@@ -203,7 +202,7 @@ fun AlbumDetailScreen(
 
 @Composable
 fun AlbumHeader(album: Album?) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -212,7 +211,7 @@ fun AlbumHeader(album: Album?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val model = remember(album?.coverArt) {
-            repository.buildCoverArtRequest(album?.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(album?.coverArt, context, preferLocal = true)
         }
 
         AsyncImage(

@@ -54,7 +54,7 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import org.json.JSONObject
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -84,8 +84,7 @@ fun DownloadManagerScreen(
     }
 
     val context = LocalContext.current
-    val repository = LocalSubsonicRepository.current
-    val downloadController = remember(repository) { DownloadController(context, repository) }
+    val downloadController = LocalDownloadController.current
 
     val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
 

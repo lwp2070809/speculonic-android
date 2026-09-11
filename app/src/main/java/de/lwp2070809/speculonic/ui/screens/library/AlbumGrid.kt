@@ -24,7 +24,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.network.model.Album
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.buildRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,8 +35,7 @@ fun AlbumGrid(
     isLoading: Boolean = false,
     onRefresh: (() -> Unit)? = null
 ) {
-    val repository = LocalSubsonicRepository.current
-    val context = LocalContext.current
+    val coverRequester = LocalCoverArtRequester.current
     
     val content = @Composable {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -60,7 +60,7 @@ fun AlbumGrid(
                             .clickable { onAlbumClick(album.id) }
                     ) {
                         val model = remember(album.coverArt) {
-                            repository.buildCoverArtRequest(album.coverArt, context, preferLocal = true, crossfade = false)
+                            coverRequester.buildRequest(album.coverArt, preferLocal = true, crossfade = false)
                         }
                         AsyncImage(
                             model = model,

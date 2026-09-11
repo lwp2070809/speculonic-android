@@ -12,18 +12,25 @@ import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import android.content.Context
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
+import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.ui.components.MiniPlayer
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.MediaItemConverter
 import de.lwp2070809.speculonic.ui.navigation.AppNavDisplay
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
 import de.lwp2070809.speculonic.ui.navigation.Navigator
@@ -33,6 +40,7 @@ import de.lwp2070809.speculonic.ui.screens.search.SearchScreen
 import de.lwp2070809.speculonic.ui.screens.search.SearchViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.components.ServerConfigDialog
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
+import de.lwp2070809.speculonic.util.toMediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,11 +65,31 @@ fun MainScreen(
     val settingsUiState by settingsViewModel.uiState.collectAsState()
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
 
+    val currentContext = LocalContext.current
     val stableRepository = remember(repository) { repository }
     val stablePlaybackController = remember(playbackController) { playbackController }
+    val coverArtRequester = remember(repository, currentContext) {
+        object : CoverArtRequester {
+            override fun buildCoverArtRequest(
+                id: String?,
+                context: Context?,
+                preferLocal: Boolean,
+                size: Int?,
+                crossfade: Boolean
+            ): coil3.request.ImageRequest {
+                return repository.buildCoverArtRequest(id, context ?: currentContext, preferLocal, size, crossfade)
+            }
+        }
+    }
+    val mediaItemConverter = remember(repository) {
+        MediaItemConverter { song -> song.toMediaItem(repository) }
+    }
+    val downloadController = remember(repository, currentContext) { DownloadController(currentContext, repository) }
 
     CompositionLocalProvider(
-        LocalSubsonicRepository provides stableRepository,
+        LocalCoverArtRequester provides coverArtRequester,
+        LocalMediaItemConverter provides mediaItemConverter,
+        LocalDownloadController provides downloadController,
         LocalPlaybackController provides stablePlaybackController
     ) {
         MainContent(
@@ -101,10 +129,7 @@ private fun MainContent(
     onToggleOfflineMode: () -> Unit
 ) {
     val context = LocalContext.current
-    val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
-    
-
     
     val topLevelRoutes = setOf(AppRoute.Discover, AppRoute.Library, AppRoute.Settings)
     val navigationState = rememberNavigationState(
@@ -126,21 +151,10 @@ private fun MainContent(
         }
     }
 
-
-    
-    
-    
-
     var showServerSetupDialog by remember { mutableStateOf(false) }
     LaunchedEffect(serverUrl) {
         if (serverUrl.isNullOrBlank()) {
             showServerSetupDialog = true
-        }
-    }
-
-    LaunchedEffect(repository) {
-        if (!serverUrl.isNullOrBlank()) {
-            repository.ping()
         }
     }
 

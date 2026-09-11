@@ -118,4 +118,26 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             }
         }
     }
+
+    fun toggleStarSong(songId: String, star: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.starSong(songId, star)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.e("PlaylistDetailViewModel: toggleStarSong failed", e)
+            }
+        }
+    }
+
+    fun removeFromPlaylist(index: Int, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val success = repository.removeFromPlaylist(playlistId, index)
+                onResult(success)
+            } catch (e: Exception) {
+                de.lwp2070809.speculonic.util.LogManager.e("PlaylistDetailViewModel: removeFromPlaylist failed", e)
+                onResult(false)
+            }
+        }
+    }
 }

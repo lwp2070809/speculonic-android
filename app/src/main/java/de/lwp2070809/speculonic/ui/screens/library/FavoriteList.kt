@@ -30,9 +30,9 @@ import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
-import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -46,16 +46,17 @@ fun FavoriteList(
     onRefresh: () -> Unit,
     isLoading: Boolean,
     onDownloadClick: (Song) -> Unit,
-    onDownloadAllClick: () -> Unit
+    onDownloadAllClick: () -> Unit,
+    onStarClick: (String, Boolean, (Boolean) -> Unit) -> Unit = { _, _, _ -> }
 ) {
-    val repository = LocalSubsonicRepository.current
+    val mediaItemConverter = LocalMediaItemConverter.current
+    val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val failedMessage = stringResource(R.string.failed_to_fetch_remote)
 
     val context = LocalContext.current
-    val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
@@ -101,13 +102,13 @@ fun FavoriteList(
                 item {
                     ActionButtonsRow(
                         onPlayAll = {
-                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
                                 playbackController.play(mediaItems, 0, queueTitle = "Favorite")
                             }
                         },
                         onShuffle = {
-                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
                                 playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = "Favorite")
                             }
@@ -135,7 +136,7 @@ fun FavoriteList(
                     onClick = {
                         val playIndex = playableSongs.indexOfFirst { it.id == song.id }
                         if (playIndex != -1) {
-                            val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                            val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
                                 playbackController.play(mediaItems, playIndex, queueTitle = "Favorite")
                             }
@@ -145,8 +146,7 @@ fun FavoriteList(
                         val now = System.currentTimeMillis()
                         if (now - lastStarClickTime >= 500) {
                             lastStarClickTime = now
-                            scope.launch {
-                                val success = repository.starSong(song.id, star)
+                            onStarClick(song.id, star) { success ->
                                 if (!success) {
                                     Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show()
                                     onRefresh()

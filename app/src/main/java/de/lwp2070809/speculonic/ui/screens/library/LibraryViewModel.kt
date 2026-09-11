@@ -25,6 +25,9 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
+
 data class LibraryUiState(
     val isRefreshing: Boolean = false,
     val isLoading: Boolean = false,
@@ -43,11 +46,11 @@ data class LibraryUiState(
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: SubsonicRepository,
     private val syncAllDataUseCase: SyncAllDataUseCase
 ) : ViewModel() {
 
-    private val context = de.lwp2070809.speculonic.SpeculonicApp.instance
     private val _uiState = MutableStateFlow(LibraryUiState())
     
     val allSongsPaged: Flow<PagingData<Song>> = repository.getAllSongsPaged().cachedIn(viewModelScope)
@@ -257,6 +260,18 @@ class LibraryViewModel @Inject constructor(
             } catch (e: Exception) {
                 LogManager.e("LibraryViewModel: deletePlaylist failed", e)
             }
+        }
+    }
+
+    fun toggleStarSong(songId: String, star: Boolean, onResult: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            val success = try {
+                repository.starSong(songId, star)
+            } catch (e: Exception) {
+                LogManager.e("LibraryViewModel: toggleStarSong failed", e)
+                false
+            }
+            onResult(success)
         }
     }
 }

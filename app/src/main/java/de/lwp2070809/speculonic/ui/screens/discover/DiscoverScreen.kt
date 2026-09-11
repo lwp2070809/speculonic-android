@@ -34,8 +34,9 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -53,7 +54,6 @@ fun DiscoverScreen(
     onConfigureServerClick: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsState()
-    val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     val context = LocalContext.current
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
@@ -195,6 +195,9 @@ fun DiscoverScreen(
                             transcodeIncompatible = transcodeIncompatible,
                             onSongClick = { song ->
                                 viewModel.playFavoriteSong(song)
+                            },
+                            onStarClick = { songId, star ->
+                                viewModel.toggleStarSong(songId, star)
                             }
                         )
                     }
@@ -250,9 +253,7 @@ fun DiscoverScreen(
             Text(
                 text = error,
                 color = MaterialTheme.colorScheme.error,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 100.dp, start = 16.dp, end = 16.dp)
+                modifier = Modifier.align(Alignment.Center)
             )
         }
     }
@@ -298,16 +299,14 @@ fun FavoriteSongsRow(
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     transcodeIncompatible: Boolean,
-    onSongClick: (Song) -> Unit
+    onSongClick: (Song) -> Unit,
+    onStarClick: (String, Boolean) -> Unit = { _, _ -> }
 ) {
-    val repository = LocalSubsonicRepository.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
 
-    val context = LocalContext.current
-    val downloadController = remember(repository) { de.lwp2070809.speculonic.playback.DownloadController(context, repository) }
-    val scope = rememberCoroutineScope()
+    val downloadController = LocalDownloadController.current
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         songs.take(3).forEach { song ->
             SongListItem(
@@ -319,9 +318,7 @@ fun FavoriteSongsRow(
                 transcodeIncompatible = transcodeIncompatible,
                 onClick = { onSongClick(song) },
                 onStarClick = { star ->
-                    scope.launch {
-                        repository.starSong(song.id, star)
-                    }
+                    onStarClick(song.id, star)
                 },
                 onDownloadClick = { downloadController.downloadSong(song) },
                 onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
@@ -350,7 +347,7 @@ fun AlbumRow(
 
 @Composable
 fun AlbumCard(album: Album, onClick: () -> Unit) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     Column(
         modifier = Modifier
             .width(140.dp)
@@ -359,7 +356,7 @@ fun AlbumCard(album: Album, onClick: () -> Unit) {
     ) {
         val context = LocalContext.current
         val model = remember(album.coverArt) {
-            repository.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
         }
         
         AsyncImage(
@@ -407,7 +404,7 @@ fun PlaylistRow(
 
 @Composable
 fun PlaylistCard(playlist: de.lwp2070809.speculonic.network.model.Playlist, onClick: () -> Unit) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     Column(
         modifier = Modifier
             .width(140.dp)
@@ -416,7 +413,7 @@ fun PlaylistCard(playlist: de.lwp2070809.speculonic.network.model.Playlist, onCl
     ) {
         val context = LocalContext.current
         val model = remember(playlist.coverArt) {
-            repository.buildCoverArtRequest(playlist.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(playlist.coverArt, context, preferLocal = true)
         }
         
         AsyncImage(

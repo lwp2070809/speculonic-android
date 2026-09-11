@@ -43,7 +43,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Playlist
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.buildRequest
 
 @Composable
 fun PlaylistList(
@@ -54,8 +55,7 @@ fun PlaylistList(
     isOnline: Boolean,
     isEffectivelyOnline: Boolean
 ) {
-    val repository = LocalSubsonicRepository.current
-    val context = LocalContext.current
+    val coverRequester = LocalCoverArtRequester.current
     var showCreateDialog by remember { mutableStateOf(false) }
     var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
 
@@ -150,7 +150,7 @@ fun PlaylistList(
                 },
                 leadingContent = {
                     val model = remember(playlist.coverArt) {
-                        repository.buildCoverArtRequest(playlist.coverArt, context, preferLocal = true)
+                        coverRequester.buildRequest(playlist.coverArt, preferLocal = true)
                     }
                     AsyncImage(
                         model = model,

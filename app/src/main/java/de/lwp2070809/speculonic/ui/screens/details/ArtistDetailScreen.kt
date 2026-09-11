@@ -26,7 +26,7 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -93,7 +93,7 @@ fun ArtistDetailScreen(
 
 @Composable
 fun ArtistHeader(artist: Artist?) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -102,7 +102,7 @@ fun ArtistHeader(artist: Artist?) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         val model = remember(artist?.coverArt) {
-            repository.buildCoverArtRequest(artist?.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(artist?.coverArt, context, preferLocal = true)
         }
         AsyncImage(
             model = model,
@@ -136,7 +136,7 @@ fun ArtistHeader(artist: Artist?) {
 
 @Composable
 fun AlbumItem(album: Album, onClick: () -> Unit) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
     Column(
         modifier = Modifier
@@ -144,7 +144,7 @@ fun AlbumItem(album: Album, onClick: () -> Unit) {
             .clickable { onClick() }
     ) {
         val model = remember(album.coverArt) {
-            repository.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
         }
         AsyncImage(
             model = model,

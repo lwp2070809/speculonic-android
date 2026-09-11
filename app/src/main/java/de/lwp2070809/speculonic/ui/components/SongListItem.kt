@@ -43,7 +43,8 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.network.model.PlaylistAddResult
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.buildRequest
 import de.lwp2070809.speculonic.util.FormatUtils
 
 @Composable
@@ -61,7 +62,7 @@ fun SongListItem(
     transcodeIncompatible: Boolean = false,
     trailingContentOverride: @Composable (() -> Unit)? = null
 ) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
@@ -90,7 +91,6 @@ fun SongListItem(
     if (showAddToPlaylistDialog) {
         AddToPlaylistDialog(
             song = song,
-            repository = repository,
             onDismiss = { showAddToPlaylistDialog = false },
             onResult = { result ->
                 val message = when (result) {
@@ -138,7 +138,7 @@ fun SongListItem(
         },
         leadingContent = {
             val model = remember(song.coverArt) {
-                repository.buildCoverArtRequest(song.coverArt, context, preferLocal = true)
+                coverRequester.buildRequest(song.coverArt, preferLocal = true)
             }
             AsyncImage(
                 model = model,

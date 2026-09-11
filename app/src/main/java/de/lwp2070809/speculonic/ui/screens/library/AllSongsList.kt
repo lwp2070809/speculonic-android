@@ -29,9 +29,9 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
-import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -40,15 +40,16 @@ fun AllSongsList(
     songsPaged: LazyPagingItems<Song>,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
-    isStreamingAllowed: Boolean
+    isStreamingAllowed: Boolean,
+    onStarClick: (String, Boolean) -> Unit = { _, _ -> }
 ) {
-    val repository = LocalSubsonicRepository.current
+    val mediaItemConverter = LocalMediaItemConverter.current
+    val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
  
     val context = LocalContext.current
-    val downloadController = remember(repository) { DownloadController(context, repository) }
     val scope = rememberCoroutineScope()
     val allSongsTitle = stringResource(R.string.all_songs)
 
@@ -82,7 +83,7 @@ fun AllSongsList(
                                 val playableSongs = windowSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
 
                                 val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                    playableSongs.map { it.toMediaItem(repository) }
+                                    playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                 }
                                 if (mediaItems.isNotEmpty()) {
                                     playbackController.play(mediaItems, 0, queueTitle = allSongsTitle)
@@ -90,9 +91,7 @@ fun AllSongsList(
                             }
                         },
                         onStarClick = { star ->
-                            scope.launch {
-                                repository.starSong(song.id, star)
-                            }
+                            onStarClick(song.id, star)
                         },
                         onDownloadClick = { downloadController.downloadSong(song) },
                         onRemoveDownloadClick = { downloadController.removeDownload(song.id) }

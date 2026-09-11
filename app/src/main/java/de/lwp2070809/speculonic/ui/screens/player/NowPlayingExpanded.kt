@@ -31,7 +31,6 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
 import de.lwp2070809.speculonic.ui.screens.player.components.ArtworkView
 import de.lwp2070809.speculonic.ui.screens.player.components.ExtraControls
 import de.lwp2070809.speculonic.ui.screens.player.components.MainControls
@@ -51,7 +50,6 @@ fun NowPlayingExpanded(
     onShowSleepTimer: () -> Unit,
     onShowSongInfo: () -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
     val surfaceColor = MaterialTheme.colorScheme.surface
     val primaryColor = MaterialTheme.colorScheme.primary
     val gradientBrush = remember(primaryColor, surfaceColor) {
@@ -136,8 +134,7 @@ fun NowPlayingExpanded(
                     ) {
                         ArtworkView(
                             artworkId = playbackState.artworkId,
-                            artworkUri = playbackState.artworkUri,
-                            repository = repository
+                            artworkUri = playbackState.artworkUri
                         )
                     }
                 }

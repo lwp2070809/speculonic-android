@@ -59,6 +59,14 @@ class DiscoverViewModel @Inject constructor(
 
 
     init {
+        // 进入启动首页时静默触发服务端连接探测与拓展能力发现
+        viewModelScope.launch {
+            try {
+                repository.ping()
+            } catch (e: Exception) {
+                LogManager.e("DiscoverViewModel: Initial ping failed", e)
+            }
+        }
         loadData()
         observeData()
         observeServerConfigChanges()
@@ -209,6 +217,16 @@ class DiscoverViewModel @Inject constructor(
                 }
             } catch (e: Exception) {
                 LogManager.e("DiscoverViewModel: Play favorite song failed", e)
+            }
+        }
+    }
+
+    fun toggleStarSong(songId: String, star: Boolean) {
+        viewModelScope.launch {
+            try {
+                repository.starSong(songId, star)
+            } catch (e: Exception) {
+                LogManager.e("DiscoverViewModel: toggleStarSong failed", e)
             }
         }
     }

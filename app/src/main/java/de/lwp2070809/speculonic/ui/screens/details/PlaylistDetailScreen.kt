@@ -32,9 +32,10 @@ import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
-import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
@@ -49,7 +50,8 @@ fun PlaylistDetailScreen(
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
+    val mediaItemConverter = LocalMediaItemConverter.current
+    val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
@@ -58,7 +60,6 @@ fun PlaylistDetailScreen(
     val context = LocalContext.current
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
-    val downloadController = remember(repository) { DownloadController(context, repository) }
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isAnyDownloading = remember(activeDownloads, uiState.songs) {
@@ -127,13 +128,13 @@ fun PlaylistDetailScreen(
                         item {
                             ActionButtonsRow(
                                 onPlayAll = {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, 0, queueTitle = uiState.playlist?.name)
                                     }
                                 },
                                 onShuffle = {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = uiState.playlist?.name)
                                     }
@@ -176,16 +177,14 @@ fun PlaylistDetailScreen(
                             onClick = {
                                 val playIndex = playableSongs.indexOfFirst { it.id == song.id }
                                 if (playIndex != -1) {
-                                    val mediaItems = playableSongs.map { it.toMediaItem(repository) }
+                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
                                         playbackController.play(mediaItems, playIndex, queueTitle = uiState.playlist?.name)
                                     }
                                 }
                             },
                             onStarClick = { star ->
-                                scope.launch {
-                                    repository.starSong(song.id, star)
-                                }
+                                viewModel.toggleStarSong(song.id, star)
                             },
                             onDownloadClick = {
                                 downloadController.downloadSong(song)
@@ -199,9 +198,7 @@ fun PlaylistDetailScreen(
                                     IconButton(
                                         onClick = {
                                             isStarred = !isStarred
-                                            scope.launch {
-                                                repository.starSong(song.id, isStarred)
-                                            }
+                                            viewModel.toggleStarSong(song.id, isStarred)
                                         },
                                         enabled = isEffectivelyOnline,
                                         modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
@@ -254,8 +251,7 @@ fun PlaylistDetailScreen(
                                                 leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
                                                 onClick = {
                                                     showItemMenu = false
-                                                    scope.launch {
-                                                        val success = repository.removeFromPlaylist(uiState.playlist?.id ?: "", index)
+                                                    viewModel.removeFromPlaylist(index) { success ->
                                                         val msg = if (success) removeSuccessMsg else removeErrorMsg
                                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                                     }
@@ -280,7 +276,7 @@ fun PlaylistHeader(
     songCountOverride: Int = 0,
     onTogglePinned: () -> Unit = {}
 ) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
     Row(
         modifier = Modifier
@@ -289,7 +285,7 @@ fun PlaylistHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         val model = remember(playlist?.coverArt) {
-            repository.buildCoverArtRequest(playlist?.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(playlist?.coverArt, context, preferLocal = true)
         }
 
         AsyncImage(

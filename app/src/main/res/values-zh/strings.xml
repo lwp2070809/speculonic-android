@@ -297,12 +297,7 @@
     <string name="offline_downloads">离线下载</string>
     <string name="silent_cache_tab">静默缓存</string>
     <string name="cover_quota_exceeded">专辑封面缓存已超过配额！</string>
-
-    <string name="cached_songs_ratio">已缓存歌曲占比</string>
-    <string name="internal_cache_color_label">封面图片缓存</string>
     <string name="clear_cache_quota_warning">一键清除内部缓存</string>
-
-    <string name="cache_label">存储与缓存</string>
     <string name="clear_queue_keep_cache">清除队列</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部开始</string>
@@ -347,8 +342,6 @@
     <string name="unknown_error">未知错误</string>
     <string name="scanning_cache">正在扫描缓存…</string>
     <string name="server_url_placeholder">https://your-server.com</string>
-    <string name="content_description_expand_details">展开详情</string>
-    <string name="storage_ratio_songs_summary">%1$d%% (共 %2$d/%3$d 首)</string>
     <string name="log_level_all">全部级别</string>
     <string name="logs_copied_to_clipboard">日志已复制到剪贴板</string>
     <string name="content_description_copy_all">复制全部</string>
@@ -359,7 +352,6 @@
     <string name="transcode_incompatible_formats">服务端转码不兼容格式</string>
     <string name="transcode_incompatible_formats_description">在服务端将 Android 原生无法直接解码的音频格式（如 APE、WV 等）实时转码为兼容格式。注意：此选项会破坏本 APP 对服务器的 1:1 完全镜像设计。</string>
     <string name="target_transcode_format">转码目标格式</string>
-    <string name="target_transcode_format_description">选择服务端转码的目标输出格式</string>
     <string name="unsupported_format_hint">当前格式(%1$s)暂不支持直接播放，可在设置中开启转码</string>
     <string name="unsupported_format_skipped">已跳过不支持的音频格式: %1$s</string>
     <string name="format_mp3">MP3 (推荐)</string>

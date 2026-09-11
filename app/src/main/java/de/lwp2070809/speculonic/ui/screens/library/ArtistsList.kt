@@ -36,7 +36,8 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.ui.components.FastScroller
-import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
+import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.buildRequest
 
 sealed class ArtistListItem {
     abstract val groupChar: String
@@ -62,9 +63,8 @@ fun ArtistsList(
     artists: List<Artist>, 
     onArtistClick: (Artist) -> Unit
 ) {
-    val repository = LocalSubsonicRepository.current
+    val coverRequester = LocalCoverArtRequester.current
     val listState = rememberLazyListState()
-    val context = LocalContext.current
     
     val sortedArtists = remember(artists) {
         artists.sortedBy { it.name.uppercase() }
@@ -151,7 +151,7 @@ fun ArtistsList(
                             },
                             leadingContent = {
                                 val model = remember(artist.coverArt) {
-                                    repository.buildCoverArtRequest(artist.coverArt, context, preferLocal = true)
+                                    coverRequester.buildRequest(artist.coverArt, preferLocal = true)
                                 }
                                 AsyncImage(
                                     model = model,
