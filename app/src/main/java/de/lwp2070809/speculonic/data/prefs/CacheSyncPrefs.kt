@@ -6,6 +6,7 @@ interface CacheSyncPrefs {
     val cacheLocation: Flow<String>
     val maxCacheSize: Flow<Long>
     val maxCoverCacheSize: Flow<Long>
+    fun getCachedMaxCoverCacheSize(): Long
     val silentCacheEnabled: Flow<Boolean>
     val autoExportSilentCache: Flow<Boolean>
     val lastSyncTime: Flow<Long>

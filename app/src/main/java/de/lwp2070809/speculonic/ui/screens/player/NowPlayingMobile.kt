@@ -281,6 +281,7 @@ fun NowPlayingMobile(
                                         isPlaying = playbackState.isPlaying,
                                         isLoading = uiState.isLoadingLyrics,
                                         onSeek = { playbackController.seekTo(it) },
+                                        onClick = onToggleLyrics,
                                         modifier = Modifier.fillMaxSize()
                                     )
                                 }

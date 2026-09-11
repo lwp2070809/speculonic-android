@@ -26,11 +26,31 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         private val BACKGROUND_SYNC_ENABLED = booleanPreferencesKey("background_sync_enabled")
         private val LAST_CACHE_SCAN_TIME = longPreferencesKey("last_cache_scan_time")
         private val SYNC_COVER_ART_ON_FORCE = booleanPreferencesKey("sync_cover_art_on_force")
+        private const val PREFS_NAME = "speculonic_cache_sync_prefs"
+        private const val KEY_MAX_COVER_CACHE_SIZE = "max_cover_cache_size"
+        private const val DEFAULT_MAX_COVER_CACHE_SIZE = 512L * 1024 * 1024
     }
+
+    private val syncPrefs by lazy {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    private val cachedMaxCoverCacheSize = java.util.concurrent.atomic.AtomicLong(
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getLong(KEY_MAX_COVER_CACHE_SIZE, DEFAULT_MAX_COVER_CACHE_SIZE)
+    )
+
+    override fun getCachedMaxCoverCacheSize(): Long = cachedMaxCoverCacheSize.get()
 
     override val cacheLocation: Flow<String> = context.dataStore.data.map { it[CACHE_LOCATION] ?: "" }
     override val maxCacheSize: Flow<Long> = context.dataStore.data.map { it[MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024) }
-    override val maxCoverCacheSize: Flow<Long> = context.dataStore.data.map { it[MAX_COVER_CACHE_SIZE] ?: (512L * 1024 * 1024) }
+    override val maxCoverCacheSize: Flow<Long> = context.dataStore.data.map { 
+        val size = it[MAX_COVER_CACHE_SIZE] ?: DEFAULT_MAX_COVER_CACHE_SIZE
+        if (cachedMaxCoverCacheSize.getAndSet(size) != size) {
+            syncPrefs.edit().putLong(KEY_MAX_COVER_CACHE_SIZE, size).apply()
+        }
+        size
+    }
     override val silentCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[SILENT_CACHE_ENABLED] ?: true }
     override val autoExportSilentCache: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_SILENT_CACHE] ?: false }
     override val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC_TIME] ?: 0L }
@@ -56,6 +76,8 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     }
 
     override suspend fun saveMaxCoverCacheSize(size: Long) {
+        cachedMaxCoverCacheSize.set(size)
+        syncPrefs.edit().putLong(KEY_MAX_COVER_CACHE_SIZE, size).apply()
         context.dataStore.edit { preferences ->
             preferences[MAX_COVER_CACHE_SIZE] = size
         }

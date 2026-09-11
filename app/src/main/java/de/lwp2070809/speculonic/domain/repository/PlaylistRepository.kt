@@ -115,8 +115,35 @@ class PlaylistRepository(
                 
                 
                 val currentPlaylist = musicDao.getPlaylistById(id)
+                val playlistInfo = response.response.playlist
                 if (currentPlaylist != null) {
-                    musicDao.insertPlaylists(listOf(currentPlaylist.copy(songCount = list.size)))
+                    if (playlistInfo != null) {
+                        musicDao.insertPlaylists(listOf(currentPlaylist.copy(
+                            name = playlistInfo.name,
+                            comment = playlistInfo.comment,
+                            owner = playlistInfo.owner,
+                            `public` = playlistInfo.public ?: false,
+                            songCount = list.size,
+                            duration = playlistInfo.duration?.toLong() ?: 0L,
+                            coverArt = playlistInfo.coverArt
+                        )))
+                    } else {
+                        musicDao.insertPlaylists(listOf(currentPlaylist.copy(songCount = list.size)))
+                    }
+                } else if (playlistInfo != null) {
+                    musicDao.insertPlaylists(listOf(
+                        PlaylistEntity(
+                            id = playlistInfo.id,
+                            name = playlistInfo.name,
+                            comment = playlistInfo.comment,
+                            owner = playlistInfo.owner,
+                            `public` = playlistInfo.public ?: false,
+                            songCount = list.size,
+                            duration = playlistInfo.duration?.toLong() ?: 0L,
+                            coverArt = playlistInfo.coverArt,
+                            pinned = false
+                        )
+                    ))
                 }
             } else if (response.response.status == "ok" && !skipInsert) {
                 musicDao.deletePlaylistSongs(id)

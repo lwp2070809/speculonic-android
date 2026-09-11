@@ -69,18 +69,13 @@ class SearchResult3StreamingSerializer(
                             val count = artist.albumCount ?: artist.album.size
                             ArtistEntity(artist.id, artist.name, artist.coverArt, count) 
                         }
-                        
-                        runBlocking {
-                            artistChannel.send(entities)
-                            tempIdChannel.send(entities.map { SyncTempIdEntity(it.id, "artist") })
-                        }
+                        artistChannel.sendSafe(entities)
+                        tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "artist") })
                     }
                     1 -> decodeArray(this, 1, Album.serializer()) { albums ->
                         val entities = albums.map { entityMapper.albumToEntity(it, existing = existingAlbumsMap[it.id], isStarred = it.starred != null) }
-                        runBlocking {
-                            albumChannel.send(entities)
-                            tempIdChannel.send(entities.map { SyncTempIdEntity(it.id, "album") })
-                        }
+                        albumChannel.sendSafe(entities)
+                        tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "album") })
                     }
                     2 -> {
                         var total = 0
@@ -99,10 +94,8 @@ class SearchResult3StreamingSerializer(
                                     lastUpdated = meta?.lastUpdated
                                 )
                             }
-                            runBlocking {
-                                songChannel.send(entities)
-                                tempIdChannel.send(entities.map { SyncTempIdEntity(it.id, "song") })
-                            }
+                            songChannel.sendSafe(entities)
+                            tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "song") })
                         }
                         onSongCount(total)
                     }
@@ -110,6 +103,13 @@ class SearchResult3StreamingSerializer(
             }
         }
     }
+
+    private fun <E> Channel<E>.sendSafe(element: E) {
+        if (trySend(element).isFailure) {
+            runBlocking { send(element) }
+        }
+    }
+
     private fun <T> decodeArray(decoder: CompositeDecoder, index: Int, serializer: KSerializer<T>, onChunk: (List<T>) -> Unit) {
         val chunk = mutableListOf<T>()
         decoder.decodeSerializableElement(descriptor, index, StreamingListSerializer(serializer) { element ->

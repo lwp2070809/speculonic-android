@@ -343,6 +343,12 @@ interface MusicDao {
     @Query("SELECT * FROM songs WHERE isFullyCached = 1")
     suspend fun getAllCachedSongs(): List<SongEntity>
 
+    @Query("SELECT COUNT(*) FROM songs WHERE isFullyCached = 1")
+    suspend fun getCachedSongsCount(): Int
+
+    @Query("SELECT COUNT(*) FROM songs WHERE isFullyCached = 1")
+    fun getCachedSongsCountFlow(): Flow<Int>
+
     @Query("SELECT * FROM songs WHERE isFullyCached = 1")
     fun getAllCachedSongsFlow(): Flow<List<SongEntity>>
 

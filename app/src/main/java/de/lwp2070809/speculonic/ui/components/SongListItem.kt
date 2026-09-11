@@ -25,7 +25,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -42,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
-import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.PlaylistAddResult
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.composition.LocalSubsonicRepository
@@ -60,19 +58,16 @@ fun SongListItem(
     modifier: Modifier = Modifier,
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadClick: () -> Unit = {},
-    transcodeIncompatible: Boolean? = null,
+    transcodeIncompatible: Boolean = false,
     trailingContentOverride: @Composable (() -> Unit)? = null
 ) {
     val repository = LocalSubsonicRepository.current
     val context = LocalContext.current
 
     var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isDownloaded = song.isFullyCached
     
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val effectiveTranscodeIncompatible = transcodeIncompatible ?: preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false).value
-    val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(song, effectiveTranscodeIncompatible)
+    val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(song, transcodeIncompatible)
 
     val isEnabled = isPlayable && (isDownloaded || isStreamingAllowed)
     val alpha = if (isEnabled) 1.0f else 0.38f

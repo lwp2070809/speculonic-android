@@ -713,7 +713,7 @@ class SettingsViewModel @Inject constructor(
             val (freeSpace, totalSpace, cachedSongs) = withContext(Dispatchers.IO) {
                 val free = try { context.cacheDir.freeSpace } catch (e: Exception) { 0L }
                 val total = try { context.cacheDir.totalSpace } catch (e: Exception) { 0L }
-                val songsCount = database.musicDao().getAllCachedSongs().size
+                val songsCount = database.musicDao().getCachedSongsCount()
                 Triple(free, total, songsCount)
             }
             val totalInternal = breakdown.playbackBytes + breakdown.coverArtBytes + breakdown.songBytes + breakdown.otherBytes

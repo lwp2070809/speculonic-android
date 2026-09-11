@@ -13,7 +13,12 @@ data class ArtistEntity(
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "albums")
+@Entity(
+    tableName = "albums",
+    indices = [
+        Index(value = ["artistId"])
+    ]
+)
 data class AlbumEntity(
     @PrimaryKey val id: String,
     val name: String,

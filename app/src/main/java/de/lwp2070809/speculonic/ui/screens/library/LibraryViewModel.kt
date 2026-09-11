@@ -263,14 +263,21 @@ class LibraryViewModel @Inject constructor(
 
 
 private fun <T> Flow<T>.debounceExceptFirst(timeoutMillis: Long): Flow<T> = channelFlow {
-    var isFirst = true
-    collectLatest { value ->
-        if (isFirst) {
-            isFirst = false
+    var lastEmissionTime = 0L
+    var pendingJob: kotlinx.coroutines.Job? = null
+    collect { value ->
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastEmissionTime > timeoutMillis) {
+            pendingJob?.cancel()
+            lastEmissionTime = now
             send(value)
         } else {
-            delay(timeoutMillis)
-            send(value)
+            pendingJob?.cancel()
+            pendingJob = launch {
+                delay(timeoutMillis)
+                lastEmissionTime = android.os.SystemClock.elapsedRealtime()
+                send(value)
+            }
         }
     }
 }

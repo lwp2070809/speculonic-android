@@ -190,15 +190,7 @@ private fun MainContent(
             topBar = {
                 val activeDownloadsCount = remember(allDownloads) {
                     allDownloads.count { info ->
-                        val isSilent = try {
-                            if (info.task.request.data.isNotEmpty()) {
-                                val json = org.json.JSONObject(androidx.media3.common.util.Util.fromUtf8Bytes(info.task.request.data))
-                                json.optBoolean("isSilent", false)
-                            } else false
-                        } catch (e: Exception) {
-                            false
-                        }
-                        !isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
+                        !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
                     }
                 }
                 MainTopBar(

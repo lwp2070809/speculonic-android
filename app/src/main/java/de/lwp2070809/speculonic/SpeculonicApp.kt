@@ -77,9 +77,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
     
     override fun newImageLoader(context: Context): ImageLoader {
         val prefsManager = PreferencesManager.getInstance(context)
-        val maxCoverLimit = runBlocking {
-            prefsManager.maxCoverCacheSize.first()
-        }
+        val maxCoverLimit = prefsManager.getCachedMaxCoverCacheSize()
 
         return ImageLoader.Builder(context)
             .components {

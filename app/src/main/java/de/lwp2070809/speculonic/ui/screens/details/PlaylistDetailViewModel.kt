@@ -65,14 +65,10 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                     isUsingEphemeralData.set(true)
                 }
 
-                val playlists = repository.getPlaylists(forceRefresh = forceRefresh)
-                val playlistMetadata = playlists.find { it.id == playlistId }
-                
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     isRefreshing = false,
                     songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
-                    playlist = playlistMetadata ?: _uiState.value.playlist,
                     error = null
                 )
             } catch (e: Exception) {

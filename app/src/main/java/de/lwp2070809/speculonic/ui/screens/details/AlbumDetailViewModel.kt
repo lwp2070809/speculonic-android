@@ -59,8 +59,12 @@ class AlbumDetailViewModel @AssistedInject constructor(
                     _uiState.value = _uiState.value.copy(isLoading = false, error = null)
                 }
 
-                repository.getAlbum(albumId, forceRefresh = true)
-                _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
+                if (forceRefresh || isManualRefresh || cachedAlbum == null) {
+                    repository.getAlbum(albumId, forceRefresh = true)
+                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
+                } else {
+                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
+                }
             } catch (e: Exception) {
                 if (_uiState.value.album == null) {
                     _uiState.value = _uiState.value.copy(

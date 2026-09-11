@@ -40,7 +40,8 @@ import java.util.concurrent.atomic.AtomicBoolean
 data class DownloadTaskInfo(
     val task: Download,
     val progress: Float = task.percentDownloaded,
-    val state: Int = task.state
+    val state: Int = task.state,
+    val isSilent: Boolean = DownloadTracker.isSilentDownload(task)
 )
 
 @OptIn(UnstableApi::class)
@@ -202,7 +203,7 @@ object DownloadTracker {
         }
     }
 
-    private fun isSilentDownload(download: Download): Boolean {
+    internal fun isSilentDownload(download: Download): Boolean {
         return try {
             if (download.request.data.isNotEmpty()) {
                 val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
