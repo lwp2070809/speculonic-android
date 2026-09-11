@@ -220,4 +220,20 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
             preferences[AUTO_OFFLINE_ON_METERED] = enabled
         }
     }
+
+    override suspend fun toggleManualOfflineMode(): Pair<Boolean, Boolean> {
+        var wasAutoOffline = false
+        var newOffline = false
+        context.dataStore.edit { preferences ->
+            val currentOffline = preferences[OFFLINE_MODE_ENABLED] ?: false
+            val currentAuto = preferences[AUTO_OFFLINE_ON_METERED] ?: false
+            if (currentAuto) {
+                preferences[AUTO_OFFLINE_ON_METERED] = false
+                wasAutoOffline = true
+            }
+            newOffline = !currentOffline
+            preferences[OFFLINE_MODE_ENABLED] = newOffline
+        }
+        return Pair(newOffline, wasAutoOffline)
+    }
 }

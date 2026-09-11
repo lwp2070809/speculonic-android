@@ -12,7 +12,8 @@ class PlaybackServiceListener(
     private val persistence: PlaybackStatePersistence,
     private val carAudioManager: BluetoothCarManager,
     private val audioFocusHelper: PlaybackAudioFocusHelper,
-    private val onTriggerSilentCache: (MediaItem) -> Unit
+    private val onTriggerSilentCache: (MediaItem) -> Unit,
+    private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
@@ -22,6 +23,7 @@ class PlaybackServiceListener(
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+        onMediaItemTransitionForTimer?.invoke(mediaItem, reason)
         if (mediaItem == null) {
             persistence.savePlaybackState(player)
             return

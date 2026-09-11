@@ -76,6 +76,7 @@ class PlaybackService : MediaSessionService() {
     private lateinit var errorHandler: PlaybackErrorHandler
     private lateinit var carAudioManager: BluetoothCarManager
     private lateinit var audioFocusHelper: PlaybackAudioFocusHelper
+    val volumeCoordinator = VolumeCoordinator()
 
     private val noisyReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -100,6 +101,8 @@ class PlaybackService : MediaSessionService() {
             )
         }
         val placeholderPlayer = ExoPlayer.Builder(this, emptyRenderersFactory).build()
+        volumeCoordinator.setPlayer(placeholderPlayer)
+
         mediaSession = MediaSession.Builder(this, placeholderPlayer)
             .setSessionActivity(pendingIntent)
             .setCallback(CustomCallback())
@@ -114,7 +117,7 @@ class PlaybackService : MediaSessionService() {
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
-        audioFocusHelper = PlaybackAudioFocusHelper(this) { mediaSession?.player }
+        audioFocusHelper = PlaybackAudioFocusHelper(this, volumeCoordinator) { mediaSession?.player }
 
         persistence = PlaybackStatePersistence(
             serviceScope = serviceScope,
@@ -142,6 +145,7 @@ class PlaybackService : MediaSessionService() {
         carAudioManager = BluetoothCarManager(
             context = this,
             serviceScope = serviceScope,
+            volumeCoordinator = volumeCoordinator,
             mediaSessionProvider = { mediaSession },
             repositoryProvider = { repository }
         )
@@ -158,7 +162,19 @@ class PlaybackService : MediaSessionService() {
                 val oldPlayer = service.mediaSession?.player
                 val newPlaceholderPlayer = ExoPlayer.Builder(service).build()
                 service.mediaSession?.player = newPlaceholderPlayer
-                oldPlayer?.release()
+                service.volumeCoordinator.setPlayer(newPlaceholderPlayer)
+                
+                try {
+                    oldPlayer?.stop()
+                    oldPlayer?.clearMediaItems()
+                    if (oldPlayer is BluetoothCarManager.CarDisguisePlayer) {
+                        oldPlayer.wrappedPlayer.release()
+                    } else {
+                        oldPlayer?.release()
+                    }
+                } catch (e: Exception) {
+                    LogManager.w("PlaybackService: Error releasing old player during cache release", e)
+                }
                 
                 service.cacheStrategyManager = null
                 service.isInitializing.set(false)
@@ -245,7 +261,8 @@ class PlaybackService : MediaSessionService() {
                     persistence = persistence,
                     carAudioManager = carAudioManager,
                     audioFocusHelper = audioFocusHelper,
-                    onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) }
+                    onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
+                    onMediaItemTransitionForTimer = { item, reason -> handleMediaItemTransitionForTimer(item, reason) }
                 ))
 
                 persistence.restorePlaybackState(realPlayer, repository)
@@ -253,6 +270,7 @@ class PlaybackService : MediaSessionService() {
                 withContext(Dispatchers.Main) {
                     val oldPlayer = mediaSession?.player
                     mediaSession?.player = sessionPlayer
+                    volumeCoordinator.setPlayer(sessionPlayer)
                     
                     lastInitializedServerUrl = config.serverUrl
                     lastInitializedUsername = config.username
@@ -494,6 +512,122 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
+    private var sleepTimerJob: Job? = null
+    private var sleepTimerMode = "OFF"
+    private var sleepTimerDeadlineRealtime = 0L
+    private var sleepTimerSongsRemaining = 0
+    private var songsPlayedSinceTimerStarted = 0
+    private var timerLastMediaId: String? = null
+
+    fun setSleepTimer(mode: String, minutes: Int = 0, songCount: Int = 0) {
+        sleepTimerJob?.cancel()
+        sleepTimerMode = mode
+        songsPlayedSinceTimerStarted = 0
+        timerLastMediaId = mediaSession?.player?.currentMediaItem?.mediaId
+
+        when (mode) {
+            "OFF" -> {
+                sleepTimerDeadlineRealtime = 0L
+                sleepTimerSongsRemaining = 0
+                broadcastSleepTimerState()
+            }
+            "TIME" -> {
+                val totalMillis = minutes * 60 * 1000L
+                sleepTimerDeadlineRealtime = android.os.SystemClock.elapsedRealtime() + totalMillis
+                broadcastSleepTimerState()
+                sleepTimerJob = serviceScope.launch {
+                    while (isActive) {
+                        val remaining = sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()
+                        if (remaining <= 0) {
+                            LogManager.i("PlaybackService: Sleep timer expired! Pausing player.")
+                            withContext(Dispatchers.Main) {
+                                mediaSession?.player?.pause()
+                            }
+                            cancelSleepTimer()
+                            break
+                        }
+                        // 挂起等待至到期时间，避免后台每秒触发 IPC 跨进程通知与 CPU 唤醒
+                        delay(remaining.coerceAtLeast(100L))
+                    }
+                }
+            }
+            "SONG_COUNT" -> {
+                sleepTimerDeadlineRealtime = 0L
+                sleepTimerSongsRemaining = songCount
+                broadcastSleepTimerState()
+            }
+            "END_OF_PLAYLIST" -> {
+                sleepTimerDeadlineRealtime = 0L
+                sleepTimerSongsRemaining = 0
+                broadcastSleepTimerState()
+            }
+        }
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerMode = "OFF"
+        sleepTimerDeadlineRealtime = 0L
+        sleepTimerSongsRemaining = 0
+        songsPlayedSinceTimerStarted = 0
+        broadcastSleepTimerState()
+    }
+
+    private fun handleMediaItemTransitionForTimer(mediaItem: MediaItem?, reason: Int) {
+        if (sleepTimerMode == "OFF") return
+        val currentId = mediaItem?.mediaId ?: return
+        val isRepeat = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
+        val isItemChanged = currentId != timerLastMediaId
+
+        if (!isItemChanged && !isRepeat) return
+        timerLastMediaId = currentId
+
+        if (sleepTimerMode == "SONG_COUNT") {
+            sleepTimerSongsRemaining--
+            if (sleepTimerSongsRemaining <= 0) {
+                LogManager.i("PlaybackService: Sleep timer song count reached. Pausing player.")
+                mediaSession?.player?.pause()
+                cancelSleepTimer()
+            } else {
+                broadcastSleepTimerState()
+            }
+        } else if (sleepTimerMode == "END_OF_PLAYLIST") {
+            val player = mediaSession?.player
+            val isRepeatOne = player?.repeatMode == Player.REPEAT_MODE_ONE
+            if (isRepeatOne) {
+                // 单曲循环下，当前单曲播放完第 1 次即视为该模式结束
+                LogManager.i("PlaybackService: Sleep timer end of playlist reached under repeat-one mode. Pausing player.")
+                player.pause()
+                cancelSleepTimer()
+            } else if (isItemChanged) {
+                songsPlayedSinceTimerStarted++
+                val queueSize = player?.mediaItemCount ?: 0
+                if (songsPlayedSinceTimerStarted >= queueSize) {
+                    LogManager.i("PlaybackService: Sleep timer end of playlist reached. Pausing player.")
+                    player?.pause()
+                    cancelSleepTimer()
+                }
+            }
+        }
+    }
+
+    private fun broadcastSleepTimerState() {
+        val session = mediaSession ?: return
+        val currentExtras = session.sessionExtras
+        val remainingMillis = if (sleepTimerMode == "TIME") {
+            (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        } else 0L
+
+        val newExtras = android.os.Bundle(currentExtras).apply {
+            putString("sleepTimerMode", sleepTimerMode)
+            putBoolean("isSleepTimerRunning", sleepTimerMode != "OFF")
+            putLong("sleepTimerRemainingMillis", remainingMillis)
+            putLong("sleepTimerDeadlineRealtime", sleepTimerDeadlineRealtime)
+            putInt("sleepTimerSongsRemaining", sleepTimerSongsRemaining)
+        }
+        session.sessionExtras = newExtras
+    }
+
     private inner class CustomCallback : MediaSession.Callback {
         override fun onConnect(
             session: MediaSession,
@@ -501,6 +635,8 @@ class PlaybackService : MediaSessionService() {
         ): MediaSession.ConnectionResult {
             val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
                 .add(androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY))
+                .add(androidx.media3.session.SessionCommand("SET_SLEEP_TIMER", android.os.Bundle.EMPTY))
+                .add(androidx.media3.session.SessionCommand("CANCEL_SLEEP_TIMER", android.os.Bundle.EMPTY))
                 .build()
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
                 .setAvailableSessionCommands(sessionCommands)
@@ -512,6 +648,7 @@ class PlaybackService : MediaSessionService() {
             controller: MediaSession.ControllerInfo
         ) {
             super.onPostConnect(session, controller)
+            broadcastSleepTimerState()
             
             if (carAudioManager.carBluetoothEnabled) {
                 (session.player as? BluetoothCarManager.CarDisguisePlayer)?.triggerCoverSync()
@@ -529,16 +666,34 @@ class PlaybackService : MediaSessionService() {
             customCommand: androidx.media3.session.SessionCommand,
             args: android.os.Bundle
         ): com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.SessionResult> {
-            if (customCommand.customAction == "SET_QUEUE_TITLE") {
-                val title = args.getString("queueTitle")
-                currentQueueTitle = title
-                session.sessionExtras = android.os.Bundle().apply {
-                    putString("queueTitle", title)
+            when (customCommand.customAction) {
+                "SET_QUEUE_TITLE" -> {
+                    val title = args.getString("queueTitle")
+                    currentQueueTitle = title
+                    val currentExtras = session.sessionExtras
+                    session.sessionExtras = android.os.Bundle(currentExtras).apply {
+                        putString("queueTitle", title)
+                    }
+                    persistence.savePlaybackState(session.player, immediate = true)
+                    return com.google.common.util.concurrent.Futures.immediateFuture(
+                        androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS)
+                    )
                 }
-                persistence.savePlaybackState(session.player, immediate = true)
-                return com.google.common.util.concurrent.Futures.immediateFuture(
-                    androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS)
-                )
+                "SET_SLEEP_TIMER" -> {
+                    val mode = args.getString("mode", "OFF")
+                    val minutes = args.getInt("minutes", 0)
+                    val songCount = args.getInt("songCount", 0)
+                    setSleepTimer(mode, minutes, songCount)
+                    return com.google.common.util.concurrent.Futures.immediateFuture(
+                        androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS)
+                    )
+                }
+                "CANCEL_SLEEP_TIMER" -> {
+                    cancelSleepTimer()
+                    return com.google.common.util.concurrent.Futures.immediateFuture(
+                        androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS)
+                    )
+                }
             }
             return com.google.common.util.concurrent.Futures.immediateFuture(
                 androidx.media3.session.SessionResult(androidx.media3.session.SessionError.ERROR_UNKNOWN)
@@ -558,6 +713,7 @@ class PlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         unregisterReceiver(noisyReceiver)
+        sleepTimerJob?.cancel()
 
         carAudioManager.release()
         mediaSession?.player?.let { persistence.savePlaybackState(it, immediate = true) }

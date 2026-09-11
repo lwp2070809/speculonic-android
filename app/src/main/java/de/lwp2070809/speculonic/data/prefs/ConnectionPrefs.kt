@@ -32,4 +32,5 @@ interface ConnectionPrefs {
     suspend fun saveAllowInsecureConnections(allow: Boolean)
     suspend fun saveOfflineModeEnabled(enabled: Boolean)
     suspend fun saveAutoOfflineOnMetered(enabled: Boolean)
+    suspend fun toggleManualOfflineMode(): Pair<Boolean, Boolean>
 }

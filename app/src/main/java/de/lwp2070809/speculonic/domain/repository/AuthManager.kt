@@ -41,11 +41,17 @@ class AuthManager(
 
     private fun md5WithSalt(passChars: CharArray, salt: String): String {
         val md = MessageDigest.getInstance("MD5")
-        val passBytes = String(passChars).toByteArray(Charsets.UTF_8)
-        val saltBytes = salt.toByteArray()
-        md.update(passBytes)
-        md.update(saltBytes)
-        Arrays.fill(passBytes, 0.toByte())
+        val charBuffer = java.nio.CharBuffer.wrap(passChars)
+        val byteBuffer = java.nio.charset.StandardCharsets.UTF_8.newEncoder().encode(charBuffer)
+        try {
+            md.update(byteBuffer)
+            val saltBytes = salt.toByteArray(Charsets.UTF_8)
+            md.update(saltBytes)
+        } finally {
+            if (byteBuffer.hasArray()) {
+                Arrays.fill(byteBuffer.array(), 0.toByte())
+            }
+        }
         return md.digest().joinToString("") { "%02x".format(it) }
     }
 }

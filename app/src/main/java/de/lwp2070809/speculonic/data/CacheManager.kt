@@ -93,12 +93,27 @@ object CacheManager {
                     LogManager.e("CacheManager: Failed to clear DownloadManagerHelpers", e)
                 }
                 
-                playbackCache?.release()
-                playbackCache = null
-                downloadCache?.release()
-                downloadCache = null
-                databaseProvider = null
-                LogManager.i("CacheManager: All cache instances and database provider released.")
+                // 容错与重试释放，防范底层活跃连接尚未完全断开导致的 CacheException
+                var retryCount = 0
+                while (retryCount < 3) {
+                    try {
+                        playbackCache?.release()
+                        playbackCache = null
+                        downloadCache?.release()
+                        downloadCache = null
+                        databaseProvider = null
+                        LogManager.i("CacheManager: All cache instances and database provider released.")
+                        break
+                    } catch (e: Exception) {
+                        retryCount++
+                        if (retryCount >= 3) {
+                            LogManager.e("CacheManager: Failed to release caches after $retryCount retries", e)
+                            throw e
+                        }
+                        LogManager.w("CacheManager: Cache release busy, retrying ($retryCount/3)...", e)
+                        kotlinx.coroutines.delay(100)
+                    }
+                }
                 
                 block()
             } catch (e: Exception) {

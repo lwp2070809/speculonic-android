@@ -109,11 +109,11 @@ class MainActivity : AppCompatActivity() {
                 de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offlineMode
             }
 
-            LaunchedEffect(isMetered, autoOffline, offlineMode) {
+            LaunchedEffect(isMetered, autoOffline) {
                 if (autoOffline) {
-                    if (isMetered && !offlineMode) {
+                    if (isMetered) {
                         preferencesManager.saveOfflineModeEnabled(true)
-                    } else if (!isMetered && offlineMode) {
+                    } else {
                         preferencesManager.saveOfflineModeEnabled(false)
                     }
                 }
@@ -121,18 +121,15 @@ class MainActivity : AppCompatActivity() {
 
             val toggleOfflineMode: () -> Unit = {
                 scope.launch {
-                    val currentOffline = preferencesManager.offlineModeEnabled.first()
-                    val autoOfflineEnabled = preferencesManager.autoOfflineOnMetered.first()
-                    if (autoOfflineEnabled) {
-                        preferencesManager.saveAutoOfflineOnMetered(false)
+                    val (newOffline, wasAutoOffline) = preferencesManager.toggleManualOfflineMode()
+                    if (wasAutoOffline) {
                         android.widget.Toast.makeText(
                             context.applicationContext,
                             R.string.auto_offline_disabled_toast,
                             android.widget.Toast.LENGTH_SHORT
                         ).show()
                     }
-                    preferencesManager.saveOfflineModeEnabled(!currentOffline)
-                    val toastMsg = if (!currentOffline) {
+                    val toastMsg = if (newOffline) {
                         R.string.offline_mode_enabled_toast
                     } else {
                         R.string.offline_mode_disabled_toast
@@ -194,7 +191,6 @@ class MainActivity : AppCompatActivity() {
                 }
                 
                 launch {
-                    delay(500)
                     playbackController.ensureController()
                 }
 
@@ -223,36 +219,6 @@ class MainActivity : AppCompatActivity() {
                 preferencesManager.logLevel.collectLatest { level ->
                     LogManager.setMinLevel(level)
                 }
-            }
-
-            
-            var batteryStatus by remember { mutableStateOf(false) }
-            
-            DisposableEffect(context) {
-                val receiver = object : android.content.BroadcastReceiver() {
-                    override fun onReceive(context: android.content.Context?, intent: android.content.Intent?) {
-                        val status = intent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                        batteryStatus = status == android.os.BatteryManager.BATTERY_STATUS_CHARGING || status == android.os.BatteryManager.BATTERY_STATUS_FULL
-                    }
-                }
-                val intentFilter = android.content.IntentFilter().apply {
-                    addAction(android.content.Intent.ACTION_POWER_CONNECTED)
-                    addAction(android.content.Intent.ACTION_POWER_DISCONNECTED)
-                    addAction(android.content.Intent.ACTION_BATTERY_CHANGED)
-                }
-                
-                
-                val batteryStatusIntent = androidx.core.content.ContextCompat.registerReceiver(
-                    context,
-                    receiver,
-                    intentFilter,
-                    androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
-                )
-                
-                val initialStatus = batteryStatusIntent?.getIntExtra(android.os.BatteryManager.EXTRA_STATUS, -1) ?: -1
-                batteryStatus = initialStatus == android.os.BatteryManager.BATTERY_STATUS_CHARGING || initialStatus == android.os.BatteryManager.BATTERY_STATUS_FULL
-
-                onDispose { context.unregisterReceiver(receiver) }
             }
 
 

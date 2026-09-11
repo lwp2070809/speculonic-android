@@ -17,6 +17,7 @@ class BluetoothStateSynchronizer(
     private val context: Context,
     private val deviceDetector: BluetoothCarDeviceDetector,
     private val serviceScope: CoroutineScope,
+    private val volumeCoordinator: VolumeCoordinator? = null,
     private val mediaSessionProvider: () -> MediaSession?,
     private val setJitterProtected: (Boolean) -> Unit = {}
 ) {
@@ -63,7 +64,7 @@ class BluetoothStateSynchronizer(
             }
 
             if (isInCall || isOtherMusicActive) {
-                LogManager.w("BluetoothStateSynchronizer: Call state active ($isInCall) or other active media application ($isOtherMusicActive) detected. Skipping Play-Pause state sync to prevent aggressive focus preemption.")
+                LogManager.d("BluetoothStateSynchronizer: Call in progress or other media app is active, skipping sync")
                 return
             }
 
@@ -76,7 +77,11 @@ class BluetoothStateSynchronizer(
             
             
             val originalVolume = player.volume
-            player.volume = 0f
+            if (volumeCoordinator != null) {
+                volumeCoordinator.setJitterMuted(true)
+            } else {
+                player.volume = 0f
+            }
             
             setJitterProtected(true)
             player.play()
@@ -92,7 +97,11 @@ class BluetoothStateSynchronizer(
                         } catch (e: Exception) {
                             LogManager.w("BluetoothStateSynchronizer: Exception occurred when resuming pause state, player might have been released", e)
                         } finally {
-                            player.volume = originalVolume
+                            if (volumeCoordinator != null) {
+                                volumeCoordinator.setJitterMuted(false)
+                            } else {
+                                player.volume = originalVolume
+                            }
                             LogManager.i("BluetoothStateSynchronizer: Successfully triggered silent Play-Pause jitter wake-up, MediaSession activated.")
                             delay(150)
                             setJitterProtected(false)

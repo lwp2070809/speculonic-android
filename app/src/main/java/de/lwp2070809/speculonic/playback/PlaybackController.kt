@@ -85,11 +85,9 @@ class PlaybackController private constructor(context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
-    private var sleepTimerJob: Job? = null
+    private var sleepTimerDeadlineRealtime: Long = 0L
     
     private var isAppVisible = true
-    private var songsPlayedSinceTimerStarted = 0
-    private var lastMediaId: String? = null
     private val pendingActions = java.util.concurrent.CopyOnWriteArrayList<(MediaController) -> Unit>()
 
     private fun executeWhenReady(action: (MediaController) -> Unit) {
@@ -150,20 +148,6 @@ class PlaybackController private constructor(context: Context) {
                     handleProgressTicker()
                 }
             }
-
-            override fun onPlaybackStateChanged(playbackState: Int) {
-                super.onPlaybackStateChanged(playbackState)
-                if (playbackState == Player.STATE_ENDED) {
-                    if (_playbackState.value.isSleepTimerRunning && 
-                        _playbackState.value.sleepTimerMode == SleepTimerMode.END_OF_PLAYLIST) {
-                        pauseAndStopTimer()
-                    }
-                }
-            }
-
-            override fun onMediaItemTransition(mediaItem: androidx.media3.common.MediaItem?, reason: Int) {
-                handleMediaItemTransition(reason)
-            }
         })
         
         updateState()
@@ -174,42 +158,6 @@ class PlaybackController private constructor(context: Context) {
             pendingActions.forEach { it(controller) }
             pendingActions.clear()
         }
-    }
-
-    private fun handleMediaItemTransition(reason: Int) {
-        val controller = controller ?: return
-        val currentId = controller.currentMediaItem?.mediaId
-        if (currentId != null && currentId != lastMediaId) {
-            lastMediaId = currentId
-            
-            if (_playbackState.value.isSleepTimerRunning) {
-                if (_playbackState.value.sleepTimerMode == SleepTimerMode.SONG_COUNT) {
-                    val remaining = _playbackState.value.sleepTimerSongsRemaining - 1
-                    if (remaining <= 0) {
-                        pauseAndStopTimer()
-                    } else {
-                        _playbackState.value = _playbackState.value.copy(sleepTimerSongsRemaining = remaining)
-                    }
-                } else if (_playbackState.value.sleepTimerMode == SleepTimerMode.END_OF_PLAYLIST) {
-                    songsPlayedSinceTimerStarted++
-                    val queueSize = controller.mediaItemCount
-                    val isRepeatOne = controller.repeatMode == Player.REPEAT_MODE_ONE
-                    
-                    if (isRepeatOne) {
-                        pauseAndStopTimer()
-                    } else {
-                        if (songsPlayedSinceTimerStarted >= queueSize) {
-                            pauseAndStopTimer()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    private fun pauseAndStopTimer() {
-        controller?.pause()
-        cancelSleepTimer()
     }
 
     fun onAppVisibilityChanged(visible: Boolean) {
@@ -249,9 +197,15 @@ class PlaybackController private constructor(context: Context) {
 
     private fun updatePosition() {
         val controller = controller ?: return
+        val remainingMillis = if (_playbackState.value.isSleepTimerRunning && sleepTimerDeadlineRealtime > 0L) {
+            (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        } else {
+            _playbackState.value.sleepTimerRemainingMillis
+        }
         _playbackState.value = _playbackState.value.copy(
             currentPosition = controller.currentPosition,
-            duration = getEffectiveDuration(controller)
+            duration = getEffectiveDuration(controller),
+            sleepTimerRemainingMillis = remainingMillis
         )
     }
 
@@ -273,7 +227,28 @@ class PlaybackController private constructor(context: Context) {
         val artworkId = extras?.getString("coverArtId")
         val realTitle = extras?.getString("realTitle") ?: currentMediaItem?.mediaMetadata?.title?.toString() ?: ""
         val realArtist = extras?.getString("realArtist") ?: currentMediaItem?.mediaMetadata?.artist?.toString() ?: ""
-        val queueTitle = controller.sessionExtras.getString("queueTitle")
+        val sessionExtras = controller.sessionExtras
+        val queueTitle = sessionExtras.getString("queueTitle")
+
+        val timerModeStr = sessionExtras.getString("sleepTimerMode", SleepTimerMode.OFF.name)
+        val isTimerRunning = sessionExtras.getBoolean("isSleepTimerRunning", false)
+        val deadlineRealtime = sessionExtras.getLong("sleepTimerDeadlineRealtime", 0L)
+        val songsRemaining = sessionExtras.getInt("sleepTimerSongsRemaining", 0)
+        val timerMode = try {
+            SleepTimerMode.valueOf(timerModeStr)
+        } catch (e: Exception) {
+            SleepTimerMode.OFF
+        }
+        if (deadlineRealtime > 0L) {
+            sleepTimerDeadlineRealtime = deadlineRealtime
+        } else if (!isTimerRunning) {
+            sleepTimerDeadlineRealtime = 0L
+        }
+        val remainingMillis = if (sleepTimerDeadlineRealtime > 0L) {
+            (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
+        } else {
+            sessionExtras.getLong("sleepTimerRemainingMillis", 0L)
+        }
 
         _playbackState.value = _playbackState.value.copy(
             currentSongId = currentMediaItem?.mediaId ?: "",
@@ -288,7 +263,11 @@ class PlaybackController private constructor(context: Context) {
             shuffleModeEnabled = controller.shuffleModeEnabled,
             currentQueue = queue,
             currentIndex = controller.currentMediaItemIndex,
-            queueTitle = queueTitle
+            queueTitle = queueTitle,
+            sleepTimerRemainingMillis = remainingMillis,
+            isSleepTimerRunning = isTimerRunning,
+            sleepTimerMode = timerMode,
+            sleepTimerSongsRemaining = songsRemaining
         )
     }
 
@@ -391,61 +370,46 @@ class PlaybackController private constructor(context: Context) {
     }
 
     fun setSleepTimer(mode: SleepTimerMode, minutes: Int = 0, songCount: Int = 0) {
-        sleepTimerJob?.cancel()
-        songsPlayedSinceTimerStarted = 0
-        lastMediaId = controller?.currentMediaItem?.mediaId
+        val totalMillis = minutes * 60 * 1000L
+        val deadline = if (mode == SleepTimerMode.TIME) {
+            android.os.SystemClock.elapsedRealtime() + totalMillis
+        } else 0L
+        sleepTimerDeadlineRealtime = deadline
 
-        when (mode) {
-            SleepTimerMode.OFF -> {
-                _playbackState.value = _playbackState.value.copy(
-                    sleepTimerRemainingMillis = 0L,
-                    isSleepTimerRunning = false,
-                    sleepTimerMode = SleepTimerMode.OFF
-                )
+        _playbackState.value = _playbackState.value.copy(
+            sleepTimerRemainingMillis = totalMillis,
+            isSleepTimerRunning = mode != SleepTimerMode.OFF,
+            sleepTimerMode = mode,
+            sleepTimerSongsRemaining = songCount
+        )
+
+        executeWhenReady { controller ->
+            val args = android.os.Bundle().apply {
+                putString("mode", mode.name)
+                putInt("minutes", minutes)
+                putInt("songCount", songCount)
             }
-            SleepTimerMode.TIME -> {
-                val totalMillis = minutes * 60 * 1000L
-                _playbackState.value = _playbackState.value.copy(
-                    sleepTimerRemainingMillis = totalMillis,
-                    isSleepTimerRunning = true,
-                    sleepTimerMode = SleepTimerMode.TIME
-                )
-                sleepTimerJob = scope.launch {
-                    var remaining = totalMillis
-                    while (remaining > 0) {
-                        delay(1000)
-                        remaining -= 1000
-                        _playbackState.value = _playbackState.value.copy(
-                            sleepTimerRemainingMillis = remaining.coerceAtLeast(0)
-                        )
-                    }
-                    pauseAndStopTimer()
-                }
-            }
-            SleepTimerMode.SONG_COUNT -> {
-                _playbackState.value = _playbackState.value.copy(
-                    isSleepTimerRunning = true,
-                    sleepTimerMode = SleepTimerMode.SONG_COUNT,
-                    sleepTimerSongsRemaining = songCount
-                )
-            }
-            SleepTimerMode.END_OF_PLAYLIST -> {
-                _playbackState.value = _playbackState.value.copy(
-                    isSleepTimerRunning = true,
-                    sleepTimerMode = SleepTimerMode.END_OF_PLAYLIST
-                )
-            }
+            controller.sendCustomCommand(
+                androidx.media3.session.SessionCommand("SET_SLEEP_TIMER", android.os.Bundle.EMPTY),
+                args
+            )
         }
     }
 
     fun cancelSleepTimer() {
-        sleepTimerJob?.cancel()
+        sleepTimerDeadlineRealtime = 0L
         _playbackState.value = _playbackState.value.copy(
             sleepTimerRemainingMillis = 0L,
             isSleepTimerRunning = false,
             sleepTimerMode = SleepTimerMode.OFF,
             sleepTimerSongsRemaining = 0
         )
+        executeWhenReady { controller ->
+            controller.sendCustomCommand(
+                androidx.media3.session.SessionCommand("CANCEL_SLEEP_TIMER", android.os.Bundle.EMPTY),
+                android.os.Bundle.EMPTY
+            )
+        }
     }
 
     fun skipToQueueItem(index: Int) {

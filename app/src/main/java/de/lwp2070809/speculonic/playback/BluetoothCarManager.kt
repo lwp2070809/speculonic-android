@@ -27,6 +27,7 @@ import kotlinx.coroutines.CoroutineScope
 class BluetoothCarManager(
     private val context: Context,
     private val serviceScope: CoroutineScope,
+    private val volumeCoordinator: VolumeCoordinator? = null,
     private val mediaSessionProvider: () -> MediaSession?,
     private val repositoryProvider: () -> SubsonicRepository?
 ) {
@@ -65,6 +66,7 @@ class BluetoothCarManager(
         context = context,
         deviceDetector = deviceDetector,
         serviceScope = serviceScope,
+        volumeCoordinator = volumeCoordinator,
         mediaSessionProvider = mediaSessionProvider,
         setJitterProtected = { lyricsManager.isPlayPauseJitterProtected = it }
     )

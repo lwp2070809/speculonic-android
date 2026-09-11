@@ -9,6 +9,7 @@ import androidx.media3.common.Player
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackAudioFocusHelper(
     context: Context,
+    private val volumeCoordinator: VolumeCoordinator? = null,
     private val getPlayer: () -> Player?
 ) {
     private val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -31,6 +32,7 @@ class PlaybackAudioFocusHelper(
             playWhenReadyBeforeLoss = false
             isDucking = false
         }
+        volumeCoordinator?.setDucking(false)
     }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
@@ -50,6 +52,7 @@ class PlaybackAudioFocusHelper(
                         isTransientLossActive = false
                         isDucking = false
                     }
+                    volumeCoordinator?.setDucking(false)
                     realPlayer.pause()
                     abandonAudioFocus()
                 }
@@ -69,7 +72,11 @@ class PlaybackAudioFocusHelper(
                             isDucking = true
                         }
                     }
-                    realPlayer.volume = preDuckVolume * 0.2f
+                    if (volumeCoordinator != null) {
+                        volumeCoordinator.setDucking(true, 0.2f)
+                    } else {
+                        realPlayer.volume = preDuckVolume * 0.2f
+                    }
                 } else {
                     synchronized(focusLock) {
                         playWhenReadyBeforeLoss = realPlayer.playWhenReady
@@ -82,7 +89,11 @@ class PlaybackAudioFocusHelper(
                 var shouldPlay = false
                 synchronized(focusLock) {
                     if (isDucking) {
-                        realPlayer.volume = preDuckVolume
+                        if (volumeCoordinator != null) {
+                            volumeCoordinator.setDucking(false)
+                        } else {
+                            realPlayer.volume = preDuckVolume
+                        }
                         isDucking = false
                     }
                     if (isTransientLossActive) {
