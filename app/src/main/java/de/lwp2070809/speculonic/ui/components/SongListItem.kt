@@ -84,6 +84,9 @@ fun SongListItem(
     val successMsg = stringResource(R.string.add_to_playlist_success)
     val existsMsg = stringResource(R.string.song_already_in_playlist)
     val errorMsg = stringResource(R.string.add_to_playlist_error)
+    val suffixText = remember(song.suffix) { (song.suffix ?: "UNKNOWN").uppercase() }
+    val incompatibleDownloadedHint = stringResource(R.string.incompatible_downloaded_hint, suffixText)
+    val unsupportedFormatHint = stringResource(R.string.unsupported_format_hint, suffixText)
 
     if (showDetailDialog) {
         SongDetailDialog(song = song, onDismiss = { showDetailDialog = false })
@@ -239,9 +242,9 @@ fun SongListItem(
                     val isRawIncompatibleCached = song.isFullyCached && !song.isTranscoded && !isDirectSupported
 
                     val toastText = if (isRawIncompatibleCached) {
-                        context.getString(R.string.incompatible_downloaded_hint, suffixText)
+                        incompatibleDownloadedHint
                     } else {
-                        context.getString(R.string.unsupported_format_hint, suffixText)
+                        unsupportedFormatHint
                     }
                     Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
                 } else if (isDownloaded || isStreamingAllowed) {

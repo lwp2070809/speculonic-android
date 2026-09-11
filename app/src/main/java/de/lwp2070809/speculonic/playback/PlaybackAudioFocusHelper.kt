@@ -6,6 +6,7 @@ import android.media.AudioFocusRequest
 import android.media.AudioManager
 import androidx.media3.common.Player
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackAudioFocusHelper(
     context: Context,
     private val getPlayer: () -> Player?

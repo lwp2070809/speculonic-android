@@ -243,12 +243,13 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
                                     }
                                 }
                             }
+                            val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
                             IconButton(onClick = {
                                 val text = LogManager.getAllLogsText()
                                 val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                 val clip = ClipData.newPlainText("Speculonic Logs", text)
                                 clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, context.getString(R.string.logs_copied_to_clipboard), Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
                             }) {
                                 Icon(
                                     androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_content_copy),

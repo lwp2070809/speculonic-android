@@ -81,6 +81,17 @@ class MainActivity : AppCompatActivity() {
             val currentSongIdState by remember { derivedStateOf { playbackStateState.value.currentSongId } }
             val artworkUriState by remember { derivedStateOf { playbackStateState.value.artworkUri } }
             val scope = rememberCoroutineScope()
+
+            if (android.os.Build.VERSION.SDK_INT >= 33) {
+                val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                ) {}
+                LaunchedEffect(Unit) {
+                    de.lwp2070809.speculonic.playback.DownloadController.permissionRequests.collect {
+                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                }
+            }
             
             val networkMonitor = remember { this@MainActivity.networkMonitor }
             val networkStatus by networkMonitor.networkStatus.collectAsState(initial = de.lwp2070809.speculonic.util.NetworkStatus(true, false))

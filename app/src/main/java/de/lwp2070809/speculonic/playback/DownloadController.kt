@@ -29,19 +29,25 @@ class DownloadController @Inject constructor(
     private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private val recentlyRequested = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
-    
-    private fun Context.findActivity(): android.app.Activity? {
-        var ctx = this
-        while (ctx is android.content.ContextWrapper) {
-            if (ctx is android.app.Activity) {
-                return ctx
-            }
-            ctx = ctx.baseContext
+    companion object {
+        private val _permissionRequests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+        val permissionRequests = _permissionRequests
+
+        fun requestNotificationPermission() {
+            _permissionRequests.tryEmit(Unit)
         }
-        return null
     }
 
     fun downloadSong(song: Song, isSilent: Boolean = false) {
+        if (!isSilent && android.os.Build.VERSION.SDK_INT >= 33) {
+            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
+                context,
+                android.Manifest.permission.POST_NOTIFICATIONS
+            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!hasPermission) {
+                requestNotificationPermission()
+            }
+        }
         if (!isSilent) {
             val activeIds = DownloadTracker.activeDownloadIds.value
             val downloadedIds = DownloadTracker.downloadedSongIds.value
@@ -58,24 +64,6 @@ class DownloadController @Inject constructor(
         if (!isSilent && playbackState.currentSongId == song.id) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
                 android.widget.Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.download_server_limit_toast), android.widget.Toast.LENGTH_LONG).show()
-            }
-        }
-
-        if (!isSilent && android.os.Build.VERSION.SDK_INT >= 33) {
-            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                context,
-                android.Manifest.permission.POST_NOTIFICATIONS
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            
-            if (!hasPermission) {
-                val activity = context.findActivity()
-                if (activity != null) {
-                    androidx.core.app.ActivityCompat.requestPermissions(
-                        activity,
-                        arrayOf(android.Manifest.permission.POST_NOTIFICATIONS),
-                        101
-                    )
-                }
             }
         }
 

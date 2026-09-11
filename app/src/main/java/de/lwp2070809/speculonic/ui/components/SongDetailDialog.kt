@@ -71,6 +71,7 @@ fun SongDetailDialog(
     var remoteError by remember { mutableStateOf<String?>(null) }
 
     val pagerState = rememberPagerState(pageCount = { 3 })
+    val failedToFetchRemoteMsg = stringResource(R.string.failed_to_fetch_remote)
 
     LaunchedEffect(pagerState.currentPage, songEntity?.localUri) {
         val uri = songEntity?.localUri
@@ -96,7 +97,7 @@ fun SongDetailDialog(
                     if (de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
                         remoteError = "OFFLINE"
                     } else {
-                        remoteError = result.exceptionOrNull()?.message ?: context.getString(R.string.failed_to_fetch_remote)
+                        remoteError = result.exceptionOrNull()?.message ?: failedToFetchRemoteMsg
                     }
                 }
                 remoteLoading = false
