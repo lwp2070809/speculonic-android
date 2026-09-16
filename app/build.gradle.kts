@@ -29,6 +29,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            isDefault = true
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -43,6 +46,7 @@ android {
     productFlavors {
         create("github") {
             dimension = "distribution"
+            isDefault = true
 
             val localProperties = Properties()
             val localPropertiesFile = rootProject.file("local.properties")
@@ -53,7 +57,7 @@ android {
             val propGithubRepo = project.findProperty("githubRepo")?.toString()
             val localPropGithubRepo = localProperties.getProperty("githubRepo")
 
-            val githubRepo = envGithubRepo ?: propGithubRepo ?: localPropGithubRepo ?: ""
+            val githubRepo = envGithubRepo ?: propGithubRepo ?: localPropGithubRepo ?: "lwp2070809/speculonic-android"
             val updateCheckEnabled = githubRepo.isNotEmpty()
 
             buildConfigField("boolean", "UPDATE_CHECK_ENABLED", updateCheckEnabled.toString())

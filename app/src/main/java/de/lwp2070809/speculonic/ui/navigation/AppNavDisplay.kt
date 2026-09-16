@@ -230,6 +230,7 @@ fun AppNavDisplay(
             de.lwp2070809.speculonic.ui.screens.settings.AboutSettings(
                 viewModel = settingsViewModel,
                 topBarState = topBarState,
+                isEffectivelyOnline = isEffectivelyOnline,
                 onBackClick = { navigator.goBack() }
             )
         }

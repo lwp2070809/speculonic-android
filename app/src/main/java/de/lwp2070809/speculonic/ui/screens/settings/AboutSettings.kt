@@ -35,9 +35,20 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 
 
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.draw.alpha
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AboutSettings(viewModel: SettingsViewModel, topBarState: TopBarState, onBackClick: () -> Unit) {
+fun AboutSettings(
+    viewModel: SettingsViewModel,
+    topBarState: TopBarState,
+    isEffectivelyOnline: Boolean,
+    onBackClick: () -> Unit
+) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     val title = stringResource(R.string.about)
@@ -86,7 +97,26 @@ fun AboutSettings(viewModel: SettingsViewModel, topBarState: TopBarState, onBack
         
         ListItem(
             headlineContent = { Text(stringResource(R.string.version)) },
-            supportingContent = { Text(versionName) }
+            supportingContent = { Text(versionName) },
+            trailingContent = if (de.lwp2070809.speculonic.BuildConfig.FLAVOR == "github" && de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED) {
+                {
+                    val isChecking = uiState.isCheckingUpdate
+                    TextButton(
+                        onClick = { viewModel.checkForUpdatesManually() },
+                        enabled = !isChecking && isEffectivelyOnline,
+                        modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
+                    ) {
+                        if (isChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text(stringResource(R.string.check_for_updates))
+                        }
+                    }
+                }
+            } else null
         )
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
@@ -159,6 +189,27 @@ fun AboutSettings(viewModel: SettingsViewModel, topBarState: TopBarState, onBack
                     context.startActivity(intent)
                 } catch (e: Exception) {
                     
+                }
+            }
+        )
+    }
+
+    uiState.manualUpdateResult?.let { result ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissManualUpdateDialog() },
+            title = { Text(stringResource(R.string.update_available_title)) },
+            text = { Text(stringResource(R.string.update_available_message, result.version, result.releaseNotes)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.openBrowser(result.url)
+                    viewModel.dismissManualUpdateDialog()
+                }) {
+                    Text(stringResource(R.string.update_now))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissManualUpdateDialog() }) {
+                    Text(stringResource(R.string.update_later))
                 }
             }
         )

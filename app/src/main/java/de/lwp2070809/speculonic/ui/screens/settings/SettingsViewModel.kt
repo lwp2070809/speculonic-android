@@ -56,7 +56,8 @@ class SettingsViewModel @Inject constructor(
     private val testConnectionUseCase: de.lwp2070809.speculonic.domain.usecase.TestConnectionUseCase,
     private val verifyCacheConsistencyUseCase: de.lwp2070809.speculonic.domain.usecase.VerifyCacheConsistencyUseCase,
     private val resolveInconsistencyUseCase: de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase,
-    private val database: de.lwp2070809.speculonic.data.db.AppDatabase
+    private val database: de.lwp2070809.speculonic.data.db.AppDatabase,
+    private val updateManager: de.lwp2070809.speculonic.data.UpdateManager
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -377,6 +378,43 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesManager.saveUpdateCheckInterval(interval)
         }
+    }
+
+    fun checkForUpdatesManually() {
+        if (_uiState.value.isCheckingUpdate) return
+        viewModelScope.launch {
+            _uiState.update { it.copy(isCheckingUpdate = true) }
+            try {
+                when (val result = updateManager.checkForUpdates(manual = true)) {
+                    is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable -> {
+                        _uiState.update { it.copy(manualUpdateResult = result) }
+                    }
+                    is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.NoUpdate -> {
+                        Toast.makeText(context, R.string.update_already_latest, Toast.LENGTH_SHORT).show()
+                    }
+                    is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.NotConfigured -> {
+                        Toast.makeText(context, R.string.update_not_configured, Toast.LENGTH_SHORT).show()
+                    }
+                    is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.Error -> {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.update_check_failed, result.message),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            } finally {
+                _uiState.update { it.copy(isCheckingUpdate = false) }
+            }
+        }
+    }
+
+    fun dismissManualUpdateDialog() {
+        _uiState.update { it.copy(manualUpdateResult = null) }
+    }
+
+    fun openBrowser(url: String) {
+        updateManager.openBrowser(url)
     }
 
     fun updateAllowInsecureConnections(allow: Boolean) {

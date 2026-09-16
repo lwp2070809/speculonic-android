@@ -65,6 +65,8 @@ data class SettingsUiState(
     val allowInsecureConnections: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
     val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED,
+    val isCheckingUpdate: Boolean = false,
+    val manualUpdateResult: de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable? = null,
     val autoOfflineOnMetered: Boolean = false,
     val offlineModeEnabled: Boolean = false,
     val artistsCount: Int = 0,
