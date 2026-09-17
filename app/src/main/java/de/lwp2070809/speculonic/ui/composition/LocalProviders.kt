@@ -7,6 +7,7 @@ import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.playback.PlaybackController
+import de.lwp2070809.speculonic.ui.navigation.Navigator
 
 interface CoverArtRequester {
     fun buildCoverArtRequest(
@@ -44,3 +45,5 @@ val LocalDownloadController = staticCompositionLocalOf<DownloadController> {
 val LocalPlaybackController = staticCompositionLocalOf<PlaybackController> {
     error("No PlaybackController provided")
 }
+
+val LocalNavigator = staticCompositionLocalOf<Navigator?> { null }

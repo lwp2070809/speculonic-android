@@ -79,7 +79,9 @@ import de.lwp2070809.speculonic.data.PlayerBackgroundMode
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
 import de.lwp2070809.speculonic.playback.SleepTimerMode
+import de.lwp2070809.speculonic.ui.composition.LocalNavigator
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
+import de.lwp2070809.speculonic.ui.navigation.AppRoute
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -94,6 +96,7 @@ fun NowPlayingScreen(
     onCollapse: () -> Unit
 ) {
     val playbackController = LocalPlaybackController.current
+    val navigator = LocalNavigator.current
     val playbackState by playbackController.playbackState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     
@@ -196,7 +199,17 @@ fun NowPlayingScreen(
         if (showSongInfo) {
             de.lwp2070809.speculonic.ui.components.SongDetailDialog(
                 song = song,
-                onDismiss = { showSongInfo = false }
+                onDismiss = { showSongInfo = false },
+                onNavigateToAlbum = { albumId ->
+                    showSongInfo = false
+                    onCollapse()
+                    navigator?.navigate(AppRoute.AlbumDetail(albumId))
+                },
+                onNavigateToArtist = { artistId ->
+                    showSongInfo = false
+                    onCollapse()
+                    navigator?.navigate(AppRoute.ArtistDetail(artistId))
+                }
             )
         }
     }

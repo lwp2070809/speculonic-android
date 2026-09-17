@@ -5,6 +5,8 @@ import de.lwp2070809.speculonic.R
 import android.content.Context
 import androidx.core.net.toUri
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
@@ -42,8 +44,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.ui.composition.LocalNavigator
+import de.lwp2070809.speculonic.ui.navigation.AppRoute
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
@@ -56,10 +61,26 @@ import java.security.MessageDigest
 fun SongDetailDialog(
     song: Song,
     onDismiss: () -> Unit,
+    onNavigateToAlbum: ((String) -> Unit)? = null,
+    onNavigateToArtist: ((String) -> Unit)? = null,
     viewModel: SongDetailViewModel = androidx.hilt.navigation.compose.hiltViewModel()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val navigator = LocalNavigator.current
+
+    val handleNavigateToAlbum: ((String) -> Unit)? = onNavigateToAlbum ?: navigator?.let { nav ->
+        { albumId ->
+            onDismiss()
+            nav.navigate(AppRoute.AlbumDetail(albumId))
+        }
+    }
+    val handleNavigateToArtist: ((String) -> Unit)? = onNavigateToArtist ?: navigator?.let { nav ->
+        { artistId ->
+            onDismiss()
+            nav.navigate(AppRoute.ArtistDetail(artistId))
+        }
+    }
 
     val songEntity by viewModel.getSongEntityByIdFlow(song.id).collectAsState(initial = null)
 
@@ -148,7 +169,12 @@ fun SongDetailDialog(
                             .padding(top = 16.dp)
                     ) {
                         when (page) {
-                            0 -> LocalDbTab(songEntity, sha1)
+                            0 -> LocalDbTab(
+                                songEntity = songEntity,
+                                sha1 = sha1,
+                                onAlbumClick = handleNavigateToAlbum,
+                                onArtistClick = handleNavigateToArtist
+                            )
                             1 -> Id3Tab(id3Metadata, songEntity?.isFullyCached == true)
                             2 -> RemoteTab(songEntity, remoteSong, remoteLoading, remoteError)
                         }
@@ -165,18 +191,35 @@ fun SongDetailDialog(
 }
 
 @Composable
-private fun LocalDbTab(songEntity: de.lwp2070809.speculonic.data.db.entities.SongEntity?, sha1: String?) {
+private fun LocalDbTab(
+    songEntity: de.lwp2070809.speculonic.data.db.entities.SongEntity?,
+    sha1: String?,
+    onAlbumClick: ((String) -> Unit)? = null,
+    onArtistClick: ((String) -> Unit)? = null
+) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (songEntity == null) {
             Text(stringResource(R.string.loading_local_data))
             return@Column
         }
-        DetailItem(stringResource(R.string.id), songEntity.id)
         DetailItem(stringResource(R.string.title), songEntity.title)
-        DetailItem(stringResource(R.string.artist), songEntity.artist ?: "-")
-        DetailItem(stringResource(R.string.artist_id), songEntity.artistId ?: "-")
-        DetailItem(stringResource(R.string.album), songEntity.album ?: "-")
-        DetailItem(stringResource(R.string.album_id), songEntity.albumId ?: "-")
+
+        val artistId = songEntity.artistId
+        val hasArtistId = !artistId.isNullOrBlank()
+        DetailItem(
+            label = stringResource(R.string.artist),
+            value = songEntity.artist ?: "-",
+            onClick = if (hasArtistId && onArtistClick != null) { { onArtistClick(artistId) } } else null
+        )
+
+        val albumId = songEntity.albumId
+        val hasAlbumId = !albumId.isNullOrBlank()
+        DetailItem(
+            label = stringResource(R.string.album),
+            value = songEntity.album ?: "-",
+            onClick = if (hasAlbumId && onAlbumClick != null) { { onAlbumClick(albumId) } } else null
+        )
+
         DetailItem(stringResource(R.string.track), songEntity.track?.toString() ?: "-")
         DetailItem(stringResource(R.string.year), songEntity.year?.toString() ?: "-")
         DetailItem(stringResource(R.string.genre), songEntity.genre ?: "-")
@@ -187,6 +230,10 @@ private fun LocalDbTab(songEntity: de.lwp2070809.speculonic.data.db.entities.Son
         DetailItem(stringResource(R.string.path), songEntity.path ?: "-")
         DetailItem(stringResource(R.string.content_type), songEntity.contentType ?: "-")
         DetailItem(stringResource(R.string.starred_status), songEntity.starred.toString())
+
+        DetailItem(stringResource(R.string.id), songEntity.id)
+        DetailItem(stringResource(R.string.artist_id), songEntity.artistId ?: "-")
+        DetailItem(stringResource(R.string.album_id), songEntity.albumId ?: "-")
         
         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
         
@@ -336,8 +383,13 @@ private fun compareSongs(
 }
 
 @Composable
-private fun DetailItem(label: String, value: String) {
-    Column {
+private fun DetailItem(
+    label: String,
+    value: String,
+    onClick: (() -> Unit)? = null
+) {
+    val isClickable = onClick != null
+    Column(modifier = Modifier.fillMaxWidth()) {
         Text(
             text = label,
             style = MaterialTheme.typography.labelMedium,
@@ -346,7 +398,18 @@ private fun DetailItem(label: String, value: String) {
         Text(
             text = value,
             style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            color = if (isClickable) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.onSurface,
+            textDecoration = if (isClickable) TextDecoration.Underline else TextDecoration.None,
+            modifier = if (isClickable) {
+                Modifier.clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+            } else {
+                Modifier
+            }
         )
     }
 }

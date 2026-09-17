@@ -29,6 +29,7 @@ import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
+import de.lwp2070809.speculonic.ui.composition.LocalNavigator
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.MediaItemConverter
 import de.lwp2070809.speculonic.ui.navigation.AppNavDisplay
@@ -197,7 +198,8 @@ private fun MainContent(
         )
     )
 
-    Box(modifier = Modifier.fillMaxSize()) {
+    CompositionLocalProvider(LocalNavigator provides navigator) {
+        Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             modifier = Modifier.fillMaxSize(),
             contentWindowInsets = WindowInsets(0, 0, 0, 0),
@@ -377,5 +379,6 @@ private fun MainContent(
             )
         }
     }
+}
 
 }
