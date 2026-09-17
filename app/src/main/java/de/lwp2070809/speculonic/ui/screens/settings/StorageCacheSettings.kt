@@ -384,94 +384,31 @@ fun StorageCacheSettings(
     }
 
     if (uiState.showClearCacheConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelClearCache() },
-            title = { Text(stringResource(R.string.clear_internal_cache)) },
-            text = { Text(stringResource(R.string.clear_cache_confirm)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.clearCache() }) {
-                    Text(stringResource(R.string.clear), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelClearCache() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+        de.lwp2070809.speculonic.ui.screens.settings.components.ClearCacheConfirmDialog(
+            onConfirm = { viewModel.clearCache() },
+            onDismiss = { viewModel.cancelClearCache() }
         )
     }
 
     if (uiState.showSilentCacheConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelDisableSilentCache() },
-            title = { Text(stringResource(R.string.silent_cache_warning_title)) },
-            text = { Text(stringResource(R.string.silent_cache_warning_message)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmDisableSilentCache() }) {
-                    Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelDisableSilentCache() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+        de.lwp2070809.speculonic.ui.screens.settings.components.SilentCacheConfirmDialog(
+            onConfirm = { viewModel.confirmDisableSilentCache() },
+            onDismiss = { viewModel.cancelDisableSilentCache() }
         )
     }
 
     if (uiState.showMobileSyncConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelMobileSync() },
-            title = { Text(stringResource(R.string.mobile_data_warning)) },
-            text = { Text(stringResource(R.string.mobile_verify_confirm)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.syncWithServer() }) {
-                    Text(stringResource(R.string.verify_anyway))
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelMobileSync() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
+        de.lwp2070809.speculonic.ui.screens.settings.components.MobileSyncConfirmDialog(
+            onConfirm = { viewModel.syncWithServer() },
+            onDismiss = { viewModel.cancelMobileSync() }
         )
     }
 
     if (uiState.isInteractiveScanning) {
-        Dialog(
-            onDismissRequest = {},
-            properties = DialogProperties(dismissOnBackPress = false, dismissOnClickOutside = false)
-        ) {
-            Surface(
-                shape = MaterialTheme.shapes.large,
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 6.dp
-            ) {
-                Column(
-                    modifier = Modifier.padding(24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    CircularProgressIndicator(
-                        progress = { (uiState.interactiveScanProgress.toFloat() / 100f).coerceIn(0f, 1f) },
-                        modifier = Modifier.size(48.dp),
-                        strokeWidth = 4.dp
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.scanning_cache),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = uiState.interactiveScanStatus,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-        }
+        de.lwp2070809.speculonic.ui.screens.settings.components.InteractiveScanningDialog(
+            progress = uiState.interactiveScanProgress,
+            statusText = uiState.interactiveScanStatus
+        )
     }
 
     if (uiState.showInconsistencyDialog) {

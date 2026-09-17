@@ -166,6 +166,7 @@ class SubsonicRepository(
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ) {
+        if (!isConfigured) return
         val hasLocal = hasLocalData()
 
         syncManager.syncAllData(
@@ -296,33 +297,13 @@ class SubsonicRepository(
         ignoreSafetyGuard: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ) {
-        if (!isConfigured) return
-        val hasLocal = hasLocalData()
-        syncManager.syncAllData(
-            serverCapabilities = serverCapabilities,
+        syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
             ignoreSafetyGuard = ignoreSafetyGuard,
-            hasLocalData = hasLocal,
-            onProgress = onProgress,
-            onSyncComplete = { currentTime, serverLastModified ->
-                getStarred(forceRefresh = true)
-                refreshAlbumList("newest")
-                refreshAlbumList("frequent")
-                refreshAlbumList("random")
-                musicDao.deleteOrphanedAlbums()
-                preferencesManager.saveLastSyncTime(currentTime)
-                if (serverLastModified != 0L) {
-                    preferencesManager.saveServerLastModified(serverLastModified)
-                }
-            }
+            keepSyncingState = false,
+            onProgress = onProgress
         )
-        syncAllCoverArt(onProgress = onProgress)
-        preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
-        preloadPlaylistsAndSongs()
-        if (forceRefresh || !hasLocal) {
-            getStarred(forceRefresh = true)
-        }
     }
 
     

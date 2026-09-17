@@ -65,7 +65,7 @@ class PlaybackErrorHandler(
                 error.errorCode == PlaybackException.ERROR_CODE_DECODER_QUERY_FAILED
 
         if (error.cause is NetworkRestrictedException) {
-            de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.emitEvent(de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.NetworkRestricted)
+            de.lwp2070809.speculonic.network.ServerReachableManager.emitEvent(de.lwp2070809.speculonic.network.NetworkEvent.NetworkRestricted)
         }
 
         if (isFormatOrDecoderError) {

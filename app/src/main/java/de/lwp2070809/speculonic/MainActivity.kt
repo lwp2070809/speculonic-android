@@ -174,16 +174,16 @@ class MainActivity : AppCompatActivity() {
 
             LaunchedEffect(Unit) {
                 launch {
-                    de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.networkEventFlow.collect { event ->
-                        val showToast = if (event == de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.ServerOffline) {
+                    de.lwp2070809.speculonic.network.ServerReachableManager.networkEventFlow.collect { event ->
+                        val showToast = if (event == de.lwp2070809.speculonic.network.NetworkEvent.ServerOffline) {
                             preferencesManager.showOfflineToast.first()
                         } else {
                             true
                         }
                         if (showToast) {
                             val messageResId = when (event) {
-                                de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.ServerOffline -> R.string.server_offline_toast
-                                de.lwp2070809.speculonic.di.NetworkModule.NetworkEvent.NetworkRestricted -> R.string.network_restricted_error
+                                de.lwp2070809.speculonic.network.NetworkEvent.ServerOffline -> R.string.server_offline_toast
+                                de.lwp2070809.speculonic.network.NetworkEvent.NetworkRestricted -> R.string.network_restricted_error
                             }
                             android.widget.Toast.makeText(context.applicationContext, messageResId, android.widget.Toast.LENGTH_SHORT).show()
                         }

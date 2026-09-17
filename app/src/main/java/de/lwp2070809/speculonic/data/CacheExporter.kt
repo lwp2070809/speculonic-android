@@ -57,6 +57,83 @@ object CacheExporter {
         }
     }
 
+    private fun sanitizeFileName(name: String): String {
+        return name.replace(Regex("[\\\\/:*?\"<>|]"), "_")
+    }
+
+    private fun resolveExtension(
+        song: Song,
+        targetTranscodeFormat: String?,
+        defaultTranscodeFormat: String?
+    ): String {
+        return if (song.isTranscoded) {
+            targetTranscodeFormat?.lowercase() ?: defaultTranscodeFormat?.lowercase() ?: "mp3"
+        } else {
+            if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+        }
+    }
+
+    private fun buildExportFileName(
+        song: Song,
+        extension: String
+    ): String {
+        val safeTitle = sanitizeFileName(song.title)
+        val safeArtist = sanitizeFileName(song.artist ?: "Unknown Artist")
+        return "$safeArtist - $safeTitle [${song.id}].$extension"
+    }
+
+    private fun getCacheContentLength(
+        cache: androidx.media3.datasource.cache.Cache,
+        songId: String
+    ): Long {
+        val cachedSpans = cache.getCachedSpans(songId)
+        if (cachedSpans.isEmpty()) return -1L
+        val len = ContentMetadata.getContentLength(cache.getContentMetadata(songId))
+        return if (len > 0) len else cachedSpans.sumOf { it.length }
+    }
+
+    private fun streamCacheToOutput(
+        cache: androidx.media3.datasource.cache.Cache,
+        songId: String,
+        contentLength: Long,
+        outputStream: java.io.OutputStream
+    ) {
+        val cacheOnlyDataSource = CacheDataSource(
+            cache,
+            null,
+            FileDataSource(),
+            null,
+            CacheDataSource.FLAG_BLOCK_ON_CACHE,
+            null
+        )
+        val dataSpec = DataSpec.Builder()
+            .setUri(Uri.EMPTY)
+            .setPosition(0)
+            .setLength(contentLength)
+            .setKey(songId)
+            .build()
+
+        DataSourceInputStream(cacheOnlyDataSource, dataSpec).use { input ->
+            input.copyTo(outputStream)
+        }
+    }
+
+    private fun writeLyricsToSaf(
+        context: Context,
+        rootDoc: DocumentFile,
+        finalAudioFileName: String,
+        lyrics: String
+    ) {
+        val lrcFileName = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(finalAudioFileName)
+        val existingLrc = rootDoc.findFile(lrcFileName)
+        val lrcFile = existingLrc ?: rootDoc.createFile("application/octet-stream", lrcFileName)
+        lrcFile?.let {
+            context.contentResolver.openOutputStream(it.uri)?.use { out ->
+                out.write(lyrics.toByteArray())
+            }
+        }
+    }
+
     suspend fun exportToSaf(
         context: Context,
         song: Song,
@@ -66,89 +143,44 @@ object CacheExporter {
         targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val preferencesManager = PreferencesManager.getInstance(context)
-        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext Result.failure(Exception("SAF未配置"))
-        
+        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() }
+            ?: return@withContext Result.failure(Exception("SAF未配置"))
+
         val cache = cacheDataSourceFactory.cache ?: return@withContext Result.failure(Exception("缓存实例缺失"))
-        val cachedSpans = cache.getCachedSpans(song.id)
-        if (cachedSpans.isEmpty()) {
-            LogManager.i("CacheExporter: Song ${song.id} has no cached spans. Skipping export.")
-            return@withContext Result.failure(Exception("缓存文件不完整"))
-        }
-
-        var contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(song.id))
-        if (contentLength <= 0) {
-            contentLength = cachedSpans.sumOf { it.length }
-        }
-
+        val contentLength = getCacheContentLength(cache, song.id)
         if (contentLength <= 0) {
             LogManager.e("CacheExporter: Could not determine content length for ${song.id}")
-            return@withContext Result.failure(Exception("无法获取文件长度"))
+            return@withContext Result.failure(Exception("缓存文件不完整"))
         }
 
         var docFile: DocumentFile? = null
         try {
             val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
-            if (rootDoc == null) {
-                LogManager.e("CacheExporter: Failed to access SAF directory: $targetSafUriString")
-                return@withContext Result.failure(Exception("无法访问目标文件夹"))
-            }
-            
-            val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val suffix = if (song.isTranscoded) {
-                targetTranscodeFormat?.lowercase() ?: preferencesManager.targetTranscodeFormat.first().lowercase()
-            } else {
-                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
-            }
-            val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
-            
+                ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
+
+            val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
+            val finalFileName = buildExportFileName(song, suffix)
+
             val existingFile = rootDoc.findFile(finalFileName)
             val mimeType = de.lwp2070809.speculonic.util.FormatUtils.getMimeTypeFromExtension(suffix)
             docFile = existingFile ?: rootDoc.createFile(mimeType, finalFileName)
-            
+
             if (docFile == null) {
                 LogManager.e("CacheExporter: Could not create file in SAF: $finalFileName")
                 return@withContext Result.failure(Exception("无法创建目标文件"))
             }
 
             LogManager.d("CacheExporter: Streaming ${song.id} directly to SAF: ${docFile.uri}")
-            
-            val cacheOnlyDataSource = CacheDataSource(
-                cache,
-                null,
-                FileDataSource(),
-                null,
-                CacheDataSource.FLAG_BLOCK_ON_CACHE,
-                null
-            )
-
-            val dataSpec = DataSpec.Builder()
-                .setUri(Uri.EMPTY)
-                .setPosition(0)
-                .setLength(contentLength)
-                .setKey(song.id)
-                .build()
-
             context.contentResolver.openOutputStream(docFile.uri)?.use { outputStream ->
-                val inputStream = DataSourceInputStream(cacheOnlyDataSource, dataSpec)
-                inputStream.use { input ->
-                    input.copyTo(outputStream)
-                }
+                streamCacheToOutput(cache, song.id, contentLength, outputStream)
             } ?: throw Exception("Failed to open SAF output stream")
 
             if (!lyrics.isNullOrBlank()) {
-                val lrcFileName = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(finalFileName)
-                val existingLrc = rootDoc.findFile(lrcFileName)
-                val lrcFile = existingLrc ?: rootDoc.createFile("application/octet-stream", lrcFileName)
-                lrcFile?.let {
-                    context.contentResolver.openOutputStream(it.uri)?.use { out ->
-                        out.write(lyrics.toByteArray())
-                    }
-                }
+                writeLyricsToSaf(context, rootDoc, finalFileName, lyrics)
             }
-            
+
             LogManager.i("CacheExporter: Bit-perfect export complete for ${song.id}")
-            return@withContext Result.success(docFile.uri.toString())
+            Result.success(docFile.uri.toString())
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
                 LogManager.e("CacheExporter: Export failed for ${song.id}", e)
@@ -174,17 +206,7 @@ object CacheExporter {
         targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         val cache = cacheDataSourceFactory.cache ?: return@withContext Result.failure(Exception("缓存实例缺失"))
-        val cachedSpans = cache.getCachedSpans(song.id)
-        if (cachedSpans.isEmpty()) {
-            LogManager.i("CacheExporter: Song ${song.id} has no cached spans. Skipping private export.")
-            return@withContext Result.failure(Exception("缓存文件不完整"))
-        }
-
-        var contentLength = ContentMetadata.getContentLength(cache.getContentMetadata(song.id))
-        if (contentLength <= 0) {
-            contentLength = cachedSpans.sumOf { it.length }
-        }
-
+        val contentLength = getCacheContentLength(cache, song.id)
         if (contentLength <= 0) {
             LogManager.e("CacheExporter: Could not determine content length for ${song.id}")
             return@withContext Result.failure(Exception("无法获取文件长度"))
@@ -198,39 +220,14 @@ object CacheExporter {
             }
 
             val preferencesManager = PreferencesManager.getInstance(context)
-            val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val suffix = if (song.isTranscoded) {
-                targetTranscodeFormat?.lowercase() ?: preferencesManager.targetTranscodeFormat.first().lowercase()
-            } else {
-                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
-            }
-            val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
+            val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
+            val finalFileName = buildExportFileName(song, suffix)
             targetFile = File(privateDir, finalFileName)
 
             LogManager.d("CacheExporter: Streaming ${song.id} directly to private storage: ${targetFile.absolutePath}")
 
-            val cacheOnlyDataSource = CacheDataSource(
-                cache,
-                null,
-                FileDataSource(),
-                null,
-                CacheDataSource.FLAG_BLOCK_ON_CACHE,
-                null
-            )
-
-            val dataSpec = DataSpec.Builder()
-                .setUri(Uri.EMPTY)
-                .setPosition(0)
-                .setLength(contentLength)
-                .setKey(song.id)
-                .build()
-
             targetFile.outputStream().use { outputStream ->
-                val inputStream = DataSourceInputStream(cacheOnlyDataSource, dataSpec)
-                inputStream.use { input ->
-                    input.copyTo(outputStream)
-                }
+                streamCacheToOutput(cache, song.id, contentLength, outputStream)
             }
 
             if (!lyrics.isNullOrBlank()) {
@@ -241,7 +238,7 @@ object CacheExporter {
 
             val uriString = targetFile.toURI().toString()
             LogManager.i("CacheExporter: Private export complete for ${song.id}: $uriString")
-            return@withContext Result.success(uriString)
+            Result.success(uriString)
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
                 LogManager.e("CacheExporter: Private export failed for ${song.id}", e)
@@ -264,27 +261,25 @@ object CacheExporter {
         privateFileUriString: String
     ): Result<String> = withContext(Dispatchers.IO) {
         val preferencesManager = PreferencesManager.getInstance(context)
-        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() } ?: return@withContext Result.failure(Exception("SAF未配置"))
+        val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() }
+            ?: return@withContext Result.failure(Exception("SAF未配置"))
 
         var docFile: DocumentFile? = null
         try {
-            val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString) ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
+            val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
+                ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
             val sourceUri = Uri.parse(privateFileUriString)
             val sourceFile = File(sourceUri.path ?: throw Exception("Invalid private file path"))
             if (!sourceFile.exists()) {
                 return@withContext Result.failure(Exception("私有源文件不存在"))
             }
 
-            val safeTitle = song.title.replace(Regex("[\\\\/:*?\"<>|]"), "_")
-            val safeArtist = (song.artist ?: "Unknown Artist").replace(Regex("[\\\\/:*?\"<>|]"), "_")
             val suffix = if (sourceFile.extension.isNotBlank()) {
                 sourceFile.extension.lowercase()
-            } else if (song.isTranscoded) {
-                preferencesManager.targetTranscodeFormat.first().lowercase()
             } else {
-                if (song.suffix.isNullOrBlank()) "mp3" else song.suffix.lowercase()
+                resolveExtension(song, null, preferencesManager.targetTranscodeFormat.first())
             }
-            val finalFileName = "$safeArtist - $safeTitle [${song.id}].$suffix"
+            val finalFileName = buildExportFileName(song, suffix)
 
             val existingFile = rootDoc.findFile(finalFileName)
             
@@ -334,7 +329,7 @@ object CacheExporter {
             }
 
             LogManager.i("CacheExporter: Exported private file to SAF: ${docFile.uri}")
-            return@withContext Result.success(docFile.uri.toString())
+            Result.success(docFile.uri.toString())
         } catch (e: Exception) {
             if (e !is kotlinx.coroutines.CancellationException) {
                 LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
