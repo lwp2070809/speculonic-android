@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.ui
 import de.lwp2070809.speculonic.R
 import androidx.annotation.StringRes
 import androidx.compose.animation.*
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -16,6 +17,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -286,7 +288,11 @@ private fun MainContent(
                 exit = slideOutVertically { it } + fadeOut()
             ) {
                 Surface(
-                    modifier = Modifier.fillMaxSize(),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures { }
+                        },
                     color = MaterialTheme.colorScheme.background
                 ) {
                     SearchScreen(
@@ -313,7 +319,13 @@ private fun MainContent(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.fillMaxSize()
             ) {
-                Box(modifier = Modifier.fillMaxSize()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            detectTapGestures { }
+                        }
+                ) {
                     androidx.activity.compose.BackHandler {
                         showNowPlaying = false
                     }
