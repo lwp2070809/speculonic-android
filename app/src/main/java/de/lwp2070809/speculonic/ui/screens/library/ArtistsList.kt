@@ -2,15 +2,19 @@ package de.lwp2070809.speculonic.ui.screens.library
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.KeyboardArrowDown
@@ -18,6 +22,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.Icon
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -28,7 +33,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -64,7 +68,7 @@ fun ArtistsList(
     onArtistClick: (Artist) -> Unit
 ) {
     val coverRequester = LocalCoverArtRequester.current
-    val listState = rememberLazyListState()
+    val gridState = rememberLazyGridState()
     
     val sortedArtists = remember(artists) {
         artists.sortedBy { it.name.uppercase() }
@@ -94,17 +98,29 @@ fun ArtistsList(
     }
 
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = listState,
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 180.dp),
+            state = gridState,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 64.dp, top = 8.dp, bottom = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            itemsIndexed(flatListItems, key = { index, item ->
-                when (item) {
-                    is ArtistListItem.Header -> "header_${item.char}"
-                    is ArtistListItem.ArtistItem -> "artist_${item.artist.id}"
+            itemsIndexed(
+                items = flatListItems,
+                key = { _, item ->
+                    when (item) {
+                        is ArtistListItem.Header -> "header_${item.char}"
+                        is ArtistListItem.ArtistItem -> "artist_${item.artist.id}"
+                    }
+                },
+                span = { _, item ->
+                    when (item) {
+                        is ArtistListItem.Header -> GridItemSpan(maxLineSpan)
+                        is ArtistListItem.ArtistItem -> GridItemSpan(1)
+                    }
                 }
-            }) { index, item ->
+            ) { _, item ->
                 when (item) {
                     is ArtistListItem.Header -> {
                         ListItem(
@@ -132,46 +148,58 @@ fun ArtistsList(
                                     )
                                 }
                             },
-                            modifier = Modifier.clickable {
-                                collapsedGroups = if (item.isCollapsed) {
-                                    collapsedGroups - item.char
-                                } else {
-                                    collapsedGroups + item.char
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    collapsedGroups = if (item.isCollapsed) {
+                                        collapsedGroups - item.char
+                                    } else {
+                                        collapsedGroups + item.char
+                                    }
                                 }
-                            }
                         )
                     }
                     is ArtistListItem.ArtistItem -> {
                         val artist = item.artist
-                        ListItem(
-                            headlineContent = { Text(artist.name) },
-                            supportingContent = { 
-                                val albumCount = artist.albumCount ?: 0
-                                Text(text = pluralStringResource(R.plurals.albums_count, albumCount, albumCount)) 
-                            },
-                            leadingContent = {
-                                val model = remember(artist.coverArt) {
-                                    coverRequester.buildRequest(artist.coverArt, preferLocal = true)
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerLow,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onArtistClick(artist) }
+                        ) {
+                            ListItem(
+                                headlineContent = { Text(artist.name, maxLines = 1) },
+                                supportingContent = { 
+                                    val albumCount = artist.albumCount ?: 0
+                                    Text(
+                                        text = pluralStringResource(R.plurals.albums_count, albumCount, albumCount),
+                                        maxLines = 1
+                                    ) 
+                                },
+                                leadingContent = {
+                                    val model = remember(artist.coverArt) {
+                                        coverRequester.buildRequest(artist.coverArt, preferLocal = true)
+                                    }
+                                    AsyncImage(
+                                        model = model,
+                                        contentDescription = artist.name,
+                                        modifier = Modifier
+                                            .size(48.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest),
+                                        contentScale = ContentScale.Crop
+                                    )
                                 }
-                                AsyncImage(
-                                    model = model,
-                                    contentDescription = artist.name,
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest),
-                                    contentScale = ContentScale.Crop
-                                )
-                            },
-                            modifier = Modifier.clickable { onArtistClick(artist) }
-                        )
+                            )
+                        }
                     }
                 }
             }
         }
 
         FastScroller(
-            listState = listState,
+            gridState = gridState,
             flatItems = flatListItems,
             modifier = Modifier
                 .align(Alignment.CenterEnd)

@@ -59,4 +59,10 @@ sealed interface AppRoute : NavKey {
         override val isDefaultTopBar: Boolean get() = true
         override val defaultTitleRes: Int? get() = R.string.favorite_albums
     }
+
+    @Serializable
+    data object PlaybackQueue : AppRoute {
+        override val isDefaultTopBar: Boolean get() = true
+        override val defaultTitleRes: Int? get() = R.string.queue
+    }
 }

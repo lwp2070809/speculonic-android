@@ -4,10 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
-import coil3.compose.AsyncImage
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,11 +18,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -37,6 +38,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -49,14 +51,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalIsDualPane
 import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
 
@@ -65,6 +71,7 @@ import de.lwp2070809.speculonic.util.LogManager
 fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
     val uiState by viewModel.uiState.collectAsState()
     var showLogViewer by remember { mutableStateOf(false) }
+    val isDualPane = LocalIsDualPane.current
     val title = stringResource(R.string.advanced)
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
@@ -85,63 +92,106 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(SettingsConstants.PAGE_PADDING).verticalScroll(rememberScrollState())) {
+    // 在内嵌展示第三栏日志面板时，返回键优先关闭日志面板
+    BackHandler(enabled = isDualPane && showLogViewer) {
+        showLogViewer = false
+    }
 
+    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+        val canShowInlineThirdPane = isDualPane && maxWidth >= 580.dp
+        val isInlineLogOpen = canShowInlineThirdPane && showLogViewer
 
-        var expandedLogLevel by remember { mutableStateOf(false) }
-        val logLevels = LogLevel.entries
-
-        ExposedDropdownMenuBox(
-            expanded = expandedLogLevel,
-            onExpandedChange = { expandedLogLevel = !expandedLogLevel },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            OutlinedTextField(
-                value = uiState.logLevel.name,
-                onValueChange = {},
-                readOnly = true,
-                label = { Text(stringResource(R.string.log_level)) },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLogLevel) },
-                colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+        Row(modifier = Modifier.fillMaxSize()) {
+            // 高级设置二级菜单（点击查看日志时调整宽度为 380.dp，为右侧第三栏腾出空间）
+            Column(
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
-            )
-            ExposedDropdownMenu(
-                expanded = expandedLogLevel,
-                onDismissRequest = { expandedLogLevel = false }
-            ) {
-                logLevels.forEach { level ->
-                    DropdownMenuItem(
-                        text = { Text(level.name) },
-                        onClick = {
-                            viewModel.updateLogLevel(level)
-                            expandedLogLevel = false
-                        },
-                        contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                    .then(
+                        if (isInlineLogOpen) Modifier.width(380.dp)
+                        else Modifier.fillMaxWidth()
                     )
+                    .fillMaxHeight()
+                    .background(MaterialTheme.colorScheme.background)
+                    .padding(SettingsConstants.PAGE_PADDING)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                var expandedLogLevel by remember { mutableStateOf(false) }
+                val logLevels = LogLevel.entries
+
+                ExposedDropdownMenuBox(
+                    expanded = expandedLogLevel,
+                    onExpandedChange = { expandedLogLevel = !expandedLogLevel },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    OutlinedTextField(
+                        value = uiState.logLevel.name,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.log_level)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expandedLogLevel) },
+                        colors = ExposedDropdownMenuDefaults.outlinedTextFieldColors(),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable, true)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = expandedLogLevel,
+                        onDismissRequest = { expandedLogLevel = false }
+                    ) {
+                        logLevels.forEach { level ->
+                            DropdownMenuItem(
+                                text = { Text(level.name) },
+                                onClick = {
+                                    viewModel.updateLogLevel(level)
+                                    expandedLogLevel = false
+                                },
+                                contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding
+                            )
+                        }
+                    }
                 }
+
+                Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
+
+                OutlinedButton(
+                    onClick = { showLogViewer = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.view_logs))
+                }
+            }
+
+            // 大屏模式下右侧第三栏：和窄屏模式下完全一致的查看日志界面
+            if (isInlineLogOpen) {
+                VerticalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+                LogViewerPane(
+                    currentLogLevel = uiState.logLevel,
+                    onClose = { showLogViewer = false },
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                )
             }
         }
 
-
-        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
-
-        OutlinedButton(
-            onClick = { showLogViewer = true },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(stringResource(R.string.view_logs))
+        // 窄屏（手机）或空间不足模式下，使用全屏 Dialog 呈现与窄屏完全一致的日志界面
+        if (showLogViewer && !canShowInlineThirdPane) {
+            LogViewerDialog(
+                currentLogLevel = uiState.logLevel,
+                onDismiss = { showLogViewer = false }
+            )
         }
-    }
-
-    if (showLogViewer) {
-        LogViewerDialog(currentLogLevel = uiState.logLevel, onDismiss = { showLogViewer = false })
     }
 }
 
+/**
+ * 统一的查看日志面板组件，在大屏第三栏与窄屏全屏 Dialog 中共享完全一致的 UI 与交互逻辑。
+ */
 @Composable
-fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
+fun LogViewerPane(
+    currentLogLevel: LogLevel,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val logs by LogManager.logs.collectAsState()
     val context = LocalContext.current
     var filterLevel by remember { mutableStateOf<LogLevel?>(null) }
@@ -164,9 +214,8 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
         }
     }
 
-    
     LaunchedEffect(Unit) {
-        LogManager.flushIfDirty() 
+        LogManager.flushIfDirty()
         while (true) {
             kotlinx.coroutines.delay(300)
             LogManager.flushIfDirty()
@@ -177,134 +226,140 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
         if (filterLevel == null) logs else logs.filter { it.level == filterLevel }
     }
 
-    val dialogContent = @Composable {
-        Surface(
-            modifier = Modifier.fillMaxSize(),
-            color = if (isKaguya) Color.Transparent else MaterialTheme.colorScheme.surface
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                if (isKaguya && wallpaperRes != null) {
+    Surface(
+        modifier = modifier,
+        color = if (isKaguya) Color.Transparent else MaterialTheme.colorScheme.surface
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (isKaguya && wallpaperRes != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.White),
+                    contentAlignment = Alignment.BottomCenter
+                ) {
+                    AsyncImage(
+                        model = wallpaperRes,
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop,
+                        alignment = Alignment.BottomCenter
+                    )
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color.White),
-                        contentAlignment = Alignment.BottomCenter
-                    ) {
-                        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                        AsyncImage(
-                            model = wallpaperRes,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .fillMaxWidth(if (isLandscape) 0.35f else 1f)
-                                .fillMaxHeight(),
-                            contentScale = ContentScale.FillWidth,
-                            alignment = Alignment.BottomCenter
-                        )
-                        Box(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .background(
-                                    if (isSystemDark) Color.Black.copy(alpha = 0.6f) 
-                                    else Color.White.copy(alpha = 0.5f)
-                                )
-                        )
-                    }
+                            .background(
+                                if (isSystemDark) Color.Black.copy(alpha = 0.65f)
+                                else Color.White.copy(alpha = 0.55f)
+                            )
+                    )
                 }
+            }
 
-                Column(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(stringResource(R.string.logs), style = MaterialTheme.typography.titleLarge)
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box {
-                                IconButton(onClick = { filterMenuExpanded = true }) {
-                                    Icon(
-                                        androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_filter_list),
-                                        contentDescription = "Filter"
-                                    )
-                                }
-                                DropdownMenu(
-                                    expanded = filterMenuExpanded,
-                                    onDismissRequest = { filterMenuExpanded = false }
-                                ) {
-                                    DropdownMenuItem(
-                                        text = { Text(stringResource(R.string.log_level_all)) },
-                                        onClick = { filterLevel = null; filterMenuExpanded = false }
-                                    )
-                                    LogLevel.entries.forEach { level ->
-                                        DropdownMenuItem(
-                                            text = { Text(level.name) },
-                                            onClick = { filterLevel = level; filterMenuExpanded = false }
-                                        )
-                                    }
-                                }
-                            }
-                            val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
-                            IconButton(onClick = {
-                                val text = LogManager.getAllLogsText()
-                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                val clip = ClipData.newPlainText("Speculonic Logs", text)
-                                clipboard.setPrimaryClip(clip)
-                                Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
-                            }) {
+            Column(modifier = Modifier.fillMaxSize().background(Color.Transparent)) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        stringResource(R.string.logs),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box {
+                            IconButton(onClick = { filterMenuExpanded = true }) {
                                 Icon(
-                                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_content_copy),
-                                    contentDescription = stringResource(R.string.content_description_copy_all)
+                                    painterResource(id = R.drawable.ic_symbol_filter_list),
+                                    contentDescription = "Filter"
                                 )
                             }
-                            TextButton(onClick = { LogManager.clear() }) {
-                                Text(stringResource(R.string.clear_logs))
-                            }
-                            TextButton(onClick = onDismiss) {
-                                Text(stringResource(R.string.close))
+                            DropdownMenu(
+                                expanded = filterMenuExpanded,
+                                onDismissRequest = { filterMenuExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.log_level_all)) },
+                                    onClick = { filterLevel = null; filterMenuExpanded = false }
+                                )
+                                LogLevel.entries.forEach { level ->
+                                    DropdownMenuItem(
+                                        text = { Text(level.name) },
+                                        onClick = { filterLevel = level; filterMenuExpanded = false }
+                                    )
+                                }
                             }
                         }
-                    }
-                    HorizontalDivider()
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize().background(Color.Transparent).padding(horizontal = 8.dp),
-                        contentPadding = PaddingValues(vertical = 8.dp)
-                    ) {
-                        items(filteredLogs) { log ->
-                            val color = when (log.level) {
-                                LogLevel.ERROR -> Color.Red
-                                LogLevel.WARN -> Color(0xFFFFA500) 
-                                LogLevel.INFO -> MaterialTheme.colorScheme.primary
-                                LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
-                                LogLevel.KAGUYA -> MaterialTheme.colorScheme.primary
-                            }
-                            val displayText = if (isKaguya && log.isEasterEgg) {
-                                "[${log.timestamp}] ${log.message}"
-                            } else {
-                                val levelText = if (isKaguya && log.level == LogLevel.INFO) "月見 ヤチヨ" else log.level.name
-                                "[${log.timestamp}] ${levelText}: ${log.message}"
-                            }
-                            Text(
-                                text = displayText,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 12.sp,
-                                color = color,
-                                modifier = Modifier.padding(vertical = 2.dp)
+                        val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
+                        IconButton(onClick = {
+                            val text = LogManager.getAllLogsText()
+                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            val clip = ClipData.newPlainText("Speculonic Logs", text)
+                            clipboard.setPrimaryClip(clip)
+                            Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
+                        }) {
+                            Icon(
+                                painterResource(id = R.drawable.ic_symbol_content_copy),
+                                contentDescription = stringResource(R.string.content_description_copy_all)
                             )
                         }
+                        TextButton(onClick = { LogManager.clear() }) {
+                            Text(stringResource(R.string.clear_logs))
+                        }
+                        TextButton(onClick = onClose) {
+                            Text(stringResource(R.string.close))
+                        }
+                    }
+                }
+                HorizontalDivider()
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Transparent)
+                        .padding(horizontal = 8.dp),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(filteredLogs) { log ->
+                        val color = when (log.level) {
+                            LogLevel.ERROR -> Color.Red
+                            LogLevel.WARN -> Color(0xFFFFA500)
+                            LogLevel.INFO -> MaterialTheme.colorScheme.primary
+                            LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
+                            LogLevel.KAGUYA -> MaterialTheme.colorScheme.primary
+                        }
+                        val displayText = if (isKaguya && log.isEasterEgg) {
+                            "[${log.timestamp}] ${log.message}"
+                        } else {
+                            val levelText = if (isKaguya && log.level == LogLevel.INFO) "月見 ヤチヨ" else log.level.name
+                            "[${log.timestamp}] ${levelText}: ${log.message}"
+                        }
+                        Text(
+                            text = displayText,
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp,
+                            color = color,
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
                     }
                 }
             }
         }
     }
+}
 
+@Composable
+fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
     ) {
-        dialogContent()
+        LogViewerPane(
+            currentLogLevel = currentLogLevel,
+            onClose = onDismiss,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
-
-
-
-

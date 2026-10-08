@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -47,6 +48,38 @@ fun FastScroller(
     flatItems: List<ArtistListItem>,
     modifier: Modifier = Modifier
 ) {
+    FastScrollerInternal(
+        isScrollInProgress = listState.isScrollInProgress,
+        firstVisibleItemIndexProvider = { listState.firstVisibleItemIndex },
+        scrollToItem = { listState.scrollToItem(it) },
+        flatItems = flatItems,
+        modifier = modifier
+    )
+}
+
+@Composable
+fun FastScroller(
+    gridState: LazyGridState,
+    flatItems: List<ArtistListItem>,
+    modifier: Modifier = Modifier
+) {
+    FastScrollerInternal(
+        isScrollInProgress = gridState.isScrollInProgress,
+        firstVisibleItemIndexProvider = { gridState.firstVisibleItemIndex },
+        scrollToItem = { gridState.scrollToItem(it) },
+        flatItems = flatItems,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun FastScrollerInternal(
+    isScrollInProgress: Boolean,
+    firstVisibleItemIndexProvider: () -> Int,
+    scrollToItem: suspend (Int) -> Unit,
+    flatItems: List<ArtistListItem>,
+    modifier: Modifier = Modifier
+) {
     if (flatItems.isEmpty()) return
 
     val coroutineScope = rememberCoroutineScope()
@@ -63,7 +96,6 @@ fun FastScroller(
     val bubbleHeight = 48.dp
     val bubbleHeightPx = remember(density) { with(density) { bubbleHeight.toPx() } }
 
-    
     fun scrollList(y: Float) {
         dragY = y
         val progress = (y / scrollerHeight).coerceIn(0f, 1f)
@@ -77,20 +109,19 @@ fun FastScroller(
         
         scrollJob?.cancel()
         scrollJob = coroutineScope.launch {
-            listState.scrollToItem(targetIndex)
+            scrollToItem(targetIndex)
         }
     }
 
-    
     val thumbAlpha by animateFloatAsState(
-        targetValue = if (isDragging || listState.isScrollInProgress) 0.8f else 0.22f,
+        targetValue = if (isDragging || isScrollInProgress) 0.8f else 0.22f,
         label = "thumbAlpha"
     )
 
     Box(
         modifier = modifier
             .fillMaxHeight()
-            .width(64.dp) 
+            .width(64.dp)
             .onGloballyPositioned { scrollerHeight = it.size.height }
             .pointerInput(flatItems) {
                 awaitEachGesture {
@@ -124,7 +155,6 @@ fun FastScroller(
                 }
             }
     ) {
-        
         Box(
             modifier = Modifier
                 .align(Alignment.CenterEnd)
@@ -134,7 +164,6 @@ fun FastScroller(
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
         )
 
-        
         Box(
             modifier = Modifier
                 .align(Alignment.TopEnd)
@@ -143,7 +172,7 @@ fun FastScroller(
                     val y = if (isDragging) {
                         (dragY - thumbHeightPx / 2).coerceIn(0f, (scrollerHeight - thumbHeightPx).coerceAtLeast(0f))
                     } else {
-                        val firstVisibleItem = listState.firstVisibleItemIndex
+                        val firstVisibleItem = firstVisibleItemIndexProvider()
                         val totalItemsCount = flatItems.size
                         val progress = if (totalItemsCount > 1) firstVisibleItem.toFloat() / (totalItemsCount - 1) else 0f
                         progress * (scrollerHeight - thumbHeightPx).coerceAtLeast(0f)
@@ -157,7 +186,6 @@ fun FastScroller(
                 .background(MaterialTheme.colorScheme.primary)
         )
 
-        
         AnimatedVisibility(
             visible = isDragging && currentLetter.isNotEmpty(),
             enter = fadeIn(),
@@ -165,7 +193,7 @@ fun FastScroller(
             modifier = Modifier
                 .align(Alignment.TopEnd)
                 .wrapContentWidth(unbounded = true)
-                .padding(end = 64.dp) 
+                .padding(end = 64.dp)
                 .offset { 
                     val y = (dragY - bubbleHeightPx / 2).coerceIn(0f, (scrollerHeight - bubbleHeightPx).coerceAtLeast(0f))
                     IntOffset(0, y.toInt()) 
@@ -173,9 +201,8 @@ fun FastScroller(
         ) {
             Box(
                 modifier = Modifier
-                    .requiredWidth(72.dp) 
+                    .requiredWidth(72.dp)
                     .height(bubbleHeight)
-                    
                     .clip(
                         RoundedCornerShape(
                             topStart = 24.dp,

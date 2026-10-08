@@ -81,6 +81,10 @@ class NavigationState(
         }
     }
 
+    fun getCurrentBackStack(): List<NavKey> {
+        return backStacks[topLevelRoute]?.takeIf { it.isNotEmpty() } ?: listOf(topLevelRoute)
+    }
+
     fun getRetainedKeys(): List<NavKey> {
         val inactiveKeys = topLevelRoutes.mapNotNull {
             if (it != topLevelRoute && backStacks.containsKey(it) && backStacks[it]!!.isNotEmpty()) {

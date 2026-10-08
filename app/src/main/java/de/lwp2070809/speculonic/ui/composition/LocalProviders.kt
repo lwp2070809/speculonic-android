@@ -47,3 +47,5 @@ val LocalPlaybackController = staticCompositionLocalOf<PlaybackController> {
 }
 
 val LocalNavigator = staticCompositionLocalOf<Navigator?> { null }
+
+val LocalIsDualPane = staticCompositionLocalOf { false }

@@ -11,10 +11,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -43,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.navigation.AdaptiveNavigationDefaults
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -59,7 +64,8 @@ fun MainTopBar(
     activeDownloadsCount: Int = 0,
     onDownloadManagerClick: () -> Unit = {},
     offlineMode: Boolean,
-    onToggleOfflineMode: () -> Unit
+    onToggleOfflineMode: () -> Unit,
+    isDualPane: Boolean = false
 ) {
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
@@ -69,29 +75,38 @@ fun MainTopBar(
     var showWifiHighlightRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
     var wifiHighlightJob by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
     
-    TopAppBar(
-        title = { 
-            val appName = "Speculo"
-            val titleText = when {
-                isTopLevel -> appName
-                isDefaultTopBarRoute -> {
-                    val titleRes = appRoute.defaultTitleRes
-                    titleRes?.let { stringResource(it) } ?: ""
-                }
-                topBarState.title.isNotEmpty() -> topBarState.title
-                else -> ""
-            }
+    val appName = "Speculo"
+    val titleText = when {
+        isTopLevel -> appName
+        isDefaultTopBarRoute -> {
+            val titleRes = appRoute.defaultTitleRes
+            titleRes?.let { stringResource(it) } ?: ""
+        }
+        topBarState.title.isNotEmpty() -> topBarState.title
+        else -> ""
+    }
 
-            if (titleText.isNotEmpty()) {
-                if (isTopLevel) {
-                    val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                    val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                    val logoSpacing = if (isLandscape) 24.dp else 8.dp
-                    
+    if (isDualPane) {
+        androidx.compose.material3.Surface(
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Row(
+                modifier = Modifier.fillMaxSize(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 左侧半区：对齐 ListPane (固定首选宽度)
+                Row(
+                    modifier = Modifier
+                        .width(AdaptiveNavigationDefaults.ListPanePreferredWidth)
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.Bottom,
-                        horizontalArrangement = Arrangement.spacedBy(logoSpacing)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Text(
                             text = appName,
@@ -147,80 +162,128 @@ fun MainTopBar(
                             )
                         }
 
-                        val translationY = if (activeDownloadsCount > 0) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "download_bounce")
-                            infiniteTransition.animateFloat(
-                                initialValue = -4f,
-                                targetValue = 4f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1000, easing = LinearEasing),
-                                    repeatMode = RepeatMode.Restart
-                                ),
-                                label = "translationY"
-                            )
-                        } else {
-                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-                        }
+                        DownloadBounceIconButton(
+                            activeDownloadsCount = activeDownloadsCount,
+                            onClick = onDownloadManagerClick
+                        )
+                    }
 
-                        val alpha = if (activeDownloadsCount > 0) {
-                            val infiniteTransition = rememberInfiniteTransition(label = "download_fade")
-                            infiniteTransition.animateFloat(
-                                initialValue = 1f,
-                                targetValue = 0f,
-                                animationSpec = infiniteRepeatable(
-                                    animation = tween(1000, easing = LinearEasing),
-                                    repeatMode = RepeatMode.Restart
-                                ),
-                                label = "alpha"
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (topBarState.showSearch) {
+                            IconButton(onClick = onSearchClick) {
+                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                            }
+                        }
+                    }
+                }
+
+                androidx.compose.material3.VerticalDivider(
+                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                )
+
+                // 右侧半区：对齐 DetailPane
+                Row(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                        .padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    val detailTitle = if (isTopLevel) ""
+                    else if (isDefaultTopBarRoute) appRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
+                    else topBarState.title
+
+                    Text(
+                        text = detailTitle,
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!isTopLevel && !isDefaultTopBarRoute) {
+                            topBarState.actions(this)
+                        }
+                    }
+                }
+            }
+        }
+    } else {
+        TopAppBar(
+            title = {
+                if (titleText.isNotEmpty()) {
+                    if (isTopLevel) {
+                        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
+                        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
+                        val logoSpacing = if (isLandscape) 24.dp else 8.dp
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(logoSpacing)
+                        ) {
+                            Text(
+                                text = appName,
+                                fontSize = 30.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
-                        } else {
-                            androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+
+                            var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+                            var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+                            androidx.compose.runtime.LaunchedEffect(isSyncing) {
+                                if (lastSyncingState && !isSyncing) {
+                                showCloudDoneRecent = true
+                                kotlinx.coroutines.delay(5000)
+                                showCloudDoneRecent = false
+                            }
+                            lastSyncingState = isSyncing
                         }
 
                         IconButton(
-                            onClick = onDownloadManagerClick,
+                            onClick = onSyncStatusClick,
                             modifier = Modifier
                                 .align(Alignment.Bottom)
-                                .offset(y = (-1).dp)
                                 .size(34.dp)
                         ) {
-                            Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp)) {
-                                if (activeDownloadsCount > 0) {
-                                    Icon(
-                                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier
-                                            .size(20.dp)
-                                            .graphicsLayer {
-                                                this.translationY = translationY.value * density
-                                                this.alpha = alpha.value
-                                            }
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .padding(bottom = 3.5.dp)
-                                            .size(width = 16.dp, height = 2.dp)
-                                            .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
-                                    )
-                                } else {
-                                    Icon(
-                                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                    Box(
-                                        modifier = Modifier
-                                            .align(Alignment.BottomCenter)
-                                            .padding(bottom = 3.dp)
-                                            .size(width = 16.dp, height = 2.dp)
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), shape = CircleShape)
-                                    )
-                                }
-                            }
+                            CloudSyncIcon(
+                                isSyncing = isSyncing,
+                                showCloudDoneRecent = showCloudDoneRecent,
+                                hasError = syncError != null
+                            )
                         }
+
+                        IconButton(
+                            onClick = {
+                                wifiHighlightJob?.cancel()
+                                wifiHighlightJob = scope.launch {
+                                    showWifiHighlightRecent = true
+                                    onToggleOfflineMode()
+                                    kotlinx.coroutines.delay(3000)
+                                    showWifiHighlightRecent = false
+                                }
+                            },
+                            modifier = Modifier
+                                .align(Alignment.Bottom)
+                                .size(34.dp)
+                        ) {
+                            WifiOfflineIcon(
+                                offlineMode = offlineMode,
+                                isTriggeredRecent = showWifiHighlightRecent
+                            )
+                        }
+
+                        DownloadBounceIconButton(
+                            activeDownloadsCount = activeDownloadsCount,
+                            onClick = onDownloadManagerClick
+                        )
                     }
                 } else {
                     Text(
@@ -260,6 +323,87 @@ fun MainTopBar(
             }
         }
     )
+    }
+}
+
+@Composable
+private fun DownloadBounceIconButton(
+    activeDownloadsCount: Int,
+    onClick: () -> Unit
+) {
+    val translationY = if (activeDownloadsCount > 0) {
+        val infiniteTransition = rememberInfiniteTransition(label = "download_bounce")
+        infiniteTransition.animateFloat(
+            initialValue = -4f,
+            targetValue = 4f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "translationY"
+        )
+    } else {
+        androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+    }
+
+    val alpha = if (activeDownloadsCount > 0) {
+        val infiniteTransition = rememberInfiniteTransition(label = "download_fade")
+        infiniteTransition.animateFloat(
+            initialValue = 1f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1000, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "alpha"
+        )
+    } else {
+        androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+    }
+
+    IconButton(
+        onClick = onClick,
+        modifier = Modifier
+            .offset(y = (-1).dp)
+            .size(34.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp)) {
+            if (activeDownloadsCount > 0) {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer {
+                            this.translationY = translationY.value * density
+                            this.alpha = alpha.value
+                        }
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 3.5.dp)
+                        .size(width = 16.dp, height = 2.dp)
+                        .background(MaterialTheme.colorScheme.primary, shape = CircleShape)
+                )
+            } else {
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
+                    modifier = Modifier.size(20.dp)
+                )
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 3.dp)
+                        .size(width = 16.dp, height = 2.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.4f), shape = CircleShape)
+                )
+            }
+        }
+    }
 }
 
 @Composable

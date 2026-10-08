@@ -2,21 +2,24 @@ package de.lwp2070809.speculonic.ui.screens.library
 
 import android.widget.Toast
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -27,14 +30,11 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,7 +57,6 @@ fun FavoriteList(
     val failedMessage = stringResource(R.string.failed_to_fetch_remote)
 
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isAnyDownloading = remember(activeDownloads, songs) {
@@ -79,35 +78,46 @@ fun FavoriteList(
     }
 
     var lastStarClickTime by remember { mutableLongStateOf(0L) }
+    val isDualPane = de.lwp2070809.speculonic.ui.composition.LocalIsDualPane.current
+    val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
 
     PullToRefreshBox(
         isRefreshing = isLoading,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
-        LazyColumn(
+        LazyVerticalGrid(
+            columns = GridCells.Adaptive(minSize = 340.dp),
             modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
-            contentPadding = PaddingValues(bottom = 80.dp)
+            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 80.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item {
+            item(span = { GridItemSpan(maxLineSpan) }) {
                 Text(
                     text = pluralStringResource(R.plurals.songs_count, songs.size, songs.size),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
                 )
             }
 
             if (songs.isNotEmpty()) {
-                item {
+                item(span = { GridItemSpan(maxLineSpan) }) {
                     ActionButtonsRow(
                         onPlayAll = {
+                            if (isDualPane) {
+                                navigator?.navigate(de.lwp2070809.speculonic.ui.navigation.AppRoute.PlaybackQueue)
+                            }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
                                 playbackController.play(mediaItems, 0, queueTitle = "Favorite")
                             }
                         },
                         onShuffle = {
+                            if (isDualPane) {
+                                navigator?.navigate(de.lwp2070809.speculonic.ui.navigation.AppRoute.PlaybackQueue)
+                            }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
                                 playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = "Favorite")
@@ -134,6 +144,9 @@ fun FavoriteList(
                     isStreamingAllowed = isStreamingAllowed,
                     transcodeIncompatible = transcodeIncompatible,
                     onClick = {
+                        if (isDualPane) {
+                            navigator?.navigate(de.lwp2070809.speculonic.ui.navigation.AppRoute.PlaybackQueue)
+                        }
                         val playIndex = playableSongs.indexOfFirst { it.id == song.id }
                         if (playIndex != -1) {
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }

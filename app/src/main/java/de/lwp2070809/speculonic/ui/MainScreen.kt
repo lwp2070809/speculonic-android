@@ -8,20 +8,23 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.material3.windowsizeclass.WindowWidthSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import android.content.Context
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.window.core.layout.WindowWidthSizeClass
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
-import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.ui.components.MiniPlayer
 import de.lwp2070809.speculonic.ui.components.TopBarState
@@ -59,10 +62,8 @@ fun MainScreen(
     onToggleOfflineMode: () -> Unit
 ) {
     val serverUrl by preferencesManager.serverUrl.collectAsState(initial = preferencesManager.getServerUrlSync())
-    val username by preferencesManager.username.collectAsState(initial = "")
-    val password by preferencesManager.password.collectAsState(initial = "")
 
-    val settingsViewModel: de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel = hiltViewModel()
+    val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
     val isSyncing by settingsViewModel.isSyncing.collectAsState()
 
@@ -94,7 +95,6 @@ fun MainScreen(
         LocalPlaybackController provides stablePlaybackController
     ) {
         MainContent(
-            windowSizeClass = windowSizeClass,
             preferencesManager = preferencesManager,
             isOnline = isOnline,
             isEffectivelyOnline = isEffectivelyOnline,
@@ -111,11 +111,10 @@ fun MainScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi::class)
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun MainContent(
-    windowSizeClass: WindowSizeClass,
     preferencesManager: PreferencesManager,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
@@ -142,7 +141,6 @@ private fun MainContent(
     var showNowPlaying by remember { mutableStateOf(false) }
     var showSearch by remember { mutableStateOf(false) }
     var showSyncDetailDialog by remember { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val topBarState = remember { TopBarState() }
 
     LaunchedEffect(initialShowNowPlaying) {
@@ -159,7 +157,6 @@ private fun MainContent(
         }
     }
 
-    
     val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
     val searchViewModel: SearchViewModel = hiltViewModel(key = "search_$serverUrl")
     val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_$serverUrl")
@@ -172,16 +169,25 @@ private fun MainContent(
     )
     val currentRoute = navigationState.getRetainedKeys().lastOrNull()
 
+    val adaptiveInfo = currentWindowAdaptiveInfo()
+    val isExpanded = adaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.EXPANDED
+    val directive = remember(adaptiveInfo) {
+        androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective(adaptiveInfo)
+    }
+    val isDualPane = directive.maxHorizontalPartitions > 1
 
+    val isNavSuiteVisible = !showSearch && !showNowPlaying
+    val layoutType = if (isNavSuiteVisible) {
+        NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
+    } else {
+        NavigationSuiteType.None
+    }
 
-    val isExpanded = windowSizeClass.widthSizeClass == WindowWidthSizeClass.Expanded
-
-    
     val primaryColor = MaterialTheme.colorScheme.primary
     val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
     val transparentColor = androidx.compose.ui.graphics.Color.Transparent
     
-    val customItemColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.itemColors(
+    val customItemColors = NavigationSuiteDefaults.itemColors(
         navigationBarItemColors = NavigationBarItemDefaults.colors(
             selectedIconColor = primaryColor,
             selectedTextColor = primaryColor,
@@ -200,34 +206,10 @@ private fun MainContent(
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
         Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            contentWindowInsets = WindowInsets(0, 0, 0, 0),
-            topBar = {
-                val activeDownloadsCount = remember(allDownloads) {
-                    allDownloads.count { info ->
-                        !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
-                    }
-                }
-                MainTopBar(
-                    currentRoute = currentRoute,
-                    topBarState = topBarState,
-                    onBackClick = { navigator.goBack() },
-                    onSearchClick = { showSearch = true },
-                    isSyncing = isSyncing,
-                    syncProgress = settingsUiState.syncProgress,
-                    syncError = settingsUiState.syncError,
-                    onSyncStatusClick = { showSyncDetailDialog = true },
-                    activeDownloadsCount = activeDownloadsCount,
-                    onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
-                    offlineMode = offlineMode,
-                    onToggleOfflineMode = onToggleOfflineMode
-                )
-            }
-        ) { innerPadding ->
-            androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold(
-                modifier = Modifier.padding(innerPadding).fillMaxSize(),
-                navigationSuiteColors = androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults.colors(
+            NavigationSuiteScaffold(
+                modifier = Modifier.fillMaxSize(),
+                layoutType = layoutType,
+                navigationSuiteColors = NavigationSuiteDefaults.colors(
                     navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
@@ -244,141 +226,166 @@ private fun MainContent(
                     }
                 }
             ) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    AppNavDisplay(
-                        navigator = navigator,
-                        navigationState = navigationState,
-                        topBarState = topBarState,
+                Scaffold(
+                    modifier = Modifier.fillMaxSize(),
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                    topBar = {
+                        val activeDownloadsCount = remember(allDownloads) {
+                            allDownloads.count { info ->
+                                !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
+                            }
+                        }
+                        MainTopBar(
+                            currentRoute = currentRoute,
+                            topBarState = topBarState,
+                            onBackClick = { navigator.goBack() },
+                            onSearchClick = { showSearch = true },
+                            isSyncing = isSyncing,
+                            syncProgress = settingsUiState.syncProgress,
+                            syncError = settingsUiState.syncError,
+                            onSyncStatusClick = { showSyncDetailDialog = true },
+                            activeDownloadsCount = activeDownloadsCount,
+                            onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
+                            offlineMode = offlineMode,
+                            onToggleOfflineMode = onToggleOfflineMode,
+                            isDualPane = isDualPane
+                        )
+                    }
+                ) { innerPadding ->
+                    Column(
+                        modifier = Modifier
+                            .padding(innerPadding)
+                            .fillMaxSize()
+                    ) {
+                        AppNavDisplay(
+                            navigator = navigator,
+                            navigationState = navigationState,
+                            topBarState = topBarState,
+                            isOnline = isOnline,
+                            isEffectivelyOnline = isEffectivelyOnline,
+                            isStreamingAllowed = isStreamingAllowed,
+                            onShowSearch = { showSearch = true },
+                            settingsViewModel = settingsViewModel,
+                            modifier = Modifier.weight(1f)
+                        )
+                        
+                        MiniPlayer(
+                            onPlayPause = { playbackController.togglePlayPause() },
+                            onSkipPrevious = { playbackController.skipToPrevious() },
+                            onSkipNext = { playbackController.skipToNext() },
+                            onClick = { showNowPlaying = true },
+                            modifier = Modifier.navigationBarsPadding()
+                        )
+                    }
+                }
+            }
+
+            AnimatedVisibility(
+                visible = showSearch,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut()
+            ) {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                    color = MaterialTheme.colorScheme.background
+                ) {
+                    SearchScreen(
+                        viewModel = searchViewModel,
                         isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
                         isStreamingAllowed = isStreamingAllowed,
-                        onShowSearch = { showSearch = true },
-                        settingsViewModel = settingsViewModel,
-                        modifier = Modifier.weight(1f)
-                    )
-                    
-                    MiniPlayer(
-                        onPlayPause = { playbackController.togglePlayPause() },
-                        onSkipPrevious = { playbackController.skipToPrevious() },
-                        onSkipNext = { playbackController.skipToNext() },
-                        onClick = { showNowPlaying = true },
-                        modifier = Modifier.navigationBarsPadding()
+                        onAlbumClick = { albumId ->
+                            navigator.navigate(AppRoute.AlbumDetail(albumId))
+                            showSearch = false
+                        },
+                        onArtistClick = { artistId ->
+                            navigator.navigate(AppRoute.ArtistDetail(artistId))
+                            showSearch = false
+                        },
+                        onClose = { showSearch = false }
                     )
                 }
             }
-        }
 
-        
-        AnimatedVisibility(
-            visible = showSearch,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut()
-        ) {
-            Surface(
-                modifier = Modifier.fillMaxSize(),
-                color = MaterialTheme.colorScheme.background
+            AnimatedVisibility(
+                visible = showNowPlaying,
+                enter = slideInVertically { it } + fadeIn(),
+                exit = slideOutVertically { it } + fadeOut(),
+                modifier = Modifier.fillMaxSize()
             ) {
-                SearchScreen(
-                    viewModel = searchViewModel,
-                    isOnline = isOnline,
-                    isEffectivelyOnline = isEffectivelyOnline,
-                    isStreamingAllowed = isStreamingAllowed,
-                    onAlbumClick = { albumId ->
-                        navigator.navigate(AppRoute.AlbumDetail(albumId))
-                        showSearch = false
-                    },
-                    onArtistClick = { artistId ->
-                        navigator.navigate(AppRoute.ArtistDetail(artistId))
-                        showSearch = false
-                    },
-                    onClose = { showSearch = false }
+                Box(modifier = Modifier.fillMaxSize()) {
+                    androidx.activity.compose.BackHandler {
+                        showNowPlaying = false
+                    }
+                    de.lwp2070809.speculonic.ui.screens.player.NowPlayingScreen(
+                        viewModel = nowPlayingViewModel,
+                        isExpanded = isExpanded,
+                        isEffectivelyOnline = isEffectivelyOnline,
+                        onCollapse = { showNowPlaying = false }
+                    )
+                }
+            }
+
+            if (showSyncDetailDialog) {
+                de.lwp2070809.speculonic.ui.components.SyncDetailDialog(
+                    onDismiss = { showSyncDetailDialog = false },
+                    viewModel = settingsViewModel
                 )
             }
-        }
 
-        
-        AnimatedVisibility(
-            visible = showNowPlaying,
-            enter = slideInVertically { it } + fadeIn(),
-            exit = slideOutVertically { it } + fadeOut(),
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Box(modifier = Modifier.fillMaxSize()) {
-                androidx.activity.compose.BackHandler {
-                    showNowPlaying = false
-                }
-                de.lwp2070809.speculonic.ui.screens.player.NowPlayingScreen(
-                    viewModel = nowPlayingViewModel,
-                    isExpanded = isExpanded,
-                    isEffectivelyOnline = isEffectivelyOnline,
-                    onCollapse = { showNowPlaying = false }
+            if (settingsUiState.showFirstSyncConfirm) {
+                AlertDialog(
+                    onDismissRequest = { settingsViewModel.cancelFirstSync() },
+                    title = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_title)) },
+                    text = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_message)) },
+                    confirmButton = {
+                        TextButton(onClick = { settingsViewModel.performFullSync() }) {
+                            Text(androidx.compose.ui.res.stringResource(R.string.sync_now))
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { settingsViewModel.cancelFirstSync() }) {
+                            Text(androidx.compose.ui.res.stringResource(R.string.sync_later))
+                        }
+                    }
                 )
             }
-        }
 
-        
-        if (showSyncDetailDialog) {
-            de.lwp2070809.speculonic.ui.components.SyncDetailDialog(
-                onDismiss = { showSyncDetailDialog = false },
-                viewModel = settingsViewModel
-            )
-        }
-
-        
-        if (settingsUiState.showFirstSyncConfirm) {
-            AlertDialog(
-                onDismissRequest = { settingsViewModel.cancelFirstSync() },
-                title = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_title)) },
-                text = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_message)) },
-                confirmButton = {
-                    TextButton(onClick = { settingsViewModel.performFullSync() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.sync_now))
+            if (settingsUiState.showSafetyGuardConfirm) {
+                AlertDialog(
+                    onDismissRequest = { settingsViewModel.cancelSafetyGuard() },
+                    title = { Text(androidx.compose.ui.res.stringResource(R.string.safety_guard_title)) },
+                    text = { Text(settingsUiState.safetyGuardMessage ?: androidx.compose.ui.res.stringResource(R.string.safety_guard_message)) },
+                    confirmButton = {
+                        TextButton(onClick = { settingsViewModel.confirmSafetyGuard() }) {
+                            Text(androidx.compose.ui.res.stringResource(R.string.force_sync), color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { settingsViewModel.cancelSafetyGuard() }) {
+                            Text(androidx.compose.ui.res.stringResource(R.string.cancel))
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(onClick = { settingsViewModel.cancelFirstSync() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.sync_later))
+                )
+            }
+            
+            if (showServerSetupDialog) {
+                ServerConfigDialog(
+                    initialUrl = "",
+                    initialUser = "",
+                    initialPass = "",
+                    viewModel = settingsViewModel,
+                    showCancelButton = false,
+                    onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
+                    onSave = { url, user, pass, syncCoverArt ->
+                        settingsViewModel.updateServerUrl(url)
+                        settingsViewModel.updateUsername(user)
+                        settingsViewModel.updatePassword(pass)
+                        settingsViewModel.saveSettings(syncCoverArt)
+                        showServerSetupDialog = false
                     }
-                }
-            )
-        }
-
-        if (settingsUiState.showSafetyGuardConfirm) {
-            AlertDialog(
-                onDismissRequest = { settingsViewModel.cancelSafetyGuard() },
-                title = { Text(androidx.compose.ui.res.stringResource(R.string.safety_guard_title)) },
-                text = { Text(settingsUiState.safetyGuardMessage ?: androidx.compose.ui.res.stringResource(R.string.safety_guard_message)) },
-                confirmButton = {
-                    TextButton(onClick = { settingsViewModel.confirmSafetyGuard() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.force_sync), color = MaterialTheme.colorScheme.error)
-                    }
-                },
-                dismissButton = {
-                    TextButton(onClick = { settingsViewModel.cancelSafetyGuard() }) {
-                        Text(androidx.compose.ui.res.stringResource(R.string.cancel))
-                    }
-                }
-            )
-        }
-        
-        if (showServerSetupDialog) {
-            ServerConfigDialog(
-                initialUrl = "",
-                initialUser = "",
-                initialPass = "",
-                viewModel = settingsViewModel,
-                showCancelButton = false,
-                onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
-                onSave = { url, user, pass, syncCoverArt ->
-                    settingsViewModel.updateServerUrl(url)
-                    settingsViewModel.updateUsername(user)
-                    settingsViewModel.updatePassword(pass)
-                    settingsViewModel.saveSettings(syncCoverArt)
-                    showServerSetupDialog = false
-                }
-            )
+                )
+            }
         }
     }
-}
-
 }

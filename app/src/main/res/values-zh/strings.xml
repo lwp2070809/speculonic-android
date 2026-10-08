@@ -362,4 +362,11 @@
     <string name="format_opus">Opus</string>
     <string name="incompatible_downloaded_hint">已下载文件为不支持的原始格式(%1$s)，请删除下载后重新转码缓存</string>
     <string name="clear_cache_failed">清理缓存失败: %1$s</string>
+    <string name="placeholder_settings_title">选择设置项</string>
+    <string name="placeholder_settings_subtitle">从左侧面板选择要查看或修改的设置选项</string>
+    <string name="placeholder_detail_title">选择内容查看</string>
+    <string name="placeholder_detail_subtitle">从左侧选择专辑、歌手或歌单查看详细信息</string>
+    <string name="log_control_panel">日志控制面板</string>
+    <string name="log_filter_settings">过滤与设置</string>
+    <string name="total_logs_count">日志总数: %1$d</string>
 </resources>

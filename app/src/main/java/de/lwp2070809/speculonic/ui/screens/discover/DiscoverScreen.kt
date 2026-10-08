@@ -36,7 +36,10 @@ import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalIsDualPane
+import de.lwp2070809.speculonic.ui.composition.LocalNavigator
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
+import de.lwp2070809.speculonic.ui.navigation.AppRoute
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -55,6 +58,8 @@ fun DiscoverScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val playbackController = LocalPlaybackController.current
+    val isDualPane = LocalIsDualPane.current
+    val navigator = LocalNavigator.current
     val context = LocalContext.current
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
     val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
@@ -194,6 +199,9 @@ fun DiscoverScreen(
                             isStreamingAllowed = isStreamingAllowed,
                             transcodeIncompatible = transcodeIncompatible,
                             onSongClick = { song ->
+                                if (isDualPane) {
+                                    navigator?.navigate(AppRoute.PlaybackQueue)
+                                }
                                 viewModel.playFavoriteSong(song)
                             },
                             onStarClick = { songId, star ->

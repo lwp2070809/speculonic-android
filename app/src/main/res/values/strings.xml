@@ -365,4 +365,11 @@
     <string name="format_opus">Opus</string>
     <string name="incompatible_downloaded_hint">The downloaded file is in an unsupported raw format (%1$s). Please delete the download to re-cache via transcoding.</string>
     <string name="clear_cache_failed">Failed to clear cache: %1$s</string>
+    <string name="placeholder_settings_title">Select a setting</string>
+    <string name="placeholder_settings_subtitle">Choose an item from the left panel to configure options</string>
+    <string name="placeholder_detail_title">Select an item</string>
+    <string name="placeholder_detail_subtitle">Choose an album, artist, or playlist to view details</string>
+    <string name="log_control_panel">Log Control Panel</string>
+    <string name="log_filter_settings">Filter &amp; Settings</string>
+    <string name="total_logs_count">Total Logs: %1$d</string>
 </resources>

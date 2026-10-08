@@ -31,7 +31,12 @@ fun QueueView(
     queue: List<MediaItem>,
     currentIndex: Int,
     onItemClick: (Int) -> Unit,
-    onRemoveItem: (Int) -> Unit
+    onRemoveItem: (Int) -> Unit,
+    modifier: Modifier = Modifier
+        .fillMaxWidth()
+        .fillMaxHeight(0.8f)
+        .padding(16.dp),
+    showTitle: Boolean = true
 ) {
     val listState = rememberLazyListState()
 
@@ -41,18 +46,15 @@ fun QueueView(
         }
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .fillMaxHeight(0.8f)
-            .padding(16.dp)
-    ) {
-        Text(
-            text = stringResource(R.string.queue),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+    Column(modifier = modifier) {
+        if (showTitle) {
+            Text(
+                text = stringResource(R.string.queue),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier.padding(bottom = 16.dp)
+            )
+        }
         
         LazyColumn(
             state = listState,
