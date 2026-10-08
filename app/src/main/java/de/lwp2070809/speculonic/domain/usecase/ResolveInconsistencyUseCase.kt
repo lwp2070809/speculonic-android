@@ -22,7 +22,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
 
             val deletePhysicalFile: (String) -> Boolean = { uriString ->
                 try {
-                    val uri = android.net.Uri.parse(uriString)
+                    val uri = uriString.toUri()
                     if (uri.scheme == "file") {
                         val path = uri.path
                         path != null && java.io.File(path).delete()

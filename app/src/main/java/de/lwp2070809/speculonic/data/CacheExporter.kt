@@ -268,7 +268,7 @@ object CacheExporter {
         try {
             val rootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
                 ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
-            val sourceUri = Uri.parse(privateFileUriString)
+            val sourceUri = privateFileUriString.toUri()
             val sourceFile = File(sourceUri.path ?: throw Exception("Invalid private file path"))
             if (!sourceFile.exists()) {
                 return@withContext Result.failure(Exception("私有源文件不存在"))

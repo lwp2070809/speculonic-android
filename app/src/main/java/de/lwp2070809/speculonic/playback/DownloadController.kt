@@ -70,7 +70,7 @@ class DownloadController @Inject constructor(
         val streamUrl = repository.buildDownloadUrl(song.id, song.suffix)
         val isTranscodedDownload = streamUrl.contains("format=") && !streamUrl.contains("format=raw")
         val targetFormat = if (isTranscodedDownload) {
-            android.net.Uri.parse(streamUrl).getQueryParameter("format")?.lowercase()
+            streamUrl.toUri().getQueryParameter("format")?.lowercase()
         } else null
         LogManager.d("DownloadController: Requesting download for ${song.title} (ID: ${song.id}, Silent: $isSilent, Transcoded: $isTranscodedDownload, TargetFormat: $targetFormat)")
         

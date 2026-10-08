@@ -36,7 +36,10 @@ object LogManager {
 
     private val easterEggs: List<EasterEggGroup> by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         try {
-            val jsonText = de.lwp2070809.speculonic.SpeculonicApp.instance.assets.open("easter_eggs.json").bufferedReader().use { it.readText() }
+            val jsonText = de.lwp2070809.speculonic.SpeculonicApp.instance
+                .assets.open("easter_eggs.json")
+                .bufferedReader()
+                .use { it.readText() }
             val array = org.json.JSONArray(jsonText)
             val list = mutableListOf<EasterEggGroup>()
             for (i in 0 until array.length()) {

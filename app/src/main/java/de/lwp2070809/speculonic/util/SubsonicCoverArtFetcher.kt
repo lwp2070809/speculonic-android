@@ -56,8 +56,9 @@ class SubsonicCoverArtFetcher(
             )
         }
 
-        
-        LogManager.d("SubsonicCoverArtFetcher: Both cache and local ID3 missed, preparing remote cover request via network fetcher (ID: $id)")
+        LogManager.d(
+            "SubsonicCoverArtFetcher: Both cache and local ID3 missed, preparing remote cover request (ID: $id)"
+        )
         return null
     }
 

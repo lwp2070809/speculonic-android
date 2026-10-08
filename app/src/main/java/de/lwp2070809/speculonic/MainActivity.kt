@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.net.toUri
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
 import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
@@ -250,7 +251,7 @@ class MainActivity : AppCompatActivity() {
                         val cleaned = uriStr.replace(BT_SYNC_TS_REGEX, "").let {
                             if (it.contains("?") || !it.contains("&")) it else it.replaceFirst("&", "?")
                         }
-                        android.net.Uri.parse(cleaned)
+                        cleaned.toUri()
                     } else {
                         uri
                     }

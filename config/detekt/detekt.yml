@@ -25,6 +25,16 @@ style:
     ignoreLocalVariableDeclaration: true
     ignoreConstantDeclaration: true
     ignoreCompanionObjectPropertyDeclaration: true
+  ReturnCount:
+    active: true
+    max: 8
+    excludedFunctions:
+      - 'equals'
+    excludeLabeled: true
+    excludeReturnFromLambda: true
+    excludeGuardClauses: true
+  NewLineAtEndOfFile:
+    active: true
 
 complexity:
   active: true

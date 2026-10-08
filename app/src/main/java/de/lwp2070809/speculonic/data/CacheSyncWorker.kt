@@ -135,13 +135,13 @@ class CacheSyncWorker @AssistedInject constructor(
                         globalSemaphore.withPermit {
                             val physicalExists = if (isSafEnabled && song.localUri != null) {
                                 if (song.localUri.startsWith("file:")) {
-                                    val path = Uri.parse(song.localUri).path
+                                    val path = song.localUri.toUri().path
                                     path != null && File(path).exists()
                                 } else {
                                     existingSafSongIds.contains(song.id)
                                 }
                             } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
-                                val path = Uri.parse(song.localUri).path
+                                val path = song.localUri.toUri().path
                                 path != null && File(path).exists()
                             } else {
                                 downloadCache.keys.contains(song.id)
@@ -150,7 +150,7 @@ class CacheSyncWorker @AssistedInject constructor(
                             var needsRedownload = !physicalExists
                             
                             if (physicalExists && isDeepSync && song.localUri != null) {
-                                if (!validator.checkBinaryConsistency(Uri.parse(song.localUri), song, deepCheck = true)) {
+                                if (!validator.checkBinaryConsistency(song.localUri.toUri(), song, deepCheck = true)) {
                                     LogManager.i("CacheSync: Binary inconsistency detected for ${song.title}. Flagging for redownload.")
                                     needsRedownload = true
                                 }
@@ -320,7 +320,7 @@ class CacheSyncWorker @AssistedInject constructor(
 
                 if (oldLocalUri != null && oldLocalUri.startsWith("file:")) {
                     try {
-                        val path = Uri.parse(oldLocalUri).path
+                        val path = oldLocalUri.toUri().path
                         if (path != null) {
                             val file = File(path)
                             if (file.exists()) {
@@ -360,7 +360,7 @@ class CacheSyncWorker @AssistedInject constructor(
             val validPrivatePaths = musicDao.getAllCachedSongs()
                 .mapNotNull { it.localUri }
                 .filter { it.startsWith("file:") }
-                .mapNotNull { Uri.parse(it).path }
+                .mapNotNull { it.toUri().path }
                 .toSet()
                 
             privateExportedDir.listFiles()?.forEach { file ->

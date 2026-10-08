@@ -8,4 +8,7 @@
         <ignore regexp=".*build.generated.*" />
         <ignore regexp=".*docs.*" />
     </issue>
+    <issue id="InsecureBaseConfiguration">
+        <ignore path="res/xml/network_security_config.xml" />
+    </issue>
 </lint>

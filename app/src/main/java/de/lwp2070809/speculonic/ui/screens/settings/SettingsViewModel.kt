@@ -509,7 +509,7 @@ class SettingsViewModel @Inject constructor(
             if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {
                 if (url.isNotEmpty()) {
 
-                    performFullSync(isForced = true, isFromServerSave = true, syncCoverArt = syncCoverArt)
+                    performFullSync(isForced = true, syncCoverArt = syncCoverArt)
                 }
             }
             _uiState.value = _uiState.value.copy(isSaving = false)
@@ -552,7 +552,11 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun performFullSync(ignoreSafetyGuard: Boolean = false, isForced: Boolean = false, isFromServerSave: Boolean = false, syncCoverArt: Boolean = false) {
+    fun performFullSync(
+        ignoreSafetyGuard: Boolean = false,
+        isForced: Boolean = false,
+        syncCoverArt: Boolean = false
+    ) {
         _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false)
         viewModelScope.launch(Dispatchers.IO) {
             val shouldSyncCovers = repository.isConfigured && 
@@ -710,7 +714,11 @@ class SettingsViewModel @Inject constructor(
 
     fun resolveInconsistentItem(item: InconsistentItem, action: String) {
         viewModelScope.launch {
-            val useCaseAction = if (action == "DELETE") de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase.Action.DELETE else de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase.Action.REDOWNLOAD
+            val useCaseAction = if (action == "DELETE") {
+                de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase.Action.DELETE
+            } else {
+                de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase.Action.REDOWNLOAD
+            }
             val result = resolveInconsistencyUseCase(item, useCaseAction)
             if (result.isSuccess) {
                 _uiState.value = _uiState.value.copy(
@@ -721,7 +729,11 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun scanLocalFiles() {
-        _uiState.value = _uiState.value.copy(isScanning = true, syncPercentage = 0, syncProgress = context.getString(de.lwp2070809.speculonic.R.string.stop_and_scan))
+        _uiState.value = _uiState.value.copy(
+            isScanning = true,
+            syncPercentage = 0,
+            syncProgress = context.getString(de.lwp2070809.speculonic.R.string.stop_and_scan)
+        )
         if (_uiState.value.isPlaying) playbackController.togglePlayPause()
         
         CacheSyncWorker.runOnce(context, forceScan = true, healCovers = false)
@@ -828,14 +840,22 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setLanguage(languageCode: String) {
-        val appLocale = if (languageCode == "system") LocaleListCompat.getEmptyLocaleList() else LocaleListCompat.forLanguageTags(languageCode)
+        val appLocale = if (languageCode == "system") {
+            LocaleListCompat.getEmptyLocaleList()
+        } else {
+            LocaleListCompat.forLanguageTags(languageCode)
+        }
         AppCompatDelegate.setApplicationLocales(appLocale)
         _uiState.value = _uiState.value.copy(language = getLanguageLabel(languageCode))
     }
 
     private fun getCurrentLanguageLabel(): String {
         val currentLocales = AppCompatDelegate.getApplicationLocales()
-        return if (!currentLocales.isEmpty) getLanguageLabel(currentLocales.get(0)?.toLanguageTag() ?: "system") else "System"
+        return if (!currentLocales.isEmpty) {
+            getLanguageLabel(currentLocales.get(0)?.toLanguageTag() ?: "system")
+        } else {
+            "System"
+        }
     }
 
     private fun getLanguageLabel(code: String): String = when {

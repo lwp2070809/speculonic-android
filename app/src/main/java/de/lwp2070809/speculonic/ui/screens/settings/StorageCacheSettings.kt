@@ -174,7 +174,11 @@ fun StorageCacheSettings(
                 onClearPlaybackClick = { viewModel.clearPlaybackCache() },
                 onClearCoverArtClick = { viewModel.clearCoverArtCache() },
                 onClearSongsClick = { viewModel.clearSongDownloads() },
-                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, top = SettingsConstants.PAGE_PADDING)
+                modifier = Modifier.padding(
+                    start = SettingsConstants.PAGE_PADDING,
+                    end = SettingsConstants.PAGE_PADDING,
+                    top = SettingsConstants.PAGE_PADDING
+                )
             )
 
             Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_EXTRA_LARGE))
@@ -183,7 +187,11 @@ fun StorageCacheSettings(
                 text = stringResource(R.string.playback_cache),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+                modifier = Modifier.padding(
+                    start = SettingsConstants.PAGE_PADDING,
+                    end = SettingsConstants.PAGE_PADDING,
+                    bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM
+                )
             )
 
             var expandedCacheSize by remember { mutableStateOf(false) }
@@ -259,7 +267,11 @@ fun StorageCacheSettings(
                 text = stringResource(R.string.persistent_storage),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+                modifier = Modifier.padding(
+                    start = SettingsConstants.PAGE_PADDING,
+                    end = SettingsConstants.PAGE_PADDING,
+                    bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM
+                )
             )
 
             ListItem(
@@ -279,7 +291,11 @@ fun StorageCacheSettings(
                     Row {
                         if (uiState.cacheLocation.isNotEmpty()) {
                             IconButton(onClick = { viewModel.updateCacheLocation("") }) {
-                                Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.reset), tint = MaterialTheme.colorScheme.error)
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = stringResource(R.string.reset),
+                                    tint = MaterialTheme.colorScheme.error
+                                )
                             }
                         }
                         IconButton(onClick = { directoryLauncher.launch(null) }) {
@@ -306,7 +322,11 @@ fun StorageCacheSettings(
                 text = stringResource(R.string.maintenance_tools),
                 style = MaterialTheme.typography.titleSmall,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM)
+                modifier = Modifier.padding(
+                    start = SettingsConstants.PAGE_PADDING,
+                    end = SettingsConstants.PAGE_PADDING,
+                    bottom = SettingsConstants.SPACER_HEIGHT_MEDIUM
+                )
             )
 
             if (uiState.cacheLocation.isNotEmpty()) {
@@ -361,8 +381,13 @@ fun StorageCacheSettings(
                     }
                 },
                 leadingContent = {
+                    val syncPainter = if (uiState.isSyncing) {
+                        androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Refresh)
+                    } else {
+                        androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync)
+                    }
                     Icon(
-                        painter = if (uiState.isSyncing) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Refresh) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+                        painter = syncPainter,
                         contentDescription = null,
                         modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
                     )

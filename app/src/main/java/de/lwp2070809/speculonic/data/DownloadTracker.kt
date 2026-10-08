@@ -278,7 +278,7 @@ object DownloadTracker {
                 val songEntity = db.musicDao().getSongById(download.request.id)
                 var keepCacheStatus = false
                 if (!isExplicitlyDeleted && songEntity?.localUri != null && songEntity.isFullyCached) {
-                    val uri = android.net.Uri.parse(songEntity.localUri)
+                    val uri = songEntity.localUri.toUri()
                     val exists = if (songEntity.localUri.startsWith("file:")) {
                         val path = uri.path
                         path != null && java.io.File(path).exists()

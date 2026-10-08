@@ -52,7 +52,7 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                             try { androidx.documentfile.provider.DocumentFile.fromSingleUri(context, song.localUri.toUri())?.exists() == true } catch(e: Exception) { false }
                         } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
                             try {
-                                val path = android.net.Uri.parse(song.localUri).path
+                                val path = song.localUri.toUri().path
                                 path != null && java.io.File(path).exists()
                             } catch (e: Exception) { false }
                         } else {
