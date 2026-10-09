@@ -23,6 +23,8 @@ import de.lwp2070809.speculonic.util.SubsonicCoverArtFetcher
 import de.lwp2070809.speculonic.util.SubsonicCoverArtKeyer
 import de.lwp2070809.speculonic.util.SubsonicCoverArtStringKeyer
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.LogTag
 import javax.inject.Inject
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
@@ -50,10 +52,14 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
     override fun onCreate() {
         super.onCreate()
         instance = this
-        
+        LogManager.setupCrashHandler(this)
         
         val prefsManager = PreferencesManager.getInstance(this)
         val trustAll = prefsManager.getAllowInsecureConnectionsSync()
+        LogManager.i(
+            LogTag.APP,
+            "SpeculonicApp: Cold start initialized (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
+        )
         if (trustAll) {
             NetworkModule.rebuildClientIfNeeded(true)
         }

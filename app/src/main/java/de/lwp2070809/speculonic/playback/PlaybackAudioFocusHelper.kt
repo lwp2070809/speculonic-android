@@ -5,6 +5,8 @@ import android.media.AudioAttributes
 import android.media.AudioFocusRequest
 import android.media.AudioManager
 import androidx.media3.common.Player
+import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.LogTag
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 class PlaybackAudioFocusHelper(
@@ -43,7 +45,16 @@ class PlaybackAudioFocusHelper(
         } else {
             player
         }
-        
+
+        val changeStr = when (focusChange) {
+            AudioManager.AUDIOFOCUS_LOSS -> "AUDIOFOCUS_LOSS"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT -> "AUDIOFOCUS_LOSS_TRANSIENT"
+            AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK -> "AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK"
+            AudioManager.AUDIOFOCUS_GAIN -> "AUDIOFOCUS_GAIN"
+            else -> "FOCUS_$focusChange"
+        }
+        LogManager.i(LogTag.PLAYBACK, "AudioFocus change received -> $changeStr")
+
         when (focusChange) {
             AudioManager.AUDIOFOCUS_LOSS -> {
                 if (pauseOnAudioFocusLoss) {
@@ -123,12 +134,16 @@ class PlaybackAudioFocusHelper(
                 .setOnAudioFocusChangeListener(audioFocusChangeListener)
                 .build()
         }
-        return audioManager.requestAudioFocus(focusRequest!!)
+        val result = audioManager.requestAudioFocus(focusRequest!!)
+        val resultStr = if (result == AudioManager.AUDIOFOCUS_REQUEST_GRANTED) "GRANTED" else "FAILED($result)"
+        LogManager.i(LogTag.PLAYBACK, "AudioFocus requested -> $resultStr")
+        return result
     }
 
     fun abandonAudioFocus() {
         focusRequest?.let {
-            audioManager.abandonAudioFocusRequest(it)
+            val result = audioManager.abandonAudioFocusRequest(it)
+            LogManager.i(LogTag.PLAYBACK, "AudioFocus abandoned (result=$result)")
         }
     }
 }

@@ -369,4 +369,13 @@
     <string name="log_control_panel">日志控制面板</string>
     <string name="log_filter_settings">过滤与设置</string>
     <string name="total_logs_count">日志总数: %1$d</string>
+    <string name="share_logs">分享日志</string>
+    <string name="log_tag_all">全部模块</string>
+    <string name="log_tag_playback">播放引擎</string>
+    <string name="log_tag_network">网络通信</string>
+    <string name="log_tag_sync">数据同步</string>
+    <string name="log_tag_cache">缓存下载</string>
+    <string name="log_tag_app">应用系统</string>
+    <string name="export_logs_failed">导出日志失败: %1$s</string>
+    <string name="more_options">更多选项</string>
 </resources>

@@ -372,4 +372,13 @@
     <string name="log_control_panel">Log Control Panel</string>
     <string name="log_filter_settings">Filter &amp; Settings</string>
     <string name="total_logs_count">Total Logs: %1$d</string>
+    <string name="share_logs">Share Logs</string>
+    <string name="log_tag_all">All Modules</string>
+    <string name="log_tag_playback">Playback</string>
+    <string name="log_tag_network">Network</string>
+    <string name="log_tag_sync">Sync</string>
+    <string name="log_tag_cache">Cache &amp; Download</string>
+    <string name="log_tag_app">System &amp; App</string>
+    <string name="export_logs_failed">Failed to export logs: %1$s</string>
+    <string name="more_options">More options</string>
 </resources>

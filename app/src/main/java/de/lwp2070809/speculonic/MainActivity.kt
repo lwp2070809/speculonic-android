@@ -108,15 +108,14 @@ class MainActivity : AppCompatActivity() {
 
             LaunchedEffect(offlineMode) {
                 de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offlineMode
+                LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Offline mode state updated -> $offlineMode")
             }
 
             LaunchedEffect(isMetered, autoOffline) {
                 if (autoOffline) {
-                    if (isMetered) {
-                        preferencesManager.saveOfflineModeEnabled(true)
-                    } else {
-                        preferencesManager.saveOfflineModeEnabled(false)
-                    }
+                    val targetOffline = isMetered
+                    LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Auto-offline triggered (isMetered=$isMetered) -> offlineMode=$targetOffline")
+                    preferencesManager.saveOfflineModeEnabled(targetOffline)
                 }
             }
 

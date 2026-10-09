@@ -32,6 +32,10 @@ class PlaybackSleepTimerManager(
         songsPlayedSinceTimerStarted = 0
         val session = mediaSessionProvider()
         timerLastMediaId = session?.player?.currentMediaItem?.mediaId
+        de.lwp2070809.speculonic.util.LogManager.i(
+            de.lwp2070809.speculonic.util.LogTag.PLAYBACK,
+            "Sleep timer configured -> mode=$mode, minutes=$minutes, songCount=$songCount"
+        )
 
         when (mode) {
             "OFF" -> {
@@ -78,6 +82,7 @@ class PlaybackSleepTimerManager(
         sleepTimerDeadlineRealtime = 0L
         sleepTimerSongsRemaining = 0
         songsPlayedSinceTimerStarted = 0
+        de.lwp2070809.speculonic.util.LogManager.i(de.lwp2070809.speculonic.util.LogTag.PLAYBACK, "Sleep timer cancelled")
         broadcastSleepTimerState()
     }
 

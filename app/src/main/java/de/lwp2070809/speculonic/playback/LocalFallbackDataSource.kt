@@ -47,15 +47,28 @@ class LocalFallbackDataSource(
                     }
                     val bytesRead = dataSource.open(targetDataSpec)
                     activeDataSource = dataSource
-                    LogManager.d("LocalFallbackDataSource: Successfully opened local file for $songId: $localUri")
+                    val storageType = if (localUri.startsWith("content://")) "SAF" else "Private"
+                    de.lwp2070809.speculonic.util.LogManager.i(
+                        de.lwp2070809.speculonic.util.LogTag.CACHE,
+                        "Playback source: Matched $storageType file for songId=$songId: $localUri"
+                    )
                     return bytesRead
                 } catch (e: Exception) {
-                    LogManager.w("LocalFallbackDataSource: Failed to open local file for $songId, falling back to network. Error: ${e.message}")
+                    de.lwp2070809.speculonic.util.LogManager.w(
+                        de.lwp2070809.speculonic.util.LogTag.CACHE,
+                        "Playback source: Failed to open local file for songId=$songId, falling back. Error: ${e.message}"
+                    )
                 }
             }
         }
 
         activeDataSource = upstream
+        if (songId != null) {
+            de.lwp2070809.speculonic.util.LogManager.i(
+                de.lwp2070809.speculonic.util.LogTag.CACHE,
+                "Playback source: Upstream cache/network for songId=$songId"
+            )
+        }
         return upstream.open(dataSpec)
     }
 

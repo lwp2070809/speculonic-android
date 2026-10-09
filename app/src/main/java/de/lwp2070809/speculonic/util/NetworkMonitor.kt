@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 
@@ -83,6 +84,10 @@ class ConnectivityManagerNetworkMonitor(
         }
     }
     .distinctUntilChanged()
+    .onEach { status ->
+        val typeStr = if (status.isMetered) "Metered (Cellular)" else "Unmetered (Wi-Fi/LAN)"
+        LogManager.i(LogTag.NETWORK, "Network state changed -> Online: ${status.isOnline}, Type: $typeStr")
+    }
 
     override val isOnline: Flow<Boolean> = networkStatus.map { it.isOnline }.distinctUntilChanged()
 

@@ -3,7 +3,10 @@ package de.lwp2070809.speculonic.ui.screens.settings
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
 import android.widget.Toast
+import androidx.core.content.FileProvider
+import de.lwp2070809.speculonic.util.LogTag
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +26,9 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -45,7 +51,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -194,8 +204,12 @@ fun LogViewerPane(
 ) {
     val logs by LogManager.logs.collectAsState()
     val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     var filterLevel by remember { mutableStateOf<LogLevel?>(null) }
-    var filterMenuExpanded by remember { mutableStateOf(false) }
+    var filterTag by remember { mutableStateOf<String?>(null) }
+    var levelMenuExpanded by remember { mutableStateOf(false) }
+    var tagMenuExpanded by remember { mutableStateOf(false) }
+    var moreMenuExpanded by remember { mutableStateOf(false) }
 
     val isKaguya = currentLogLevel == LogLevel.KAGUYA
     val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
@@ -222,8 +236,11 @@ fun LogViewerPane(
         }
     }
 
-    val filteredLogs = remember(logs, filterLevel) {
-        if (filterLevel == null) logs else logs.filter { it.level == filterLevel }
+    val filteredLogs = remember(logs, filterLevel, filterTag) {
+        logs.filter { entry ->
+            (filterLevel == null || entry.level == filterLevel) &&
+            (filterTag == null || entry.tag == filterTag)
+        }
     }
 
     Surface(
@@ -270,47 +287,162 @@ fun LogViewerPane(
                         fontWeight = FontWeight.Bold
                     )
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        // 级别筛选下拉
                         Box {
-                            IconButton(onClick = { filterMenuExpanded = true }) {
+                            IconButton(onClick = { levelMenuExpanded = true }) {
                                 Icon(
                                     painterResource(id = R.drawable.ic_symbol_filter_list),
-                                    contentDescription = "Filter"
+                                    contentDescription = stringResource(R.string.log_level)
                                 )
                             }
                             DropdownMenu(
-                                expanded = filterMenuExpanded,
-                                onDismissRequest = { filterMenuExpanded = false }
+                                expanded = levelMenuExpanded,
+                                onDismissRequest = { levelMenuExpanded = false }
                             ) {
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.log_level_all)) },
-                                    onClick = { filterLevel = null; filterMenuExpanded = false }
+                                    onClick = { filterLevel = null; levelMenuExpanded = false }
                                 )
                                 LogLevel.entries.forEach { level ->
                                     DropdownMenuItem(
                                         text = { Text(level.name) },
-                                        onClick = { filterLevel = level; filterMenuExpanded = false }
+                                        onClick = { filterLevel = level; levelMenuExpanded = false }
                                     )
                                 }
                             }
                         }
-                        val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
-                        IconButton(onClick = {
-                            val text = LogManager.getAllLogsText()
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            val clip = ClipData.newPlainText("Speculonic Logs", text)
-                            clipboard.setPrimaryClip(clip)
-                            Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
-                        }) {
+
+                        // 模块 Tag 筛选下拉
+                        Box {
+                            IconButton(onClick = { tagMenuExpanded = true }) {
+                                Icon(
+                                    painterResource(id = R.drawable.ic_symbol_dns),
+                                    contentDescription = stringResource(R.string.log_tag_all)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = tagMenuExpanded,
+                                onDismissRequest = { tagMenuExpanded = false }
+                            ) {
+                                val tagItems = listOf(
+                                    null to stringResource(R.string.log_tag_all),
+                                    LogTag.PLAYBACK to stringResource(R.string.log_tag_playback),
+                                    LogTag.NETWORK to stringResource(R.string.log_tag_network),
+                                    LogTag.SYNC to stringResource(R.string.log_tag_sync),
+                                    LogTag.CACHE to stringResource(R.string.log_tag_cache),
+                                    LogTag.APP to stringResource(R.string.log_tag_app)
+                                )
+                                tagItems.forEach { (tag, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = { filterTag = tag; tagMenuExpanded = false }
+                                    )
+                                }
+                            }
+                        }
+
+                        // 更多操作下拉菜单（分享、复制、清空）
+                        Box {
+                            IconButton(onClick = { moreMenuExpanded = true }) {
+                                Icon(
+                                    Icons.Default.MoreVert,
+                                    contentDescription = stringResource(R.string.more_options)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = moreMenuExpanded,
+                                onDismissRequest = { moreMenuExpanded = false }
+                            ) {
+                                // 分享/导出完整日志文件
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.share_logs)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painterResource(id = R.drawable.ic_symbol_share),
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        moreMenuExpanded = false
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            try {
+                                                val file = LogManager.exportLogsToFile(context)
+                                                val uri = FileProvider.getUriForFile(
+                                                    context,
+                                                    "${context.packageName}.fileprovider",
+                                                    file
+                                                )
+                                                val shareIntent = Intent(Intent.ACTION_SEND).apply {
+                                                    type = "text/plain"
+                                                    putExtra(Intent.EXTRA_STREAM, uri)
+                                                    clipData = ClipData.newRawUri("", uri)
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                val chooser = Intent.createChooser(
+                                                    shareIntent,
+                                                    context.getString(R.string.share_logs)
+                                                ).apply {
+                                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                }
+                                                withContext(Dispatchers.Main) {
+                                                    context.startActivity(chooser)
+                                                }
+                                            } catch (e: Exception) {
+                                                withContext(Dispatchers.Main) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        context.getString(R.string.export_logs_failed, e.message ?: ""),
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            }
+                                        }
+                                    }
+                                )
+
+                                // 复制全部文本
+                                val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.content_description_copy_all)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painterResource(id = R.drawable.ic_symbol_content_copy),
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        moreMenuExpanded = false
+                                        val text = LogManager.getAllLogsText()
+                                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                        val clip = ClipData.newPlainText("Speculonic Logs", text)
+                                        clipboard.setPrimaryClip(clip)
+                                        Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+
+                                // 清空
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.clear_logs)) },
+                                    leadingIcon = {
+                                        Icon(
+                                            painterResource(id = R.drawable.ic_symbol_delete),
+                                            contentDescription = null
+                                        )
+                                    },
+                                    onClick = {
+                                        moreMenuExpanded = false
+                                        LogManager.clear()
+                                    }
+                                )
+                            }
+                        }
+
+                        // 关闭
+                        IconButton(onClick = onClose) {
                             Icon(
-                                painterResource(id = R.drawable.ic_symbol_content_copy),
-                                contentDescription = stringResource(R.string.content_description_copy_all)
+                                Icons.Default.Close,
+                                contentDescription = stringResource(R.string.close)
                             )
-                        }
-                        TextButton(onClick = { LogManager.clear() }) {
-                            Text(stringResource(R.string.clear_logs))
-                        }
-                        TextButton(onClick = onClose) {
-                            Text(stringResource(R.string.close))
                         }
                     }
                 }
@@ -334,7 +466,7 @@ fun LogViewerPane(
                             "[${log.timestamp}] ${log.message}"
                         } else {
                             val levelText = if (isKaguya && log.level == LogLevel.INFO) "月見 ヤチヨ" else log.level.name
-                            "[${log.timestamp}] ${levelText}: ${log.message}"
+                            "[${log.timestamp}] [${log.tag}/$levelText] ${log.message}"
                         }
                         Text(
                             text = displayText,

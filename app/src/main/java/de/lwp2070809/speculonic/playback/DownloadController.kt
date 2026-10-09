@@ -72,7 +72,10 @@ class DownloadController @Inject constructor(
         val targetFormat = if (isTranscodedDownload) {
             streamUrl.toUri().getQueryParameter("format")?.lowercase()
         } else null
-        LogManager.d("DownloadController: Requesting download for ${song.title} (ID: ${song.id}, Silent: $isSilent, Transcoded: $isTranscodedDownload, TargetFormat: $targetFormat)")
+        de.lwp2070809.speculonic.util.LogManager.i(
+            de.lwp2070809.speculonic.util.LogTag.CACHE,
+            "DownloadController: Enqueued download for '${song.title}' (id=${song.id}, silent=$isSilent, transcoded=$isTranscodedDownload, format=$targetFormat)"
+        )
         
         val dataJson = JSONObject().apply {
             put("title", song.title)
