@@ -50,7 +50,7 @@ fun AddToPlaylistDialog(
                     )
                 } else {
                     LazyColumn {
-                        items(playlists) { playlist ->
+                        items(playlists, key = { it.id }) { playlist ->
                             val isProcessing = processingPlaylistId == playlist.id
                             ListItem(
                                 headlineContent = { 

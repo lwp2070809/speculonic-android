@@ -67,8 +67,10 @@ class PlaylistRepository(
                 } else {
                     musicDao.deletePlaylistsNotIn(serverIds)
                 }
+                musicDao.getPlaylists().map { entityMapper.toPlaylist(it) }
+            } else {
+                list.sortedBy { it.name }
             }
-            list
         } catch (e: Exception) {
             cached.map { entityMapper.toPlaylist(it) }
         }

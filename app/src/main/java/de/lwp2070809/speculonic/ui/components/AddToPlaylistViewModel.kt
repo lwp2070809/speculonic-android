@@ -30,6 +30,8 @@ class AddToPlaylistViewModel @Inject constructor(
     private val _uiState = MutableStateFlow(AddToPlaylistUiState())
     val uiState: StateFlow<AddToPlaylistUiState> = _uiState.asStateFlow()
 
+    private var isRefreshing = false
+
     init {
         observePlaylists()
         loadPlaylists()
@@ -49,15 +51,18 @@ class AddToPlaylistViewModel @Inject constructor(
     }
 
     fun loadPlaylists() {
+        if (isRefreshing) return
         viewModelScope.launch {
+            isRefreshing = true
             if (_uiState.value.playlists.isEmpty()) {
                 _uiState.update { it.copy(isLoading = true) }
             }
             try {
-                val playlists = repository.getPlaylists(forceRefresh = true)
-                _uiState.update { it.copy(playlists = playlists, isLoading = false) }
+                repository.getPlaylists(forceRefresh = true)
             } catch (e: Exception) {
                 LogManager.e("AddToPlaylistViewModel: Failed to load playlists", e)
+            } finally {
+                isRefreshing = false
                 _uiState.update { it.copy(isLoading = false) }
             }
         }
@@ -71,7 +76,7 @@ class AddToPlaylistViewModel @Inject constructor(
     ) {
         if (_uiState.value.processingPlaylistId != null) return
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(processingPlaylistId = playlist.id)
+            _uiState.update { it.copy(processingPlaylistId = playlist.id) }
             try {
                 val existingSongs = repository.getPlaylist(playlist.id)
                 if (existingSongs.any { it.id == song.id }) {
@@ -87,7 +92,7 @@ class AddToPlaylistViewModel @Inject constructor(
                 onResult(PlaylistAddResult.ERROR)
                 onDismiss()
             } finally {
-                _uiState.value = _uiState.value.copy(processingPlaylistId = null)
+                _uiState.update { it.copy(processingPlaylistId = null) }
             }
         }
     }
