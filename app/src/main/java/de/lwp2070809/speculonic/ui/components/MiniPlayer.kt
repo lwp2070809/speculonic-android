@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
@@ -29,6 +30,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -47,7 +49,8 @@ fun MiniPlayer(
     onSkipPrevious: () -> Unit,
     onSkipNext: () -> Unit,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isFloating: Boolean = false
 ) {
     val coverRequester = LocalCoverArtRequester.current
     val playbackController = LocalPlaybackController.current
@@ -58,13 +61,40 @@ fun MiniPlayer(
     val currentSongTitle by remember { derivedStateOf { playbackStateState.value.currentSongTitle } }
     val currentArtist by remember { derivedStateOf { playbackStateState.value.currentArtist } }
     val isPlaying by remember { derivedStateOf { playbackStateState.value.isPlaying } }
+
+    val shape = if (isFloating) RoundedCornerShape(16.dp) else RoundedCornerShape(0.dp)
+    val tonalElevation = if (isFloating) 8.dp else 2.dp
+    val border = if (isFloating) {
+        androidx.compose.foundation.BorderStroke(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
+        )
+    } else null
+    
+    val floatingModifier = if (isFloating) {
+        Modifier
+            .widthIn(max = 560.dp)
+            .fillMaxWidth()
+            .shadow(
+                elevation = 8.dp,
+                shape = shape,
+                ambientColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.15f),
+                spotColor = MaterialTheme.colorScheme.scrim.copy(alpha = 0.25f)
+            )
+    } else {
+        Modifier.fillMaxWidth()
+    }
     
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
-        tonalElevation = 2.dp,
+        shape = shape,
+        shadowElevation = 0.dp,
+        tonalElevation = tonalElevation,
+        border = border,
         modifier = modifier
-            .fillMaxWidth()
+            .then(floatingModifier)
             .height(68.dp)
+            .clip(shape)
             .clickable { onClick() }
     ) {
         Column(modifier = Modifier.fillMaxSize()) {

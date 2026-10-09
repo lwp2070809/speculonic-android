@@ -15,8 +15,10 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.dp
 import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -249,30 +251,64 @@ private fun MainContent(
                         )
                     }
                 ) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .padding(innerPadding)
-                            .fillMaxSize()
-                    ) {
-                        AppNavDisplay(
-                            navigator = navigator,
-                            navigationState = navigationState,
-                            topBarState = topBarState,
-                            isOnline = isOnline,
-                            isEffectivelyOnline = isEffectivelyOnline,
-                            isStreamingAllowed = isStreamingAllowed,
-                            onShowSearch = { showSearch = true },
-                            settingsViewModel = settingsViewModel,
-                            modifier = Modifier.weight(1f)
-                        )
-                        
-                        MiniPlayer(
-                            onPlayPause = { playbackController.togglePlayPause() },
-                            onSkipPrevious = { playbackController.skipToPrevious() },
-                            onSkipNext = { playbackController.skipToNext() },
-                            onClick = { showNowPlaying = true },
-                            modifier = Modifier.navigationBarsPadding()
-                        )
+                    if (isExpanded) {
+                        Box(
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .fillMaxSize()
+                        ) {
+                            AppNavDisplay(
+                                navigator = navigator,
+                                navigationState = navigationState,
+                                topBarState = topBarState,
+                                isOnline = isOnline,
+                                isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
+                                onShowSearch = { showSearch = true },
+                                settingsViewModel = settingsViewModel,
+                                modifier = Modifier.fillMaxSize()
+                            )
+
+                            MiniPlayer(
+                                onPlayPause = { playbackController.togglePlayPause() },
+                                onSkipPrevious = { playbackController.skipToPrevious() },
+                                onSkipNext = { playbackController.skipToNext() },
+                                onClick = { showNowPlaying = true },
+                                isFloating = true,
+                                modifier = Modifier
+                                    .align(Alignment.BottomCenter)
+                                    .padding(horizontal = 24.dp)
+                                    .padding(bottom = 16.dp)
+                                    .navigationBarsPadding()
+                            )
+                        }
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .padding(innerPadding)
+                                .fillMaxSize()
+                        ) {
+                            AppNavDisplay(
+                                navigator = navigator,
+                                navigationState = navigationState,
+                                topBarState = topBarState,
+                                isOnline = isOnline,
+                                isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
+                                onShowSearch = { showSearch = true },
+                                settingsViewModel = settingsViewModel,
+                                modifier = Modifier.weight(1f)
+                            )
+
+                            MiniPlayer(
+                                onPlayPause = { playbackController.togglePlayPause() },
+                                onSkipPrevious = { playbackController.skipToPrevious() },
+                                onSkipNext = { playbackController.skipToNext() },
+                                onClick = { showNowPlaying = true },
+                                isFloating = false,
+                                modifier = Modifier.navigationBarsPadding()
+                            )
+                        }
                     }
                 }
             }
