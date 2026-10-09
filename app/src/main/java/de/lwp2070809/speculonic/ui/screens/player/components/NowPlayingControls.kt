@@ -23,6 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -32,6 +33,7 @@ import androidx.media3.common.Player
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
+import de.lwp2070809.speculonic.playback.SleepTimerMode
 import de.lwp2070809.speculonic.ui.screens.player.NowPlayingUiState
 import de.lwp2070809.speculonic.ui.screens.player.NowPlayingViewModel
 import de.lwp2070809.speculonic.util.FormatUtils
@@ -182,12 +184,22 @@ fun ExtraControls(
                 tint = if (playbackState.isSleepTimerRunning) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
             )
             Spacer(Modifier.width(8.dp))
+            val timerText = if (playbackState.isSleepTimerRunning) {
+                when (playbackState.sleepTimerMode) {
+                    SleepTimerMode.TIME -> FormatUtils.formatDuration(playbackState.sleepTimerRemainingMillis)
+                    SleepTimerMode.SONG_COUNT -> pluralStringResource(
+                        R.plurals.after_songs,
+                        playbackState.sleepTimerSongsRemaining,
+                        playbackState.sleepTimerSongsRemaining
+                    )
+                    SleepTimerMode.END_OF_PLAYLIST -> stringResource(R.string.end_of_playlist)
+                    SleepTimerMode.OFF -> stringResource(R.string.sleep_timer)
+                }
+            } else {
+                stringResource(R.string.sleep_timer)
+            }
             Text(
-                text = if (playbackState.isSleepTimerRunning) {
-                    FormatUtils.formatDuration(playbackState.sleepTimerRemainingMillis)
-                } else {
-                    stringResource(R.string.sleep_timer)
-                },
+                text = timerText,
                 color = if (playbackState.isSleepTimerRunning) MaterialTheme.colorScheme.primary else Color.Unspecified
             )
         }

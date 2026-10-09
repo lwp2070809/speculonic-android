@@ -15,7 +15,8 @@ class PlaybackServiceListener(
     private val carAudioManager: BluetoothCarManager,
     private val audioFocusHelper: PlaybackAudioFocusHelper,
     private val onTriggerSilentCache: (MediaItem) -> Unit,
-    private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null
+    private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
+    private val onPlaybackEndedForTimer: (() -> Unit)? = null
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
@@ -95,6 +96,9 @@ class PlaybackServiceListener(
 
         if (playbackState == Player.STATE_READY) {
             errorHandler.resetErrorCount()
+        }
+        if (playbackState == Player.STATE_ENDED) {
+            onPlaybackEndedForTimer?.invoke()
         }
         if (!audioFocusHelper.isDefaultFocusHandling) {
             if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {

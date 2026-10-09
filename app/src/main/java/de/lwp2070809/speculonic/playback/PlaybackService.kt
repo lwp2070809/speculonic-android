@@ -265,7 +265,8 @@ class PlaybackService : MediaSessionService() {
                     carAudioManager = carAudioManager,
                     audioFocusHelper = audioFocusHelper,
                     onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
-                    onMediaItemTransitionForTimer = { item, reason -> sleepTimerManager.handleMediaItemTransitionForTimer(item, reason) }
+                    onMediaItemTransitionForTimer = { item, reason -> sleepTimerManager.handleMediaItemTransitionForTimer(item, reason) },
+                    onPlaybackEndedForTimer = { sleepTimerManager.handlePlaybackEndedForTimer() }
                 ))
 
                 persistence.restorePlaybackState(realPlayer, repository)

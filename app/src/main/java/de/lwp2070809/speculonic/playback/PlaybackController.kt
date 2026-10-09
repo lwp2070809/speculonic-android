@@ -197,12 +197,13 @@ class PlaybackController private constructor(context: Context) {
 
     private fun updatePosition() {
         val controller = controller ?: return
-        val remainingMillis = if (_playbackState.value.isSleepTimerRunning && sleepTimerDeadlineRealtime > 0L) {
+        val currentState = _playbackState.value
+        val remainingMillis = if (currentState.isSleepTimerRunning && currentState.sleepTimerMode == SleepTimerMode.TIME && sleepTimerDeadlineRealtime > 0L) {
             (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         } else {
-            _playbackState.value.sleepTimerRemainingMillis
+            currentState.sleepTimerRemainingMillis
         }
-        _playbackState.value = _playbackState.value.copy(
+        _playbackState.value = currentState.copy(
             currentPosition = controller.currentPosition,
             duration = getEffectiveDuration(controller),
             sleepTimerRemainingMillis = remainingMillis
@@ -239,12 +240,12 @@ class PlaybackController private constructor(context: Context) {
         } catch (e: Exception) {
             SleepTimerMode.OFF
         }
-        if (deadlineRealtime > 0L) {
+        if (timerMode == SleepTimerMode.TIME && deadlineRealtime > 0L) {
             sleepTimerDeadlineRealtime = deadlineRealtime
-        } else if (!isTimerRunning) {
+        } else {
             sleepTimerDeadlineRealtime = 0L
         }
-        val remainingMillis = if (sleepTimerDeadlineRealtime > 0L) {
+        val remainingMillis = if (timerMode == SleepTimerMode.TIME && sleepTimerDeadlineRealtime > 0L) {
             (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         } else {
             sessionExtras.getLong("sleepTimerRemainingMillis", 0L)
