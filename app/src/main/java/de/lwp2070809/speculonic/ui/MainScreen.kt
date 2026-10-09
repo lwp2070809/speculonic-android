@@ -13,7 +13,6 @@ import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
-import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -178,12 +177,8 @@ private fun MainContent(
     }
     val isDualPane = directive.maxHorizontalPartitions > 1
 
-    val isNavSuiteVisible = !showSearch && !showNowPlaying
-    val layoutType = if (isNavSuiteVisible) {
-        NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
-    } else {
-        NavigationSuiteType.None
-    }
+    // 保持底层导航栏稳态计算，避免全屏浮层展开/折叠动画期间底层布局尺寸重算与导航栏闪烁抖动
+    val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
 
     val primaryColor = MaterialTheme.colorScheme.primary
     val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
