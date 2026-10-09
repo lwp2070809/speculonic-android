@@ -100,7 +100,12 @@ fun MainControls(
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             IconButton(onClick = { playbackController.skipToPrevious() }) {
-                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous), contentDescription = "Previous", modifier = Modifier.size(36.dp))
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous),
+                    contentDescription = "Previous",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
             
             FloatingActionButton(
@@ -118,7 +123,12 @@ fun MainControls(
             }
 
             IconButton(onClick = { playbackController.skipToNext() }) {
-                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next), contentDescription = "Next", modifier = Modifier.size(36.dp))
+                Icon(
+                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next),
+                    contentDescription = "Next",
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 

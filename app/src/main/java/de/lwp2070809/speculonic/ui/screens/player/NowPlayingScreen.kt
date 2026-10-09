@@ -128,32 +128,41 @@ fun NowPlayingScreen(
                 detectTapGestures { }
             }
     ) {
-        if (isExpanded) {
-            NowPlayingExpanded(
-                playbackState = playbackState,
-                uiState = uiState,
-                playbackController = playbackController,
-                viewModel = viewModel,
-                isEffectivelyOnline = isEffectivelyOnline,
-                onCollapse = onCollapse,
-                onShowQueue = { showQueue = true },
-                onShowSleepTimer = { showSleepTimerSheet = true },
-                onShowSongInfo = { showSongInfo = true }
-            )
-        } else {
-            NowPlayingMobile(
-                playbackState = playbackState,
-                uiState = uiState,
-                playbackController = playbackController,
-                viewModel = viewModel,
-                showLyrics = showLyricsMobile,
-                onToggleLyrics = { showLyricsMobile = !showLyricsMobile },
-                isEffectivelyOnline = isEffectivelyOnline,
-                onCollapse = onCollapse,
-                onShowQueue = { showQueue = true },
-                onShowSleepTimer = { showSleepTimerSheet = true },
-                onShowSongInfo = { showSongInfo = true }
-            )
+        NowPlayingScaffold(
+            artworkId = playbackState.artworkId,
+            artworkUri = playbackState.artworkUri,
+            playerBackgroundMode = uiState.playerBackgroundMode,
+            onCollapse = onCollapse
+        ) { dragModifier ->
+            if (isExpanded) {
+                NowPlayingExpanded(
+                    playbackState = playbackState,
+                    uiState = uiState,
+                    playbackController = playbackController,
+                    viewModel = viewModel,
+                    isEffectivelyOnline = isEffectivelyOnline,
+                    onCollapse = onCollapse,
+                    onShowQueue = { showQueue = true },
+                    onShowSleepTimer = { showSleepTimerSheet = true },
+                    onShowSongInfo = { showSongInfo = true },
+                    dragModifier = dragModifier
+                )
+            } else {
+                NowPlayingMobile(
+                    playbackState = playbackState,
+                    uiState = uiState,
+                    playbackController = playbackController,
+                    viewModel = viewModel,
+                    showLyrics = showLyricsMobile,
+                    onToggleLyrics = { showLyricsMobile = !showLyricsMobile },
+                    isEffectivelyOnline = isEffectivelyOnline,
+                    onCollapse = onCollapse,
+                    onShowQueue = { showQueue = true },
+                    onShowSleepTimer = { showSleepTimerSheet = true },
+                    onShowSongInfo = { showSongInfo = true },
+                    dragModifier = dragModifier
+                )
+            }
         }
     }
 

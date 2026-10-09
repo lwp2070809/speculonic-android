@@ -11,33 +11,28 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
 import de.lwp2070809.speculonic.ui.screens.player.components.ArtworkView
 import de.lwp2070809.speculonic.ui.screens.player.components.ExtraControls
 import de.lwp2070809.speculonic.ui.screens.player.components.MainControls
+import de.lwp2070809.speculonic.ui.screens.player.components.NowPlayingTopBar
 import de.lwp2070809.speculonic.ui.screens.player.components.PlaybackSeekBar
-import de.lwp2070809.speculonic.ui.screens.player.components.PlayerBlurBackground
 import de.lwp2070809.speculonic.ui.screens.player.components.SongInfo
 
+/**
+ * 平板电脑/横屏宽屏沉浸式播放器双栏布局。
+ * 左栏呈现通用顶栏、大封面与完整控制底座（挂载 dragModifier 支持随手下拉折叠）；
+ * 右栏呈现常驻沉浸式歌词卡片（保持独立滚动寻道，不干扰手势）。
+ * 外部由 NowPlayingScaffold 统一驱动手势与模糊背景。
+ */
 @Composable
 fun NowPlayingExpanded(
     playbackState: PlaybackState,
@@ -48,129 +43,84 @@ fun NowPlayingExpanded(
     onCollapse: () -> Unit,
     onShowQueue: () -> Unit,
     onShowSleepTimer: () -> Unit,
-    onShowSongInfo: () -> Unit
+    onShowSongInfo: () -> Unit,
+    dragModifier: Modifier = Modifier,
+    modifier: Modifier = Modifier
 ) {
-    val surfaceColor = MaterialTheme.colorScheme.surface
-    val primaryColor = MaterialTheme.colorScheme.primary
-    val gradientBrush = remember(primaryColor, surfaceColor) {
-        androidx.compose.ui.graphics.Brush.verticalGradient(
-            colors = listOf(
-                primaryColor.copy(alpha = 0.15f),
-                surfaceColor
-            )
-        )
-    }
-
-    
-    Box(
-        modifier = Modifier
+    Row(
+        modifier = modifier
             .fillMaxSize()
-            .background(surfaceColor) 
+            .navigationBarsPadding()
     ) {
-        
-        PlayerBlurBackground(
-            artworkId = playbackState.artworkId,
-            artworkUri = playbackState.artworkUri,
-            playerBackgroundMode = uiState.playerBackgroundMode
-        )
-
-        
-        Box(
+        // 左半栏（1f 权重）：顶栏、大唱片封面及主播放控制（支持下拉手势折叠）
+        Column(
             modifier = Modifier
-                .fillMaxSize()
-                .background(gradientBrush)
-        )
-
-        
-        Row(
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .navigationBarsPadding()
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(horizontal = 32.dp, vertical = 16.dp)
+                .then(dragModifier),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(32.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
-                
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    IconButton(onClick = onCollapse) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Collapse")
-                    }
-                    Text(
-                        text = playbackState.queueTitle ?: stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false).padding(horizontal = 8.dp)
-                    )
-                    IconButton(onClick = onShowQueue) {
-                        Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play), contentDescription = "Queue")
-                    }
-                }
+            // 顶部工具栏（共用组件，位于左半栏顶端）
+            NowPlayingTopBar(
+                title = playbackState.queueTitle,
+                onCollapse = onCollapse,
+                onShowQueue = onShowQueue
+            )
 
-                
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth()
-                        .padding(vertical = 24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .aspectRatio(1f)
-                            .clip(RoundedCornerShape(24.dp))
-                    ) {
-                        ArtworkView(
-                            artworkId = playbackState.artworkId,
-                            artworkUri = playbackState.artworkUri
-                        )
-                    }
-                }
-
-                
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    SongInfo(playbackState)
-                    PlaybackSeekBar(playbackState, playbackController)
-                    MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
-                    ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
-                }
-            }
-
-            
+            // 唱片大封面
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .fillMaxHeight()
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                    .padding(32.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .fillMaxWidth()
+                    .padding(vertical = 16.dp),
+                contentAlignment = Alignment.Center
             ) {
-                LyricsView(
-                    lyricsLines = uiState.lyricsLines,
-                    rawLyrics = uiState.rawLyrics,
-                    currentPosition = playbackState.currentPosition,
-                    isPlaying = playbackState.isPlaying,
-                    isLoading = uiState.isLoadingLyrics,
-                    onSeek = { playbackController.seekTo(it) },
-                    modifier = Modifier.fillMaxSize()
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxHeight()
+                        .aspectRatio(1f)
+                        .clip(RoundedCornerShape(24.dp))
+                ) {
+                    ArtworkView(
+                        artworkId = playbackState.artworkId,
+                        artworkUri = playbackState.artworkUri
+                    )
+                }
             }
+
+            // 控制底座核心区
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                SongInfo(playbackState)
+                PlaybackSeekBar(playbackState, playbackController)
+                MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
+                ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
+            }
+        }
+
+        // 右半栏（1f 权重）：常驻沉浸式歌词卡片（保持纯净独立滚动与寻道，不挂载折叠手势）
+        Box(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxHeight()
+                .padding(end = 32.dp, top = 16.dp, bottom = 16.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+                .padding(16.dp)
+        ) {
+            LyricsView(
+                lyricsLines = uiState.lyricsLines,
+                rawLyrics = uiState.rawLyrics,
+                currentPosition = playbackState.currentPosition,
+                isPlaying = playbackState.isPlaying,
+                isLoading = uiState.isLoadingLyrics,
+                onSeek = { playbackController.seekTo(it) },
+                modifier = Modifier.fillMaxSize()
+            )
         }
     }
 }
