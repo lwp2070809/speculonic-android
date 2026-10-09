@@ -104,7 +104,7 @@ fun MainControls(
                     painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous),
                     contentDescription = "Previous",
                     modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             
@@ -127,7 +127,7 @@ fun MainControls(
                     painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next),
                     contentDescription = "Next",
                     modifier = Modifier.size(36.dp),
-                    tint = MaterialTheme.colorScheme.onSurface
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }

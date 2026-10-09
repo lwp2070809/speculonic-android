@@ -74,8 +74,16 @@ fun PlaybackSeekBar(
                 (sliderDragValue * playbackState.duration).toLong()
             } else playbackState.currentPosition
             
-            Text(FormatUtils.formatDuration(displayPosition), style = MaterialTheme.typography.labelMedium)
-            Text(FormatUtils.formatDuration(playbackState.duration), style = MaterialTheme.typography.labelMedium)
+            Text(
+                text = FormatUtils.formatDuration(displayPosition),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = FormatUtils.formatDuration(playbackState.duration),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
