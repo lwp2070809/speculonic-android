@@ -3,14 +3,15 @@ package de.lwp2070809.speculonic.ui.screens.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
@@ -69,17 +70,17 @@ fun NowPlayingExpanded(
             )
 
             // 唱片大封面
-            Box(
+            BoxWithConstraints(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .padding(vertical = 16.dp),
                 contentAlignment = Alignment.Center
             ) {
+                val cardSize = minOf(maxWidth, maxHeight)
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(1f)
+                        .size(cardSize)
                         .clip(RoundedCornerShape(24.dp))
                 ) {
                     ArtworkView(

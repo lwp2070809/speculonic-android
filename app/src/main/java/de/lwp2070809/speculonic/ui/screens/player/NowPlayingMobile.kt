@@ -6,6 +6,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -104,38 +106,44 @@ fun NowPlayingMobile(
                     label = "LyricsScale"
                 )
                 val artworkScale by animateFloatAsState(
-                    targetValue = if (showLyrics) 1f else 1.05f,
+                    targetValue = if (showLyrics) 0.92f else 1f,
                     animationSpec = tween(durationMillis = 250),
                     label = "ArtworkScale"
                 )
 
-                Box(
+                BoxWithConstraints(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f)
-                        .clip(RoundedCornerShape(24.dp))
-                        .then(if (!showLyrics) dragModifier else Modifier)
-                        .clickable { onToggleLyrics() }
+                        .then(if (!showLyrics) dragModifier else Modifier),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .graphicsLayer {
-                                alpha = artworkAlpha
-                                scaleX = artworkScale
-                                scaleY = artworkScale
-                            }
-                    ) {
-                        ArtworkView(
-                            artworkId = playbackState.artworkId,
-                            artworkUri = playbackState.artworkUri
-                        )
+                    val cardSize = minOf(maxWidth, maxHeight)
+
+                    if (artworkAlpha > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .size(cardSize)
+                                .clip(RoundedCornerShape(24.dp))
+                                .clickable { onToggleLyrics() }
+                                .graphicsLayer {
+                                    alpha = artworkAlpha
+                                    scaleX = artworkScale
+                                    scaleY = artworkScale
+                                }
+                        ) {
+                            ArtworkView(
+                                artworkId = playbackState.artworkId,
+                                artworkUri = playbackState.artworkUri
+                            )
+                        }
                     }
 
                     if (lyricsAlpha > 0f) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
+                                .clip(RoundedCornerShape(24.dp))
                                 .graphicsLayer {
                                     alpha = lyricsAlpha
                                     scaleX = lyricsScale

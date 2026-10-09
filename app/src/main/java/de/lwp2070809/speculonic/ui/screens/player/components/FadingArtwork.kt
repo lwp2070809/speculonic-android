@@ -131,7 +131,7 @@ fun ArtworkView(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = alpha0.value },
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             }
             if (model1 != null) {
@@ -143,7 +143,7 @@ fun ArtworkView(
                     modifier = Modifier
                         .fillMaxSize()
                         .graphicsLayer { alpha = alpha1.value },
-                    contentScale = ContentScale.Crop
+                    contentScale = ContentScale.Fit
                 )
             }
         }
