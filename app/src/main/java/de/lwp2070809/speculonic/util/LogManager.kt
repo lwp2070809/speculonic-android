@@ -156,9 +156,7 @@ object LogManager {
             recentLogs = buffer.toList().takeLast(200)
         }
         recentLogs.forEach { entry ->
-            sb.append("[").append(entry.timestamp).append("] [")
-                .append(entry.tag).append("/").append(entry.level.name).append("] ")
-                .append(entry.message).append("\n")
+            sb.append(formatLogEntry(entry, isKaguya = false)).append("\n")
         }
         crashFile.writeText(sb.toString())
     }
@@ -187,9 +185,7 @@ object LogManager {
 
         sb.append("=== Complete Log Buffer (${_logs.value.size} items) ===\n")
         _logs.value.forEach { entry ->
-            sb.append("[").append(entry.timestamp).append("] [")
-                .append(entry.tag).append("/").append(entry.level.name).append("] ")
-                .append(entry.message).append("\n")
+            sb.append(formatLogEntry(entry, isKaguya = false)).append("\n")
         }
         exportFile.writeText(sb.toString())
         return exportFile
@@ -294,16 +290,18 @@ object LogManager {
         _logs.value = emptyList()
     }
 
+    fun formatLogEntry(entry: LogEntry, isKaguya: Boolean = minLevel == LogLevel.KAGUYA): String {
+        return if (isKaguya && entry.isEasterEgg) {
+            "[${entry.timestamp}] ${entry.message}"
+        } else {
+            val levelText = if (isKaguya && entry.level == LogLevel.INFO) "月見 ヤチヨ" else entry.level.name
+            "[${entry.timestamp}] [${entry.tag}] $levelText: ${entry.message}"
+        }
+    }
+
     fun getAllLogsText(): String {
         flushIfDirty()
-        return _logs.value.joinToString("\n") {
-            if (minLevel == LogLevel.KAGUYA && it.isEasterEgg) {
-                "[${it.timestamp}] ${it.message}"
-            } else {
-                val levelText = if (minLevel == LogLevel.KAGUYA && it.level == LogLevel.INFO) "月見 ヤチヨ" else it.level.name
-                "[${it.timestamp}] [${it.tag}/$levelText] ${it.message}"
-            }
-        }
+        return _logs.value.joinToString("\n") { formatLogEntry(it) }
     }
 }
 

@@ -462,12 +462,7 @@ fun LogViewerPane(
                             LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
                             LogLevel.KAGUYA -> MaterialTheme.colorScheme.primary
                         }
-                        val displayText = if (isKaguya && log.isEasterEgg) {
-                            "[${log.timestamp}] ${log.message}"
-                        } else {
-                            val levelText = if (isKaguya && log.level == LogLevel.INFO) "月見 ヤチヨ" else log.level.name
-                            "[${log.timestamp}] [${log.tag}/$levelText] ${log.message}"
-                        }
+                        val displayText = LogManager.formatLogEntry(log, isKaguya)
                         Text(
                             text = displayText,
                             fontFamily = FontFamily.Monospace,
