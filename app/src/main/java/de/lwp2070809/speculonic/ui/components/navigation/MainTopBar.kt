@@ -170,7 +170,12 @@ fun MainTopBar(
 
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (topBarState.showSearch) {
-                            IconButton(onClick = onSearchClick) {
+                            IconButton(
+                                onClick = onSearchClick,
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .offset(y = 2.dp)
+                            ) {
                                 Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                             }
                         }
@@ -317,7 +322,16 @@ fun MainTopBar(
                 topBarState.actions(this)
             }
             if (topBarState.showSearch) {
-                IconButton(onClick = onSearchClick) {
+                IconButton(
+                    onClick = onSearchClick,
+                    modifier = if (isTopLevel) {
+                        Modifier
+                            .size(34.dp)
+                            .offset(y = 2.dp)
+                    } else {
+                        Modifier
+                    }
+                ) {
                     Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
                 }
             }
