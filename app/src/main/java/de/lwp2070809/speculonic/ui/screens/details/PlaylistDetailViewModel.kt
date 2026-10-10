@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -51,31 +52,78 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             if (isManualRefresh) {
                 _uiState.value = _uiState.value.copy(isRefreshing = true)
-            } else if (forceRefresh || _uiState.value.playlist == null) {
-                _uiState.value = _uiState.value.copy(isLoading = true)
             }
 
             try {
-                
-                val isSyncing = repository.isSyncingFlow().first()
-                val songs = repository.getPlaylist(playlistId, forceRefresh = forceRefresh)
-                
-                
-                if (isSyncing && songs.isNotEmpty()) {
-                    isUsingEphemeralData.set(true)
-                }
+                if (!forceRefresh) {
+                    val cachedPlaylist = repository.getCachedPlaylist(playlistId)
+                    val cachedSongs = repository.getCachedPlaylistSongs(playlistId)
 
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    isRefreshing = false,
-                    songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
-                    error = null
-                )
+                    if (cachedPlaylist != null || cachedSongs.isNotEmpty()) {
+                        _uiState.value = _uiState.value.copy(
+                            playlist = cachedPlaylist ?: _uiState.value.playlist,
+                            songs = if (cachedSongs.isNotEmpty()) cachedSongs else _uiState.value.songs,
+                            isLoading = false,
+                            error = null
+                        )
+                        if (cachedSongs.isEmpty()) {
+                            try {
+                                val isSyncing = repository.isSyncingFlow().first()
+                                val songs = repository.getPlaylist(playlistId, forceRefresh = true)
+                                if (isSyncing && songs.isNotEmpty()) {
+                                    isUsingEphemeralData.set(true)
+                                }
+                                if (songs.isNotEmpty()) {
+                                    _uiState.value = _uiState.value.copy(
+                                        songs = songs,
+                                        isLoading = false,
+                                        isRefreshing = false,
+                                        error = null
+                                    )
+                                }
+                            } catch (e: Exception) {
+                                LogManager.e("PlaylistDetailViewModel: fetch songs failed for $playlistId", e)
+                            }
+                        }
+                    } else {
+                        if (!isManualRefresh) {
+                            _uiState.value = _uiState.value.copy(isLoading = true)
+                        }
+                        val isSyncing = repository.isSyncingFlow().first()
+                        val songs = repository.getPlaylist(playlistId, forceRefresh = true)
+                        if (isSyncing && songs.isNotEmpty()) {
+                            isUsingEphemeralData.set(true)
+                        }
+                        _uiState.value = _uiState.value.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
+                            error = null
+                        )
+                    }
+                } else {
+                    if (!isManualRefresh) {
+                        _uiState.value = _uiState.value.copy(isLoading = true)
+                    }
+                    val isSyncing = repository.isSyncingFlow().first()
+                    val songs = repository.getPlaylist(playlistId, forceRefresh = true)
+                    if (isSyncing && songs.isNotEmpty()) {
+                        isUsingEphemeralData.set(true)
+                    }
+                    _uiState.value = _uiState.value.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
+                        error = null
+                    )
+                }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                LogManager.e("PlaylistDetailViewModel: loadPlaylistDetails failed", e)
                 _uiState.value = _uiState.value.copy(
                     isLoading = false,
                     isRefreshing = false,
-                    error = e.message
+                    error = if (_uiState.value.playlist == null) e.message else null
                 )
             }
         }

@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -49,23 +50,42 @@ class AlbumDetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             if (isManualRefresh) {
                 _uiState.value = _uiState.value.copy(isRefreshing = true)
-            } else if (forceRefresh || _uiState.value.album == null) {
-                _uiState.value = _uiState.value.copy(isLoading = true)
             }
 
             try {
-                val cachedAlbum = repository.getAlbum(albumId, forceRefresh = false)
-                if (cachedAlbum != null) {
-                    _uiState.value = _uiState.value.copy(isLoading = false, error = null)
-                }
-
-                if (forceRefresh || isManualRefresh || cachedAlbum == null) {
+                if (!forceRefresh) {
+                    val cachedAlbum = repository.getCachedAlbum(albumId)
+                    if (cachedAlbum != null) {
+                        _uiState.value = _uiState.value.copy(
+                            album = cachedAlbum,
+                            songs = if (cachedAlbum.song.isNotEmpty()) cachedAlbum.song else _uiState.value.songs,
+                            isLoading = false,
+                            error = null
+                        )
+                        if (cachedAlbum.song.isEmpty()) {
+                            try {
+                                repository.getAlbum(albumId, forceRefresh = true)
+                            } catch (e: Exception) {
+                                LogManager.e("AlbumDetailViewModel: fetch songs failed for $albumId", e)
+                            }
+                        }
+                    } else {
+                        if (!isManualRefresh) {
+                            _uiState.value = _uiState.value.copy(isLoading = true)
+                        }
+                        repository.getAlbum(albumId, forceRefresh = true)
+                        _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
+                    }
+                } else {
+                    if (!isManualRefresh) {
+                        _uiState.value = _uiState.value.copy(isLoading = true)
+                    }
                     repository.getAlbum(albumId, forceRefresh = true)
                     _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
-                } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                LogManager.e("AlbumDetailViewModel: loadAlbumDetails failed", e)
                 if (_uiState.value.album == null) {
                     _uiState.value = _uiState.value.copy(
                         isLoading = false,

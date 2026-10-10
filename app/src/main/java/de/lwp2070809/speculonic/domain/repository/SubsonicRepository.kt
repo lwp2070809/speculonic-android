@@ -363,6 +363,10 @@ class SubsonicRepository(
         return mediaRepository.getArtistDetails(id, forceRefresh, skipInsert = false)
     }
 
+    suspend fun getCachedArtistDetails(id: String): Pair<Artist?, List<Album>> {
+        return mediaRepository.getCachedArtistDetails(id)
+    }
+
     suspend fun getArtistInfo(id: String): ArtistInfo2? {
         return mediaRepository.getArtistInfo(id)
     }
@@ -397,11 +401,21 @@ class SubsonicRepository(
         return mediaRepository.getAlbum(id, forceRefresh, skipInsert = false)
     }
 
+    suspend fun getCachedAlbum(id: String): Album? {
+        return mediaRepository.getCachedAlbum(id)
+    }
+
     fun getAlbumByIdFlow(id: String): Flow<Album?> = mediaRepository.getAlbumByIdFlow(id)
 
     fun getPlaylistByIdFlow(id: String): Flow<Playlist?> = playlistRepository.getPlaylistByIdFlow(id)
 
+    suspend fun getCachedPlaylist(id: String): Playlist? {
+        return playlistRepository.getCachedPlaylist(id)
+    }
 
+    suspend fun getCachedPlaylistSongs(id: String): List<Song> {
+        return playlistRepository.getCachedPlaylistSongs(id)
+    }
 
     fun getAllAlbumsFlow(): Flow<List<Album>> = mediaRepository.getAllAlbumsFlow()
 

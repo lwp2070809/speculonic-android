@@ -168,6 +168,14 @@ class PlaylistRepository(
         return musicDao.getPlaylistByIdFlow(id).map { it?.let { entityMapper.toPlaylist(it) } }
     }
 
+    suspend fun getCachedPlaylist(id: String): Playlist? {
+        return musicDao.getPlaylistById(id)?.let { entityMapper.toPlaylist(it) }
+    }
+
+    suspend fun getCachedPlaylistSongs(id: String): List<Song> {
+        return musicDao.getSongsByPlaylist(id).map { entityMapper.toSong(it) }
+    }
+
     suspend fun togglePlaylistPinned(playlistId: String, pinned: Boolean) {
         musicDao.updatePlaylistPinned(playlistId, pinned)
     }

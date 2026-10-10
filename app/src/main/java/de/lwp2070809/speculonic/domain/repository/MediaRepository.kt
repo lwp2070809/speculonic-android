@@ -59,6 +59,12 @@ class MediaRepository(
         return Pair(artistEntity?.let { Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount) }, albums)
     }
 
+    suspend fun getCachedArtistDetails(id: String): Pair<Artist?, List<Album>> {
+        val artistEntity = musicDao.getArtistById(id)
+        val albums = musicDao.getAlbumsByArtist(id).map { entityMapper.toAlbum(it) }
+        return Pair(artistEntity?.let { Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount) }, albums)
+    }
+
     suspend fun getArtistInfo(id: String): ArtistInfo2? {
         val (u, t, s) = authManager.getAuthParams()
         return try {
@@ -243,6 +249,12 @@ class MediaRepository(
         } catch (e: Exception) {
             albumEntity?.let { album -> entityMapper.toAlbum(album, cachedSongs.map { song -> entityMapper.toSong(song) }) }
         }
+    }
+
+    suspend fun getCachedAlbum(id: String): Album? {
+        val albumEntity = musicDao.getAlbumById(id) ?: return null
+        val cachedSongs = musicDao.getSongsByAlbum(id)
+        return entityMapper.toAlbum(albumEntity, cachedSongs.map { entityMapper.toSong(it) })
     }
 
     suspend fun refreshArtists() {

@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -45,27 +46,69 @@ class ArtistDetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             if (isManualRefresh) {
                 _uiState.update { it.copy(isRefreshing = true) }
-            } else {
-                _uiState.update { it.copy(isLoading = true) }
             }
+
             try {
-                
-                
-                val (artist, albums) = repository.getArtistDetails(artistId, forceRefresh)
-                
-                _uiState.update { 
-                    it.copy(
-                        artist = artist ?: it.artist, 
-                        albums = if (albums.isNotEmpty()) albums else it.albums,
-                        isLoading = false,
-                        isRefreshing = false,
-                        
-                        error = null
-                    ) 
+                if (!forceRefresh) {
+                    val (cachedArtist, cachedAlbums) = repository.getCachedArtistDetails(artistId)
+                    if (cachedArtist != null && cachedAlbums.isNotEmpty()) {
+                        _uiState.update {
+                            it.copy(
+                                artist = cachedArtist,
+                                albums = cachedAlbums,
+                                isLoading = false,
+                                error = null
+                            )
+                        }
+                    } else {
+                        if (cachedArtist != null) {
+                            _uiState.update {
+                                it.copy(
+                                    artist = cachedArtist,
+                                    isLoading = false,
+                                    error = null
+                                )
+                            }
+                        } else if (!isManualRefresh) {
+                            _uiState.update { it.copy(isLoading = true) }
+                        }
+
+                        val (artist, albums) = repository.getArtistDetails(artistId, forceRefresh = true)
+                        _uiState.update {
+                            it.copy(
+                                artist = artist ?: it.artist,
+                                albums = if (albums.isNotEmpty()) albums else it.albums,
+                                isLoading = false,
+                                isRefreshing = false,
+                                error = null
+                            )
+                        }
+                    }
+                } else {
+                    if (!isManualRefresh) {
+                        _uiState.update { it.copy(isLoading = true) }
+                    }
+                    val (artist, albums) = repository.getArtistDetails(artistId, forceRefresh = true)
+                    _uiState.update {
+                        it.copy(
+                            artist = artist ?: it.artist,
+                            albums = if (albums.isNotEmpty()) albums else it.albums,
+                            isLoading = false,
+                            isRefreshing = false,
+                            error = null
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = e.message) }
+                LogManager.e("ArtistDetailViewModel: loadArtistDetails failed", e)
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = if (it.artist == null) e.message else null
+                    )
+                }
             }
         }
     }
