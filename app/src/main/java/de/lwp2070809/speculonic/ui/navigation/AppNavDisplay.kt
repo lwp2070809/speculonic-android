@@ -92,16 +92,12 @@ fun AppNavDisplay(
     isStreamingAllowed: Boolean,
     onShowSearch: () -> Unit,
     settingsViewModel: SettingsViewModel,
+    directive: androidx.compose.material3.adaptive.layout.PaneScaffoldDirective,
     modifier: Modifier = Modifier
 ) {
     val discoverViewModel: DiscoverViewModel = hiltViewModel()
     val libraryViewModel: LibraryViewModel = hiltViewModel()
 
-    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
-    val directive = remember(windowAdaptiveInfo) {
-        calculatePaneScaffoldDirective(windowAdaptiveInfo)
-            .copy(horizontalPartitionSpacerSize = 0.dp)
-    }
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
 
     val myTransitionSpec: AnimatedContentTransitionScope<*>.() -> ContentTransform = {
@@ -273,7 +269,7 @@ fun AppNavDisplay(
             )
         }
 
-        entry<AppRoute.DownloadManager> {
+        entry<AppRoute.DownloadManager>(metadata = ListDetailSceneStrategy.detailPane()) {
             DownloadManagerScreen(
                 topBarState = topBarState,
                 onBackClick = { navigator.goBack() }

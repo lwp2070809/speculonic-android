@@ -56,6 +56,8 @@ import de.lwp2070809.speculonic.ui.navigation.AppRoute
 @Composable
 fun MainTopBar(
     currentRoute: NavKey?,
+    currentBackStack: List<NavKey> = emptyList(),
+    listPaneWidth: androidx.compose.ui.unit.Dp = AdaptiveNavigationDefaults.ListPanePreferredWidth,
     topBarState: TopBarState,
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit,
@@ -89,6 +91,35 @@ fun MainTopBar(
     }
 
     if (isDualPane) {
+        val activeListRoute = currentBackStack
+            .filterIsInstance<AppRoute>()
+            .lastOrNull { it.isListPane }
+            ?: (currentRoute as? AppRoute)?.takeIf { it.isListPane }
+            ?: AppRoute.Discover
+
+        val activeDetailRoute = currentBackStack
+            .filterIsInstance<AppRoute>()
+            .lastOrNull { it.isDetailPane }
+
+        val showLeftBack = !activeListRoute.isTopLevel
+        val leftTitle = if (showLeftBack) {
+            activeListRoute.defaultTitleRes?.let { stringResource(it) } ?: appName
+        } else {
+            appName
+        }
+
+        var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+        var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+
+        androidx.compose.runtime.LaunchedEffect(isSyncing) {
+            if (lastSyncingState && !isSyncing) {
+                showCloudDoneRecent = true
+                kotlinx.coroutines.delay(5000)
+                showCloudDoneRecent = false
+            }
+            lastSyncingState = isSyncing
+        }
+
         androidx.compose.material3.Surface(
             modifier = Modifier.fillMaxWidth().height(64.dp),
             color = MaterialTheme.colorScheme.surface
@@ -97,44 +128,48 @@ fun MainTopBar(
                 modifier = Modifier.fillMaxSize(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 左侧半区：对齐 ListPane (固定首选宽度)
+                // 左侧半区：动态对齐 ListPane 首选宽度
                 Row(
                     modifier = Modifier
-                        .width(AdaptiveNavigationDefaults.ListPanePreferredWidth)
+                        .width(listPaneWidth)
                         .fillMaxHeight()
                         .padding(horizontal = 16.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
+                    val verticalAlignment = if (showLeftBack) Alignment.CenterVertically else Alignment.Bottom
                     Row(
-                        verticalAlignment = Alignment.Bottom,
+                        modifier = Modifier.weight(1f, fill = false),
+                        verticalAlignment = verticalAlignment,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
+                        if (showLeftBack) {
+                            IconButton(
+                                onClick = onBackClick,
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+
                         Text(
-                            text = appName,
-                            fontSize = 30.sp,
+                            text = leftTitle,
+                            fontSize = if (showLeftBack) 22.sp else 30.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-
-                        var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-                        var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-
-                        androidx.compose.runtime.LaunchedEffect(isSyncing) {
-                            if (lastSyncingState && !isSyncing) {
-                                showCloudDoneRecent = true
-                                kotlinx.coroutines.delay(5000)
-                                showCloudDoneRecent = false
-                            }
-                            lastSyncingState = isSyncing
-                        }
 
                         IconButton(
                             onClick = onSyncStatusClick,
                             modifier = Modifier
-                                .align(Alignment.Bottom)
+                                .align(verticalAlignment)
                                 .size(34.dp)
                         ) {
                             CloudSyncIcon(
@@ -155,7 +190,7 @@ fun MainTopBar(
                                 }
                             },
                             modifier = Modifier
-                                .align(Alignment.Bottom)
+                                .align(verticalAlignment)
                                 .size(34.dp)
                         ) {
                             WifiOfflineIcon(
@@ -170,8 +205,9 @@ fun MainTopBar(
                         )
                     }
 
+                    val showLeftSearch = activeListRoute != AppRoute.Settings
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (topBarState.showSearch) {
+                        if (showLeftSearch) {
                             IconButton(
                                 onClick = onSearchClick,
                                 modifier = Modifier
@@ -201,9 +237,11 @@ fun MainTopBar(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    val detailTitle = if (isTopLevel) ""
-                    else if (isDefaultTopBarRoute) appRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
-                    else topBarState.title
+                    val detailTitle = when {
+                        activeDetailRoute == null -> ""
+                        activeDetailRoute.isDefaultTopBar -> activeDetailRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
+                        else -> topBarState.title
+                    }
 
                     Text(
                         text = detailTitle,
@@ -217,7 +255,7 @@ fun MainTopBar(
 
                     CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (!isTopLevel && !isDefaultTopBarRoute) {
+                            if (activeDetailRoute != null && !activeDetailRoute.isDefaultTopBar) {
                                 topBarState.actions(this)
                             }
                         }

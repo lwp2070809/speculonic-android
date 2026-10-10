@@ -176,7 +176,9 @@ private fun MainContent(
     val isExpanded = adaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(WIDTH_DP_EXPANDED_LOWER_BOUND)
     val directive = remember(adaptiveInfo) {
         androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirective(adaptiveInfo)
+            .copy(horizontalPartitionSpacerSize = 0.dp)
     }
+    val listPaneWidth = directive.defaultPanePreferredWidth
     val isDualPane = directive.maxHorizontalPartitions > 1
 
     // 保持底层导航栏稳态计算，避免全屏浮层展开/折叠动画期间底层布局尺寸重算与导航栏闪烁抖动
@@ -225,122 +227,141 @@ private fun MainContent(
                     }
                 }
             ) {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize(),
-                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
-                    topBar = {
-                        val activeDownloadsCount = remember(allDownloads) {
-                            allDownloads.count { info ->
-                                !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
+                Box(modifier = Modifier.fillMaxSize()) {
+                    Scaffold(
+                        modifier = Modifier.fillMaxSize(),
+                        contentWindowInsets = WindowInsets(0, 0, 0, 0),
+                        topBar = {
+                            val activeDownloadsCount = remember(allDownloads) {
+                                allDownloads.count { info ->
+                                    !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
+                                }
+                            }
+                            MainTopBar(
+                                currentRoute = currentRoute,
+                                currentBackStack = navigationState.getCurrentBackStack(),
+                                listPaneWidth = listPaneWidth,
+                                topBarState = topBarState,
+                                onBackClick = { navigator.goBack() },
+                                onSearchClick = { showSearch = true },
+                                isSyncing = isSyncing,
+                                syncProgress = settingsUiState.syncProgress,
+                                syncError = settingsUiState.syncError,
+                                onSyncStatusClick = { showSyncDetailDialog = true },
+                                activeDownloadsCount = activeDownloadsCount,
+                                onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
+                                offlineMode = offlineMode,
+                                onToggleOfflineMode = onToggleOfflineMode,
+                                isDualPane = isDualPane
+                            )
+                        }
+                    ) { innerPadding ->
+                        if (isExpanded) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(innerPadding)
+                                    .fillMaxSize()
+                            ) {
+                                AppNavDisplay(
+                                    navigator = navigator,
+                                    navigationState = navigationState,
+                                    topBarState = topBarState,
+                                    isOnline = isOnline,
+                                    isEffectivelyOnline = isEffectivelyOnline,
+                                    isStreamingAllowed = isStreamingAllowed,
+                                    onShowSearch = { showSearch = true },
+                                    settingsViewModel = settingsViewModel,
+                                    directive = directive,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+
+                                MiniPlayer(
+                                    onPlayPause = { playbackController.togglePlayPause() },
+                                    onSkipPrevious = { playbackController.skipToPrevious() },
+                                    onSkipNext = { playbackController.skipToNext() },
+                                    onClick = { showNowPlaying = true },
+                                    isFloating = true,
+                                    modifier = Modifier
+                                        .align(Alignment.BottomCenter)
+                                        .padding(horizontal = 24.dp)
+                                        .padding(bottom = 16.dp)
+                                        .navigationBarsPadding()
+                                )
+                            }
+                        } else {
+                            Column(
+                                modifier = Modifier
+                                    .padding(innerPadding)
+                                    .fillMaxSize()
+                            ) {
+                                AppNavDisplay(
+                                    navigator = navigator,
+                                    navigationState = navigationState,
+                                    topBarState = topBarState,
+                                    isOnline = isOnline,
+                                    isEffectivelyOnline = isEffectivelyOnline,
+                                    isStreamingAllowed = isStreamingAllowed,
+                                    onShowSearch = { showSearch = true },
+                                    settingsViewModel = settingsViewModel,
+                                    directive = directive,
+                                    modifier = Modifier.weight(1f)
+                                )
+
+                                MiniPlayer(
+                                    onPlayPause = { playbackController.togglePlayPause() },
+                                    onSkipPrevious = { playbackController.skipToPrevious() },
+                                    onSkipNext = { playbackController.skipToNext() },
+                                    onClick = { showNowPlaying = true },
+                                    isFloating = false,
+                                    modifier = Modifier.navigationBarsPadding()
+                                )
                             }
                         }
-                        MainTopBar(
-                            currentRoute = currentRoute,
-                            topBarState = topBarState,
-                            onBackClick = { navigator.goBack() },
-                            onSearchClick = { showSearch = true },
-                            isSyncing = isSyncing,
-                            syncProgress = settingsUiState.syncProgress,
-                            syncError = settingsUiState.syncError,
-                            onSyncStatusClick = { showSyncDetailDialog = true },
-                            activeDownloadsCount = activeDownloadsCount,
-                            onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
-                            offlineMode = offlineMode,
-                            onToggleOfflineMode = onToggleOfflineMode,
-                            isDualPane = isDualPane
-                        )
                     }
-                ) { innerPadding ->
-                    if (isExpanded) {
-                        Box(
-                            modifier = Modifier
-                                .padding(innerPadding)
-                                .fillMaxSize()
-                        ) {
-                            AppNavDisplay(
-                                navigator = navigator,
-                                navigationState = navigationState,
-                                topBarState = topBarState,
-                                isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
-                                isStreamingAllowed = isStreamingAllowed,
-                                onShowSearch = { showSearch = true },
-                                settingsViewModel = settingsViewModel,
-                                modifier = Modifier.fillMaxSize()
-                            )
 
-                            MiniPlayer(
-                                onPlayPause = { playbackController.togglePlayPause() },
-                                onSkipPrevious = { playbackController.skipToPrevious() },
-                                onSkipNext = { playbackController.skipToNext() },
-                                onClick = { showNowPlaying = true },
-                                isFloating = true,
+                    AnimatedVisibility(
+                        visible = showSearch,
+                        enter = if (isDualPane) slideInHorizontally { -it } + fadeIn() else slideInVertically { it } + fadeIn(),
+                        exit = if (isDualPane) slideOutHorizontally { -it } + fadeOut() else slideOutVertically { it } + fadeOut(),
+                        modifier = if (isDualPane) Modifier.width(listPaneWidth).fillMaxHeight() else Modifier.fillMaxSize()
+                    ) {
+                        Row(modifier = Modifier.fillMaxSize()) {
+                            Surface(
                                 modifier = Modifier
-                                    .align(Alignment.BottomCenter)
-                                    .padding(horizontal = 24.dp)
-                                    .padding(bottom = 16.dp)
-                                    .navigationBarsPadding()
-                            )
-                        }
-                    } else {
-                        Column(
-                            modifier = Modifier
-                                .padding(innerPadding)
-                                .fillMaxSize()
-                        ) {
-                            AppNavDisplay(
-                                navigator = navigator,
-                                navigationState = navigationState,
-                                topBarState = topBarState,
-                                isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
-                                isStreamingAllowed = isStreamingAllowed,
-                                onShowSearch = { showSearch = true },
-                                settingsViewModel = settingsViewModel,
-                                modifier = Modifier.weight(1f)
-                            )
-
-                            MiniPlayer(
-                                onPlayPause = { playbackController.togglePlayPause() },
-                                onSkipPrevious = { playbackController.skipToPrevious() },
-                                onSkipNext = { playbackController.skipToNext() },
-                                onClick = { showNowPlaying = true },
-                                isFloating = false,
-                                modifier = Modifier.navigationBarsPadding()
-                            )
+                                    .weight(1f)
+                                    .fillMaxHeight()
+                                    .pointerInput(Unit) {
+                                        detectTapGestures { }
+                                    },
+                                color = MaterialTheme.colorScheme.background
+                            ) {
+                                SearchScreen(
+                                    viewModel = searchViewModel,
+                                    isOnline = isOnline,
+                                    isEffectivelyOnline = isEffectivelyOnline,
+                                    isStreamingAllowed = isStreamingAllowed,
+                                    onAlbumClick = { albumId ->
+                                        navigator.navigate(AppRoute.AlbumDetail(albumId))
+                                        if (!isDualPane) {
+                                            showSearch = false
+                                        }
+                                    },
+                                    onArtistClick = { artistId ->
+                                        navigator.navigate(AppRoute.ArtistDetail(artistId))
+                                        if (!isDualPane) {
+                                            showSearch = false
+                                        }
+                                    },
+                                    onClose = { showSearch = false }
+                                )
+                            }
+                            if (isDualPane) {
+                                androidx.compose.material3.VerticalDivider(
+                                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                                )
+                            }
                         }
                     }
-                }
-            }
-
-            AnimatedVisibility(
-                visible = showSearch,
-                enter = slideInVertically { it } + fadeIn(),
-                exit = slideOutVertically { it } + fadeOut()
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .pointerInput(Unit) {
-                            detectTapGestures { }
-                        },
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    SearchScreen(
-                        viewModel = searchViewModel,
-                        isOnline = isOnline,
-                        isEffectivelyOnline = isEffectivelyOnline,
-                        isStreamingAllowed = isStreamingAllowed,
-                        onAlbumClick = { albumId ->
-                            navigator.navigate(AppRoute.AlbumDetail(albumId))
-                            showSearch = false
-                        },
-                        onArtistClick = { artistId ->
-                            navigator.navigate(AppRoute.ArtistDetail(artistId))
-                            showSearch = false
-                        },
-                        onClose = { showSearch = false }
-                    )
                 }
             }
 

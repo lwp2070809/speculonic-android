@@ -7,8 +7,8 @@ import androidx.compose.ui.unit.dp
  */
 object AdaptiveNavigationDefaults {
     /**
-     * Material 3 Adaptive ListDetail 布局中 ListPane 的官方标准首选宽度 (360.dp)。
-     * 作为顶部栏左侧宽度与内容区分割线的单一基准源 (Single Source of Truth)。
+     * Material 3 Adaptive ListDetail 布局中 ListPane 的基准首选宽度 (360.dp)。
+     * 在运行时优先使用 PaneScaffoldDirective.defaultPanePreferredWidth（如宽屏平板 >=1200dp 时为 412.dp），此常量作为默认兜底后备值。
      */
     val ListPanePreferredWidth = 360.dp
 }
