@@ -36,8 +36,8 @@ Therefore, some common features found in mainstream Subsonic clients will not be
 ## Roadmap
 
 - [x] Provide Github Action builds
-- [x] Deliver compatibility updates within 3 months of new Android API releases
-- [ ] Refactor tablet UI layout
+- [x] Refactor tablet UI layout
+- [ ] Support API 37
 - [ ] Provide Android X86 builds
 - [ ] Supports bilingual lyrics (work in progress)
 - [ ] Publish on F-Droid
@@ -109,8 +109,8 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 ## 开发路线图
 
 - [x] 提供 Github Action 构建
-- [x] 在 Android 新 API 版本发布 3 个月内提供适配
-- [ ] 重构平板电脑的 UI
+- [x] 重构平板电脑的 UI
+- [ ] 支持API 37
 - [ ] 提供 Android X86 版本
 - [ ] 支持双语歌词 (正在研究)
 - [ ] 上架 F-Droid
