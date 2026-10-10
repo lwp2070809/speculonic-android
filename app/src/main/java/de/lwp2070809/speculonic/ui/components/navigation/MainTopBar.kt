@@ -26,10 +26,12 @@ import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
@@ -176,7 +178,11 @@ fun MainTopBar(
                                     .size(34.dp)
                                     .offset(y = 2.dp)
                             ) {
-                                Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                                Icon(
+                                    imageVector = Icons.Default.Search,
+                                    contentDescription = stringResource(R.string.search),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                         }
                     }
@@ -209,9 +215,11 @@ fun MainTopBar(
                         modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (!isTopLevel && !isDefaultTopBarRoute) {
-                            topBarState.actions(this)
+                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            if (!isTopLevel && !isDefaultTopBarRoute) {
+                                topBarState.actions(this)
+                            }
                         }
                     }
                 }
@@ -332,7 +340,11 @@ fun MainTopBar(
                         Modifier
                     }
                 ) {
-                    Icon(Icons.Default.Search, contentDescription = stringResource(R.string.search))
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = stringResource(R.string.search),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         }

@@ -188,21 +188,21 @@ fun RemoteTab(
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color.Red.copy(alpha = 0.1f))
+                                .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
                                 .padding(4.dp)
                         ) {
-                            Text(stringResource(R.string.local_label), style = MaterialTheme.typography.labelSmall)
-                            Text(diff.localValue, style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.local_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(diff.localValue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(
                             modifier = Modifier
                                 .weight(1f)
-                                .background(Color.Green.copy(alpha = 0.1f))
+                                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
                                 .padding(4.dp)
                         ) {
-                            Text(stringResource(R.string.remote_label), style = MaterialTheme.typography.labelSmall)
-                            Text(diff.remoteValue, style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.remote_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(diff.remoteValue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
                         }
                     }
                 }

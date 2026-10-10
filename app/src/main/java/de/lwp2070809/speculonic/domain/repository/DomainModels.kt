@@ -11,8 +11,5 @@ data class ServerCapabilities(
     val subsonicApiVersion: String? = null
 )
 
-sealed class DomainException(message: String? = null, cause: Throwable? = null) : Exception(message, cause) {
-    class NetworkError(cause: Throwable) : DomainException("Network Error", cause)
-}
 
 class SafetyGuardException(message: String) : Exception(message)

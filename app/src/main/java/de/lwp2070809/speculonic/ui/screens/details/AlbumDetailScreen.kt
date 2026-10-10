@@ -75,7 +75,7 @@ fun AlbumDetailScreen(
                     Icon(
                         painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Star) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_star_border),
                         contentDescription = "Star",
-                        tint = if (isStarred) MaterialTheme.colorScheme.primary else LocalContentColor.current
+                        tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
             },

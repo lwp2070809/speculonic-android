@@ -456,8 +456,8 @@ fun LogViewerPane(
                 ) {
                     items(filteredLogs) { log ->
                         val color = when (log.level) {
-                            LogLevel.ERROR -> Color.Red
-                            LogLevel.WARN -> Color(0xFFFFA500)
+                            LogLevel.ERROR -> MaterialTheme.colorScheme.error
+                            LogLevel.WARN -> MaterialTheme.colorScheme.tertiary
                             LogLevel.INFO -> MaterialTheme.colorScheme.primary
                             LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
                             LogLevel.KAGUYA -> MaterialTheme.colorScheme.primary
