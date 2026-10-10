@@ -51,7 +51,12 @@ object ServerReachableManager {
     @Synchronized
     fun handleFailure() {
         val now = System.currentTimeMillis()
+        // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
         if (now - lastFailureLogTime > 2000L) {
+            // 若距离上次故障波次已超过 60 秒，重置陈旧的历史故障计数，防止跨长时间偶发错误累积误判
+            if (now - lastFailureLogTime > 60_000L) {
+                failureCount.set(0)
+            }
             lastFailureLogTime = now
             val current = failureCount.incrementAndGet()
             if (current >= 3) {
@@ -62,7 +67,7 @@ object ServerReachableManager {
                     _networkEventFlow.tryEmit(NetworkEvent.ServerOffline)
                 }
             } else {
-                LogManager.d("ServerReachableManager: $current/3")
+                LogManager.d("ServerReachableManager: failure count $current/3")
             }
         } else {
             LogManager.d("ServerReachableManager: debounce")

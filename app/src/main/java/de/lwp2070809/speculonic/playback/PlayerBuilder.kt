@@ -59,7 +59,8 @@ class PlayerBuilder(private val context: Context) {
         
         val persistentDataSourceFactory = CacheDataSource.Factory()
             .setCache(downloadCache)
-            .setUpstreamDataSourceFactory(playbackDataSourceFactory) 
+            .setUpstreamDataSourceFactory(playbackDataSourceFactory)
+            .setCacheWriteDataSinkFactory(null)
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
 
         

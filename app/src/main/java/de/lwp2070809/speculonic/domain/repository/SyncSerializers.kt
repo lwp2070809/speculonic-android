@@ -104,9 +104,16 @@ class SearchResult3StreamingSerializer(
         }
     }
 
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     private fun <E> Channel<E>.sendSafe(element: E) {
-        if (trySend(element).isFailure) {
-            runBlocking { send(element) }
+        if (isClosedForSend) return
+        val result = trySend(element)
+        if (result.isSuccess || result.isClosed) return
+
+        runBlocking {
+            kotlinx.coroutines.withTimeout(15_000L) {
+                send(element)
+            }
         }
     }
 

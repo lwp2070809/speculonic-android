@@ -133,38 +133,46 @@ class SyncManager(
                         val tempIdChannel = Channel<List<SyncTempIdEntity>>(capacity = Channel.BUFFERED)
 
                         val writerJob = launch(Dispatchers.IO) {
-                            var artistClosed = false
-                            var albumClosed = false
-                            var songClosed = false
-                            var tempIdClosed = false
+                            try {
+                                var artistClosed = false
+                                var albumClosed = false
+                                var songClosed = false
+                                var tempIdClosed = false
 
-                            while (!artistClosed || !albumClosed || !songClosed || !tempIdClosed) {
-                                kotlinx.coroutines.selects.select {
-                                    if (!artistClosed) {
-                                        artistChannel.onReceiveCatching { result ->
-                                            result.getOrNull()?.let { musicDao.insertArtists(it) }
-                                            if (result.isClosed) artistClosed = true
+                                while (!artistClosed || !albumClosed || !songClosed || !tempIdClosed) {
+                                    kotlinx.coroutines.selects.select {
+                                        if (!artistClosed) {
+                                            artistChannel.onReceiveCatching { result ->
+                                                result.getOrNull()?.let { musicDao.insertArtists(it) }
+                                                if (result.isClosed) artistClosed = true
+                                            }
                                         }
-                                    }
-                                    if (!albumClosed) {
-                                        albumChannel.onReceiveCatching { result ->
-                                            result.getOrNull()?.let { musicDao.insertAlbums(it) }
-                                            if (result.isClosed) albumClosed = true
+                                        if (!albumClosed) {
+                                            albumChannel.onReceiveCatching { result ->
+                                                result.getOrNull()?.let { musicDao.insertAlbums(it) }
+                                                if (result.isClosed) albumClosed = true
+                                            }
                                         }
-                                    }
-                                    if (!songClosed) {
-                                        songChannel.onReceiveCatching { result ->
-                                            result.getOrNull()?.let { musicDao.insertSongs(it) }
-                                            if (result.isClosed) songClosed = true
+                                        if (!songClosed) {
+                                            songChannel.onReceiveCatching { result ->
+                                                result.getOrNull()?.let { musicDao.insertSongs(it) }
+                                                if (result.isClosed) songClosed = true
+                                            }
                                         }
-                                    }
-                                    if (!tempIdClosed) {
-                                        tempIdChannel.onReceiveCatching { result ->
-                                            result.getOrNull()?.let { musicDao.insertSyncTempIds(it) }
-                                            if (result.isClosed) tempIdClosed = true
+                                        if (!tempIdClosed) {
+                                            tempIdChannel.onReceiveCatching { result ->
+                                                result.getOrNull()?.let { musicDao.insertSyncTempIds(it) }
+                                                if (result.isClosed) tempIdClosed = true
+                                            }
                                         }
                                     }
                                 }
+                            } catch (t: Throwable) {
+                                artistChannel.close(t)
+                                albumChannel.close(t)
+                                songChannel.close(t)
+                                tempIdChannel.close(t)
+                                throw t
                             }
                         }
 

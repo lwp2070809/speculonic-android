@@ -65,6 +65,7 @@ class PlaybackService : MediaSessionService() {
     
     @Volatile private var lastInitializedServerUrl: String? = null
     @Volatile private var lastInitializedUsername: String? = null
+    @Volatile private var pendingConfig: Pair<String, String>? = null
 
     private var silentCacheJob: Job? = null
     private var currentQueueTitle: String? = null
@@ -297,6 +298,16 @@ class PlaybackService : MediaSessionService() {
                 LogManager.e("PlaybackService failed to initialize", e)
             } finally {
                 isInitializing.set(false)
+                pendingConfig?.let { (url, username) ->
+                    pendingConfig = null
+                    if (url.isNotBlank() && username.isNotBlank() && 
+                        (url != lastInitializedServerUrl || username != lastInitializedUsername)) {
+                        LogManager.i("PlaybackService: Processing pending config change from initialization window...")
+                        serviceScope.launch(Dispatchers.Main) {
+                            initializeSessionAndPlayer()
+                        }
+                    }
+                }
             }
         }
     }
@@ -318,6 +329,7 @@ class PlaybackService : MediaSessionService() {
                     Pair(url, username)
                 }.collect { (url, username) ->
                     if (isInitializing.get()) {
+                        pendingConfig = Pair(url, username)
                         return@collect
                     }
                     if (url.isNotBlank() && username.isNotBlank() && 

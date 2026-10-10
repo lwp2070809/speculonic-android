@@ -31,6 +31,7 @@ class SubsonicRepository(
     private val preferencesManager: PreferencesManager
 ) {
     private var repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
+    private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entityMapper = EntityMapper
     
     private data class Components(
@@ -68,11 +69,13 @@ class SubsonicRepository(
     private var serverCapabilities = ServerCapabilities()
     @Volatile private var transcodeIncompatible: Boolean = false
     @Volatile private var targetTranscodeFormat: String = "mp3"
+    @Volatile private var lastConfiguredPassword: String = ""
 
     init {
         val initialUrl = preferencesManager.getServerUrlSync()
         val initialUser = preferencesManager.getUsernameSync()
         val initialPass = preferencesManager.getPasswordSync()
+        lastConfiguredPassword = String(initialPass)
         
         val cachedCaps = preferencesManager.getServerCapabilitiesSync()
         if (cachedCaps != null) {
@@ -84,7 +87,7 @@ class SubsonicRepository(
     }
 
     private fun startObservingPreferences() {
-        repositoryScope.launch {
+        observationScope.launch {
             combine(
                 preferencesManager.serverUrl,
                 preferencesManager.username,
@@ -92,17 +95,18 @@ class SubsonicRepository(
             ) { url, username, password ->
                 Triple(url, username, password)
             }.collectLatest { (url, username, password) ->
-                if (url != baseUrl || username != authManager.getAuthParams().first) {
+                if (url != baseUrl || username != authManager.getAuthParams().first || password != lastConfiguredPassword) {
+                    lastConfiguredPassword = password
                     reconfigure(url, username, password.toCharArray())
                 }
             }
         }
-        repositoryScope.launch {
+        observationScope.launch {
             preferencesManager.transcodeIncompatibleFormats.collectLatest {
                 transcodeIncompatible = it
             }
         }
-        repositoryScope.launch {
+        observationScope.launch {
             preferencesManager.targetTranscodeFormat.collectLatest {
                 targetTranscodeFormat = it
             }

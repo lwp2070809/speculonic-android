@@ -110,7 +110,9 @@ class PlaybackController private constructor(context: Context) {
                 return 
             } catch (e: Exception) {
                 LogManager.w("PlaybackController: Current controller future is in error state, re-initializing...")
+                val failedFuture = controllerFuture
                 controllerFuture = null
+                failedFuture?.let { MediaController.releaseFuture(it) }
             }
         }
         
@@ -133,6 +135,7 @@ class PlaybackController private constructor(context: Context) {
                 setupController()
             } catch (e: Throwable) {
                 LogManager.e("PlaybackController: Failed to setup controller after connection", e)
+                MediaController.releaseFuture(newFuture)
                 controllerFuture = null
             }
         }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
