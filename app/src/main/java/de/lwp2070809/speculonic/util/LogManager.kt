@@ -10,8 +10,18 @@ import java.util.Date
 import java.util.Locale
 import java.util.concurrent.atomic.AtomicBoolean
 
-enum class LogLevel {
-    DEBUG, INFO, WARN, ERROR, KAGUYA
+enum class LogLevel(val priority: Int) {
+    DEBUG(1),
+    INFO(2),
+    WARN(3),
+    ERROR(4),
+    KAGUYA(2);
+
+    /**
+     * 是否作为常规日志过滤级别对外展示（KAGUYA 本质上是 INFO 级别彩蛋，不作为独立筛选级别）
+     */
+    val isFilterable: Boolean
+        get() = this != KAGUYA
 }
 
 object LogTag {
@@ -241,9 +251,7 @@ object LogManager {
         throwable: Throwable? = null,
         isEasterEgg: Boolean = false
     ) {
-        val effectiveMin = if (minLevel == LogLevel.KAGUYA) LogLevel.INFO.ordinal else minLevel.ordinal
-        val effectiveLevel = if (level == LogLevel.KAGUYA) LogLevel.INFO.ordinal else level.ordinal
-        if (effectiveLevel < effectiveMin) return
+        if (level.priority < minLevel.priority) return
 
         val msg = if (throwable != null) {
             "$message\n${Log.getStackTraceString(throwable)}"

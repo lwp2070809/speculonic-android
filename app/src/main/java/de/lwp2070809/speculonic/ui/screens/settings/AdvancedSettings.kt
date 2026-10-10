@@ -214,7 +214,7 @@ fun LogViewerPane(
     val isKaguya = currentLogLevel == LogLevel.KAGUYA
     val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
 
-    val wallpaperRes = remember {
+    val wallpaperRes = remember(isKaguya) {
         if (isKaguya) {
             val wallpapers = listOf(
                 R.drawable.kaguya_bg_1,
@@ -238,7 +238,7 @@ fun LogViewerPane(
 
     val filteredLogs = remember(logs, filterLevel, filterTag) {
         logs.filter { entry ->
-            (filterLevel == null || entry.level == filterLevel) &&
+            (filterLevel == null || entry.level.priority >= filterLevel!!.priority) &&
             (filterTag == null || entry.tag == filterTag)
         }
     }
@@ -292,7 +292,8 @@ fun LogViewerPane(
                             IconButton(onClick = { levelMenuExpanded = true }) {
                                 Icon(
                                     painterResource(id = R.drawable.ic_symbol_filter_list),
-                                    contentDescription = stringResource(R.string.log_level)
+                                    contentDescription = stringResource(R.string.log_level),
+                                    tint = if (filterLevel != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             DropdownMenu(
@@ -300,12 +301,22 @@ fun LogViewerPane(
                                 onDismissRequest = { levelMenuExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.log_level_all)) },
+                                    text = {
+                                        Text(
+                                            text = stringResource(R.string.log_level_all),
+                                            color = if (filterLevel == null) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                        )
+                                    },
                                     onClick = { filterLevel = null; levelMenuExpanded = false }
                                 )
-                                LogLevel.entries.forEach { level ->
+                                LogLevel.entries.filter { it.isFilterable }.forEach { level ->
                                     DropdownMenuItem(
-                                        text = { Text(level.name) },
+                                        text = {
+                                            Text(
+                                                text = level.name,
+                                                color = if (filterLevel == level) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                            )
+                                        },
                                         onClick = { filterLevel = level; levelMenuExpanded = false }
                                     )
                                 }
@@ -317,7 +328,8 @@ fun LogViewerPane(
                             IconButton(onClick = { tagMenuExpanded = true }) {
                                 Icon(
                                     painterResource(id = R.drawable.ic_symbol_dns),
-                                    contentDescription = stringResource(R.string.log_tag_all)
+                                    contentDescription = stringResource(R.string.log_tag_all),
+                                    tint = if (filterTag != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             DropdownMenu(
@@ -334,7 +346,12 @@ fun LogViewerPane(
                                 )
                                 tagItems.forEach { (tag, label) ->
                                     DropdownMenuItem(
-                                        text = { Text(label) },
+                                        text = {
+                                            Text(
+                                                text = label,
+                                                color = if (filterTag == tag) MaterialTheme.colorScheme.primary else Color.Unspecified
+                                            )
+                                        },
                                         onClick = { filterTag = tag; tagMenuExpanded = false }
                                     )
                                 }
