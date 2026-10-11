@@ -11,8 +11,11 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
+import androidx.compose.material3.NavigationItemColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -184,46 +187,48 @@ private fun MainContent(
     // 保持底层导航栏稳态计算，避免全屏浮层展开/折叠动画期间底层布局尺寸重算与导航栏闪烁抖动
     val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
 
+    val isExpandedRail = isExpanded && layoutType == NavigationSuiteType.NavigationRail
+
     val primaryColor = MaterialTheme.colorScheme.primary
     val unselectedColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
     val transparentColor = androidx.compose.ui.graphics.Color.Transparent
     
-    val customItemColors = NavigationSuiteDefaults.itemColors(
-        navigationBarItemColors = NavigationBarItemDefaults.colors(
+    val navItemColors = remember(primaryColor, unselectedColor) {
+        NavigationItemColors(
             selectedIconColor = primaryColor,
             selectedTextColor = primaryColor,
-            indicatorColor = transparentColor,
+            selectedIndicatorColor = transparentColor,
             unselectedIconColor = unselectedColor,
-            unselectedTextColor = unselectedColor
-        ),
-        navigationRailItemColors = NavigationRailItemDefaults.colors(
-            selectedIconColor = primaryColor,
-            selectedTextColor = primaryColor,
-            indicatorColor = transparentColor,
-            unselectedIconColor = unselectedColor,
-            unselectedTextColor = unselectedColor
+            unselectedTextColor = unselectedColor,
+            disabledIconColor = unselectedColor.copy(alpha = 0.38f),
+            disabledTextColor = unselectedColor.copy(alpha = 0.38f)
         )
-    )
+    }
 
     CompositionLocalProvider(LocalNavigator provides navigator) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
                 modifier = Modifier.fillMaxSize(),
-                layoutType = layoutType,
+                navigationSuiteType = layoutType,
+                navigationItemVerticalArrangement = if (isExpandedRail) Arrangement.Center else Arrangement.Top,
                 navigationSuiteColors = NavigationSuiteDefaults.colors(
                     navigationBarContainerColor = MaterialTheme.colorScheme.surfaceContainer,
                     navigationRailContainerColor = MaterialTheme.colorScheme.surfaceContainer
                 ),
-                navigationSuiteItems = {
-                    navItems.forEach { item ->
+                navigationItems = {
+                    navItems.forEachIndexed { index, item ->
                         val isSelected = navigationState.topLevelRoute == item.route
-                        item(
+                        NavigationSuiteItem(
                             icon = item.icon,
                             label = { Text(androidx.compose.ui.res.stringResource(item.title)) },
                             selected = isSelected,
                             onClick = { navigator.navigate(item.route) },
-                            colors = customItemColors
+                            navigationSuiteType = layoutType,
+                            colors = navItemColors
                         )
+                        if (isExpandedRail && index < navItems.lastIndex) {
+                            Spacer(modifier = Modifier.height(20.dp))
+                        }
                     }
                 }
             ) {
