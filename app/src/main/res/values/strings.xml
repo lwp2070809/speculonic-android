@@ -185,6 +185,10 @@
     <string name="end_of_playlist">At end of playlist</string>
     <string name="all_songs">All Songs</string>
     <string name="set_minutes">Set Minutes</string>
+    <string name="set_countdown">Set Countdown</string>
+    <string name="unit_hours">hours</string>
+    <string name="unit_minutes">minutes</string>
+    <string name="unit_songs">songs</string>
     <string name="set_song_count">Set Song Count</string>
     <string name="bluetooth_lyrics">Push Bluetooth Lyrics</string>
     <string name="bluetooth_lyrics_description">Show current lyrics as the song title on your car media screen</string>

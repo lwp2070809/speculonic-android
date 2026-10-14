@@ -194,6 +194,9 @@ fun NowPlayingScreen(
                 currentMode = playbackState.sleepTimerMode,
                 lastMinutes = uiState.lastSleepTimerMinutes,
                 lastSongCount = uiState.lastSleepTimerSongCount,
+                isTimerRunning = playbackState.isSleepTimerRunning,
+                remainingMillis = playbackState.sleepTimerRemainingMillis,
+                songsRemaining = playbackState.sleepTimerSongsRemaining,
                 onModeSelected = { mode, minutes, songCount ->
                     playbackController.setSleepTimer(mode, minutes, songCount)
                     if (mode == SleepTimerMode.TIME) {

@@ -182,6 +182,10 @@
     <string name="end_of_playlist">在播放列表末尾</string>
     <string name="all_songs">所有歌曲</string>
     <string name="set_minutes">设置分钟数</string>
+    <string name="set_countdown">设置倒计时</string>
+    <string name="unit_hours">小时</string>
+    <string name="unit_minutes">分钟</string>
+    <string name="unit_songs">首</string>
     <string name="set_song_count">设置歌曲数目</string>
     <string name="bluetooth_lyrics">推送蓝牙歌词</string>
     <string name="bluetooth_lyrics_description">在车载设备上将当前歌词显示为歌曲标题</string>
