@@ -38,6 +38,12 @@ class PlaybackStatePersistence(
             val lastShuffleMode = prefs.shuffleMode.first()
             val lastQueueTitle = prefs.lastQueueTitle.first()
 
+            val effectiveRepeatMode = if (lastShuffleMode && lastRepeatMode == Player.REPEAT_MODE_ONE) {
+                Player.REPEAT_MODE_ALL
+            } else {
+                lastRepeatMode
+            }
+
             if (savedQueue.isNotEmpty()) {
                 val mediaItems = savedQueue.map { it.toMediaItem(repo) }
                 val lastIndex = prefs.lastQueueIndex.first().coerceIn(0, mediaItems.size - 1)
@@ -46,7 +52,7 @@ class PlaybackStatePersistence(
                 try {
                     withContext(Dispatchers.Main) {
                         onQueueTitleRestored(lastQueueTitle)
-                        player.repeatMode = lastRepeatMode
+                        player.repeatMode = effectiveRepeatMode
                         player.shuffleModeEnabled = lastShuffleMode
                         player.setMediaItems(mediaItems, lastIndex, lastPosition)
                         player.prepare()
@@ -60,7 +66,7 @@ class PlaybackStatePersistence(
                 }
             } else {
                 withContext(Dispatchers.Main) {
-                    player.repeatMode = lastRepeatMode
+                    player.repeatMode = effectiveRepeatMode
                     player.shuffleModeEnabled = lastShuffleMode
                 }
             }
@@ -78,7 +84,7 @@ class PlaybackStatePersistence(
 
         if (immediate) {
             saveStateJob?.cancel()
-            de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO) {
+            saveStateJob = de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO) {
                 prefs.savePlaybackState(mediaId, position, index, queueTitle, repeatMode, shuffleMode)
             }
         } else {

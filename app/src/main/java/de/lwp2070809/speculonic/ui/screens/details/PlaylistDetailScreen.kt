@@ -130,7 +130,7 @@ fun PlaylistDetailScreen(
                                 onPlayAll = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, 0, queueTitle = uiState.playlist?.name)
+                                        playbackController.play(mediaItems, 0, shuffle = false, queueTitle = uiState.playlist?.name)
                                     }
                                 },
                                 onShuffle = {

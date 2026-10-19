@@ -111,7 +111,7 @@ fun FavoriteList(
                             }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
-                                playbackController.play(mediaItems, 0, queueTitle = "Favorite")
+                                playbackController.play(mediaItems, 0, shuffle = false, queueTitle = "Favorite")
                             }
                         },
                         onShuffle = {

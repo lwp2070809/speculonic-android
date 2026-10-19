@@ -76,12 +76,12 @@ class PlaybackServiceListener(
             else -> "$repeatMode"
         }
         LogManager.i(LogTag.PLAYBACK, "Repeat mode changed -> $modeStr")
-        persistence.savePlaybackState(player)
+        persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
         LogManager.i(LogTag.PLAYBACK, "Shuffle mode changed -> $shuffleModeEnabled")
-        persistence.savePlaybackState(player)
+        persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {

@@ -137,7 +137,7 @@ fun AlbumDetailScreen(
                                 onPlayAll = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, 0, queueTitle = uiState.album?.name)
+                                        playbackController.play(mediaItems, 0, shuffle = false, queueTitle = uiState.album?.name)
                                     }
                                 },
                                 onShuffle = {

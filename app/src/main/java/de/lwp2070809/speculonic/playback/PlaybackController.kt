@@ -275,27 +275,53 @@ class PlaybackController private constructor(context: Context) {
         )
     }
 
-    fun play(mediaItems: List<MediaItem>, startIndex: Int = 0, shuffle: Boolean = false, queueTitle: String? = null) {
+    fun play(mediaItems: List<MediaItem>, startIndex: Int = 0, shuffle: Boolean? = null, queueTitle: String? = null) {
         _playbackState.value = _playbackState.value.copy(queueTitle = queueTitle)
         executeWhenReady { controller ->
             scope.launch {
-                val savedRepeatMode = preferencesManager.repeatMode.first()
-                val savedShuffleMode = preferencesManager.shuffleMode.first()
-                
-                withContext(Dispatchers.Main) {
-                    val bundle = android.os.Bundle().apply { putString("queueTitle", queueTitle) }
-                    controller.sendCustomCommand(
-                        androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY),
-                        bundle
-                    )
+                val bundle = android.os.Bundle().apply { putString("queueTitle", queueTitle) }
+                controller.sendCustomCommand(
+                    androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY),
+                    bundle
+                )
 
-                    controller.repeatMode = savedRepeatMode
-                    controller.shuffleModeEnabled = if (shuffle) true else savedShuffleMode
-                    
-                    controller.setMediaItems(mediaItems, startIndex, 0L)
-                    controller.prepare()
-                    controller.play()
+                when (shuffle) {
+                    true -> {
+                        // 显式指定随机播放：进入随机播放模式，强制重置 repeatMode 为 REPEAT_MODE_ALL，杜绝单曲循环冲突
+                        controller.repeatMode = Player.REPEAT_MODE_ALL
+                        controller.shuffleModeEnabled = true
+                    }
+                    false -> {
+                        // 显式指定顺序播放全部：进入列表顺序循环模式，关闭随机
+                        controller.repeatMode = Player.REPEAT_MODE_ALL
+                        controller.shuffleModeEnabled = false
+                    }
+                    null -> {
+                        // 未显式指定（如点击单曲项）：按需读取并保持现有的播放模式
+                        val isReady = controller.playbackState != Player.STATE_IDLE
+                        val effectiveShuffleMode = if (isReady) {
+                            controller.shuffleModeEnabled
+                        } else {
+                            preferencesManager.shuffleMode.first()
+                        }
+                        val effectiveRepeatMode = if (effectiveShuffleMode) {
+                            Player.REPEAT_MODE_ALL
+                        } else {
+                            val rawRepeatMode = if (isReady && controller.repeatMode != Player.REPEAT_MODE_OFF) {
+                                controller.repeatMode
+                            } else {
+                                preferencesManager.repeatMode.first()
+                            }
+                            if (rawRepeatMode == Player.REPEAT_MODE_OFF) Player.REPEAT_MODE_ALL else rawRepeatMode
+                        }
+                        controller.repeatMode = effectiveRepeatMode
+                        controller.shuffleModeEnabled = effectiveShuffleMode
+                    }
                 }
+                
+                controller.setMediaItems(mediaItems, startIndex, 0L)
+                controller.prepare()
+                controller.play()
             }
         }
     }
