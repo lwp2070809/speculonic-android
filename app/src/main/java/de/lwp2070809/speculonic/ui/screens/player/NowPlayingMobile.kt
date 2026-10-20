@@ -144,6 +144,7 @@ fun NowPlayingMobile(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .clip(RoundedCornerShape(24.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
                                 .graphicsLayer {
                                     alpha = lyricsAlpha
                                     scaleX = lyricsScale

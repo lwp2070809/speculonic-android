@@ -111,7 +111,6 @@ fun NowPlayingExpanded(
                 .padding(end = 32.dp, top = 16.dp, bottom = 16.dp)
                 .clip(RoundedCornerShape(24.dp))
                 .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
-                .padding(16.dp)
         ) {
             LyricsView(
                 lyricsLines = uiState.lyricsLines,
