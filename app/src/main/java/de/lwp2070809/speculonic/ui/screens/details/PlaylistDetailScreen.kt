@@ -158,7 +158,24 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.songs) { index, song ->
+                    if (uiState.songs.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.no_content_available),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+
+                    itemsIndexed(uiState.songs, key = { index, song -> "${song.id}_$index" }) { index, song ->
                         var showItemMenu by remember { mutableStateOf(false) }
                         var showDetailDialog by remember { mutableStateOf(false) }
                         val isDownloaded = song.isFullyCached
@@ -264,6 +281,14 @@ fun PlaylistDetailScreen(
                             }
                         )
                     }
+                }
+
+                uiState.error?.let { error ->
+                    Text(
+                        text = error,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)
+                    )
                 }
             }
         }

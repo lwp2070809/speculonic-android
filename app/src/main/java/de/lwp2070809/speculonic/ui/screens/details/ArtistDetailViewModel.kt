@@ -77,7 +77,7 @@ class ArtistDetailViewModel @AssistedInject constructor(
                         _uiState.update {
                             it.copy(
                                 artist = artist ?: it.artist,
-                                albums = if (albums.isNotEmpty()) albums else it.albums,
+                                albums = albums,
                                 isLoading = false,
                                 isRefreshing = false,
                                 error = null
@@ -92,7 +92,7 @@ class ArtistDetailViewModel @AssistedInject constructor(
                     _uiState.update {
                         it.copy(
                             artist = artist ?: it.artist,
-                            albums = if (albums.isNotEmpty()) albums else it.albums,
+                            albums = albums,
                             isLoading = false,
                             isRefreshing = false,
                             error = null
@@ -109,6 +109,8 @@ class ArtistDetailViewModel @AssistedInject constructor(
                         error = if (it.artist == null) e.message else null
                     )
                 }
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }

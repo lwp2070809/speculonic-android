@@ -2,10 +2,7 @@ package de.lwp2070809.speculonic.ui.screens.library
 
 import android.widget.Toast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -22,6 +19,7 @@ import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -44,7 +42,7 @@ fun FavoriteList(
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     onRefresh: () -> Unit,
-    isLoading: Boolean,
+    isRefreshing: Boolean,
     onDownloadClick: (Song) -> Unit,
     onDownloadAllClick: () -> Unit,
     onStarClick: (String, Boolean, (Boolean) -> Unit) -> Unit = { _, _, _ -> }
@@ -82,7 +80,7 @@ fun FavoriteList(
     val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
 
     PullToRefreshBox(
-        isRefreshing = isLoading,
+        isRefreshing = isRefreshing,
         onRefresh = onRefresh,
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
@@ -93,13 +91,30 @@ fun FavoriteList(
             verticalArrangement = Arrangement.spacedBy(2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                Text(
-                    text = pluralStringResource(R.plurals.songs_count, songs.size, songs.size),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
-                )
+            if (songs.isNotEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Text(
+                        text = pluralStringResource(R.plurals.songs_count, songs.size, songs.size),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp)
+                    )
+                }
+            } else {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 48.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = stringResource(R.string.no_content_available),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
 
             if (songs.isNotEmpty()) {

@@ -91,68 +91,82 @@ class PlaylistRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
             val response = api.getPlaylist(id, u, t, s)
-            val list = response.response.playlist?.entry ?: emptyList()
-            if (list.isNotEmpty() && !skipInsert) {
-                val songIds = list.map { it.id }
-                val existingSongsMap = songIds.chunked(500)
+            if (response.response.status != "ok") {
+                val errorMsg = response.response.error?.message ?: "Subsonic server returned status: ${response.response.status}"
+                throw IllegalStateException(errorMsg)
+            }
+            val playlistInfo = response.response.playlist
+                ?: throw IllegalStateException("Playlist data is missing in server response")
+            val list = playlistInfo.entry
+
+            val currentPlaylist = musicDao.getPlaylistById(id)
+            val songIds = list.map { it.id }
+            val existingSongsMap = if (songIds.isNotEmpty()) {
+                songIds.chunked(500)
                     .flatMap { musicDao.getSongsByIds(it) }
                     .associateBy { it.id }
-
-                val entities = list.map { song ->
-                    val local = existingSongsMap[song.id]
-                    entityMapper.songToEntity(song, 
-                        albumId = null, 
-                        localUri = local?.localUri, 
-                        isCached = local?.isFullyCached ?: false,
-                        isTranscoded = local?.isTranscoded ?: false,
-                        lastUpdated = local?.lastUpdated
-                    )
-                }
-                val refs = list.mapIndexed { index, song -> PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index) }
-                
-                musicDao.deletePlaylistSongs(id)
-                entities.chunked(500).forEach { musicDao.insertSongs(it) }
-                refs.chunked(500).forEach { musicDao.insertPlaylistSongCrossRefs(it) }
-
-                
-                
-                val currentPlaylist = musicDao.getPlaylistById(id)
-                val playlistInfo = response.response.playlist
-                if (currentPlaylist != null) {
-                    if (playlistInfo != null) {
-                        musicDao.insertPlaylists(listOf(currentPlaylist.copy(
-                            name = playlistInfo.name,
-                            comment = playlistInfo.comment,
-                            owner = playlistInfo.owner,
-                            `public` = playlistInfo.public ?: false,
-                            songCount = list.size,
-                            duration = playlistInfo.duration?.toLong() ?: 0L,
-                            coverArt = playlistInfo.coverArt
-                        )))
-                    } else {
-                        musicDao.insertPlaylists(listOf(currentPlaylist.copy(songCount = list.size)))
-                    }
-                } else if (playlistInfo != null) {
-                    musicDao.insertPlaylists(listOf(
-                        PlaylistEntity(
-                            id = playlistInfo.id,
-                            name = playlistInfo.name,
-                            comment = playlistInfo.comment,
-                            owner = playlistInfo.owner,
-                            `public` = playlistInfo.public ?: false,
-                            songCount = list.size,
-                            duration = playlistInfo.duration?.toLong() ?: 0L,
-                            coverArt = playlistInfo.coverArt,
-                            pinned = false
-                        )
-                    ))
-                }
-            } else if (response.response.status == "ok" && !skipInsert) {
-                musicDao.deletePlaylistSongs(id)
+            } else {
+                emptyMap()
             }
-            list
+
+            val entities = list.map { song ->
+                val local = existingSongsMap[song.id]
+                entityMapper.songToEntity(
+                    song, 
+                    albumId = null, 
+                    localUri = local?.localUri, 
+                    isCached = local?.isFullyCached ?: false,
+                    isTranscoded = local?.isTranscoded ?: false,
+                    lastUpdated = local?.lastUpdated
+                )
+            }
+            val refs = list.mapIndexed { index, song -> 
+                PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index) 
+            }
+
+            val finalPlaylistEntity = if (currentPlaylist != null) {
+                currentPlaylist.copy(
+                    name = playlistInfo.name,
+                    comment = playlistInfo.comment,
+                    owner = playlistInfo.owner,
+                    `public` = playlistInfo.public ?: false,
+                    songCount = list.size,
+                    duration = playlistInfo.duration?.toLong() ?: 0L,
+                    coverArt = playlistInfo.coverArt,
+                    lastUpdated = System.currentTimeMillis()
+                )
+            } else {
+                PlaylistEntity(
+                    id = playlistInfo.id,
+                    name = playlistInfo.name,
+                    comment = playlistInfo.comment,
+                    owner = playlistInfo.owner,
+                    `public` = playlistInfo.public ?: false,
+                    songCount = list.size,
+                    duration = playlistInfo.duration?.toLong() ?: 0L,
+                    coverArt = playlistInfo.coverArt,
+                    pinned = false,
+                    lastUpdated = System.currentTimeMillis()
+                )
+            }
+
+            if (!skipInsert) {
+                musicDao.syncPlaylistWithSongs(
+                    playlist = finalPlaylistEntity,
+                    songs = entities,
+                    refs = refs
+                )
+            }
+
+            if (entities.isNotEmpty()) {
+                entities.map { entityMapper.toSong(it) }
+            } else {
+                emptyList()
+            }
         } catch (e: Exception) {
-            cached.map { entityMapper.toSong(it) }
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            de.lwp2070809.speculonic.util.LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
+            throw e
         }
     }
 

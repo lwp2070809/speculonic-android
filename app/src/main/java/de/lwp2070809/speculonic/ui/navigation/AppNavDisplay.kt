@@ -164,7 +164,7 @@ fun AppNavDisplay(
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
                 onRefresh = { libraryViewModel.refreshFavorites() },
-                isLoading = uiState.isRefreshing,
+                isRefreshing = uiState.isRefreshing,
                 onDownloadClick = { downloadController.downloadSong(it) },
                 onDownloadAllClick = {
                     uiState.favorites.forEach { song ->

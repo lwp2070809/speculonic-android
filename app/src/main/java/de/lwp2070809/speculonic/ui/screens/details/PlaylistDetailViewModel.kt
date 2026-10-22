@@ -14,7 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class PlaylistDetailUiState(
@@ -40,8 +40,6 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
     
-    private val isUsingEphemeralData = java.util.concurrent.atomic.AtomicBoolean(false)
-
     init {
         observeMetadata()
         observeSongs()
@@ -51,7 +49,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     fun loadPlaylistDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {
         viewModelScope.launch {
             if (isManualRefresh) {
-                _uiState.value = _uiState.value.copy(isRefreshing = true)
+                _uiState.update { it.copy(isRefreshing = true, error = null) }
             }
 
             try {
@@ -60,71 +58,48 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                     val cachedSongs = repository.getCachedPlaylistSongs(playlistId)
 
                     if (cachedPlaylist != null || cachedSongs.isNotEmpty()) {
-                        _uiState.value = _uiState.value.copy(
-                            playlist = cachedPlaylist ?: _uiState.value.playlist,
-                            songs = if (cachedSongs.isNotEmpty()) cachedSongs else _uiState.value.songs,
-                            isLoading = false,
-                            error = null
-                        )
+                        _uiState.update {
+                            it.copy(
+                                playlist = cachedPlaylist ?: it.playlist,
+                                songs = if (cachedSongs.isNotEmpty()) cachedSongs else it.songs,
+                                isLoading = false,
+                                error = null
+                            )
+                        }
                         if (cachedSongs.isEmpty()) {
                             try {
-                                val isSyncing = repository.isSyncingFlow().first()
-                                val songs = repository.getPlaylist(playlistId, forceRefresh = true)
-                                if (isSyncing && songs.isNotEmpty()) {
-                                    isUsingEphemeralData.set(true)
-                                }
-                                if (songs.isNotEmpty()) {
-                                    _uiState.value = _uiState.value.copy(
-                                        songs = songs,
-                                        isLoading = false,
-                                        isRefreshing = false,
-                                        error = null
-                                    )
-                                }
+                                repository.getPlaylist(playlistId, forceRefresh = true)
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 LogManager.e("PlaylistDetailViewModel: fetch songs failed for $playlistId", e)
                             }
                         }
                     } else {
                         if (!isManualRefresh) {
-                            _uiState.value = _uiState.value.copy(isLoading = true)
+                            _uiState.update { it.copy(isLoading = true, error = null) }
                         }
-                        val isSyncing = repository.isSyncingFlow().first()
-                        val songs = repository.getPlaylist(playlistId, forceRefresh = true)
-                        if (isSyncing && songs.isNotEmpty()) {
-                            isUsingEphemeralData.set(true)
-                        }
-                        _uiState.value = _uiState.value.copy(
-                            isLoading = false,
-                            isRefreshing = false,
-                            songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
-                            error = null
-                        )
+                        repository.getPlaylist(playlistId, forceRefresh = true)
+                        _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = null) }
                     }
                 } else {
                     if (!isManualRefresh) {
-                        _uiState.value = _uiState.value.copy(isLoading = true)
+                        _uiState.update { it.copy(isLoading = true, error = null) }
                     }
-                    val isSyncing = repository.isSyncingFlow().first()
-                    val songs = repository.getPlaylist(playlistId, forceRefresh = true)
-                    if (isSyncing && songs.isNotEmpty()) {
-                        isUsingEphemeralData.set(true)
-                    }
-                    _uiState.value = _uiState.value.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        songs = if (songs.isNotEmpty()) songs else _uiState.value.songs,
-                        error = null
-                    )
+                    repository.getPlaylist(playlistId, forceRefresh = true)
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = null) }
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("PlaylistDetailViewModel: loadPlaylistDetails failed", e)
-                _uiState.value = _uiState.value.copy(
-                    isLoading = false,
-                    isRefreshing = false,
-                    error = if (_uiState.value.playlist == null) e.message else null
-                )
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        error = if (it.playlist == null || isManualRefresh) e.message else null
+                    )
+                }
+            } finally {
+                _uiState.update { it.copy(isRefreshing = false) }
             }
         }
     }
@@ -133,7 +108,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         viewModelScope.launch {
             repository.getPlaylistByIdFlow(playlistId).collectLatest { playlist ->
                 if (playlist != null) {
-                    _uiState.value = _uiState.value.copy(playlist = playlist)
+                    _uiState.update { it.copy(playlist = playlist) }
                 }
             }
         }
@@ -142,16 +117,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     private fun observeSongs() {
         viewModelScope.launch {
             repository.getSongsByPlaylistFlow(playlistId).collectLatest { songs ->
-                
-                
-                if (isUsingEphemeralData.get() && songs.isEmpty()) {
-                    return@collectLatest
-                }
-                
-                _uiState.value = _uiState.value.copy(songs = songs)
-                if (songs.isNotEmpty()) {
-                    isUsingEphemeralData.set(false)
-                }
+                _uiState.update { it.copy(songs = songs) }
             }
         }
     }
@@ -162,7 +128,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             try {
                 repository.togglePlaylistPinned(playlistId, !currentPlaylist.pinned)
             } catch (e: Exception) {
-                _uiState.value = _uiState.value.copy(error = e.message)
+                _uiState.update { it.copy(error = e.message) }
             }
         }
     }
