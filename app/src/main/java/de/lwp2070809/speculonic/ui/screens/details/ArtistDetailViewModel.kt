@@ -106,12 +106,16 @@ class ArtistDetailViewModel @AssistedInject constructor(
                     it.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        error = if (it.artist == null) e.message else null
+                        error = if (it.artist == null || isManualRefresh) e.message else null
                     )
                 }
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
         }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 }

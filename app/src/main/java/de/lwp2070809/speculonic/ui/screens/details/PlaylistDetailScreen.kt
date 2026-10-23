@@ -95,6 +95,14 @@ fun PlaylistDetailScreen(
         )
     }
 
+    LaunchedEffect(uiState.error) {
+        val error = uiState.error
+        if (error != null && uiState.playlist != null) {
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
+
     DisposableEffect(Unit) {
         onDispose {
             topBarState.clear(screenToken)
@@ -281,14 +289,6 @@ fun PlaylistDetailScreen(
                             }
                         )
                     }
-                }
-
-                uiState.error?.let { error ->
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)
-                    )
                 }
             }
         }

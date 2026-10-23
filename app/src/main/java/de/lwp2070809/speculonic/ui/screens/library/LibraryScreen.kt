@@ -1,5 +1,7 @@
 package de.lwp2070809.speculonic.ui.screens.library
 
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -46,6 +48,15 @@ fun LibraryScreen(
     onPlaylistClick: (String) -> Unit
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    LaunchedEffect(uiState.error) {
+        val error = uiState.error
+        if (error != null) {
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
     val selectedTabIndex = uiState.selectedTabIndex
     
     val tabs = listOf(
@@ -187,13 +198,7 @@ fun LibraryScreen(
                     }
                 }
 
-                uiState.error?.let { error ->
-                    Text(
-                        text = error,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 100.dp)
-                    )
-                }
+
             }
         }
     }

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class AlbumDetailUiState(
@@ -49,19 +50,21 @@ class AlbumDetailViewModel @AssistedInject constructor(
     fun loadAlbumDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {
         viewModelScope.launch {
             if (isManualRefresh) {
-                _uiState.value = _uiState.value.copy(isRefreshing = true)
+                _uiState.update { it.copy(isRefreshing = true) }
             }
 
             try {
                 if (!forceRefresh) {
                     val cachedAlbum = repository.getCachedAlbum(albumId)
                     if (cachedAlbum != null) {
-                        _uiState.value = _uiState.value.copy(
-                            album = cachedAlbum,
-                            songs = if (cachedAlbum.song.isNotEmpty()) cachedAlbum.song else _uiState.value.songs,
-                            isLoading = false,
-                            error = null
-                        )
+                        _uiState.update {
+                            it.copy(
+                                album = cachedAlbum,
+                                songs = if (cachedAlbum.song.isNotEmpty()) cachedAlbum.song else it.songs,
+                                isLoading = false,
+                                error = null
+                            )
+                        }
                         if (cachedAlbum.song.isEmpty()) {
                             try {
                                 repository.getAlbum(albumId, forceRefresh = true)
@@ -71,29 +74,27 @@ class AlbumDetailViewModel @AssistedInject constructor(
                         }
                     } else {
                         if (!isManualRefresh) {
-                            _uiState.value = _uiState.value.copy(isLoading = true)
+                            _uiState.update { it.copy(isLoading = true) }
                         }
                         repository.getAlbum(albumId, forceRefresh = true)
-                        _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
+                        _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = null) }
                     }
                 } else {
                     if (!isManualRefresh) {
-                        _uiState.value = _uiState.value.copy(isLoading = true)
+                        _uiState.update { it.copy(isLoading = true) }
                     }
                     repository.getAlbum(albumId, forceRefresh = true)
-                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false, error = null)
+                    _uiState.update { it.copy(isLoading = false, isRefreshing = false, error = null) }
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("AlbumDetailViewModel: loadAlbumDetails failed", e)
-                if (_uiState.value.album == null) {
-                    _uiState.value = _uiState.value.copy(
+                _uiState.update {
+                    it.copy(
                         isLoading = false,
                         isRefreshing = false,
-                        error = e.message
+                        error = if (it.album == null || isManualRefresh) e.message else null
                     )
-                } else {
-                    _uiState.value = _uiState.value.copy(isLoading = false, isRefreshing = false)
                 }
             }
         }
@@ -102,7 +103,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
     private fun observeMetadata() {
         viewModelScope.launch {
             repository.getAlbumByIdFlow(albumId).collectLatest { album ->
-                _uiState.value = _uiState.value.copy(album = album)
+                _uiState.update { it.copy(album = album) }
             }
         }
     }
@@ -110,7 +111,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
     private fun observeSongs() {
         viewModelScope.launch {
             repository.getSongsByAlbumFlow(albumId).collectLatest { songs ->
-                _uiState.value = _uiState.value.copy(songs = songs)
+                _uiState.update { it.copy(songs = songs) }
             }
         }
     }
@@ -131,5 +132,9 @@ class AlbumDetailViewModel @AssistedInject constructor(
                 de.lwp2070809.speculonic.util.LogManager.e("AlbumDetailViewModel: toggleStarSong failed", e)
             }
         }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 }

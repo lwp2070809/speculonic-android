@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.ui.screens.discover
 
+import android.widget.Toast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
@@ -61,6 +62,14 @@ fun DiscoverScreen(
     val isDualPane = LocalIsDualPane.current
     val navigator = LocalNavigator.current
     val context = LocalContext.current
+
+    LaunchedEffect(uiState.error) {
+        val error = uiState.error
+        if (error != null) {
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
+    }
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
     val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
 
@@ -257,13 +266,7 @@ fun DiscoverScreen(
             }
         }
 
-        uiState.error?.let { error ->
-            Text(
-                text = error,
-                color = MaterialTheme.colorScheme.error,
-                modifier = Modifier.align(Alignment.Center)
-            )
-        }
+
     }
 }
 

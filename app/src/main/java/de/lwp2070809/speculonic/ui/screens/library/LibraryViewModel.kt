@@ -241,6 +241,10 @@ class LibraryViewModel @Inject constructor(
         _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) }
     }
 
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
 
 
     fun createPlaylist(name: String) {

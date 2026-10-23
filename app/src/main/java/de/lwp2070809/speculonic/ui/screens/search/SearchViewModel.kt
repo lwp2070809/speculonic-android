@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -34,15 +35,19 @@ class SearchViewModel @Inject constructor(
         
         viewModelScope.launch {
             DownloadTracker.downloadedSongIds.collectLatest { downloadedIds ->
-                val currentResults = _uiState.value.results
-                if (currentResults.song.isNotEmpty()) {
-                    val updatedSongs = currentResults.song.map { song ->
-                        song.copy(isFullyCached = downloadedIds.contains(song.id))
-                    }
-                    if (updatedSongs != currentResults.song) {
-                        _uiState.value = _uiState.value.copy(
-                            results = currentResults.copy(song = updatedSongs)
-                        )
+                _uiState.update { state ->
+                    val currentResults = state.results
+                    if (currentResults.song.isNotEmpty()) {
+                        val updatedSongs = currentResults.song.map { song ->
+                            song.copy(isFullyCached = downloadedIds.contains(song.id))
+                        }
+                        if (updatedSongs != currentResults.song) {
+                            state.copy(results = currentResults.copy(song = updatedSongs))
+                        } else {
+                            state
+                        }
+                    } else {
+                        state
                     }
                 }
             }
@@ -55,15 +60,15 @@ class SearchViewModel @Inject constructor(
                 .debounce(500)
                 .collectLatest { query ->
                     if (query.isBlank()) {
-                        _uiState.value = _uiState.value.copy(results = SearchResult3(), isLoading = false, error = null)
+                        _uiState.update { it.copy(results = SearchResult3(), isLoading = false, error = null) }
                     } else {
-                        _uiState.value = _uiState.value.copy(isLoading = true, error = null)
+                        _uiState.update { it.copy(isLoading = true, error = null) }
                         try {
                             val results = repository.search(query)
-                            _uiState.value = _uiState.value.copy(results = results, isLoading = false, error = null)
+                            _uiState.update { it.copy(results = results, isLoading = false, error = null) }
                         } catch (e: Exception) {
                             if (e !is kotlinx.coroutines.CancellationException) {
-                                _uiState.value = _uiState.value.copy(results = SearchResult3(), isLoading = false, error = e.message)
+                                _uiState.update { it.copy(results = SearchResult3(), isLoading = false, error = e.message) }
                             }
                         }
                     }
@@ -72,7 +77,7 @@ class SearchViewModel @Inject constructor(
     }
 
     fun onQueryChange(query: String) {
-        _uiState.value = _uiState.value.copy(query = query)
+        _uiState.update { it.copy(query = query) }
         searchQuery.value = query
     }
 
@@ -84,5 +89,9 @@ class SearchViewModel @Inject constructor(
                 de.lwp2070809.speculonic.util.LogManager.e("SearchViewModel: toggleStarSong failed", e)
             }
         }
+    }
+
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
     }
 }

@@ -122,6 +122,10 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
+    fun clearError() {
+        _uiState.update { it.copy(error = null) }
+    }
+
     fun togglePinned() {
         val currentPlaylist = _uiState.value.playlist ?: return
         viewModelScope.launch {

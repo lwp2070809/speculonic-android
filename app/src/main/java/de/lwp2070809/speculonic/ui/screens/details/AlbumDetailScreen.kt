@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.ui.screens.details
 
+import android.widget.Toast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
@@ -83,6 +84,14 @@ fun AlbumDetailScreen(
             onBackClickOverride = onBackClick,
             token = screenToken
         )
+    }
+
+    LaunchedEffect(uiState.error) {
+        val error = uiState.error
+        if (error != null && uiState.album != null) {
+            Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
+            viewModel.clearError()
+        }
     }
 
     DisposableEffect(Unit) {
