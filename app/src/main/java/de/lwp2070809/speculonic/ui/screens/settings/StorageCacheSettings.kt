@@ -83,6 +83,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.ui.screens.settings.components.StorageDashboardCard
@@ -153,11 +154,14 @@ fun StorageCacheSettings(
         label = "rotation"
     )
 
+    val bottomInset = LocalMiniPlayerBottomInset.current
+
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .verticalScroll(rememberScrollState())
+                .padding(bottom = SettingsConstants.PAGE_PADDING + bottomInset)
         ) {
             StorageDashboardCard(
                 playbackBytes = uiState.playbackCacheBytes,

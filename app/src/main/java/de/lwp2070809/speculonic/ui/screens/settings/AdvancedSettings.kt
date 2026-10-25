@@ -73,6 +73,7 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalIsDualPane
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
 
@@ -121,8 +122,8 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                     )
                     .fillMaxHeight()
                     .background(MaterialTheme.colorScheme.background)
-                    .padding(SettingsConstants.PAGE_PADDING)
                     .verticalScroll(rememberScrollState())
+                    .padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
             ) {
                 var expandedLogLevel by remember { mutableStateOf(false) }
                 val logLevels = LogLevel.entries
@@ -469,7 +470,7 @@ fun LogViewerPane(
                         .fillMaxSize()
                         .background(Color.Transparent)
                         .padding(horizontal = 8.dp),
-                    contentPadding = PaddingValues(vertical = 8.dp)
+                    contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + LocalMiniPlayerBottomInset.current)
                 ) {
                     items(filteredLogs) { log ->
                         val color = when (log.level) {

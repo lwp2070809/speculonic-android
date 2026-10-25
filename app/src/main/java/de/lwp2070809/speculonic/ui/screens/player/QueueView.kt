@@ -4,6 +4,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 
 @Composable
 fun QueueView(
@@ -36,7 +38,8 @@ fun QueueView(
         .fillMaxWidth()
         .fillMaxHeight(0.8f)
         .padding(16.dp),
-    showTitle: Boolean = true
+    showTitle: Boolean = true,
+    applyMiniPlayerInset: Boolean = true
 ) {
     val listState = rememberLazyListState()
 
@@ -58,7 +61,8 @@ fun QueueView(
         
         LazyColumn(
             state = listState,
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(bottom = 16.dp + if (applyMiniPlayerInset) LocalMiniPlayerBottomInset.current else 0.dp)
         ) {
             itemsIndexed(
                 items = queue,

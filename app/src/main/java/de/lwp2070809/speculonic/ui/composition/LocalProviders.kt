@@ -2,6 +2,8 @@ package de.lwp2070809.speculonic.ui.composition
 
 import android.content.Context
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.network.model.Song
@@ -49,3 +51,5 @@ val LocalPlaybackController = staticCompositionLocalOf<PlaybackController> {
 val LocalNavigator = staticCompositionLocalOf<Navigator?> { null }
 
 val LocalIsDualPane = staticCompositionLocalOf { false }
+
+val LocalMiniPlayerBottomInset = staticCompositionLocalOf<Dp> { 0.dp }

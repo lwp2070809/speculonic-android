@@ -61,6 +61,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.screens.settings.components.*
 
@@ -108,8 +109,8 @@ fun ServerSettings(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
-            .padding(vertical = SettingsConstants.PAGE_PADDING)
             .verticalScroll(rememberScrollState())
+            .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
         if (uiState.serverUrl.isBlank()) {
             Box(

@@ -32,6 +32,7 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import kotlinx.coroutines.launch
@@ -63,7 +64,7 @@ fun AllSongsList(
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 340.dp),
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 80.dp),
+            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current),
             verticalArrangement = Arrangement.spacedBy(2.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {

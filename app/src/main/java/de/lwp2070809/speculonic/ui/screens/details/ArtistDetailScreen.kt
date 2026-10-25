@@ -28,6 +28,7 @@ import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -83,7 +84,7 @@ fun ArtistDetailScreen(
             } else if (uiState.artist != null) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 140.dp),
-                    contentPadding = PaddingValues(16.dp, 0.dp, 16.dp, 96.dp),
+                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)

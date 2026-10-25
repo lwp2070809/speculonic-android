@@ -32,6 +32,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 
 
@@ -92,7 +93,7 @@ fun AboutSettings(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(vertical = 16.dp)
+            .padding(top = 16.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current)
     ) {
         
         ListItem(

@@ -31,6 +31,7 @@ import de.lwp2070809.speculonic.data.ColorMode
 import de.lwp2070809.speculonic.data.PlayerBackgroundMode
 import de.lwp2070809.speculonic.data.ThemeMode
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,7 +57,18 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
     
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).padding(SettingsConstants.PAGE_PADDING).verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(
+                start = SettingsConstants.PAGE_PADDING,
+                end = SettingsConstants.PAGE_PADDING,
+                top = SettingsConstants.PAGE_PADDING,
+                bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current
+            )
+    ) {
         
         var expandedTheme by remember { mutableStateOf(false) }
         val themes = listOf(

@@ -179,7 +179,8 @@ fun NowPlayingScreen(
                     playbackController.skipToQueueItem(it)
                     showQueue = false
                 },
-                onRemoveItem = { playbackController.removeFromQueue(it) }
+                onRemoveItem = { playbackController.removeFromQueue(it) },
+                applyMiniPlayerInset = false
             )
         }
     }

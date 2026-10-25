@@ -32,6 +32,7 @@ import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.util.FormatUtils
@@ -134,7 +135,7 @@ fun AlbumDetailScreen(
             } else if (uiState.album != null) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp)
+                    contentPadding = PaddingValues(bottom = 16.dp + LocalMiniPlayerBottomInset.current)
                 ) {
                     item {
                         AlbumHeader(album = uiState.album)

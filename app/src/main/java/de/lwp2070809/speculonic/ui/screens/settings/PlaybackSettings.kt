@@ -33,6 +33,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.util.MediaFormatUtils
 import java.util.UUID
 
@@ -59,7 +60,13 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
     
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+    ) {
 
         ListItem(
             headlineContent = { Text(stringResource(R.string.skip_silence)) },

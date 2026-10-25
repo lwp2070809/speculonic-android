@@ -3,6 +3,9 @@ package de.lwp2070809.speculonic.ui.screens.settings
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -17,6 +20,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 
 @Composable
 fun NetworkSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
@@ -41,7 +45,13 @@ fun NetworkSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+    ) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_play_allowed)) },
             trailingContent = {

@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -24,6 +25,7 @@ import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
 
 @Composable
@@ -43,7 +45,13 @@ fun SettingsScreen(
 
 @Composable
 fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
-    Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
+    val bottomInset = LocalMiniPlayerBottomInset.current
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = bottomInset)
+    ) {
         SettingsCategoryItem(
             title = stringResource(R.string.server),
             icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_dns),
@@ -96,4 +104,3 @@ fun SettingsCategoryItem(title: String, icon: Painter, onClick: () -> Unit) {
         modifier = Modifier.clickable(onClick = onClick)
     )
 }
-

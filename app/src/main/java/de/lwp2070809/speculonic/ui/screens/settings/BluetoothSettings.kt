@@ -40,6 +40,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 
 @Composable
 fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
@@ -77,7 +78,13 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).verticalScroll(rememberScrollState())) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .verticalScroll(rememberScrollState())
+            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+    ) {
         Text(
             text = stringResource(R.string.bluetooth_car_audio),
             style = MaterialTheme.typography.labelLarge,

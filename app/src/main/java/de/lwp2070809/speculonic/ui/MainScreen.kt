@@ -38,6 +38,7 @@ import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalNavigator
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.composition.MediaItemConverter
@@ -205,7 +206,12 @@ private fun MainContent(
         )
     }
 
-    CompositionLocalProvider(LocalNavigator provides navigator) {
+    val miniPlayerBottomInset = if (isExpanded) 96.dp else 0.dp
+
+    CompositionLocalProvider(
+        LocalNavigator provides navigator,
+        LocalMiniPlayerBottomInset provides miniPlayerBottomInset
+    ) {
         Box(modifier = Modifier.fillMaxSize()) {
             NavigationSuiteScaffold(
                 modifier = Modifier.fillMaxSize(),
@@ -280,18 +286,24 @@ private fun MainContent(
                                     modifier = Modifier.fillMaxSize()
                                 )
 
-                                MiniPlayer(
-                                    onPlayPause = { playbackController.togglePlayPause() },
-                                    onSkipPrevious = { playbackController.skipToPrevious() },
-                                    onSkipNext = { playbackController.skipToNext() },
-                                    onClick = { showNowPlaying = true },
-                                    isFloating = true,
+                                AnimatedVisibility(
+                                    visible = !showSearch,
+                                    enter = fadeIn() + slideInVertically { it },
+                                    exit = fadeOut() + slideOutVertically { it },
                                     modifier = Modifier
                                         .align(Alignment.BottomCenter)
                                         .padding(horizontal = 24.dp)
                                         .padding(bottom = 16.dp)
                                         .navigationBarsPadding()
-                                )
+                                ) {
+                                    MiniPlayer(
+                                        onPlayPause = { playbackController.togglePlayPause() },
+                                        onSkipPrevious = { playbackController.skipToPrevious() },
+                                        onSkipNext = { playbackController.skipToNext() },
+                                        onClick = { showNowPlaying = true },
+                                        isFloating = true
+                                    )
+                                }
                             }
                         } else {
                             Column(

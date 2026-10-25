@@ -38,6 +38,7 @@ import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalIsDualPane
+import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalNavigator
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
@@ -180,7 +181,7 @@ fun DiscoverScreen(
                 modifier = Modifier
                     .fillMaxSize()
                     .background(MaterialTheme.colorScheme.background),
-                contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp),
+                contentPadding = PaddingValues(top = 16.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current),
                 verticalArrangement = Arrangement.spacedBy(24.dp)
             ) {
                 
