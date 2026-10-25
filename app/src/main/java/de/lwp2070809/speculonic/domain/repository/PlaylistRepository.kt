@@ -92,7 +92,12 @@ class PlaylistRepository(
         return try {
             val response = api.getPlaylist(id, u, t, s)
             if (response.response.status != "ok") {
-                val errorMsg = response.response.error?.message ?: "Subsonic server returned status: ${response.response.status}"
+                val error = response.response.error
+                if (error?.code == 70) {
+                    musicDao.deletePlaylistWithSongs(id)
+                    throw PlaylistNotFoundException(id, error.message)
+                }
+                val errorMsg = error?.message ?: "Subsonic server returned status: ${response.response.status}"
                 throw IllegalStateException(errorMsg)
             }
             val playlistInfo = response.response.playlist
@@ -165,7 +170,11 @@ class PlaylistRepository(
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            de.lwp2070809.speculonic.util.LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
+            if (e is PlaylistNotFoundException) {
+                de.lwp2070809.speculonic.util.LogManager.w("PlaylistRepository: playlist id=$id not found on server (cleaned locally)")
+            } else {
+                de.lwp2070809.speculonic.util.LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
+            }
             throw e
         }
     }

@@ -166,6 +166,8 @@
     <string name="playlist_name">歌单名称</string>
     <string name="delete_playlist">删除歌单</string>
     <string name="confirm_delete_playlist">确定要删除这个歌单吗？</string>
+    <string name="playlist_not_found">歌单在服务器上不存在或已被删除。</string>
+    <string name="back_to_playlists">返回歌单列表</string>
 
     <plurals name="songs_count">
         <item quantity="other">%1$d 首歌曲</item>

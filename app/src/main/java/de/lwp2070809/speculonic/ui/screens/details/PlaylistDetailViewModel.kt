@@ -6,6 +6,7 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.lwp2070809.speculonic.domain.repository.PlaylistNotFoundException
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
@@ -20,6 +21,8 @@ import kotlinx.coroutines.launch
 data class PlaylistDetailUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
+    val isDeleted: Boolean = false,
+    val shouldAutoExit: Boolean = false,
     val playlist: Playlist? = null,
     val songs: List<Song> = emptyList(),
     val error: String? = null
@@ -71,7 +74,22 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                                 repository.getPlaylist(playlistId, forceRefresh = true)
                             } catch (e: Exception) {
                                 if (e is kotlinx.coroutines.CancellationException) throw e
-                                LogManager.e("PlaylistDetailViewModel: fetch songs failed for $playlistId", e)
+                                if (e is PlaylistNotFoundException) {
+                                    LogManager.w("PlaylistDetailViewModel: Playlist $playlistId was deleted on server")
+                                    _uiState.update {
+                                        it.copy(
+                                            isLoading = false,
+                                            isRefreshing = false,
+                                            isDeleted = true,
+                                            shouldAutoExit = true,
+                                            playlist = null,
+                                            songs = emptyList(),
+                                            error = null
+                                        )
+                                    }
+                                } else {
+                                    LogManager.e("PlaylistDetailViewModel: fetch songs failed for $playlistId", e)
+                                }
                             }
                         }
                     } else {
@@ -90,13 +108,29 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
-                LogManager.e("PlaylistDetailViewModel: loadPlaylistDetails failed", e)
-                _uiState.update {
-                    it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
-                        error = if (it.playlist == null || isManualRefresh) e.message else null
-                    )
+                if (e is PlaylistNotFoundException) {
+                    LogManager.w("PlaylistDetailViewModel: Playlist $playlistId was deleted on server")
+                    val hadContent = _uiState.value.playlist != null || isManualRefresh
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            isDeleted = true,
+                            shouldAutoExit = hadContent,
+                            playlist = null,
+                            songs = emptyList(),
+                            error = null
+                        )
+                    }
+                } else {
+                    LogManager.e("PlaylistDetailViewModel: loadPlaylistDetails failed", e)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            isRefreshing = false,
+                            error = if (it.playlist == null || isManualRefresh) e.message else null
+                        )
+                    }
                 }
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
@@ -107,9 +141,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
     private fun observeMetadata() {
         viewModelScope.launch {
             repository.getPlaylistByIdFlow(playlistId).collectLatest { playlist ->
-                if (playlist != null) {
-                    _uiState.update { it.copy(playlist = playlist) }
-                }
+                _uiState.update { it.copy(playlist = playlist) }
             }
         }
     }

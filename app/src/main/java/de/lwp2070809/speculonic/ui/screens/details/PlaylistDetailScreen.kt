@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
@@ -23,6 +24,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -85,20 +87,35 @@ fun PlaylistDetailScreen(
     val playlistTitle = stringResource(R.string.playlists)
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
+    var isNavigatingBack by remember { mutableStateOf(false) }
+    val safeBackClick: () -> Unit = remember(onBackClick) {
+        {
+            if (!isNavigatingBack) {
+                isNavigatingBack = true
+                onBackClick()
+            }
+        }
+    }
 
-    
     LaunchedEffect(uiState.playlist) {
         topBarState.update(
             title = uiState.playlist?.name ?: "",
             showBack = true,
-            onBackClickOverride = onBackClick,
+            onBackClickOverride = safeBackClick,
             token = screenToken
         )
     }
 
+    LaunchedEffect(uiState.isDeleted, uiState.shouldAutoExit) {
+        if (uiState.isDeleted && uiState.shouldAutoExit) {
+            Toast.makeText(context, context.getString(R.string.playlist_not_found), Toast.LENGTH_SHORT).show()
+            safeBackClick()
+        }
+    }
+
     LaunchedEffect(uiState.error) {
         val error = uiState.error
-        if (error != null && uiState.playlist != null) {
+        if (error != null && uiState.playlist != null && !uiState.isDeleted) {
             Toast.makeText(context, error, Toast.LENGTH_SHORT).show()
             viewModel.clearError()
         }
@@ -118,8 +135,48 @@ fun PlaylistDetailScreen(
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
             if (uiState.isLoading && uiState.playlist == null) {
                 CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (uiState.isDeleted) {
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        text = stringResource(R.string.playlist_not_found),
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = safeBackClick) {
+                        Text(text = stringResource(R.string.back_to_playlists))
+                    }
+                }
             } else if (uiState.error != null && uiState.playlist == null) {
-                Text(text = uiState.error!!, modifier = Modifier.align(Alignment.Center), color = MaterialTheme.colorScheme.error)
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(horizontal = 32.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Text(
+                        text = uiState.error!!,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center
+                    )
+                    Button(onClick = safeBackClick) {
+                        Text(text = stringResource(R.string.back_to_playlists))
+                    }
+                }
             } else if (uiState.playlist != null) {
                 LazyColumn(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
