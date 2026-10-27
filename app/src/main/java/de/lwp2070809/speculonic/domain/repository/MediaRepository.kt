@@ -11,6 +11,7 @@ import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.network.model.ArtistInfo2
 import de.lwp2070809.speculonic.network.model.SearchResult3
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -164,6 +165,7 @@ class MediaRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
             val response = api.getMusicDirectory(directoryId, u, t, s)
+            response.response.ensureOk()
             val list = response.response.directory?.child ?: emptyList()
             if (list.isNotEmpty()) {
                 val songIds = list.map { it.id }
@@ -213,6 +215,7 @@ class MediaRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
             val response = api.getAlbum(id, u, t, s)
+            response.response.ensureOk()
             val album = response.response.album
             if (album != null) {
                 if (!skipInsert) {

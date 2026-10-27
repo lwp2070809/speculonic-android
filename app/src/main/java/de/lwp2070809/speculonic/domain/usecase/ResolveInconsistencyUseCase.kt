@@ -5,6 +5,7 @@ import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.model.InconsistentItem
+import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.util.LogManager
@@ -68,18 +69,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
                         }
 
 
-                        val songModel = de.lwp2070809.speculonic.network.model.Song(
-                            id = song.id,
-                            title = song.title,
-                            album = song.album,
-                            artist = song.artist,
-                            albumId = song.albumId,
-                            duration = song.duration,
-                            coverArt = song.coverArt,
-                            path = song.path,
-                            size = song.size,
-                            md5 = song.md5
-                        )
+                        val songModel = EntityMapper.toSong(song)
                         downloadController.downloadSong(songModel, isSilent = false)
                     }
                 }

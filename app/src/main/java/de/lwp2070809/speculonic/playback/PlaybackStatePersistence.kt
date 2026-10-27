@@ -46,15 +46,28 @@ class PlaybackStatePersistence(
 
             if (savedQueue.isNotEmpty()) {
                 val mediaItems = savedQueue.map { it.toMediaItem(repo) }
-                val lastIndex = prefs.lastQueueIndex.first().coerceIn(0, mediaItems.size - 1)
+                val lastMediaId = prefs.lastSongId.first()
+                val savedIndex = prefs.lastQueueIndex.first()
                 val lastPosition = prefs.lastPosition.first()
+
+                val effectiveIndex = if (savedIndex in mediaItems.indices && mediaItems[savedIndex].mediaId == lastMediaId) {
+                    savedIndex
+                } else {
+                    val matchedIndex = mediaItems.indexOfFirst { it.mediaId == lastMediaId }
+                    if (matchedIndex != -1) matchedIndex else savedIndex.coerceIn(0, mediaItems.size - 1)
+                }
+                val effectivePosition = if (mediaItems.getOrNull(effectiveIndex)?.mediaId == lastMediaId) {
+                    lastPosition
+                } else {
+                    0L
+                }
 
                 try {
                     withContext(Dispatchers.Main) {
                         onQueueTitleRestored(lastQueueTitle)
                         player.repeatMode = effectiveRepeatMode
                         player.shuffleModeEnabled = lastShuffleMode
-                        player.setMediaItems(mediaItems, lastIndex, lastPosition)
+                        player.setMediaItems(mediaItems, effectiveIndex, effectivePosition)
                         player.prepare()
                     }
                 } catch (e: Exception) {
@@ -84,7 +97,7 @@ class PlaybackStatePersistence(
 
         if (immediate) {
             saveStateJob?.cancel()
-            saveStateJob = de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO) {
+            de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
                 prefs.savePlaybackState(mediaId, position, index, queueTitle, repeatMode, shuffleMode)
             }
         } else {

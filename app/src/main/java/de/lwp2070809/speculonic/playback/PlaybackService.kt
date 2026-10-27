@@ -131,9 +131,10 @@ class PlaybackService : MediaSessionService() {
             onQueueTitleRestored = {
                 currentQueueTitle = it
                 mediaSession?.let { session ->
-                    session.sessionExtras = android.os.Bundle().apply {
+                    val extras = android.os.Bundle(session.sessionExtras).apply {
                         putString("queueTitle", it)
                     }
+                    session.sessionExtras = extras
                 }
             }
         )

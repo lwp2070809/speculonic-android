@@ -99,8 +99,9 @@ object FormatUtils {
     }
 
     fun replaceExtensionWithLrc(fileName: String): String {
+        val lastSep = maxOf(fileName.lastIndexOf('/'), fileName.lastIndexOf('\\'))
         val lastDotIndex = fileName.lastIndexOf('.')
-        return if (lastDotIndex > 0) {
+        return if (lastDotIndex > lastSep + 1) {
             fileName.substring(0, lastDotIndex) + ".lrc"
         } else {
             "$fileName.lrc"

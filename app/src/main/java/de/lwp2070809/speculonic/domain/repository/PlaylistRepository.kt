@@ -6,6 +6,7 @@ import de.lwp2070809.speculonic.data.db.entities.PlaylistSongCrossRef
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.network.model.ensureOk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -33,6 +34,7 @@ class PlaylistRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
             val response = api.getPlaylists(u, t, s)
+            response.response.ensureOk()
             val list = response.response.playlists?.playlist ?: emptyList()
             if (!skipInsert) {
                 if (list.isNotEmpty()) {

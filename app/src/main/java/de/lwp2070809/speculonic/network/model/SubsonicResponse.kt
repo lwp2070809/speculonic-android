@@ -18,6 +18,24 @@ interface BaseResponse {
     val error: Error?
 }
 
+/**
+ * 当 Subsonic API 返回 status != "ok" 时抛出的业务异常，携带服务端错误码和描述信息
+ */
+class SubsonicApiException(
+    val code: Int?,
+    override val message: String?
+) : java.io.IOException("Subsonic API error code ${code ?: "unknown"}: ${message ?: "Unknown error"}")
+
+/**
+ * 校验响应状态，若 status 不为 "ok" 则抛出 SubsonicApiException，杜绝空响应被误判为空数据
+ */
+fun <T : BaseResponse> T.ensureOk(): T {
+    if (status != "ok") {
+        throw SubsonicApiException(error?.code, error?.message)
+    }
+    return this
+}
+
 @Serializable
 data class SubsonicBaseResponse(
     override val status: String,

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
@@ -41,18 +42,9 @@ class CacheStrategyManager(
                 
                 if (songEntity.isFullyCached) return
 
-                val song = Song(
-                    id = songId,
-                    title = title,
-                    artist = artist,
-                    album = album,
-                    duration = duration,
-                    coverArt = coverArt,
-                    md5 = songEntity.md5,
-                    size = songEntity.size
-                )
+                val song = EntityMapper.toSong(songEntity)
 
-            LogManager.i("CacheStrategy: Triggering verified silent cache for $title")
+                LogManager.i("CacheStrategy: Triggering verified silent cache for $title")
             downloadController.downloadSong(song, isSilent = true)
         } catch (e: Exception) {
             LogManager.e("CacheStrategy: Error in silent cache trigger", e)

@@ -62,6 +62,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
                                 album = cachedAlbum,
                                 songs = if (cachedAlbum.song.isNotEmpty()) cachedAlbum.song else it.songs,
                                 isLoading = false,
+                                isRefreshing = false,
                                 error = null
                             )
                         }
@@ -91,9 +92,14 @@ class AlbumDetailViewModel @AssistedInject constructor(
                 LogManager.e("AlbumDetailViewModel: loadAlbumDetails failed", e)
                 _uiState.update {
                     it.copy(
-                        isLoading = false,
-                        isRefreshing = false,
                         error = if (it.album == null || isManualRefresh) e.message else null
+                    )
+                }
+            } finally {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false
                     )
                 }
             }

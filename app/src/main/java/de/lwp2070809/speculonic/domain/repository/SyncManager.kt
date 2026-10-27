@@ -6,6 +6,7 @@ import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
+import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -435,6 +436,7 @@ class SyncManager(
     private suspend fun syncSingleDirectory(id: String, artistId: String?, u: String, t: String, s: String): SyncDirResult {
         try {
             val response = api.getMusicDirectory(id, u, t, s)
+            response.response.ensureOk()
             val directory = response.response.directory ?: return SyncDirResult.Success(emptyList(), 0)
             val children = directory.child
             

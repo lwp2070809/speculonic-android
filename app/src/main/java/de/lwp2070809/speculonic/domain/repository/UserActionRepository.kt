@@ -5,6 +5,7 @@ import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.network.model.Starred2Response
+import de.lwp2070809.speculonic.network.model.ensureOk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -52,6 +53,7 @@ class UserActionRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
             val response = api.getStarred2(u, t, s)
+            response.response.ensureOk()
             val starred2 = response.response.starred2 ?: Starred2Response()
             
             if (!skipInsert) {

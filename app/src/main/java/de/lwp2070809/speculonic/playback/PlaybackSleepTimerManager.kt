@@ -101,6 +101,11 @@ class PlaybackSleepTimerManager(
         val previousMediaId = timerLastMediaId
         timerLastMediaId = currentId
 
+        val isNaturalTransition = isAuto || isRepeat
+        if (!isNaturalTransition) {
+            return
+        }
+
         val session = mediaSessionProvider()
         if (sleepTimerMode == "SONG_COUNT") {
             sleepTimerSongsRemaining--

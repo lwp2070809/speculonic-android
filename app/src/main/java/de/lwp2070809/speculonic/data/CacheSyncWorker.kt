@@ -30,6 +30,7 @@ import dagger.assisted.AssistedInject
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
+import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
@@ -180,18 +181,7 @@ class CacheSyncWorker @AssistedInject constructor(
                                         } catch (e: Exception) {
                                             LogManager.e("CacheSync: Failed to clean old cache before redownload", e)
                                         }
-                                        val songModel = Song(
-                                            id = song.id,
-                                            title = song.title,
-                                            album = song.album,
-                                            artist = song.artist,
-                                            albumId = song.albumId,
-                                            duration = song.duration,
-                                            coverArt = song.coverArt,
-                                            path = song.path,
-                                            size = song.size,
-                                            md5 = song.md5
-                                        )
+                                        val songModel = EntityMapper.toSong(song)
                                         downloadController.downloadSong(songModel, isSilent = true)
                                     }
                                 }
@@ -286,18 +276,7 @@ class CacheSyncWorker @AssistedInject constructor(
                 STATUS to context.getString(de.lwp2070809.speculonic.R.string.exporting_historical_cache, index + 1, total, song.title)
             ))
 
-            val songModel = Song(
-                id = song.id,
-                title = song.title,
-                album = song.album,
-                artist = song.artist,
-                albumId = song.albumId,
-                duration = song.duration,
-                coverArt = song.coverArt,
-                path = song.path,
-                size = song.size,
-                md5 = song.md5
-            )
+            val songModel = EntityMapper.toSong(song)
 
             val localUriResult = try {
                 if (song.localUri != null && song.localUri.startsWith("file:")) {
@@ -362,16 +341,19 @@ class CacheSyncWorker @AssistedInject constructor(
                 .filter { it.startsWith("file:") }
                 .mapNotNull { it.toUri().path }
                 .toSet()
+            val validPrivateLrcPaths = validPrivatePaths
+                .map { de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(it) }
+                .toSet()
                 
             privateExportedDir.listFiles()?.forEach { file ->
                 if (file.isFile && file.name != ".nomedia") {
-                    if (!validPrivatePaths.contains(file.absolutePath)) {
-                        val isLrc = file.name.endsWith(".lrc")
-                        val isAudio = de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(file.name)
-                        if (isAudio || isLrc) {
-                            file.delete()
-                            LogManager.i("CacheSync: Deleted orphaned private file: ${file.name}")
-                        }
+                    val isLrc = file.name.endsWith(".lrc")
+                    val isAudio = de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(file.name)
+                    val isOrphan = (isAudio && !validPrivatePaths.contains(file.absolutePath)) ||
+                                   (isLrc && !validPrivateLrcPaths.contains(file.absolutePath))
+                    if (isOrphan) {
+                        file.delete()
+                        LogManager.i("CacheSync: Deleted orphaned private file: ${file.name}")
                     }
                 }
             }

@@ -6,6 +6,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
@@ -160,6 +161,12 @@ class SubsonicResponseStreamingSerializer(
                                 val contentIndex = decodeElementIndex(contentDescriptor)
                                 if (contentIndex == CompositeDecoder.DECODE_DONE) break
                                 when (contentIndex) {
+                                    0 -> {
+                                        val status = decodeStringElement(contentDescriptor, 0)
+                                        if (status != "ok") {
+                                            throw SubsonicApiException(null, "Subsonic streaming response status is $status")
+                                        }
+                                    }
                                     2 -> decodeSerializableElement(contentDescriptor, 2, searchResult3Serializer)
                                     else -> decodeStringElement(contentDescriptor, contentIndex) 
                                 }

@@ -4,6 +4,7 @@ import kotlinx.coroutines.flow.Flow
 
 interface PlaybackPrefs {
     val mobilePlayAllowed: Flow<Boolean>
+    val lastSongId: Flow<String?>
     val lastPosition: Flow<Long>
     val lastQueueIndex: Flow<Int>
     val lastQueueTitle: Flow<String?>

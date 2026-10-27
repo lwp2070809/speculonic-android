@@ -31,6 +31,7 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     }
 
     override val mobilePlayAllowed: Flow<Boolean> = context.dataStore.data.map { it[MOBILE_PLAY_ALLOWED] ?: true }
+    override val lastSongId: Flow<String?> = context.dataStore.data.map { it[LAST_SONG_ID] }
 
     override suspend fun saveMobilePlayAllowed(allowed: Boolean) {
         context.dataStore.edit { preferences ->

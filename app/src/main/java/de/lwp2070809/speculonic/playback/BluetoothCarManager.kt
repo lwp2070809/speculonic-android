@@ -290,14 +290,7 @@ class BluetoothCarManager(
         }
 
         override fun getAvailableCommands(): Player.Commands {
-            val commands = super.getAvailableCommands()
-            return if (isHideProgressBarActive()) {
-                commands.buildUpon()
-                    .remove(Player.COMMAND_SEEK_IN_CURRENT_MEDIA_ITEM)
-                    .build()
-            } else {
-                commands
-            }
+            return super.getAvailableCommands()
         }
     }
 }
