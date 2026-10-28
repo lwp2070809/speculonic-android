@@ -403,21 +403,5 @@ fun ServerSettings(
         )
     }
 
-    if (uiState.showSafetyGuardConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelSafetyGuard() },
-            title = { Text(stringResource(R.string.safety_guard_title)) },
-            text = { Text(uiState.safetyGuardMessage ?: "") },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSafetyGuard() }) {
-                    Text(stringResource(R.string.force_sync_overwrite_local), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelSafetyGuard() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
-    }
+
 }

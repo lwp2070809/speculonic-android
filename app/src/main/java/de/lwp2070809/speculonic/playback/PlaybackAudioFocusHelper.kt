@@ -24,6 +24,8 @@ class PlaybackAudioFocusHelper(
         private set
     var isTransientLossActive = false
         private set
+    var isDelayedFocusPending = false
+        private set
     private var preDuckVolume = 1.0f
     private var isDucking = false
     private val focusLock = Any()
@@ -32,9 +34,16 @@ class PlaybackAudioFocusHelper(
         synchronized(focusLock) {
             isTransientLossActive = false
             playWhenReadyBeforeLoss = false
+            isDelayedFocusPending = false
             isDucking = false
         }
         volumeCoordinator?.setDucking(false)
+    }
+
+    fun setDelayedFocusPending(pending: Boolean) {
+        synchronized(focusLock) {
+            isDelayedFocusPending = pending
+        }
     }
 
     private val audioFocusChangeListener = AudioManager.OnAudioFocusChangeListener { focusChange ->
@@ -61,7 +70,15 @@ class PlaybackAudioFocusHelper(
                     synchronized(focusLock) {
                         playWhenReadyBeforeLoss = false
                         isTransientLossActive = false
-                        isDucking = false
+                        isDelayedFocusPending = false
+                        if (isDucking) {
+                            if (volumeCoordinator != null) {
+                                volumeCoordinator.setDucking(false)
+                            } else {
+                                realPlayer.volume = preDuckVolume
+                            }
+                            isDucking = false
+                        }
                     }
                     volumeCoordinator?.setDucking(false)
                     realPlayer.pause()
@@ -72,6 +89,14 @@ class PlaybackAudioFocusHelper(
                 synchronized(focusLock) {
                     playWhenReadyBeforeLoss = realPlayer.playWhenReady
                     isTransientLossActive = true
+                    if (isDucking) {
+                        if (volumeCoordinator != null) {
+                            volumeCoordinator.setDucking(false)
+                        } else {
+                            realPlayer.volume = preDuckVolume
+                        }
+                        isDucking = false
+                    }
                 }
                 realPlayer.pause()
             }
@@ -113,6 +138,10 @@ class PlaybackAudioFocusHelper(
                             shouldPlay = true
                             playWhenReadyBeforeLoss = false
                         }
+                    }
+                    if (isDelayedFocusPending) {
+                        isDelayedFocusPending = false
+                        shouldPlay = true
                     }
                 }
                 if (shouldPlay) {

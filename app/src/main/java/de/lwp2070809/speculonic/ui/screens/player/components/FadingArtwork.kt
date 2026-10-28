@@ -95,14 +95,12 @@ fun ArtworkView(
                     model1 = newModel
                     coroutineScope.launch {
                         alpha1.snapTo(0f)
-                        alpha0.animateTo(1f, tween(300))
                     }
                     activeSlot = 1
                 } else {
                     model0 = newModel
                     coroutineScope.launch {
                         alpha0.snapTo(0f)
-                        alpha1.animateTo(1f, tween(300))
                     }
                     activeSlot = 0
                 }
@@ -256,14 +254,12 @@ fun PlayerBlurBackground(
                 model1 = newModel
                 coroutineScope.launch {
                     alpha1.snapTo(0f)
-                    alpha0.animateTo(1f, tween(300))
                 }
                 activeSlot = 1
             } else {
                 model0 = newModel
                 coroutineScope.launch {
                     alpha0.snapTo(0f)
-                    alpha1.animateTo(1f, tween(300))
                 }
                 activeSlot = 0
             }

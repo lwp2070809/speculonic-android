@@ -408,6 +408,10 @@ class PlaybackService : MediaSessionService() {
                     if (audioFocusHelper.isDefaultFocusHandling) {
                         audioFocusHelper.abandonAudioFocus()
                         audioFocusHelper.resetLossState()
+                    } else {
+                        if (player?.isPlaying == true) {
+                            audioFocusHelper.requestAudioFocus()
+                        }
                     }
                 }
             }

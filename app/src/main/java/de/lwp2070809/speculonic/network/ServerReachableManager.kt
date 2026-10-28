@@ -31,6 +31,15 @@ object ServerReachableManager {
     private var lastFailureLogTime: Long = 0L
 
     private val failureCount = AtomicInteger(0)
+    private val isProbing = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    fun tryAcquireProbe(): Boolean {
+        return isProbing.compareAndSet(false, true)
+    }
+
+    fun releaseProbe() {
+        isProbing.set(false)
+    }
 
     private val _networkEventFlow = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 10)
     val networkEventFlow: SharedFlow<NetworkEvent> = _networkEventFlow.asSharedFlow()
@@ -41,6 +50,7 @@ object ServerReachableManager {
 
     @Synchronized
     fun handleSuccess() {
+        isProbing.set(false)
         failureCount.set(0)
         if (!isServerReachable) {
             isServerReachable = true
@@ -50,6 +60,7 @@ object ServerReachableManager {
 
     @Synchronized
     fun handleFailure() {
+        isProbing.set(false)
         val now = System.currentTimeMillis()
         // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
         if (now - lastFailureLogTime > 2000L) {
@@ -60,11 +71,14 @@ object ServerReachableManager {
             lastFailureLogTime = now
             val current = failureCount.incrementAndGet()
             if (current >= 3) {
-                if (isServerReachable) {
-                    isServerReachable = false
-                    lastFailureTimestamp = now
+                val wasReachable = isServerReachable
+                isServerReachable = false
+                lastFailureTimestamp = now
+                if (wasReachable) {
                     LogManager.w("ServerReachableManager: UNREACHABLE")
                     _networkEventFlow.tryEmit(NetworkEvent.ServerOffline)
+                } else {
+                    LogManager.w("ServerReachableManager: still UNREACHABLE, updated lastFailureTimestamp")
                 }
             } else {
                 LogManager.d("ServerReachableManager: failure count $current/3")
@@ -76,6 +90,7 @@ object ServerReachableManager {
 
     @Synchronized
     fun reset() {
+        isProbing.set(false)
         failureCount.set(0)
         if (!isServerReachable) {
             isServerReachable = true

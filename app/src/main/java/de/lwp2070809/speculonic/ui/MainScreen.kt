@@ -184,6 +184,7 @@ private fun MainContent(
     }
     val listPaneWidth = directive.defaultPanePreferredWidth
     val isDualPane = directive.maxHorizontalPartitions > 1
+    navigationState.isDualPane = isDualPane
 
     // 保持底层导航栏稳态计算，避免全屏浮层展开/折叠动画期间底层布局尺寸重算与导航栏闪烁抖动
     val layoutType = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
@@ -254,6 +255,7 @@ private fun MainContent(
                                 listPaneWidth = listPaneWidth,
                                 topBarState = topBarState,
                                 onBackClick = { navigator.goBack() },
+                                onLeftBackClick = { navigator.goBackList() },
                                 onSearchClick = { showSearch = true },
                                 isSyncing = isSyncing,
                                 syncProgress = settingsUiState.syncProgress,
@@ -352,6 +354,7 @@ private fun MainContent(
                                     },
                                 color = MaterialTheme.colorScheme.background
                             ) {
+                                val hasActiveDetailInDualPane = isDualPane && navigationState.getCurrentBackStack().lastOrNull()?.let { (it as? AppRoute)?.isDetailPane == true } == true
                                 SearchScreen(
                                     viewModel = searchViewModel,
                                     isOnline = isOnline,
@@ -369,7 +372,8 @@ private fun MainContent(
                                             showSearch = false
                                         }
                                     },
-                                    onClose = { showSearch = false }
+                                    onClose = { showSearch = false },
+                                    backHandlerEnabled = !hasActiveDetailInDualPane
                                 )
                             }
                             if (isDualPane) {

@@ -43,6 +43,8 @@ class NavigationState(
     var topLevelRoute: NavKey by mutableStateOf(initialTopLevelRoute)
         private set
 
+    var isDualPane: Boolean by mutableStateOf(false)
+
     var backStacks: Map<NavKey, List<NavKey>> by mutableStateOf(initialBackStacks)
         private set
 
@@ -67,8 +69,17 @@ class NavigationState(
         if (stack.isNotEmpty() && stack.last() == route) {
             return
         }
-        val newStack = if (inclusive && stack.isNotEmpty()) stack.dropLast(1) else stack
-        backStacks = backStacks + (topLevelRoute to (newStack + route))
+        val lastRoute = stack.lastOrNull() as? AppRoute
+        val shouldReplaceDetail = isDualPane && !inclusive && 
+            route is AppRoute && route.isDetailPane && 
+            lastRoute != null && lastRoute.isDetailPane && !isDetailDrillDown(lastRoute, route)
+
+        val baseStack = if ((inclusive || shouldReplaceDetail) && stack.isNotEmpty()) {
+            stack.dropLast(1)
+        } else {
+            stack
+        }
+        backStacks = backStacks + (topLevelRoute to (baseStack + route))
     }
 
     fun popRoute() {
@@ -79,6 +90,23 @@ class NavigationState(
             
             navigateToTopLevelRoute(startRoute)
         }
+    }
+
+    fun popListRoute() {
+        val stack = backStacks[topLevelRoute] ?: emptyList()
+        val lastListIndex = stack.indexOfLast { (it as? AppRoute)?.isListPane == true && !it.isTopLevel }
+        if (lastListIndex != -1) {
+            val newStack = stack.filterIndexed { index, _ -> index != lastListIndex }
+            backStacks = backStacks + (topLevelRoute to newStack)
+        } else {
+            popRoute()
+        }
+    }
+
+    private fun isDetailDrillDown(prev: AppRoute, next: AppRoute): Boolean {
+        if (prev is AppRoute.ArtistDetail && next is AppRoute.AlbumDetail) return true
+        if (prev is AppRoute.DownloadManager || prev is AppRoute.PlaybackQueue) return true
+        return false
     }
 
     fun getCurrentBackStack(): List<NavKey> {

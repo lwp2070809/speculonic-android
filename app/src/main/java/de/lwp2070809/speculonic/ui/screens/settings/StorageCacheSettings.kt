@@ -374,10 +374,10 @@ fun StorageCacheSettings(
                 supportingContent = { 
                     Column {
                         Text(stringResource(R.string.verify_description))
-                        if (uiState.isSyncing && uiState.syncProgress != null) {
+                        if (uiState.isInteractiveScanning && uiState.interactiveScanStatus.isNotBlank()) {
                             Spacer(modifier = Modifier.height(4.dp))
                             Text(
-                                text = "${uiState.syncProgress} (${uiState.syncPercentage ?: 0}%)",
+                                text = "${uiState.interactiveScanStatus} (${uiState.interactiveScanProgress}%)",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.primary
                             )
@@ -385,7 +385,7 @@ fun StorageCacheSettings(
                     }
                 },
                 leadingContent = {
-                    val syncPainter = if (uiState.isSyncing) {
+                    val syncPainter = if (uiState.isInteractiveScanning) {
                         androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Refresh)
                     } else {
                         androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync)
@@ -393,13 +393,13 @@ fun StorageCacheSettings(
                     Icon(
                         painter = syncPainter,
                         contentDescription = null,
-                        modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
+                        modifier = if (uiState.isInteractiveScanning) Modifier.rotate(rotation) else Modifier
                     )
                 },
                 trailingContent = {
-                    if (uiState.isSyncing) {
+                    if (uiState.isInteractiveScanning) {
                         CircularProgressIndicator(
-                            progress = { (uiState.syncPercentage ?: 0).toFloat() / 100f },
+                            progress = { (uiState.interactiveScanProgress).toFloat() / 100f },
                             modifier = Modifier.size(24.dp),
                             strokeWidth = 2.dp
                         )
@@ -407,7 +407,7 @@ fun StorageCacheSettings(
                 },
                 modifier = Modifier
                     .alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
-                    .clickable(enabled = !uiState.isSyncing && isEffectivelyOnline) { viewModel.requestSyncWithServer() }
+                    .clickable(enabled = !uiState.isInteractiveScanning && isEffectivelyOnline) { viewModel.requestSyncWithServer() }
             )
         }
     }

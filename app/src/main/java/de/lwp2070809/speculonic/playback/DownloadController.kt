@@ -48,7 +48,6 @@ class DownloadController @Inject constructor(
                 requestNotificationPermission()
             }
         }
-        if (!isSilent) {
             val activeIds = DownloadTracker.activeDownloadIds.value
             val downloadedIds = DownloadTracker.downloadedSongIds.value
             if (activeIds.contains(song.id) || downloadedIds.contains(song.id) || !recentlyRequested.add(song.id)) {
@@ -59,7 +58,6 @@ class DownloadController @Inject constructor(
                 kotlinx.coroutines.delay(2000)
                 recentlyRequested.remove(song.id)
             }
-        }
         val playbackState = de.lwp2070809.speculonic.playback.PlaybackController.getInstance(context).playbackState.value
         if (!isSilent && playbackState.currentSongId == song.id) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {

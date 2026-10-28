@@ -68,7 +68,8 @@ fun SearchScreen(
     isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onClose: () -> Unit
+    onClose: () -> Unit,
+    backHandlerEnabled: Boolean = true
 ) {
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
@@ -82,7 +83,7 @@ fun SearchScreen(
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
     val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
     
-    BackHandler(onBack = onClose)
+    BackHandler(enabled = backHandlerEnabled, onBack = onClose)
 
     val uiState by viewModel.uiState.collectAsState()
 

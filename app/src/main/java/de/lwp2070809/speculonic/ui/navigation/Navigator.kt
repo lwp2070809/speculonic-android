@@ -60,4 +60,10 @@ class Navigator(
             }
         }
     }
+
+    fun goBackList() {
+        mainScope.launch {
+            navigationState.popListRoute()
+        }
+    }
 }

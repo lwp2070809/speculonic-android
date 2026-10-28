@@ -124,7 +124,7 @@ class PlaybackServiceListener(
             persistence.stopPositionPersistence()
             carAudioManager.stopBluetoothLyricsUpdate()
             if (!audioFocusHelper.isDefaultFocusHandling) {
-                if (!audioFocusHelper.isTransientLossActive) {
+                if (!audioFocusHelper.isTransientLossActive && !audioFocusHelper.isDelayedFocusPending) {
                     audioFocusHelper.abandonAudioFocus()
                 }
             }
@@ -135,9 +135,14 @@ class PlaybackServiceListener(
             }
             if (!audioFocusHelper.isDefaultFocusHandling) {
                 val result = audioFocusHelper.requestAudioFocus()
-                if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                if (result == AudioManager.AUDIOFOCUS_REQUEST_DELAYED) {
+                    audioFocusHelper.setDelayedFocusPending(true)
+                    player.playWhenReady = false
+                } else if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
+                    audioFocusHelper.setDelayedFocusPending(false)
                     player.playWhenReady = false
                 } else {
+                    audioFocusHelper.setDelayedFocusPending(false)
                     audioFocusHelper.resetLossState()
                 }
             }

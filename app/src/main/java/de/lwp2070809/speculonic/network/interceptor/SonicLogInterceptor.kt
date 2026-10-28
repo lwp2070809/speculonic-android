@@ -45,10 +45,17 @@ class SonicLogInterceptor : Interceptor {
             throw IOException("Offline: No active network connection available")
         }
 
+        var isProbeRequest = false
         if (!ServerReachableManager.isServerReachable) {
             val timeSinceLastFailure = System.currentTimeMillis() - ServerReachableManager.lastFailureTimestamp
             if (timeSinceLastFailure > 30000L) {
-                LogManager.i(LogTag.NETWORK, "OfflineInterceptor: probe: $safeUrl")
+                if (ServerReachableManager.tryAcquireProbe()) {
+                    isProbeRequest = true
+                    LogManager.i(LogTag.NETWORK, "OfflineInterceptor: probe: $safeUrl")
+                } else {
+                    LogManager.w(LogTag.NETWORK, "OfflineInterceptor: probing in progress, blocking: $safeUrl")
+                    throw IOException("Offline: Server is unreachable and another probe is in progress")
+                }
             } else {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: unreachable: $safeUrl")
                 throw IOException("Offline: Server is unreachable due to network blocking or previous failures")
@@ -67,6 +74,10 @@ class SonicLogInterceptor : Interceptor {
             val costMs = System.currentTimeMillis() - startTime
 
             if (!response.isSuccessful) {
+                if (isProbeRequest) {
+                    ServerReachableManager.releaseProbe()
+                    ServerReachableManager.handleFailure()
+                }
                 LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
             } else {
                 if (!isCoverArtRequest && !isStreamRequest) {
@@ -78,6 +89,9 @@ class SonicLogInterceptor : Interceptor {
             }
             return response
         } catch (e: Exception) {
+            if (isProbeRequest) {
+                ServerReachableManager.releaseProbe()
+            }
             val costMs = System.currentTimeMillis() - startTime
             val requestHost = request.url.host
             if (e.message?.startsWith("Unconfigured") == true) {

@@ -95,7 +95,8 @@ class LyricsRepository(
 
         val (u, t, s) = authManager.getAuthParams()
         
-        try {
+        if (hasSongLyricsExtension) {
+            try {
             val response = api.getLyricsBySongId(songId, u, t, s)
             val lyricsList = response.response.lyricsList
             val structured = lyricsList?.structuredLyrics?.firstOrNull()
@@ -129,6 +130,7 @@ class LyricsRepository(
             throw e
         } catch (e: Exception) {
             LogManager.e("Failed to get lyrics via getLyricsBySongId, falling back to legacy API", e)
+            }
         }
         
         return try {
@@ -145,7 +147,7 @@ class LyricsRepository(
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
-            negativeCache.put(songId, true)
+            LogManager.w("LyricsRepository: Failed to get lyrics from network for $songId: ${e.message}")
             Pair(null, emptyList())
         }
     }

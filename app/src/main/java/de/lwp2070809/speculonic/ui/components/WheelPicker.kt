@@ -81,12 +81,19 @@ fun <T> WheelPicker(
     // 计算当前居中的 index
     val currentCenterItemIndex by remember {
         derivedStateOf {
-            val firstIndex = listState.firstVisibleItemIndex
-            val firstOffset = listState.firstVisibleItemScrollOffset
-            if (firstOffset > itemHeightPx / 2f) {
-                firstIndex + 1
+            val layoutInfo = listState.layoutInfo
+            val visibleItems = layoutInfo.visibleItemsInfo
+            if (visibleItems.isEmpty()) {
+                val firstIndex = listState.firstVisibleItemIndex
+                val firstOffset = listState.firstVisibleItemScrollOffset
+                if (firstOffset > itemHeightPx / 2f) firstIndex + 1 else firstIndex
             } else {
-                firstIndex
+                val viewportCenter = (layoutInfo.viewportStartOffset + layoutInfo.viewportEndOffset) / 2
+                val closestItem = visibleItems.minByOrNull { item ->
+                    val itemCenter = item.offset + item.size / 2
+                    kotlin.math.abs(itemCenter - viewportCenter)
+                }
+                closestItem?.index ?: listState.firstVisibleItemIndex
             }
         }
     }

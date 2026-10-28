@@ -61,11 +61,11 @@ class BluetoothCarDeviceDetector(
     }
 
     fun init() {
-        if (isInitialized.getAndSet(true)) return
         if (!hasBluetoothConnectPermission()) {
             LogManager.w("BluetoothCarDeviceDetector: Missing BLUETOOTH_CONNECT permission, skipping initialization.")
             return
         }
+        if (isInitialized.getAndSet(true)) return
         try {
             val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
             bluetoothManager.adapter?.getProfileProxy(context, bluetoothProfileListener, BluetoothProfile.A2DP)
@@ -179,7 +179,7 @@ class BluetoothCarDeviceDetector(
                     } else if (majorClassInt == BluetoothClass.Device.Major.AUDIO_VIDEO && 
                         (classInt == 1052 || classInt == 1032)) {
                         val lowerName = name.lowercase()
-                        if (BluetoothConstants.CAR_KEYWORDS.any { lowerName.contains(it) }) {
+                        if (BluetoothConstants.matchesCarKeyword(lowerName)) {
                             foundCar = true
                         }
                     }

@@ -108,9 +108,22 @@ class PlaybackErrorHandler(
         if (isNetworkRestricted || isNetworkError) {
             val currentIndex = player.currentMediaItemIndex
             val itemCount = player.mediaItemCount
+            val timeline = player.currentTimeline
             val upcomingItems = mutableListOf<Pair<Int, String>>()
-            for (i in (currentIndex + 1) until itemCount) {
-                upcomingItems.add(i to player.getMediaItemAt(i).mediaId)
+            if (!timeline.isEmpty && itemCount > 0) {
+                var nextIndex = timeline.getNextWindowIndex(currentIndex, player.repeatMode, player.shuffleModeEnabled)
+                val visited = mutableSetOf<Int>()
+                while (nextIndex != androidx.media3.common.C.INDEX_UNSET && nextIndex !in visited && visited.size < itemCount) {
+                    visited.add(nextIndex)
+                    if (nextIndex in 0 until itemCount) {
+                        upcomingItems.add(nextIndex to player.getMediaItemAt(nextIndex).mediaId)
+                    }
+                    nextIndex = timeline.getNextWindowIndex(nextIndex, player.repeatMode, player.shuffleModeEnabled)
+                }
+            } else {
+                for (i in (currentIndex + 1) until itemCount) {
+                    upcomingItems.add(i to player.getMediaItemAt(i).mediaId)
+                }
             }
 
             if (upcomingItems.isEmpty()) {

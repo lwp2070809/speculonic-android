@@ -64,7 +64,7 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                             continue
                         }
 
-                        if (isSafEnabled && song.localUri != null) {
+                        if (song.localUri != null) {
                             val uri = song.localUri.toUri()
                             val isConsistent = validator.checkBinaryConsistency(uri, song, deepCheck = true)
                             if (!isConsistent) {
@@ -81,8 +81,14 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                 try {
                     val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, cacheLocation.toUri())
                     val audioExtensions = de.lwp2070809.speculonic.util.MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS + de.lwp2070809.speculonic.util.MediaFormatUtils.EXTENSION_LRC
+                    val validSafUris = cachedSongs.mapNotNull { it.localUri }.toSet()
+                    val validSafLrcUris = validSafUris.map { de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(it) }.toSet()
                     
                     rootDoc?.listFiles()?.forEach { file ->
+                        val fileUriStr = file.uri.toString()
+                        if (fileUriStr in validSafUris || fileUriStr in validSafLrcUris) {
+                            return@forEach
+                        }
                         val fileName = file.name ?: ""
                         val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
                         val extension = fileName.substringAfterLast('.', "").lowercase()

@@ -69,7 +69,8 @@ fun MainTopBar(
     onDownloadManagerClick: () -> Unit = {},
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit,
-    isDualPane: Boolean = false
+    isDualPane: Boolean = false,
+    onLeftBackClick: (() -> Unit)? = null
 ) {
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
@@ -145,7 +146,7 @@ fun MainTopBar(
                     ) {
                         if (showLeftBack) {
                             IconButton(
-                                onClick = onBackClick,
+                                onClick = onLeftBackClick ?: onBackClick,
                                 modifier = Modifier.size(36.dp)
                             ) {
                                 Icon(
