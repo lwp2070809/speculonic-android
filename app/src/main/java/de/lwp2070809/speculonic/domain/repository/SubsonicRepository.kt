@@ -24,6 +24,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 class SubsonicRepository(
     private val context: Context,
@@ -84,6 +85,7 @@ class SubsonicRepository(
         
         reconfigure(initialUrl, initialUser, initialPass)
         startObservingPreferences()
+
     }
 
     private fun startObservingPreferences() {
@@ -94,11 +96,11 @@ class SubsonicRepository(
                 preferencesManager.password
             ) { url, username, password ->
                 Triple(url, username, password)
-            }.collectLatest { (url, username, password) ->
+            }.drop(1).collectLatest { (url, username, password) ->
                 if (url != baseUrl || username != authManager.getAuthParams().first || password != lastConfiguredPassword) {
                     lastConfiguredPassword = password
                     reconfigure(url, username, password.toCharArray())
-                }
+                    }
             }
         }
         observationScope.launch {
@@ -144,7 +146,7 @@ class SubsonicRepository(
             coverArtSyncManager = newCoverArtSyncManager
         )
         
-        startObservingPreferences()
+
     }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")
@@ -182,7 +184,7 @@ class SubsonicRepository(
             keepSyncingState = keepSyncingState,
             onProgress = onProgress,
             onSyncComplete = { currentTime, serverLastModified ->
-                repositoryScope.launch {
+
                     getStarred(forceRefresh = true)
                     
                     refreshAlbumList("newest")
@@ -194,7 +196,6 @@ class SubsonicRepository(
                     if (serverLastModified != 0L) {
                         preferencesManager.saveServerLastModified(serverLastModified)
                     }
-                }
             }
         )
 
@@ -202,7 +203,6 @@ class SubsonicRepository(
 
         if (forceRefresh || !hasLocal) {
             preloadPlaylistsAndSongs()
-            getStarred(forceRefresh = true)
         }
     }
 
@@ -252,7 +252,7 @@ class SubsonicRepository(
                 updateCapabilities(response.response)
                 if (serverCapabilities.isOpenSubsonic) {
                     discoverExtensions()
-                }
+                    }
                 
                 preferencesManager.saveServerCapabilities(serverCapabilities)
                 preferencesManager.saveLastPingTime(System.currentTimeMillis())
@@ -322,7 +322,7 @@ class SubsonicRepository(
                     val j1 = async { getStarred(forceRefresh = true) }
                     val j2 = async { preloadPlaylistsAndSongs() }
                     awaitAll(j1, j2)
-                }
+                    }
                 preferencesManager.saveLastSyncTime(currentTime)
             }
         )

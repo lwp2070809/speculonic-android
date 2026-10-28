@@ -1,4 +1,4 @@
-package de.lwp2070809.speculonic.ui.screens.discover
+﻿package de.lwp2070809.speculonic.ui.screens.discover
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -53,6 +55,7 @@ class DiscoverViewModel @Inject constructor(
     private val preferencesManager: de.lwp2070809.speculonic.data.PreferencesManager
 ) : ViewModel() {
 
+    private var loadDataJob: Job? = null
     private val _uiState = MutableStateFlow(DiscoverUiState())
     val uiState: StateFlow<DiscoverUiState> = _uiState.asStateFlow()
 
@@ -74,7 +77,7 @@ class DiscoverViewModel @Inject constructor(
 
     private fun observeServerConfigChanges() {
         viewModelScope.launch {
-            repository.serverUrlFlow.collectLatest { url ->
+            repository.serverUrlFlow.drop(1).collectLatest { url ->
                 if (url.isNotBlank() && !url.contains("unconfigured")) {
                     val hasData = repository.hasLocalData()
                     if (!hasData) {
@@ -144,7 +147,8 @@ class DiscoverViewModel @Inject constructor(
     }
 
     fun loadData() {
-        viewModelScope.launch {
+        if (loadDataJob?.isActive == true || _uiState.value.isLoading) return
+        loadDataJob = viewModelScope.launch {
             val hasData = repository.hasLocalData()
             if (!hasData) {
                 _uiState.update { it.copy(isLoading = true) }

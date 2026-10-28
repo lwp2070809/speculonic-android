@@ -1,4 +1,4 @@
-package de.lwp2070809.speculonic.data
+﻿package de.lwp2070809.speculonic.data
 
 import android.content.Context
 import android.graphics.Bitmap
@@ -25,6 +25,7 @@ import de.lwp2070809.speculonic.util.LogManager
 import androidx.documentfile.provider.DocumentFile
 import androidx.core.net.toUri
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -224,11 +225,14 @@ object DownloadTracker {
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
                     
-                    val job = scope.launch {
+                    var job: Job? = null
+                    job = scope.launch {
                         try {
                             exportDownloadedSong(context, download)
                         } finally {
-                            exportJobs.remove(download.request.id)
+                            if (exportJobs[download.request.id] === job) {
+                                exportJobs.remove(download.request.id)
+                            }
                         }
                     }
                     exportJobs[download.request.id] = job
@@ -249,14 +253,16 @@ object DownloadTracker {
                     _activeDownloadIds.update { it - download.request.id }
                 }
             }
-            val currentList = _allDownloads.value.toMutableList()
-            val index = currentList.indexOfFirst { it.task.request.id == download.request.id }
-            if (index != -1) {
-                currentList[index] = DownloadTaskInfo(download)
-            } else {
-                currentList.add(DownloadTaskInfo(download))
+            _allDownloads.update { current ->
+                val updated = current.toMutableList()
+                val index = updated.indexOfFirst { it.task.request.id == download.request.id }
+                if (index != -1) {
+                    updated[index] = DownloadTaskInfo(download)
+                } else {
+                    updated.add(DownloadTaskInfo(download))
+                }
+                updated
             }
-            _allDownloads.value = currentList
             checkAndStartPolling(downloadManager)
         }
 
@@ -266,9 +272,9 @@ object DownloadTracker {
 
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
-            val currentList = _allDownloads.value.toMutableList()
-            currentList.removeAll { it.task.request.id == download.request.id }
-            _allDownloads.value = currentList
+            _allDownloads.update { current ->
+                current.filter { it.task.request.id != download.request.id }
+            }
             checkAndStartPolling(downloadManager)
             
             val isExplicitlyDeleted = consumePendingFileDeletion(download.request.id)

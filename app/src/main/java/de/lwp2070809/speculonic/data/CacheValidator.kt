@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.documentfile.provider.DocumentFile
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -57,6 +58,7 @@ class CacheValidator(private val context: Context) {
             }
             return@withContext true
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LogManager.e("CacheValidator: Failed binary check for ${dbSong.title}", e)
             false
         }
@@ -83,6 +85,7 @@ class CacheValidator(private val context: Context) {
                 bytes.joinToString("") { "%02x".format(it) }
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LogManager.e("CacheValidator: Failed to calculate MD5", e)
             null
         }

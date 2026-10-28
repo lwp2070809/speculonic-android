@@ -19,6 +19,7 @@ import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
 import java.util.concurrent.TimeUnit
 
@@ -85,6 +86,7 @@ class MetadataSyncWorker @AssistedInject constructor(
             LogManager.i("MetadataSync: Synchronization completed successfully.")
             return Result.success()
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LogManager.e("MetadataSync: Failed to synchronize", e)
             return Result.retry()
         }

@@ -20,6 +20,7 @@ object CacheManager {
     @Volatile private var downloadCache: Cache? = null
     @Volatile private var databaseProvider: DatabaseProvider? = null
     @Volatile private var currentDownloadCacheSize: Long = -2L
+    @Volatile private var isReleasing: Boolean = false
 
     
     
@@ -34,7 +35,8 @@ object CacheManager {
     }
 
     @Synchronized
-    fun getPlaybackCache(context: Context): Cache {
+    fun getPlaybackCache(context: Context): Cache {        if (isReleasing) { throw IllegalStateException("CacheManager: Cannot acquire playbackCache while cache is being released or cleared.") }
+
         if (playbackCache == null) {
             val cacheDir = File(context.cacheDir, "media_playback_buffer")
             if (!cacheDir.exists()) cacheDir.mkdirs()
@@ -46,7 +48,8 @@ object CacheManager {
     }
 
     @Synchronized
-    fun getDownloadCache(context: Context): Cache {
+    fun getDownloadCache(context: Context): Cache {        if (isReleasing) { throw IllegalStateException("CacheManager: Cannot acquire downloadCache while cache is being released or cleared.") }
+
         val fixedCacheSize = 900L * 1024 * 1024L // 900 MB
         if (downloadCache == null) {
             val externalDir = context.getExternalFilesDir(null)
@@ -79,6 +82,7 @@ object CacheManager {
 
     suspend fun executeWithCacheReleaseLock(block: () -> Unit) {
         mutex.withLock {
+            synchronized(this) { isReleasing = true }
             try {
                 LogManager.i("CacheManager: Requesting active components to release caches...")
                 onRequireCacheRelease?.invoke()
@@ -137,6 +141,7 @@ object CacheManager {
                 LogManager.e("CacheManager: Error during cache release & clearance", e)
                 throw e
             } finally {
+                synchronized(this) { isReleasing = false }
                 try {
                     onCacheRebuild?.invoke()
                 } catch (e: Exception) {

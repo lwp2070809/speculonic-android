@@ -1,4 +1,4 @@
-package de.lwp2070809.speculonic.ui.screens.details
+﻿package de.lwp2070809.speculonic.ui.screens.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -17,12 +17,15 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 data class PlaylistDetailUiState(
     val isLoading: Boolean = false,
     val isRefreshing: Boolean = false,
     val isDeleted: Boolean = false,
     val shouldAutoExit: Boolean = false,
+    val isModifying: Boolean = false,
     val playlist: Playlist? = null,
     val songs: List<Song> = emptyList(),
     val error: String? = null
@@ -39,6 +42,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         fun create(playlistId: String): PlaylistDetailViewModel
     }
 
+    private val playlistOperationMutex = Mutex()
     private val _uiState = MutableStateFlow(PlaylistDetailUiState())
     val uiState: StateFlow<PlaylistDetailUiState> = _uiState.asStateFlow()
 
@@ -179,15 +183,33 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
-    fun removeFromPlaylist(index: Int, onResult: (Boolean) -> Unit = {}) {
+    fun removeFromPlaylist(songId: String, fallbackIndex: Int = -1, onResult: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            try {
-                val success = repository.removeFromPlaylist(playlistId, index)
-                onResult(success)
-            } catch (e: Exception) {
-                de.lwp2070809.speculonic.util.LogManager.e("PlaylistDetailViewModel: removeFromPlaylist failed", e)
-                onResult(false)
+            playlistOperationMutex.withLock {
+                _uiState.update { it.copy(isModifying = true) }
+                try {
+                    val currentSongs = _uiState.value.songs
+                    val actualIndex = currentSongs.indexOfFirst { it.id == songId }.takeIf { it != -1 } ?: fallbackIndex
+                    if (actualIndex < 0) {
+                        LogManager.w("PlaylistDetailViewModel: removeFromPlaylist skipped, song $songId not found")
+                        onResult(false)
+                        return@withLock
+                    }
+                    val success = repository.removeFromPlaylist(playlistId, actualIndex)
+                    onResult(success)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    LogManager.e("PlaylistDetailViewModel: removeFromPlaylist failed", e)
+                    onResult(false)
+                } finally {
+                    _uiState.update { it.copy(isModifying = false) }
+                }
             }
         }
+    }
+
+    fun removeFromPlaylist(index: Int, onResult: (Boolean) -> Unit = {}) {
+        val songId = _uiState.value.songs.getOrNull(index)?.id ?: ""
+        removeFromPlaylist(songId = songId, fallbackIndex = index, onResult = onResult)
     }
 }

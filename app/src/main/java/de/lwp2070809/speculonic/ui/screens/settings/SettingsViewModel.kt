@@ -1,4 +1,4 @@
-
+﻿
 package de.lwp2070809.speculonic.ui.screens.settings
 
 import de.lwp2070809.speculonic.R
@@ -29,6 +29,7 @@ import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -60,6 +61,7 @@ class SettingsViewModel @Inject constructor(
     private val updateManager: de.lwp2070809.speculonic.data.UpdateManager
 ) : ViewModel() {
 
+    private var workObserverJob: Job? = null
     private val _uiState = MutableStateFlow(SettingsUiState())
     val uiState: StateFlow<SettingsUiState> = _uiState.asStateFlow()
 
@@ -741,7 +743,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     private fun observeWorkProgress(uniqueName: String, onFinished: SettingsUiState.() -> SettingsUiState) {
-        viewModelScope.launch {
+        workObserverJob?.cancel()
+        workObserverJob = viewModelScope.launch {
             WorkManager.getInstance(context)
                 .getWorkInfosForUniqueWorkFlow(uniqueName)
                 .collect { workInfos ->
@@ -754,6 +757,7 @@ class SettingsViewModel @Inject constructor(
                     if (info.state.isFinished) {
                         refreshCacheSize()
                         _uiState.value = onFinished(_uiState.value).copy(syncPercentage = null, syncProgress = null)
+                        workObserverJob?.cancel()
                     }
                 }
         }

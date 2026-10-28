@@ -17,15 +17,15 @@ import java.util.concurrent.Executors
 
 @OptIn(UnstableApi::class)
 object DownloadManagerHelper {
-    private var downloadManager: DownloadManager? = null
-    private var downloadExecutor: java.util.concurrent.ExecutorService? = null
+    @Volatile private var downloadManager: DownloadManager? = null
+    @Volatile private var downloadExecutor: java.util.concurrent.ExecutorService? = null
 
-    private val isInitializing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val initMutex = kotlinx.coroutines.sync.Mutex()
 
     suspend fun initializeAsync(context: Context) {
         if (downloadManager != null) return
-        if (isInitializing.getAndSet(true)) return
-        try {
+        initMutex.withLock {
+            if (downloadManager != null) return@withLock
             val preferencesManager = PreferencesManager.getInstance(context)
             val mobilePlayAllowed = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
                 preferencesManager.mobilePlayAllowed.first()
@@ -35,8 +35,6 @@ object DownloadManagerHelper {
                     initialize(context, mobilePlayAllowed)
                 }
             }
-        } finally {
-            isInitializing.set(false)
         }
     }
 
@@ -51,9 +49,8 @@ object DownloadManagerHelper {
     }
 
     suspend fun getDownloadManagerSuspend(context: Context): DownloadManager {
-        if (downloadManager == null) {
-            initializeAsync(context)
-        }
+        downloadManager?.let { return it }
+        initializeAsync(context)
         return downloadManager!!
     }
 

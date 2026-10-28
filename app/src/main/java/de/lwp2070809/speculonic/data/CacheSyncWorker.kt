@@ -35,6 +35,7 @@ import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -119,6 +120,7 @@ class CacheSyncWorker @AssistedInject constructor(
                     }
                     LogManager.i("CacheSync: Batch pre-loaded ${existingSafSongIds.size} SAF files. Disabling O(N) IPC queries.")
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     LogManager.e("CacheSync: Failed to pre-scan SAF directory for fast contains check", e)
                 }
             }
@@ -230,6 +232,7 @@ class CacheSyncWorker @AssistedInject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 LogManager.e("CacheSync: Failed to scan SAF directory", e)
             }
         }
@@ -242,6 +245,7 @@ class CacheSyncWorker @AssistedInject constructor(
                     setProgress(workDataOf(PROGRESS to 98, STATUS to progressStatus))
                 })
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 LogManager.e("CacheSync: Failed to sync cover art in background healing task", e)
             }
         } else {

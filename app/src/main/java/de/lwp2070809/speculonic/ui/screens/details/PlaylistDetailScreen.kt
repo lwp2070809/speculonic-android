@@ -334,12 +334,12 @@ fun PlaylistDetailScreen(
                                                 leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
                                                 onClick = {
                                                     showItemMenu = false
-                                                    viewModel.removeFromPlaylist(index) { success ->
+                                                    viewModel.removeFromPlaylist(song.id, index) { success ->
                                                         val msg = if (success) removeSuccessMsg else removeErrorMsg
                                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
-                                                enabled = isEffectivelyOnline
+                                                enabled = isEffectivelyOnline && !uiState.isModifying
                                             )
                                         }
                                     }

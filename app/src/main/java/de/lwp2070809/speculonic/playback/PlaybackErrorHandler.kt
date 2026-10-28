@@ -8,6 +8,7 @@ import androidx.media3.common.Player
 import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -167,6 +168,7 @@ class PlaybackErrorHandler(
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     LogManager.e("Error checking cache for skip", e)
                     withContext(Dispatchers.Main) { player.pause() }
                 }
