@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
@@ -60,6 +61,8 @@ fun SongListItem(
     onDownloadClick: () -> Unit = {},
     onRemoveDownloadClick: () -> Unit = {},
     transcodeIncompatible: Boolean = false,
+    onRemoveFromPlaylistClick: (() -> Unit)? = null,
+    isRemoveFromPlaylistEnabled: Boolean = true,
     trailingContentOverride: @Composable (() -> Unit)? = null
 ) {
     val coverRequester = LocalCoverArtRequester.current
@@ -121,7 +124,7 @@ fun SongListItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = "Downloaded",
+                        contentDescription = stringResource(R.string.cd_downloaded),
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -175,13 +178,13 @@ fun SongListItem(
                     ) {
                         Icon(
                             painter = if (isStarred) rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
-                            contentDescription = "Star",
+                            contentDescription = stringResource(R.string.cd_star),
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = "More")
+                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -224,6 +227,18 @@ fun SongListItem(
                                 },
                                 enabled = isEffectivelyOnline
                             )
+                            if (onRemoveFromPlaylistClick != null) {
+                                HorizontalDivider()
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.remove_from_playlist)) },
+                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
+                                    onClick = {
+                                        showMenu = false
+                                        onRemoveFromPlaylistClick()
+                                    },
+                                    enabled = isRemoveFromPlaylistEnabled
+                                )
+                            }
                         }
                     }
                 }

@@ -233,8 +233,6 @@ fun AppNavDisplay(
             )
         ) {
             SettingsScreen(
-                viewModel = settingsViewModel,
-                topBarState = topBarState,
                 onNavigate = { navigator.navigate(it) }
             )
         }

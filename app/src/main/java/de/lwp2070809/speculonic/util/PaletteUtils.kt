@@ -4,7 +4,6 @@ import android.content.Context
 import android.util.LruCache
 import androidx.compose.ui.graphics.Color
 import androidx.core.graphics.ColorUtils
-import androidx.core.net.toUri
 import androidx.palette.graphics.Palette
 import coil3.ImageLoader
 import coil3.request.ImageRequest
@@ -32,14 +31,7 @@ object PaletteUtils {
         fallbackBackgroundColor: Int
     ): Color? = withContext(Dispatchers.IO) {
         
-        val uriObj = uri.toUri()
-        val id = uriObj.getQueryParameter("id")
-        val stableKey = if (id != null) {
-            val baseUrl = uri.substringBefore("/rest/getCoverArt")
-            val normalizedBaseUrl = CoverArtKeyUtils.normalizeBaseUrl(baseUrl)
-            "cover_${normalizedBaseUrl.hashCode()}_$id"
-        } else null
-
+        val stableKey = CoverArtKeyUtils.buildStableKey(uri)
         val cacheKey = "${stableKey ?: uri}_${isDark}_$fallbackBackgroundColor"
         
         

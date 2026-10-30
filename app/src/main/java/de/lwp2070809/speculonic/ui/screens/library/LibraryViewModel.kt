@@ -6,7 +6,6 @@ import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
 import de.lwp2070809.speculonic.network.model.Playlist
@@ -39,16 +38,13 @@ data class LibraryUiState(
     val playlists: List<Playlist> = emptyList(),
     val favorites: List<Song> = emptyList(),
     val selectedTabIndex: Int = 0,
-    val error: String? = null,
-    val showSafetyGuardConfirm: Boolean = false,
-    val safetyGuardMessage: String? = null
+    val error: String? = null
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: SubsonicRepository,
-    private val syncAllDataUseCase: SyncAllDataUseCase
+    private val repository: SubsonicRepository
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(LibraryUiState())
@@ -169,43 +165,6 @@ class LibraryViewModel @Inject constructor(
     }
 
     
-    fun refreshDeeply(ignoreLastModified: Boolean = false, ignoreSafetyGuard: Boolean = false) {
-        viewModelScope.launch {
-            _uiState.update { it.copy(
-                isLoading = true, 
-                syncProgress = context.getString(de.lwp2070809.speculonic.R.string.sync_progress_full_sync), 
-                error = null,
-                showSafetyGuardConfirm = false
-            ) }
-            try {
-                syncAllDataUseCase(
-                    forceRefresh = true, 
-                    ignoreLastModified = ignoreLastModified,
-                    ignoreSafetyGuard = ignoreSafetyGuard,
-                    onProgress = { status ->
-                        _uiState.update { it.copy(syncProgress = status) }
-                    }
-                )
-                _uiState.update { it.copy(isLoading = false, syncProgress = null) }
-            } catch (e: de.lwp2070809.speculonic.domain.repository.SafetyGuardException) {
-                _uiState.update { it.copy(
-                    isLoading = false,
-                    syncProgress = null,
-                    showSafetyGuardConfirm = true,
-                    safetyGuardMessage = e.message
-                ) }
-            } catch (e: Exception) {
-                LogManager.e("LibraryViewModel: refreshDeeply failed", e)
-                _uiState.update { it.copy(
-                    isLoading = false,
-                    syncProgress = null,
-                    error = e.message ?: "Unknown error"
-                ) }
-            }
-        }
-    }
-
-    
     fun refreshFavorites() {
         viewModelScope.launch {
             _uiState.update { it.copy(isRefreshing = true, error = null) }
@@ -231,14 +190,6 @@ class LibraryViewModel @Inject constructor(
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
         }
-    }
-
-    fun confirmSafetyGuard() {
-        refreshDeeply(ignoreLastModified = true, ignoreSafetyGuard = true)
-    }
-
-    fun cancelSafetyGuard() {
-        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) }
     }
 
     fun clearError() {

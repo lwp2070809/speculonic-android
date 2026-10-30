@@ -54,6 +54,7 @@ fun FavoriteList(
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val failedMessage = stringResource(R.string.failed_to_fetch_remote)
+    val favoriteQueueTitle = stringResource(R.string.favorite)
 
     val context = LocalContext.current
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
@@ -127,7 +128,7 @@ fun FavoriteList(
                             }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
-                                playbackController.play(mediaItems, 0, shuffle = false, queueTitle = "Favorite")
+                                playbackController.play(mediaItems, 0, shuffle = false, queueTitle = favoriteQueueTitle)
                             }
                         },
                         onShuffle = {
@@ -136,7 +137,7 @@ fun FavoriteList(
                             }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
-                                playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = "Favorite")
+                                playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = favoriteQueueTitle)
                             }
                         },
                         onDownloadAll = onDownloadAllClick,

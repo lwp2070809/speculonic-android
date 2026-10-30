@@ -186,7 +186,7 @@ fun PlaylistList(
                     trailingContent = {
                         Box {
                             IconButton(onClick = { showMenu = true }) {
-                                Icon(Icons.Default.MoreVert, contentDescription = "More")
+                                Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
                             }
                             DropdownMenu(
                                 expanded = showMenu,

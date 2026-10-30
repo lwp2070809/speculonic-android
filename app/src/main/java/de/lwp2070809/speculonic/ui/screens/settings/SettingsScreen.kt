@@ -16,28 +16,19 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 import androidx.compose.ui.res.stringResource
 import de.lwp2070809.speculonic.R
-import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
 
 @Composable
 fun SettingsScreen(
-    viewModel: SettingsViewModel, 
-    topBarState: TopBarState,
     onNavigate: (AppRoute) -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val isSyncing by viewModel.isSyncing.collectAsState()
-    val syncProgress by viewModel.syncProgress.collectAsState()
-
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
         SettingsRoot(onNavigate = onNavigate)
     }

@@ -291,7 +291,7 @@ fun LyricsView(
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
                                     imageVector = Icons.Default.PlayArrow,
-                                    contentDescription = "Play",
+                                    contentDescription = stringResource(R.string.play),
                                     modifier = Modifier.size(20.dp)
                                 )
                             }

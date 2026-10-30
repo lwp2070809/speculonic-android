@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.data
 
 import android.content.Context
+import de.lwp2070809.speculonic.R
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -414,7 +415,7 @@ object DownloadTracker {
                 } else {
                     LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")
                     Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(context, "导出失败: ${it.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, context.getString(R.string.export_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
                     }
                 }
             }

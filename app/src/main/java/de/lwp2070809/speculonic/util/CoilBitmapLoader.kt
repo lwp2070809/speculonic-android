@@ -58,14 +58,9 @@ class CoilBitmapLoader(
                     .allowHardware(false)
                     .size(512) 
 
-                if (id != null) {
-                    
-                    val uriString = uri.toString()
-                    val baseUrl = uriString.substringBefore("/rest/getCoverArt")
-                    val normalizedBaseUrl = CoverArtKeyUtils.normalizeBaseUrl(baseUrl)
+                val stableKey = CoverArtKeyUtils.buildStableKey(uri)
+                if (stableKey != null) {
                     val size = uri.getQueryParameter("size")
-                    val stableKey = "cover_${normalizedBaseUrl.hashCode()}_$id"
-
                     requestBuilder.diskCacheKey(stableKey)
                     requestBuilder.memoryCacheKey(if (size != null) "${stableKey}_$size" else stableKey)
                     requestBuilder.diskCachePolicy(coil3.request.CachePolicy.ENABLED)

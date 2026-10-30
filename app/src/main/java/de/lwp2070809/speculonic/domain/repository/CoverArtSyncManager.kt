@@ -22,8 +22,7 @@ class CoverArtSyncManager(
     private val urlBuilder: UrlBuilder
 ) {
     fun getCoverArtCacheKey(id: String): String {
-        val normalizedBaseUrl = CoverArtKeyUtils.normalizeBaseUrl(baseUrl)
-        return "cover_${normalizedBaseUrl.hashCode()}_$id"
+        return CoverArtKeyUtils.buildStableKey(baseUrl, id)
     }
 
     fun buildCoverArtRequest(id: String?, preferLocal: Boolean = false, size: Int? = null, crossfade: Boolean = true): ImageRequest {

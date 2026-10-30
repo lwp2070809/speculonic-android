@@ -384,4 +384,12 @@
     <string name="log_tag_app">应用系统</string>
     <string name="export_logs_failed">导出日志失败: %1$s</string>
     <string name="more_options">更多选项</string>
+    <string name="cd_more">更多选项</string>
+    <string name="cd_previous">上一首</string>
+    <string name="cd_next">下一首</string>
+    <string name="cd_star">收藏</string>
+    <string name="cd_downloaded">已下载</string>
+    <string name="cd_back">返回</string>
+    <string name="cd_clear">清除</string>
+    <string name="cd_edit">编辑</string>
 </resources>

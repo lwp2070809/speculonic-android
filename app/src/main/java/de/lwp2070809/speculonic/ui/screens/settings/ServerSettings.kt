@@ -178,13 +178,13 @@ fun ServerSettings(
                             onClick = { showEditDialog = true },
                             enabled = isEffectivelyOnline
                         ) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            Icon(Icons.Default.Edit, contentDescription = stringResource(R.string.cd_edit))
                         }
                         IconButton(
                             onClick = { showDeleteConfirm = true },
                             enabled = isEffectivelyOnline
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }
                     }
                 }

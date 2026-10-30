@@ -8,7 +8,6 @@ import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
-import de.lwp2070809.speculonic.network.model.ArtistInfo2
 import de.lwp2070809.speculonic.network.model.SearchResult3
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.network.model.ensureOk
@@ -64,17 +63,6 @@ class MediaRepository(
         val artistEntity = musicDao.getArtistById(id)
         val albums = musicDao.getAlbumsByArtist(id).map { entityMapper.toAlbum(it) }
         return Pair(artistEntity?.let { Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount) }, albums)
-    }
-
-    suspend fun getArtistInfo(id: String): ArtistInfo2? {
-        val (u, t, s) = authManager.getAuthParams()
-        return try {
-            val response = api.getArtistInfo2(id, u, t, s)
-            response.response.artistInfo2
-        } catch (e: Exception) {
-            LogManager.e("MediaRepository: getArtistInfo2 failed", e)
-            null
-        }
     }
 
     fun getAlbumsByListTypeFlow(type: String): Flow<List<Album>> {
@@ -151,50 +139,6 @@ class MediaRepository(
         } else {
             entities.chunked(500).forEach { musicDao.insertAlbums(it) }
             listItems.chunked(500).forEach { musicDao.insertAlbumListItems(it) }
-        }
-    }
-
-    suspend fun getSongs(directoryId: String, forceRefresh: Boolean = false): List<Song> {
-        val cached = musicDao.getSongsByParent(directoryId)
-        val shouldRefresh = forceRefresh || cached.isEmpty()
-
-        if (!shouldRefresh) {
-            return cached.map { entityMapper.toSong(it) }
-        }
-
-        val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
-        return try {
-            val response = api.getMusicDirectory(directoryId, u, t, s)
-            response.response.ensureOk()
-            val list = response.response.directory?.child ?: emptyList()
-            if (list.isNotEmpty()) {
-                val songIds = list.map { it.id }
-                val existingSongsMap = songIds.chunked(500)
-                    .flatMap { musicDao.getSongsByIds(it) }
-                    .associateBy { it.id }
-                
-                val entities = list.map { song ->
-                    val local = existingSongsMap[song.id]
-                    entityMapper.songToEntity(song, 
-                        albumId = song.albumId ?: directoryId, 
-                        localUri = local?.localUri, 
-                        isCached = local?.isFullyCached ?: false,
-                        isTranscoded = local?.isTranscoded ?: false,
-                        parentId = directoryId,
-                        lastUpdated = local?.lastUpdated
-                    )
-                }
-                
-                if (forceRefresh) {
-                    musicDao.deleteSongsByParentNotIn(directoryId, songIds)
-                }
-                entities.chunked(500).forEach { chunk -> musicDao.insertSongs(chunk) }
-            } else if (forceRefresh) {
-                musicDao.deleteSongsByParentNotIn(directoryId, emptyList())
-            }
-            list
-        } catch (e: Exception) {
-            cached.map { entityMapper.toSong(it) }
         }
     }
 

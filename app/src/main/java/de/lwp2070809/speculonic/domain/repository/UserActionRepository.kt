@@ -18,23 +18,20 @@ class UserActionRepository(
 ) {
     suspend fun getStarred(
         forceRefresh: Boolean = false, 
-        hasLocalData: Boolean,
         skipInsert: Boolean = false
     ): List<Song> {
-        return getStarredData(forceRefresh, hasLocalData, skipInsert).song
+        return getStarredData(forceRefresh, skipInsert).song
     }
 
     suspend fun getStarredAlbums(
         forceRefresh: Boolean = false, 
-        hasLocalData: Boolean,
         skipInsert: Boolean = false
     ): List<Album> {
-        return getStarredData(forceRefresh, hasLocalData, skipInsert).album
+        return getStarredData(forceRefresh, skipInsert).album
     }
 
     private suspend fun getStarredData(
         forceRefresh: Boolean = false, 
-        hasLocalData: Boolean,
         skipInsert: Boolean = false
     ): Starred2Response {
         val cachedSongs = musicDao.getStarredSongs()

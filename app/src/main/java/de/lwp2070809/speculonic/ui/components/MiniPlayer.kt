@@ -168,7 +168,7 @@ fun MiniPlayer(
                     IconButton(onClick = onSkipPrevious) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous),
-                            contentDescription = "Previous",
+                            contentDescription = stringResource(R.string.cd_previous),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )
@@ -176,7 +176,7 @@ fun MiniPlayer(
                     IconButton(onClick = onPlayPause) {
                         Icon(
                             painter = if (isPlaying) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause) else rememberVectorPainter(Icons.Default.PlayArrow),
-                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            contentDescription = stringResource(if (isPlaying) R.string.content_description_pause else R.string.play),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)
                         )
@@ -184,7 +184,7 @@ fun MiniPlayer(
                     IconButton(onClick = onSkipNext) {
                         Icon(
                             painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next),
-                            contentDescription = "Next",
+                            contentDescription = stringResource(R.string.cd_next),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
                         )

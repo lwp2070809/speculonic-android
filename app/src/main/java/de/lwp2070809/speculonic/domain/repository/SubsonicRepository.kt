@@ -7,7 +7,6 @@ import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
-import de.lwp2070809.speculonic.network.model.ArtistInfo2
 import de.lwp2070809.speculonic.network.model.BaseResponse
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.SearchResult3
@@ -371,18 +370,9 @@ class SubsonicRepository(
         return mediaRepository.getCachedArtistDetails(id)
     }
 
-    suspend fun getArtistInfo(id: String): ArtistInfo2? {
-        return mediaRepository.getArtistInfo(id)
-    }
-
     suspend fun getAlbumList(type: String = "newest", size: Int = 20, offset: Int = 0, forceRefresh: Boolean = false): List<Album> {
         resetReachableIfForced(forceRefresh)
         return mediaRepository.getAlbumList(type, size, offset, forceRefresh, hasLocalData(), skipInsert = false)
-    }
-
-    suspend fun getSongs(directoryId: String, forceRefresh: Boolean = false): List<Song> {
-        resetReachableIfForced(forceRefresh)
-        return mediaRepository.getSongs(directoryId, forceRefresh)
     }
 
     suspend fun getSongRemote(id: String): Result<Song> {
@@ -459,12 +449,12 @@ class SubsonicRepository(
 
     suspend fun getStarred(forceRefresh: Boolean = false): List<Song> {
         resetReachableIfForced(forceRefresh)
-        return userActionRepository.getStarred(forceRefresh, hasLocalData(), skipInsert = false)
+        return userActionRepository.getStarred(forceRefresh, skipInsert = false)
     }
 
     suspend fun getStarredAlbums(forceRefresh: Boolean = false): List<Album> {
         resetReachableIfForced(forceRefresh)
-        return userActionRepository.getStarredAlbums(forceRefresh, hasLocalData(), skipInsert = false)
+        return userActionRepository.getStarredAlbums(forceRefresh, skipInsert = false)
     }
 
     fun getStarredFlow(): Flow<List<Song>> = userActionRepository.getStarredFlow()

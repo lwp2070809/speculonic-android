@@ -108,7 +108,7 @@ fun SearchScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.cd_back))
             }
             OutlinedTextField(
                 value = uiState.query,
@@ -122,7 +122,7 @@ fun SearchScreen(
                 trailingIcon = {
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
-                            Icon(Icons.Default.Close, contentDescription = "Clear")
+                            Icon(Icons.Default.Close, contentDescription = stringResource(R.string.cd_clear))
                         }
                     }
                 }

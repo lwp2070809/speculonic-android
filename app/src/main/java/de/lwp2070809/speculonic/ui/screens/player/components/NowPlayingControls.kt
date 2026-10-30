@@ -104,7 +104,7 @@ fun MainControls(
             IconButton(onClick = { playbackController.skipToPrevious() }) {
                 Icon(
                     painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous),
-                    contentDescription = "Previous",
+                    contentDescription = stringResource(R.string.cd_previous),
                     modifier = Modifier.size(36.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -119,7 +119,7 @@ fun MainControls(
             ) {
                 Icon(
                     painter = if (playbackState.isPlaying) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause) else androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.PlayArrow),
-                    contentDescription = if (playbackState.isPlaying) "Pause" else "Play",
+                    contentDescription = stringResource(if (playbackState.isPlaying) R.string.content_description_pause else R.string.play),
                     modifier = Modifier.size(40.dp)
                 )
             }
@@ -127,7 +127,7 @@ fun MainControls(
             IconButton(onClick = { playbackController.skipToNext() }) {
                 Icon(
                     painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_next),
-                    contentDescription = "Next",
+                    contentDescription = stringResource(R.string.cd_next),
                     modifier = Modifier.size(36.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )

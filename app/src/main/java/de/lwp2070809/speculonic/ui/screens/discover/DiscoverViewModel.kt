@@ -1,7 +1,9 @@
-﻿package de.lwp2070809.speculonic.ui.screens.discover
+package de.lwp2070809.speculonic.ui.screens.discover
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
@@ -49,6 +51,7 @@ private data class DiscoverDataPackage(
 
 @HiltViewModel
 class DiscoverViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val repository: SubsonicRepository,
     private val syncAllDataUseCase: SyncAllDataUseCase,
     private val playbackController: de.lwp2070809.speculonic.playback.PlaybackController,
@@ -216,7 +219,7 @@ class DiscoverViewModel @Inject constructor(
                 if (index != -1) {
                     val mediaItems = playableSongs.map { it.toMediaItem(repository) }
                     if (mediaItems.isNotEmpty()) {
-                        playbackController.play(mediaItems, index, queueTitle = "Favorite")
+                        playbackController.play(mediaItems, index, queueTitle = context.getString(de.lwp2070809.speculonic.R.string.favorite))
                     }
                 }
             } catch (e: Exception) {

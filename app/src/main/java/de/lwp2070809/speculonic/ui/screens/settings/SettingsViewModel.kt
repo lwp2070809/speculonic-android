@@ -1,4 +1,4 @@
-﻿
+
 package de.lwp2070809.speculonic.ui.screens.settings
 
 import de.lwp2070809.speculonic.R
@@ -858,14 +858,14 @@ class SettingsViewModel @Inject constructor(
         return if (!currentLocales.isEmpty) {
             getLanguageLabel(currentLocales.get(0)?.toLanguageTag() ?: "system")
         } else {
-            "System"
+            context.getString(R.string.system)
         }
     }
 
     private fun getLanguageLabel(code: String): String = when {
         code.startsWith("en") -> "English"
         code.startsWith("zh") -> "简体中文"
-        else -> "System"
+        else -> context.getString(R.string.system)
     }
 
 

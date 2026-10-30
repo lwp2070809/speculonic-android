@@ -387,4 +387,12 @@
     <string name="log_tag_app">System &amp; App</string>
     <string name="export_logs_failed">Failed to export logs: %1$s</string>
     <string name="more_options">More options</string>
+    <string name="cd_more">More options</string>
+    <string name="cd_previous">Previous</string>
+    <string name="cd_next">Next</string>
+    <string name="cd_star">Favorite</string>
+    <string name="cd_downloaded">Downloaded</string>
+    <string name="cd_back">Back</string>
+    <string name="cd_clear">Clear</string>
+    <string name="cd_edit">Edit</string>
 </resources>

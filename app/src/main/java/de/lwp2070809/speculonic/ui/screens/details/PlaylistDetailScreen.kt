@@ -9,9 +9,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -242,14 +240,6 @@ fun PlaylistDetailScreen(
                     }
 
                     itemsIndexed(uiState.songs, key = { index, song -> "${song.id}_$index" }) { index, song ->
-                        var showItemMenu by remember { mutableStateOf(false) }
-                        var showDetailDialog by remember { mutableStateOf(false) }
-                        val isDownloaded = song.isFullyCached
-                        
-                        if (showDetailDialog) {
-                            de.lwp2070809.speculonic.ui.components.SongDetailDialog(song = song, onDismiss = { showDetailDialog = false })
-                        }
-                        
                         SongListItem(
                             song = song,
                             isCurrent = song.id == currentSongId,
@@ -275,76 +265,13 @@ fun PlaylistDetailScreen(
                             onRemoveDownloadClick = {
                                 downloadController.removeDownload(song.id)
                             },
-                            trailingContentOverride = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
-                                    IconButton(
-                                        onClick = {
-                                            isStarred = !isStarred
-                                            viewModel.toggleStarSong(song.id, isStarred)
-                                        },
-                                        enabled = isEffectivelyOnline,
-                                        modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
-                                    ) {
-                                        Icon(
-                                            painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
-                                            contentDescription = "Star",
-                                            tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Box {
-                                        IconButton(onClick = { showItemMenu = true }) {
-                                            Icon(Icons.Default.MoreVert, contentDescription = "More")
-                                        }
-                                        DropdownMenu(
-                                            expanded = showItemMenu,
-                                            onDismissRequest = { showItemMenu = false }
-                                        ) {
-                                            if (isDownloaded) {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.remove_download)) },
-                                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete), contentDescription = null) },
-                                                    onClick = {
-                                                        showItemMenu = false
-                                                        downloadController.removeDownload(song.id)
-                                                    }
-                                                )
-                                            } else {
-                                                DropdownMenuItem(
-                                                    text = { Text(stringResource(R.string.download)) },
-                                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = null) },
-                                                    onClick = {
-                                                        showItemMenu = false
-                                                        downloadController.downloadSong(song)
-                                                    },
-                                                    enabled = isStreamingAllowed
-                                                )
-                                            }
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.song_details)) },
-                                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info), contentDescription = null) },
-                                                onClick = {
-                                                    showDetailDialog = true
-                                                    showItemMenu = false
-                                                }
-                                            )
-                                            HorizontalDivider()
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(R.string.remove_from_playlist)) },
-                                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
-                                                onClick = {
-                                                    showItemMenu = false
-                                                    viewModel.removeFromPlaylist(song.id, index) { success ->
-                                                        val msg = if (success) removeSuccessMsg else removeErrorMsg
-                                                        Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                enabled = isEffectivelyOnline && !uiState.isModifying
-                                            )
-                                        }
-                                    }
+                            onRemoveFromPlaylistClick = {
+                                viewModel.removeFromPlaylist(song.id, index) { success ->
+                                    val msg = if (success) removeSuccessMsg else removeErrorMsg
+                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }
-                            }
+                            },
+                            isRemoveFromPlaylistEnabled = isEffectivelyOnline && !uiState.isModifying
                         )
                     }
                 }

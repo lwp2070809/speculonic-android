@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -21,7 +20,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -201,23 +199,5 @@ fun LibraryScreen(
 
             }
         }
-    }
-
-    if (uiState.showSafetyGuardConfirm) {
-        AlertDialog(
-            onDismissRequest = { viewModel.cancelSafetyGuard() },
-            title = { Text(stringResource(R.string.safety_guard_title)) },
-            text = { Text(uiState.safetyGuardMessage ?: stringResource(R.string.safety_guard_message)) },
-            confirmButton = {
-                TextButton(onClick = { viewModel.confirmSafetyGuard() }) {
-                    Text(stringResource(R.string.force_sync), color = MaterialTheme.colorScheme.error)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { viewModel.cancelSafetyGuard() }) {
-                    Text(stringResource(R.string.cancel))
-                }
-            }
-        )
     }
 }

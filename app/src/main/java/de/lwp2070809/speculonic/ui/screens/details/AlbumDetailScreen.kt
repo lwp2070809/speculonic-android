@@ -76,7 +76,7 @@ fun AlbumDetailScreen(
                     val isStarred = uiState.album?.starred != null
                     Icon(
                         painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Star) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_star_border),
-                        contentDescription = "Star",
+                        contentDescription = stringResource(R.string.cd_star),
                         tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
