@@ -15,6 +15,7 @@ import androidx.security.crypto.MasterKey
 import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
 import de.lwp2070809.speculonic.util.LogLevel
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
@@ -40,10 +41,20 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
     }
 
     private val encryptedPrefs: SharedPreferences by lazy {
-        try {
-            val masterKey = MasterKey.Builder(context)
+        createEncryptedPrefsWithSelfHealing()
+    }
+
+    private fun createEncryptedPrefsWithSelfHealing(): SharedPreferences {
+        val masterKey = try {
+            MasterKey.Builder(context)
                 .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
                 .build()
+        } catch (e: Exception) {
+            LogManager.e("ConnectionPrefs: Failed to build MasterKey, falling back to unencrypted preferences: ${e.message}", e)
+            return context.getSharedPreferences("speculonic_secure_prefs_fallback", Context.MODE_PRIVATE)
+        }
+
+        return try {
             EncryptedSharedPreferences.create(
                 context,
                 "speculonic_secure_prefs",
@@ -52,7 +63,22 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
                 EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
             )
         } catch (e: Exception) {
-            context.getSharedPreferences("speculonic_secure_prefs_fallback", Context.MODE_PRIVATE)
+            LogManager.e("ConnectionPrefs: EncryptedSharedPreferences initialization failed, attempting self-healing recovery: ${e.message}", e)
+            try {
+                context.deleteSharedPreferences("speculonic_secure_prefs")
+                EncryptedSharedPreferences.create(
+                    context,
+                    "speculonic_secure_prefs",
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+                ).also {
+                    LogManager.i("ConnectionPrefs: Self-healing successful. Recreated EncryptedSharedPreferences.")
+                }
+            } catch (retryEx: Exception) {
+                LogManager.e("ConnectionPrefs: Self-healing failed, falling back to unencrypted preferences: ${retryEx.message}", retryEx)
+                context.getSharedPreferences("speculonic_secure_prefs_fallback", Context.MODE_PRIVATE)
+            }
         }
     }
 

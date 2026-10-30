@@ -135,9 +135,6 @@ object NetworkModule {
             DynamicSslTrustManager.allowInsecureConnections || defaultHostnameVerifier.verify(hostname, session)
         }
 
-        HttpsURLConnection.setDefaultSSLSocketFactory(sslContext.socketFactory)
-        HttpsURLConnection.setDefaultHostnameVerifier(dynamicHostnameVerifier)
-
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
                 HttpLoggingInterceptor.Level.HEADERS

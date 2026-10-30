@@ -17,6 +17,18 @@ import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLException
 
 class SonicLogInterceptor : Interceptor {
+    companion object {
+        /**
+         * 敏感参数脱敏正则：利用正向后行断言 (?<=[?&]) 精确匹配作为独立参数的 [utps]，
+         * 避免误伤如 offset, format, songCount, albumCount 等包含上述字符作为子串的业务参数。
+         */
+        val SENSITIVE_PARAM_REGEX = Regex("(?<=[?&])([utps])=[^&]+")
+
+        fun maskSensitiveUrl(url: String): String {
+            return url.replace(SENSITIVE_PARAM_REGEX, "$1=***")
+        }
+    }
+
     private fun isPhysicallyDisconnected(): Boolean {
         return !ServerReachableManager.isPhysicallyConnected
     }
@@ -24,10 +36,10 @@ class SonicLogInterceptor : Interceptor {
     override fun intercept(chain: Interceptor.Chain): Response {
         val request = chain.request()
         val url = request.url.toString()
-        val safeUrl = url.replace(Regex("([utps])=[^&]+"), "$1=***")
+        val safeUrl = maskSensitiveUrl(url)
         val path = request.url.encodedPath
         val isCoverArtRequest = path.contains("getCoverArt", ignoreCase = true)
-        val isStreamRequest = path.contains("stream", ignoreCase = true)
+        val isMediaDataRequest = path.contains("stream", ignoreCase = true) || path.contains("download", ignoreCase = true)
 
         val host = request.url.host
         if (host == "unconfigured.local" || host == "invalid-url-no-protocol") {
@@ -80,7 +92,7 @@ class SonicLogInterceptor : Interceptor {
                 }
                 LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
             } else {
-                if (!isCoverArtRequest && !isStreamRequest) {
+                if (!isCoverArtRequest && !isMediaDataRequest) {
                     LogManager.i(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
                 } else if (BuildConfig.DEBUG) {
                     LogManager.d(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
