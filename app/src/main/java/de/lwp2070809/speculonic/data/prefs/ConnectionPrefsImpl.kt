@@ -61,27 +61,25 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
     private fun readEncryptedOrMigrate(encKey: String, dsKey: Preferences.Key<String>): Flow<String> {
         return context.dataStore.data.map { preferences ->
             val cachedValue = encryptedCache[encKey]
-            if (!cachedValue.isNullOrEmpty()) {
+            if (cachedValue != null) {
                 cachedValue
+            } else if (encryptedPrefs.contains(encKey)) {
+                val encValue = encryptedPrefs.getString(encKey, "") ?: ""
+                encryptedCache[encKey] = encValue
+                encValue
             } else {
-                val encValue = encryptedPrefs.getString(encKey, null)
-                if (!encValue.isNullOrEmpty()) {
-                    encryptedCache[encKey] = encValue
-                    encValue
+                val isMigrated = encryptedPrefs.getBoolean("migrated_$encKey", false)
+                if (isMigrated) {
+                    ""
                 } else {
-                    val isMigrated = encryptedPrefs.getBoolean("migrated_$encKey", false)
-                    if (isMigrated) {
-                        ""
+                    val oldValue = preferences[dsKey] ?: ""
+                    if (oldValue.isNotEmpty()) {
+                        encryptedPrefs.edit().putString(encKey, oldValue).putBoolean("migrated_$encKey", true).apply()
+                        encryptedCache[encKey] = oldValue
                     } else {
-                        val oldValue = preferences[dsKey] ?: ""
-                        if (oldValue.isNotEmpty()) {
-                            encryptedPrefs.edit().putString(encKey, oldValue).putBoolean("migrated_$encKey", true).apply()
-                            encryptedCache[encKey] = oldValue
-                        } else {
-                            encryptedPrefs.edit().putBoolean("migrated_$encKey", true).apply()
-                        }
-                        oldValue
+                        encryptedPrefs.edit().putBoolean("migrated_$encKey", true).apply()
                     }
+                    oldValue
                 }
             }
         }.distinctUntilChanged()
@@ -93,20 +91,29 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
 
     override fun getServerUrlSync(): String {
         return encryptedCache[ENC_SERVER_URL]
-            ?: encryptedPrefs.getString(ENC_SERVER_URL, null)?.also { encryptedCache[ENC_SERVER_URL] = it }
-            ?: ""
+            ?: if (encryptedPrefs.contains(ENC_SERVER_URL)) {
+                (encryptedPrefs.getString(ENC_SERVER_URL, "") ?: "").also { encryptedCache[ENC_SERVER_URL] = it }
+            } else {
+                ""
+            }
     }
 
     override fun getUsernameSync(): String {
         return encryptedCache[ENC_USERNAME]
-            ?: encryptedPrefs.getString(ENC_USERNAME, null)?.also { encryptedCache[ENC_USERNAME] = it }
-            ?: ""
+            ?: if (encryptedPrefs.contains(ENC_USERNAME)) {
+                (encryptedPrefs.getString(ENC_USERNAME, "") ?: "").also { encryptedCache[ENC_USERNAME] = it }
+            } else {
+                ""
+            }
     }
 
     override fun getPasswordSync(): CharArray {
         val passStr = encryptedCache[ENC_PASSWORD]
-            ?: encryptedPrefs.getString(ENC_PASSWORD, null)?.also { encryptedCache[ENC_PASSWORD] = it }
-            ?: ""
+            ?: if (encryptedPrefs.contains(ENC_PASSWORD)) {
+                (encryptedPrefs.getString(ENC_PASSWORD, "") ?: "").also { encryptedCache[ENC_PASSWORD] = it }
+            } else {
+                ""
+            }
         return passStr.toCharArray()
     }
 

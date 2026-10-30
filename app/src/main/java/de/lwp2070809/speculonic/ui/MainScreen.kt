@@ -18,6 +18,7 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.NavigationItemColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -145,9 +146,9 @@ private fun MainContent(
     )
     val navigator = remember(navigationState, context) { Navigator(navigationState, context) }
     
-    var showNowPlaying by remember { mutableStateOf(false) }
-    var showSearch by remember { mutableStateOf(false) }
-    var showSyncDetailDialog by remember { mutableStateOf(false) }
+    var showNowPlaying by rememberSaveable { mutableStateOf(false) }
+    var showSearch by rememberSaveable { mutableStateOf(false) }
+    var showSyncDetailDialog by rememberSaveable { mutableStateOf(false) }
     val topBarState = remember { TopBarState() }
 
     LaunchedEffect(initialShowNowPlaying) {
@@ -157,7 +158,7 @@ private fun MainContent(
         }
     }
 
-    var showServerSetupDialog by remember { mutableStateOf(false) }
+    var showServerSetupDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(serverUrl) {
         if (serverUrl.isNullOrBlank()) {
             showServerSetupDialog = true

@@ -122,6 +122,17 @@ class DownloadService : DownloadService(
         return result
     }
 
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Foreground service timed out (fgsType=$fgsType, startId=$startId). Stopping service gracefully.")
+        try {
+            DownloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.pauseDownloads()
+        } catch (e: Exception) {
+            de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to pause downloads on timeout", e)
+        }
+        stopSelf(startId)
+    }
+
     override fun onDestroy() {
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onDestroy")
         try {

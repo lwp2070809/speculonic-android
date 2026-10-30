@@ -87,16 +87,24 @@ fun AllSongsList(
                                 navigator?.navigate(de.lwp2070809.speculonic.ui.navigation.AppRoute.PlaybackQueue)
                             }
                             scope.launch {
-                                val windowStart = index
-                                val windowEnd = minOf(index + 100, songsPaged.itemCount)
+                                val totalCount = songsPaged.itemCount
+                                val windowSize = 100
+                                val windowStart = if (totalCount <= windowSize) {
+                                    0
+                                } else {
+                                    (index - 50).coerceIn(0, totalCount - windowSize)
+                                }
+                                val windowEnd = minOf(windowStart + windowSize, totalCount)
                                 val windowSongs = (windowStart until windowEnd).mapNotNull { songsPaged.peek(it) }
                                 val playableSongs = windowSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                val targetSong = songsPaged.peek(index)
+                                val startIndex = playableSongs.indexOfFirst { it.id == targetSong?.id }.coerceAtLeast(0)
 
                                 val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
                                     playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                 }
                                 if (mediaItems.isNotEmpty()) {
-                                    playbackController.play(mediaItems, 0, queueTitle = allSongsTitle)
+                                    playbackController.play(mediaItems, startIndex, queueTitle = allSongsTitle)
                                 }
                             }
                         },

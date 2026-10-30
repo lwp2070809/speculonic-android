@@ -28,6 +28,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -50,13 +51,13 @@ fun ServerConfigDialog(
     onDismiss: () -> Unit,
     onSave: (String, String, String, Boolean) -> Unit
 ) {
-    var url by remember { mutableStateOf(initialUrl) }
-    var user by remember { mutableStateOf(initialUser) }
-    var pass by remember { mutableStateOf(initialPass) }
+    var url by rememberSaveable { mutableStateOf(initialUrl) }
+    var user by rememberSaveable { mutableStateOf(initialUser) }
+    var pass by rememberSaveable { mutableStateOf(initialPass) }
     val uiState by viewModel.uiState.collectAsState()
-    var allowInsecureConnections by remember { mutableStateOf(uiState.allowInsecureConnections) }
-    var showInsecureWarning by remember { mutableStateOf(false) }
-    var syncCoverArt by remember { mutableStateOf(false) }
+    var allowInsecureConnections by rememberSaveable { mutableStateOf(uiState.allowInsecureConnections) }
+    var showInsecureWarning by rememberSaveable { mutableStateOf(false) }
+    var syncCoverArt by rememberSaveable { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,

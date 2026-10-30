@@ -51,6 +51,7 @@ fun FastScroller(
     FastScrollerInternal(
         isScrollInProgress = listState.isScrollInProgress,
         firstVisibleItemIndexProvider = { listState.firstVisibleItemIndex },
+        visibleItemCountProvider = { listState.layoutInfo.visibleItemsInfo.size },
         scrollToItem = { listState.scrollToItem(it) },
         flatItems = flatItems,
         modifier = modifier
@@ -66,6 +67,7 @@ fun FastScroller(
     FastScrollerInternal(
         isScrollInProgress = gridState.isScrollInProgress,
         firstVisibleItemIndexProvider = { gridState.firstVisibleItemIndex },
+        visibleItemCountProvider = { gridState.layoutInfo.visibleItemsInfo.size },
         scrollToItem = { gridState.scrollToItem(it) },
         flatItems = flatItems,
         modifier = modifier
@@ -76,6 +78,7 @@ fun FastScroller(
 private fun FastScrollerInternal(
     isScrollInProgress: Boolean,
     firstVisibleItemIndexProvider: () -> Int,
+    visibleItemCountProvider: () -> Int = { 0 },
     scrollToItem: suspend (Int) -> Unit,
     flatItems: List<ArtistListItem>,
     modifier: Modifier = Modifier
@@ -97,6 +100,7 @@ private fun FastScrollerInternal(
     val bubbleHeightPx = remember(density) { with(density) { bubbleHeight.toPx() } }
 
     fun scrollList(y: Float) {
+        if (scrollerHeight <= 0) return
         dragY = y
         val progress = (y / scrollerHeight).coerceIn(0f, 1f)
         val targetIndex = (progress * (flatItems.size - 1)).toInt().coerceIn(0, flatItems.size - 1)
@@ -174,7 +178,9 @@ private fun FastScrollerInternal(
                     } else {
                         val firstVisibleItem = firstVisibleItemIndexProvider()
                         val totalItemsCount = flatItems.size
-                        val progress = if (totalItemsCount > 1) firstVisibleItem.toFloat() / (totalItemsCount - 1) else 0f
+                        val visibleCount = visibleItemCountProvider()
+                        val maxScrollOffset = (totalItemsCount - visibleCount).coerceAtLeast(1)
+                        val progress = (firstVisibleItem.toFloat() / maxScrollOffset).coerceIn(0f, 1f)
                         progress * (scrollerHeight - thumbHeightPx).coerceAtLeast(0f)
                     }
                     IntOffset(0, y.toInt()) 

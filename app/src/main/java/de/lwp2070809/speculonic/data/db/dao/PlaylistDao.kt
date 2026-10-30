@@ -24,16 +24,51 @@ interface PlaylistDao {
         deletePlaylistSongs(playlistId)
     }
 
-    @Query("DELETE FROM playlists WHERE id NOT IN (:ids)")
-    suspend fun _deletePlaylistsNotIn(ids: List<String>)
+    @Query("SELECT id FROM playlists")
+    suspend fun getAllPlaylistIds(): List<String>
+
+    @Query("DELETE FROM playlists WHERE id IN (:ids)")
+    suspend fun _deletePlaylistsByIds(ids: List<String>)
+
+    @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId IN (:playlistIds)")
+    suspend fun _deletePlaylistSongsByPlaylistIds(playlistIds: List<String>)
+
+    @Transaction
+    suspend fun deletePlaylistsByIds(ids: List<String>) {
+        if (ids.isEmpty()) return
+        ids.chunked(900).forEach {
+            _deletePlaylistSongsByPlaylistIds(it)
+            _deletePlaylistsByIds(it)
+        }
+    }
 
     @Transaction
     suspend fun deletePlaylistsNotIn(ids: List<String>) {
-        if (ids.isEmpty()) clearAllPlaylists() else _deletePlaylistsNotIn(ids)
+        if (ids.isEmpty()) {
+            clearAllPlaylists()
+        } else {
+            val localIds = getAllPlaylistIds()
+            val toDelete = localIds.toSet() - ids.toSet()
+            if (toDelete.isNotEmpty()) {
+                deletePlaylistsByIds(toDelete.toList())
+            }
+        }
     }
 
+    @Query("DELETE FROM playlist_song_cross_ref")
+    suspend fun clearAllPlaylistSongCrossRefs()
+
     @Query("DELETE FROM playlists")
-    suspend fun clearAllPlaylists()
+    suspend fun _clearAllPlaylists()
+
+    @Transaction
+    suspend fun clearAllPlaylists() {
+        clearAllPlaylistSongCrossRefs()
+        _clearAllPlaylists()
+    }
+
+    @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId NOT IN (SELECT id FROM playlists)")
+    suspend fun deleteOrphanedPlaylistSongs()
 
     @Query("SELECT * FROM playlists ORDER BY name ASC")
     suspend fun getPlaylists(): List<PlaylistEntity>

@@ -48,7 +48,7 @@ object PaletteUtils {
         }
 
         
-        val lockIndex = kotlin.math.abs(cacheKey.hashCode()) % lockPool.size
+        val lockIndex = (cacheKey.hashCode() and Int.MAX_VALUE) % lockPool.size
         lockPool[lockIndex].withLock {
             
             colorCache.get(cacheKey)?.let {

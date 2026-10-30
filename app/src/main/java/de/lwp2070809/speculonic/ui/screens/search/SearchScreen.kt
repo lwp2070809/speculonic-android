@@ -186,12 +186,12 @@ fun SearchScreen(
                                 isStreamingAllowed = isStreamingAllowed,
                                 transcodeIncompatible = transcodeIncompatible,
                                 onClick = {
-                                    val songIndex = uiState.results.song.indexOf(song)
-                                    val subsequentSongs = if (songIndex != -1) uiState.results.song.drop(songIndex) else listOf(song)
-                                    val playableSongs = subsequentSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                    val playableSongs = uiState.results.song.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                    val targetIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, 0)
+                                        playbackController.play(mediaItems, targetIndex)
                                     }
                                 },
                                 onStarClick = { star ->

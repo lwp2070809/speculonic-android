@@ -172,7 +172,10 @@ fun LyricsView(
             LazyColumn(
                 state = listState,
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(top = maxHeight / 2 - 24.dp, bottom = maxHeight / 2),
+                contentPadding = PaddingValues(
+                    top = (maxHeight / 2 - 24.dp).coerceAtLeast(0.dp),
+                    bottom = (maxHeight / 2).coerceAtLeast(0.dp)
+                ),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 itemsIndexed(

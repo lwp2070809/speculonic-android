@@ -53,6 +53,7 @@ import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -101,15 +102,15 @@ fun NowPlayingScreen(
     val playbackState by playbackController.playbackState.collectAsState()
     val uiState by viewModel.uiState.collectAsState()
     
-    var showLyricsMobile by remember { mutableStateOf(false) }
-    var showQueue by remember { mutableStateOf(false) }
-    var showSleepTimerSheet by remember { mutableStateOf(false) }
+    var showLyricsMobile by rememberSaveable { mutableStateOf(false) }
+    var showQueue by rememberSaveable { mutableStateOf(false) }
+    var showSleepTimerSheet by rememberSaveable { mutableStateOf(false) }
 
     val context = LocalContext.current
     val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sleepTimerSheetState = rememberModalBottomSheetState()
 
-    var showSongInfo by remember { mutableStateOf(false) }
+    var showSongInfo by rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(playbackState.currentSongId, playbackState.currentSongTitle, playbackState.currentArtist) {
         if (playbackState.currentSongId.isNotEmpty()) {

@@ -46,7 +46,11 @@ class ConnectivityManagerNetworkMonitor(
                     debounceJob?.cancel()
                     debounceJob = launch {
                         kotlinx.coroutines.delay(1500)
-                        channel.trySend(NetworkStatus(false, metered))
+                        val activeNet = connectivityManager.activeNetwork
+                        val activeCaps = activeNet?.let { connectivityManager.getNetworkCapabilities(it) }
+                        val currentOnline = activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false
+                        val currentMetered = activeCaps?.let { !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) } ?: false
+                        channel.trySend(NetworkStatus(currentOnline, if (currentOnline) currentMetered else false))
                     }
                 }
             }
@@ -61,7 +65,11 @@ class ConnectivityManagerNetworkMonitor(
                     debounceJob?.cancel()
                     debounceJob = launch {
                         kotlinx.coroutines.delay(1500)
-                        channel.trySend(NetworkStatus(false, false))
+                        val activeNet = connectivityManager.activeNetwork
+                        val activeCaps = activeNet?.let { connectivityManager.getNetworkCapabilities(it) }
+                        val currentOnline = activeCaps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ?: false
+                        val currentMetered = activeCaps?.let { !it.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED) } ?: false
+                        channel.trySend(NetworkStatus(currentOnline, if (currentOnline) currentMetered else false))
                     }
                 } else {
                     debounceJob?.cancel()

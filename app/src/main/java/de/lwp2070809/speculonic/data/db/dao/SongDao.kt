@@ -21,23 +21,48 @@ interface SongDao {
     @Query("SELECT COUNT(*) FROM songs")
     fun getSongsCountFlow(): Flow<Int>
 
-    @Query("DELETE FROM songs WHERE albumId = :albumId AND id NOT IN (:ids)")
-    suspend fun _deleteSongsByAlbumNotIn(albumId: String, ids: List<String>)
+    @Query("SELECT id FROM songs WHERE albumId = :albumId")
+    suspend fun getSongIdsByAlbum(albumId: String): List<String>
+
+    @Query("DELETE FROM songs WHERE id IN (:ids)")
+    suspend fun _deleteSongsByIds(ids: List<String>)
+
+    @Transaction
+    suspend fun deleteSongsByIds(ids: List<String>) {
+        if (ids.isEmpty()) return
+        ids.chunked(900).forEach { _deleteSongsByIds(it) }
+    }
 
     @Transaction
     suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>) {
-        if (ids.isEmpty()) deleteSongsByAlbum(albumId) else _deleteSongsByAlbumNotIn(albumId, ids)
+        if (ids.isEmpty()) {
+            deleteSongsByAlbum(albumId)
+        } else {
+            val localIds = getSongIdsByAlbum(albumId)
+            val toDelete = localIds.toSet() - ids.toSet()
+            if (toDelete.isNotEmpty()) {
+                deleteSongsByIds(toDelete.toList())
+            }
+        }
     }
 
     @Query("DELETE FROM songs WHERE albumId = :albumId")
     suspend fun deleteSongsByAlbum(albumId: String)
 
-    @Query("DELETE FROM songs WHERE parent = :parentId AND id NOT IN (:ids)")
-    suspend fun _deleteSongsByParentNotIn(parentId: String, ids: List<String>)
+    @Query("SELECT id FROM songs WHERE parent = :parentId")
+    suspend fun getSongIdsByParent(parentId: String): List<String>
 
     @Transaction
     suspend fun deleteSongsByParentNotIn(parentId: String, ids: List<String>) {
-        if (ids.isEmpty()) deleteSongsByParent(parentId) else _deleteSongsByParentNotIn(parentId, ids)
+        if (ids.isEmpty()) {
+            deleteSongsByParent(parentId)
+        } else {
+            val localIds = getSongIdsByParent(parentId)
+            val toDelete = localIds.toSet() - ids.toSet()
+            if (toDelete.isNotEmpty()) {
+                deleteSongsByIds(toDelete.toList())
+            }
+        }
     }
 
     @Query("DELETE FROM songs WHERE parent = :parentId")
@@ -58,8 +83,26 @@ interface SongDao {
     @Query("UPDATE songs SET starred = :starred, lastUpdated = :lastUpdated WHERE id = :songId")
     suspend fun updateSongStarred(songId: String, starred: Boolean, lastUpdated: Long)
 
-    @Query("UPDATE songs SET starred = 0 WHERE starred = 1 AND id NOT IN (:ids)")
-    suspend fun unstarSongsNotIn(ids: List<String>)
+    @Query("SELECT id FROM songs WHERE starred = 1")
+    suspend fun getStarredSongIds(): List<String>
+
+    @Query("UPDATE songs SET starred = 0 WHERE id IN (:ids)")
+    suspend fun _unstarSongsByIds(ids: List<String>)
+
+    @Transaction
+    suspend fun unstarSongsByIds(ids: List<String>) {
+        if (ids.isEmpty()) return
+        ids.chunked(900).forEach { _unstarSongsByIds(it) }
+    }
+
+    @Transaction
+    suspend fun unstarSongsNotIn(ids: List<String>) {
+        val currentStarred = getStarredSongIds()
+        val toUnstar = currentStarred.toSet() - ids.toSet()
+        if (toUnstar.isNotEmpty()) {
+            unstarSongsByIds(toUnstar.toList())
+        }
+    }
 
     @Transaction
     suspend fun syncStarredSongs(songs: List<SongEntity>) {
@@ -102,7 +145,12 @@ interface SongDao {
     suspend fun getSongByTitleAndArtist(title: String, artist: String): SongEntity?
 
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
-    suspend fun getSongsByIds(ids: List<String>): List<SongEntity>
+    suspend fun _getSongsByIds(ids: List<String>): List<SongEntity>
+
+    suspend fun getSongsByIds(ids: List<String>): List<SongEntity> {
+        if (ids.isEmpty()) return emptyList()
+        return ids.chunked(900).flatMap { _getSongsByIds(it) }
+    }
 
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongByIdFlow(songId: String): Flow<SongEntity?>

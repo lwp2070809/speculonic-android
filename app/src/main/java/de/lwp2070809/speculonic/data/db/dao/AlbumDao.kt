@@ -27,7 +27,12 @@ interface AlbumDao {
     fun getAllAlbumsFlow(): Flow<List<AlbumEntity>>
 
     @Query("SELECT * FROM albums WHERE id IN (:ids)")
-    suspend fun getAlbumsByIds(ids: List<String>): List<AlbumEntity>
+    suspend fun _getAlbumsByIds(ids: List<String>): List<AlbumEntity>
+
+    suspend fun getAlbumsByIds(ids: List<String>): List<AlbumEntity> {
+        if (ids.isEmpty()) return emptyList()
+        return ids.chunked(900).flatMap { _getAlbumsByIds(it) }
+    }
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAlbumListItems(items: List<AlbumListItemEntity>)
@@ -64,8 +69,26 @@ interface AlbumDao {
     @Query("SELECT * FROM albums WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     fun getStarredAlbumsFlow(): Flow<List<AlbumEntity>>
 
-    @Query("UPDATE albums SET starred = 0 WHERE starred = 1 AND id NOT IN (:ids)")
-    suspend fun unstarAlbumsNotIn(ids: List<String>)
+    @Query("SELECT id FROM albums WHERE starred = 1")
+    suspend fun getStarredAlbumIds(): List<String>
+
+    @Query("UPDATE albums SET starred = 0 WHERE id IN (:ids)")
+    suspend fun _unstarAlbumsByIds(ids: List<String>)
+
+    @Transaction
+    suspend fun unstarAlbumsByIds(ids: List<String>) {
+        if (ids.isEmpty()) return
+        ids.chunked(900).forEach { _unstarAlbumsByIds(it) }
+    }
+
+    @Transaction
+    suspend fun unstarAlbumsNotIn(ids: List<String>) {
+        val currentStarred = getStarredAlbumIds()
+        val toUnstar = currentStarred.toSet() - ids.toSet()
+        if (toUnstar.isNotEmpty()) {
+            unstarAlbumsByIds(toUnstar.toList())
+        }
+    }
 
     @Transaction
     suspend fun syncStarredAlbums(listType: String, albums: List<AlbumEntity>, items: List<AlbumListItemEntity>) {
