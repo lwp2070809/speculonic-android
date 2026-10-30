@@ -87,7 +87,6 @@ class SonicLogInterceptor : Interceptor {
 
             if (!response.isSuccessful) {
                 if (isProbeRequest) {
-                    ServerReachableManager.releaseProbe()
                     ServerReachableManager.handleFailure()
                 }
                 LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
@@ -101,18 +100,24 @@ class SonicLogInterceptor : Interceptor {
             }
             return response
         } catch (e: Exception) {
-            if (isProbeRequest) {
-                ServerReachableManager.releaseProbe()
-            }
             val costMs = System.currentTimeMillis() - startTime
             val requestHost = request.url.host
             if (e.message?.startsWith("Unconfigured") == true) {
+                if (isProbeRequest) ServerReachableManager.releaseProbe()
                 throw e
             }
 
-            if (e is UnknownHostException || e is ConnectException || e is SocketTimeoutException) {
-                LogManager.w(LogTag.NETWORK, "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. Recording failure.")
+            val isNetworkFailure = e is UnknownHostException || 
+                e is ConnectException || 
+                e is SocketTimeoutException || 
+                e is java.net.SocketException || 
+                e is javax.net.ssl.SSLException
+
+            if (isProbeRequest || isNetworkFailure) {
+                LogManager.w(LogTag.NETWORK, "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. Recording failure (probe=$isProbeRequest).")
                 ServerReachableManager.handleFailure()
+            } else if (isProbeRequest) {
+                ServerReachableManager.releaseProbe()
             }
 
             val errorMsg = when (e) {

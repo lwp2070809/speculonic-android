@@ -60,8 +60,17 @@ object ServerReachableManager {
 
     @Synchronized
     fun handleFailure() {
-        isProbing.set(false)
         val now = System.currentTimeMillis()
+        if (!isServerReachable) {
+            // 当前处于熔断离线状态，半开探测再次失败：立即刷新冷却时间戳，保持熔断状态，重置探测标记
+            lastFailureTimestamp = now
+            failureCount.set(3)
+            isProbing.set(false)
+            LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE, updated lastFailureTimestamp")
+            return
+        }
+
+        isProbing.set(false)
         // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
         if (now - lastFailureLogTime > 2000L) {
             // 若距离上次故障波次已超过 60 秒，重置陈旧的历史故障计数，防止跨长时间偶发错误累积误判

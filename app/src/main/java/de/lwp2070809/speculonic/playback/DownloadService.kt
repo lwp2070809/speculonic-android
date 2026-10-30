@@ -31,17 +31,25 @@ class DownloadService : DownloadService(
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
             if (intent.action == ACTION_CANCEL_ALL_DOWNLOADS) {
                 de.lwp2070809.speculonic.util.LogManager.i("DownloadService: User cancelled all manual downloads from notification.")
+                if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+                    return
+                }
                 isCancellingAll = true
-                val manager = getDownloadManager()
-                manager.downloadIndex.getDownloads().use { cursor ->
-                    while (cursor.moveToNext()) {
-                        val download = cursor.download
-                        if (!isSilent(download) && (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED || download.state == Download.STATE_RESTARTING)) {
-                            manager.removeDownload(download.request.id)
+                val manager = DownloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return
+                try {
+                    manager.downloadIndex.getDownloads().use { cursor ->
+                        while (cursor.moveToNext()) {
+                            val download = cursor.download
+                            if (!isSilent(download) && (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED || download.state == Download.STATE_RESTARTING)) {
+                                manager.removeDownload(download.request.id)
+                            }
                         }
                     }
+                } catch (e: Exception) {
+                    de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to cancel downloads in cancelReceiver", e)
+                } finally {
+                    isCancellingAll = false
                 }
-                isCancellingAll = false
             }
         }
     }
@@ -60,7 +68,10 @@ class DownloadService : DownloadService(
     }
 
     private fun isSilentOnly(): Boolean {
-        val manager = getDownloadManager()
+        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+            return false
+        }
+        val manager = DownloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return false
         var hasActive = false
         var hasManual = false
         try {
@@ -94,25 +105,37 @@ class DownloadService : DownloadService(
             filter,
             androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
         )
-        getDownloadManager().addListener(downloadListener)
+        try {
+            if (!de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+                getDownloadManager().addListener(downloadListener)
+            }
+        } catch (e: Exception) {
+            de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Failed to attach listener in onCreate: ${e.message}")
+        }
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
         val action = intent?.action
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onStartCommand action=$action flags=$flags startId=$startId")
 
-        if (isSilentOnly() && (action == "androidx.media3.exoplayer.downloadService.action.INIT" 
-                || action == "androidx.media3.exoplayer.downloadService.action.RESTART"
-                || intent == null)) {
-            de.lwp2070809.speculonic.util.LogManager.i("DownloadService: Intercepted silent download INIT action. Stopping service.")
+        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+            de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Cache is being released, stopping service.")
             stopSelf()
             return START_NOT_STICKY
         }
+
         val result = try {
+            if (isSilentOnly() && (action == "androidx.media3.exoplayer.downloadService.action.INIT" 
+                    || action == "androidx.media3.exoplayer.downloadService.action.RESTART"
+                    || intent == null)) {
+                de.lwp2070809.speculonic.util.LogManager.i("DownloadService: Intercepted silent download INIT action. Stopping service.")
+                stopSelf()
+                return START_NOT_STICKY
+            }
             super.onStartCommand(intent, flags, startId)
         } catch (e: IllegalStateException) {
-            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true) {
-                de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Caught generic IllegalStateException (likely dead thread), stopping self.")
+            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true || e.message?.contains("while cache is being released") == true) {
+                de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Caught IllegalStateException (${e.message}), stopping self.")
                 stopSelf()
                 return START_NOT_STICKY
             }

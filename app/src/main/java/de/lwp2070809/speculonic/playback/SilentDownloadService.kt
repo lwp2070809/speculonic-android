@@ -26,11 +26,16 @@ class SilentDownloadService : DownloadService(
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
+        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+            de.lwp2070809.speculonic.util.LogManager.w("SilentDownloadService: Cache is being released, stopping self.")
+            stopSelf()
+            return START_NOT_STICKY
+        }
         return try {
             super.onStartCommand(intent, flags, startId)
         } catch (e: IllegalStateException) {
-            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true) {
-                de.lwp2070809.speculonic.util.LogManager.e("SilentDownloadService: Caught generic IllegalStateException (likely dead thread), stopping self.")
+            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true || e.message?.contains("while cache is being released") == true) {
+                de.lwp2070809.speculonic.util.LogManager.e("SilentDownloadService: Caught IllegalStateException (${e.message}), stopping self.")
                 stopSelf()
                 START_NOT_STICKY
             } else {

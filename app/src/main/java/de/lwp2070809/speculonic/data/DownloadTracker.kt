@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -150,15 +151,21 @@ object DownloadTracker {
         }
     }
 
-    private fun loadDownloads(downloadManager: DownloadManager) {
+    private suspend fun loadDownloads(downloadManager: DownloadManager) {
         refreshDownloads(downloadManager)
     }
 
-    private fun refreshDownloads(downloadManager: DownloadManager) {
+    private suspend fun refreshDownloads(downloadManager: DownloadManager) {
         val all = mutableListOf<DownloadTaskInfo>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
-        val currentActiveDownloads = downloadManager.currentDownloads
+        val currentActiveDownloads = withContext(Dispatchers.Main) {
+            try {
+                downloadManager.currentDownloads.toList()
+            } catch (e: Exception) {
+                emptyList()
+            }
+        }
         val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
         downloadManager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
@@ -180,13 +187,25 @@ object DownloadTracker {
         checkAndStartPolling(downloadManager)
     }
 
-    private fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
-        val currentActiveDownloads = downloadManager.currentDownloads
-        if (currentActiveDownloads.isEmpty()) {
-            checkAndStartPolling(downloadManager)
-            return
+    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
+        val currentActiveDownloads = withContext(Dispatchers.Main) {
+            try {
+                downloadManager.currentDownloads.toList()
+            } catch (e: Exception) {
+                emptyList()
+            }
         }
         val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
+        val hasStaleActive = _allDownloads.value.any { item ->
+            (item.state == Download.STATE_DOWNLOADING || item.state == Download.STATE_QUEUED) &&
+                !currentActiveMap.containsKey(item.task.request.id)
+        }
+
+        if (hasStaleActive || currentActiveDownloads.isEmpty()) {
+            refreshDownloads(downloadManager)
+            return
+        }
+
         _allDownloads.update { list ->
             list.map { item ->
                 val active = currentActiveMap[item.task.request.id]

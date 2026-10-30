@@ -79,11 +79,14 @@ class DiscoverViewModel @Inject constructor(
     }
 
     private fun observeServerConfigChanges() {
+        var isFirstEmission = true
         viewModelScope.launch {
-            repository.serverUrlFlow.drop(1).collectLatest { url ->
+            repository.serverUrlFlow.collectLatest { url ->
+                val isFirst = isFirstEmission
+                isFirstEmission = false
                 if (url.isNotBlank() && !url.contains("unconfigured")) {
                     val hasData = repository.hasLocalData()
-                    if (!hasData) {
+                    if (!hasData && (!isFirst || !_uiState.value.isLoading)) {
                         LogManager.i("DiscoverViewModel: Server configuration detected ready for the first time - triggering initial full sync to light up home page!")
                         loadData()
                     }

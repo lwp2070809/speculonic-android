@@ -60,11 +60,15 @@ class UserActionRepository(
                     val existingSongsMap = musicDao.getSongsByIds(chunkIds).associateBy { it.id }
                     val entities = chunk.map { song ->
                         val local = existingSongsMap[song.id]
-                        entityMapper.songToEntity(song, 
-                            albumId = null, 
+                        entityMapper.songToEntity(
+                            song = song, 
+                            albumId = song.albumId ?: local?.albumId, 
+                            artistId = song.artistId ?: local?.artistId,
                             localUri = local?.localUri, 
                             isCached = local?.isFullyCached ?: false,
                             isTranscoded = local?.isTranscoded ?: false,
+                            parentId = song.parent ?: local?.parent,
+                            isStarred = true,
                             lastUpdated = local?.lastUpdated
                         )
                     }
@@ -83,6 +87,7 @@ class UserActionRepository(
             
             Starred2Response(song = finalSongs, album = finalAlbums)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Starred2Response(
                 song = cachedSongs.map { entityMapper.toSong(it) }, 
                 album = cachedAlbums.map { entityMapper.toAlbum(it) }
@@ -121,7 +126,7 @@ class UserActionRepository(
             }
             ok
         } catch (e: Exception) {
-            
+            if (e is kotlinx.coroutines.CancellationException) throw e
             musicDao.updateSongStarred(id, !star, System.currentTimeMillis())
             false
         }
@@ -140,7 +145,7 @@ class UserActionRepository(
             }
             ok
         } catch (e: Exception) {
-            
+            if (e is kotlinx.coroutines.CancellationException) throw e
             musicDao.updateAlbumStarred(id, !star, System.currentTimeMillis())
             false
         }

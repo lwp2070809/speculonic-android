@@ -122,6 +122,7 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
 
             emit(VerifyCacheState.Success(inconsistentList))
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("VerifyCacheConsistencyUseCase: Interactive scan failed", e)
             emit(VerifyCacheState.Error(e))
         }

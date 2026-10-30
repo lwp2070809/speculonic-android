@@ -1,4 +1,4 @@
-﻿package de.lwp2070809.speculonic.ui.screens.details
+package de.lwp2070809.speculonic.ui.screens.details
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -189,7 +189,11 @@ class PlaylistDetailViewModel @AssistedInject constructor(
                 _uiState.update { it.copy(isModifying = true) }
                 try {
                     val currentSongs = _uiState.value.songs
-                    val actualIndex = currentSongs.indexOfFirst { it.id == songId }.takeIf { it != -1 } ?: fallbackIndex
+                    val actualIndex = if (fallbackIndex in currentSongs.indices && (songId.isEmpty() || currentSongs[fallbackIndex].id == songId)) {
+                        fallbackIndex
+                    } else {
+                        currentSongs.indexOfFirst { it.id == songId }
+                    }
                     if (actualIndex < 0) {
                         LogManager.w("PlaylistDetailViewModel: removeFromPlaylist skipped, song $songId not found")
                         onResult(false)

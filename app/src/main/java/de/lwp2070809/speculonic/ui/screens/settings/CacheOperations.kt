@@ -75,16 +75,8 @@ class CacheOperations(private val context: Context) {
 
     suspend fun clearCoverArtCache(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
-            try {
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-            }
-            
-            CacheManager.executeWithCacheReleaseLock {
-                File(context.cacheDir, "image_cache").deleteRecursively()
-            }
+            File(context.cacheDir, "image_cache").deleteRecursively()
+            Unit
         }.onFailure { e ->
             LogManager.e("CacheOperations: clearCoverArtCache failed", e)
         }

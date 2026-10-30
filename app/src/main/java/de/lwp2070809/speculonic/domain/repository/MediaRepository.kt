@@ -40,19 +40,23 @@ class MediaRepository(
             val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
             try {
                 val response = api.getArtist(id, u, t, s)
+                response.response.ensureOk()
                 val artist = response.response.artist
                 if (artist != null) {
+                    val finalAlbums = artist.album.ifEmpty { albums }
                     if (!skipInsert) {
-                        musicDao.insertArtists(listOf(de.lwp2070809.speculonic.data.db.entities.ArtistEntity(artist.id, artist.name, artist.coverArt, artist.albumCount ?: artist.album.size)))
+                        musicDao.insertArtists(listOf(de.lwp2070809.speculonic.data.db.entities.ArtistEntity(artist.id, artist.name, artist.coverArt, artist.albumCount ?: finalAlbums.size)))
                         if (artist.album.isNotEmpty()) {
                             val albumEntities = artist.album.map { entityMapper.albumToEntity(it, isStarred = it.starred != null) }
                             musicDao.insertAlbums(albumEntities)
                         }
                     }
-                    return Pair(artist, artist.album)
+                    return Pair(artist, finalAlbums)
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("MediaRepository: getArtist failed", e)
+                if (forceRefresh) throw e
             }
         }
         
@@ -114,6 +118,7 @@ class MediaRepository(
             }
             return list
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("MediaRepository: refreshAlbumList failed for $type", e)
             return emptyList()
         }
@@ -194,6 +199,8 @@ class MediaRepository(
             }
             album
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (forceRefresh) throw e
             albumEntity?.let { album -> entityMapper.toAlbum(album, cachedSongs.map { song -> entityMapper.toSong(song) }) }
         }
     }
@@ -217,6 +224,7 @@ class MediaRepository(
                 musicDao.repairAndCount()
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("MediaRepository: refreshArtists failed", e)
             throw e
         }
@@ -272,6 +280,7 @@ class MediaRepository(
                 song.copy(localUri = local?.localUri, isFullyCached = local?.isFullyCached ?: false)
             })
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             de.lwp2070809.speculonic.util.LogManager.e("MediaRepository: search failed for query '$query'", e)
             SearchResult3()
         }

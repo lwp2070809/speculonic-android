@@ -74,6 +74,8 @@ class PlaylistRepository(
                 list.sortedBy { it.name }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            if (forceRefresh) throw e
             cached.map { entityMapper.toPlaylist(it) }
         }
     }
@@ -119,11 +121,14 @@ class PlaylistRepository(
             val entities = list.map { song ->
                 val local = existingSongsMap[song.id]
                 entityMapper.songToEntity(
-                    song, 
-                    albumId = null, 
+                    song = song, 
+                    albumId = song.albumId ?: local?.albumId, 
+                    artistId = song.artistId ?: local?.artistId,
                     localUri = local?.localUri, 
                     isCached = local?.isFullyCached ?: false,
                     isTranscoded = local?.isTranscoded ?: false,
+                    parentId = song.parent ?: local?.parent,
+                    isStarred = if (song.starred != null) true else local?.starred,
                     lastUpdated = local?.lastUpdated
                 )
             }
@@ -233,6 +238,7 @@ class PlaylistRepository(
             }
             success
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }
@@ -247,6 +253,7 @@ class PlaylistRepository(
             }
             success
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }
@@ -262,6 +269,7 @@ class PlaylistRepository(
             }
             success
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }
@@ -277,6 +285,7 @@ class PlaylistRepository(
             }
             success
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }

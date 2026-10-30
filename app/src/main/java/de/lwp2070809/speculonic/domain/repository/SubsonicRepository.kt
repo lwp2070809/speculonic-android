@@ -95,7 +95,7 @@ class SubsonicRepository(
                 preferencesManager.password
             ) { url, username, password ->
                 Triple(url, username, password)
-            }.drop(1).collectLatest { (url, username, password) ->
+            }.collectLatest { (url, username, password) ->
                 if (url != baseUrl || username != authManager.getAuthParams().first || password != lastConfiguredPassword) {
                     lastConfiguredPassword = password
                     reconfigure(url, username, password.toCharArray())
@@ -331,9 +331,15 @@ class SubsonicRepository(
         try {
             val playlists = getPlaylists(forceRefresh = true)
             playlists.forEach { playlist ->
-                getPlaylist(playlist.id, forceRefresh = true)
+                try {
+                    getPlaylist(playlist.id, forceRefresh = true)
+                } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
+                    LogManager.w("Failed to preload playlist ${playlist.name} (${playlist.id}): ${e.message}")
+                }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("Failed to preload playlists and songs", e)
         }
     }

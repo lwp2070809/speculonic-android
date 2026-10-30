@@ -20,7 +20,8 @@ object CacheManager {
     @Volatile private var downloadCache: Cache? = null
     @Volatile private var databaseProvider: DatabaseProvider? = null
     @Volatile private var currentDownloadCacheSize: Long = -2L
-    @Volatile private var isReleasing: Boolean = false
+    @Volatile var isReleasing: Boolean = false
+        private set
 
     
     
