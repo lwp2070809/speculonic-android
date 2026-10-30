@@ -140,10 +140,11 @@ object NetworkModule {
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.BODY
+                HttpLoggingInterceptor.Level.HEADERS
             } else {
                 HttpLoggingInterceptor.Level.NONE
             }
+            redactHeader("Authorization")
         }
 
         OkHttpClient.Builder()
@@ -197,7 +198,10 @@ object NetworkModule {
     @Singleton
     @StreamHttpClient
     fun provideStreamOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
-        return okHttpClientInstance.newBuilder().addInterceptor { chain ->
+        val builder = okHttpClientInstance.newBuilder()
+        // 确保流式与下载客户端绝对不包含 HttpLoggingInterceptor，杜绝大文件与音频流的内存缓冲及 OOM
+        builder.interceptors().removeAll { it is HttpLoggingInterceptor }
+        return builder.addInterceptor { chain ->
             val request = chain.request()
             val url = request.url
             val path = url.encodedPath

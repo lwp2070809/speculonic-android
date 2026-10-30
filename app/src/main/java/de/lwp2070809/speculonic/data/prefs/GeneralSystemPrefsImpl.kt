@@ -12,6 +12,7 @@ import de.lwp2070809.speculonic.data.ThemeMode
 import de.lwp2070809.speculonic.data.UpdateCheckInterval
 import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.util.LogLevel
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -36,7 +37,7 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } catch (e: Exception) {
             LogLevel.INFO
         }
-    }
+    }.distinctUntilChanged()
 
     override val themeMode: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
         val modeName = preferences[THEME_MODE] ?: ThemeMode.SYSTEM.name
@@ -45,7 +46,7 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } catch (e: Exception) {
             ThemeMode.SYSTEM
         }
-    }
+    }.distinctUntilChanged()
 
     override val colorMode: Flow<ColorMode> = context.dataStore.data.map { preferences ->
         val modeName = preferences[COLOR_MODE] ?: ColorMode.ALBUM_COVER.name
@@ -54,7 +55,7 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } catch (e: Exception) {
             ColorMode.ALBUM_COVER
         }
-    }
+    }.distinctUntilChanged()
 
     override val playerBackgroundMode: Flow<PlayerBackgroundMode> = context.dataStore.data.map { preferences ->
         val modeName = preferences[PLAYER_BACKGROUND_MODE]
@@ -67,11 +68,11 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } else {
             PlayerBackgroundMode.GAUSSIAN_BLUR
         }
-    }
+    }.distinctUntilChanged()
 
-    override val lastSeedColorLight: Flow<Int?> = context.dataStore.data.map { it[LAST_SEED_COLOR_LIGHT] }
-    override val lastSeedColorDark: Flow<Int?> = context.dataStore.data.map { it[LAST_SEED_COLOR_DARK] }
-    override val showOfflineToast: Flow<Boolean> = context.dataStore.data.map { it[SHOW_OFFLINE_TOAST] ?: true }
+    override val lastSeedColorLight: Flow<Int?> = context.dataStore.data.map { it[LAST_SEED_COLOR_LIGHT] }.distinctUntilChanged()
+    override val lastSeedColorDark: Flow<Int?> = context.dataStore.data.map { it[LAST_SEED_COLOR_DARK] }.distinctUntilChanged()
+    override val showOfflineToast: Flow<Boolean> = context.dataStore.data.map { it[SHOW_OFFLINE_TOAST] ?: true }.distinctUntilChanged()
 
     override val updateCheckInterval: Flow<UpdateCheckInterval> = context.dataStore.data.map { preferences ->
         val defaultInterval = if (de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED) {
@@ -85,9 +86,9 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } catch (e: Exception) {
             defaultInterval
         }
-    }
+    }.distinctUntilChanged()
 
-    override val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }
+    override val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }.distinctUntilChanged()
 
     override suspend fun saveLogLevel(level: LogLevel) {
         context.dataStore.edit { preferences ->

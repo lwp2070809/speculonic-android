@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import de.lwp2070809.speculonic.data.dataStore
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -30,8 +31,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         private val TARGET_TRANSCODE_FORMAT = stringPreferencesKey("target_transcode_format")
     }
 
-    override val mobilePlayAllowed: Flow<Boolean> = context.dataStore.data.map { it[MOBILE_PLAY_ALLOWED] ?: true }
-    override val lastSongId: Flow<String?> = context.dataStore.data.map { it[LAST_SONG_ID] }
+    override val mobilePlayAllowed: Flow<Boolean> = context.dataStore.data.map { it[MOBILE_PLAY_ALLOWED] ?: true }.distinctUntilChanged()
+    override val lastSongId: Flow<String?> = context.dataStore.data.map { it[LAST_SONG_ID] }.distinctUntilChanged()
 
     override suspend fun saveMobilePlayAllowed(allowed: Boolean) {
         context.dataStore.edit { preferences ->
@@ -39,16 +40,16 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         }
     }
 
-    override val lastPosition: Flow<Long> = context.dataStore.data.map { it[LAST_POSITION] ?: 0L }
-    override val lastQueueIndex: Flow<Int> = context.dataStore.data.map { it[LAST_QUEUE_INDEX] ?: 0 }
-    override val lastQueueTitle: Flow<String?> = context.dataStore.data.map { it[LAST_QUEUE_TITLE] }
+    override val lastPosition: Flow<Long> = context.dataStore.data.map { it[LAST_POSITION] ?: 0L }.distinctUntilChanged()
+    override val lastQueueIndex: Flow<Int> = context.dataStore.data.map { it[LAST_QUEUE_INDEX] ?: 0 }.distinctUntilChanged()
+    override val lastQueueTitle: Flow<String?> = context.dataStore.data.map { it[LAST_QUEUE_TITLE] }.distinctUntilChanged()
     
     override val repeatMode: Flow<Int> = context.dataStore.data.map {
         val mode = it[REPEAT_MODE] ?: androidx.media3.common.Player.REPEAT_MODE_ALL
         if (mode == androidx.media3.common.Player.REPEAT_MODE_OFF) androidx.media3.common.Player.REPEAT_MODE_ALL else mode
-    }
+    }.distinctUntilChanged()
     
-    override val shuffleMode: Flow<Boolean> = context.dataStore.data.map { it[SHUFFLE_MODE] ?: false }
+    override val shuffleMode: Flow<Boolean> = context.dataStore.data.map { it[SHUFFLE_MODE] ?: false }.distinctUntilChanged()
 
     override suspend fun savePlaybackState(
         songId: String?,
@@ -76,8 +77,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         }
     }
 
-    override val lastSleepTimerMinutes: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_MINUTES] ?: 30 }
-    override val lastSleepTimerSongCount: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }
+    override val lastSleepTimerMinutes: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_MINUTES] ?: 30 }.distinctUntilChanged()
+    override val lastSleepTimerSongCount: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }.distinctUntilChanged()
 
     override suspend fun saveLastSleepTimerMinutes(minutes: Int) {
         context.dataStore.edit { preferences ->
@@ -91,12 +92,12 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         }
     }
 
-    override val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }
-    override val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }
-    override val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }
-    override val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }
-    override val transcodeIncompatibleFormats: Flow<Boolean> = context.dataStore.data.map { it[TRANSCODE_INCOMPATIBLE_FORMATS] ?: false }
-    override val targetTranscodeFormat: Flow<String> = context.dataStore.data.map { it[TARGET_TRANSCODE_FORMAT] ?: "mp3" }
+    override val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }.distinctUntilChanged()
+    override val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }.distinctUntilChanged()
+    override val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }.distinctUntilChanged()
+    override val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }.distinctUntilChanged()
+    override val transcodeIncompatibleFormats: Flow<Boolean> = context.dataStore.data.map { it[TRANSCODE_INCOMPATIBLE_FORMATS] ?: false }.distinctUntilChanged()
+    override val targetTranscodeFormat: Flow<String> = context.dataStore.data.map { it[TARGET_TRANSCODE_FORMAT] ?: "mp3" }.distinctUntilChanged()
 
     override suspend fun saveSkipSilenceEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->

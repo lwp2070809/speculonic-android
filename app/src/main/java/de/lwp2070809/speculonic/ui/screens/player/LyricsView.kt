@@ -51,18 +51,22 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LyricLine
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 
 @Composable
 fun LyricsView(
     lyricsLines: List<LyricLine>,
     rawLyrics: String?,
-    currentPosition: Long,
+    currentPosition: Long = 0L,
+    currentPositionFlow: StateFlow<Long>? = null,
+    currentPositionProvider: (() -> Long)? = null,
     isPlaying: Boolean,
     isLoading: Boolean,
     onSeek: (Long) -> Unit,
@@ -78,15 +82,20 @@ fun LyricsView(
         isSeekingMode = false
     }
 
-    val currentLineIndex = remember(lyricsLines, currentPosition) {
-        if (lyricsLines.isEmpty()) {
-            0
-        } else {
-            var index = lyricsLines.binarySearch { it.timeMs.compareTo(currentPosition) }
-            if (index < 0) {
-                index = -index - 2
+    val flowPositionState = currentPositionFlow?.collectAsStateWithLifecycle()
+    val isStaticPosition = currentPositionFlow == null && currentPositionProvider == null
+    val currentLineIndex by remember(lyricsLines, currentPositionFlow, currentPositionProvider, if (isStaticPosition) currentPosition else Unit) {
+        derivedStateOf {
+            val pos = currentPositionProvider?.invoke() ?: (flowPositionState?.value ?: currentPosition)
+            if (lyricsLines.isEmpty()) {
+                0
+            } else {
+                var index = lyricsLines.binarySearch { it.timeMs.compareTo(pos) }
+                if (index < 0) {
+                    index = -index - 2
+                }
+                if (index < 0) 0 else index
             }
-            if (index < 0) 0 else index
         }
     }
 

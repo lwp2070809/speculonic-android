@@ -50,29 +50,19 @@ fun DownloadTaskItem(
     val unknownSong = stringResource(R.string.unknown_song)
     val unknownArtist = stringResource(R.string.unknown_artist)
 
-    val title = remember(task.request.data, unknownSong) {
+    val (title, artist) = remember(task.request.id, unknownSong, unknownArtist) {
         try {
             if (task.request.data.isNotEmpty()) {
                 val json = JSONObject(Util.fromUtf8Bytes(task.request.data))
-                json.optString("title", unknownSong)
+                Pair(
+                    json.optString("title", unknownSong),
+                    json.optString("artist", unknownArtist)
+                )
             } else {
-                unknownSong
+                Pair(unknownSong, unknownArtist)
             }
         } catch (e: Exception) {
-            unknownSong
-        }
-    }
-
-    val artist = remember(task.request.data, unknownArtist) {
-        try {
-            if (task.request.data.isNotEmpty()) {
-                val json = JSONObject(Util.fromUtf8Bytes(task.request.data))
-                json.optString("artist", unknownArtist)
-            } else {
-                unknownArtist
-            }
-        } catch (e: Exception) {
-            unknownArtist
+            Pair(unknownSong, unknownArtist)
         }
     }
 

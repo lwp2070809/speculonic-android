@@ -163,7 +163,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
         } catch (e: Exception) {
             null
         }
-    }
+    }.distinctUntilChanged()
 
     override suspend fun saveServerCapabilities(caps: ServerCapabilities?) {
         val jsonString = caps?.let { Json.encodeToString(ServerCapabilities.serializer(), it) }

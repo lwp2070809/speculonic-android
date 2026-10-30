@@ -138,7 +138,6 @@ object CacheExporter {
         context: Context,
         song: Song,
         lyrics: String? = null,
-        coverArtBytes: ByteArray? = null,
         cacheDataSourceFactory: CacheDataSource.Factory,
         targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {
@@ -201,7 +200,6 @@ object CacheExporter {
         context: Context,
         song: Song,
         lyrics: String? = null,
-        coverArtBytes: ByteArray? = null,
         cacheDataSourceFactory: CacheDataSource.Factory,
         targetTranscodeFormat: String? = null
     ): Result<String> = withContext(Dispatchers.IO) {

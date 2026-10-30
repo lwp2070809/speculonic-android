@@ -15,6 +15,7 @@ import java.io.FileInputStream
 import java.security.MessageDigest
 
 object SongAudioMetadataExtractor {
+    private val TEXT_CLEAN_REGEX = Regex("^Text=\"?|\"?$")
 
     suspend fun calculateSha1(uriString: String, context: Context): String? = withContext(Dispatchers.IO) {
         try {
@@ -129,7 +130,7 @@ object SongAudioMetadataExtractor {
                     val value = if (field.isBinary) "[Binary Data]" else field.toString()
 
                     if (!key.equals("APIC", ignoreCase = true) && !key.equals("PIC", ignoreCase = true)) {
-                        val cleanValue = value.replace(Regex("^Text=\"?|\"?$"), "").trim()
+                        val cleanValue = value.replace(TEXT_CLEAN_REGEX, "").trim()
                         metadataMap["Raw: $key"] = cleanValue
                     }
                 }

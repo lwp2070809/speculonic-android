@@ -22,6 +22,7 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -198,9 +199,10 @@ fun MiniPlayer(
 
 @Composable
 private fun MiniPlayerProgressBar(playbackController: de.lwp2070809.speculonic.playback.PlaybackController) {
-    val playbackState by playbackController.playbackState.collectAsState()
+    val currentPosition by playbackController.currentPosition.collectAsStateWithLifecycle()
+    val playbackState by playbackController.playbackState.collectAsStateWithLifecycle()
     val progress = if (playbackState.duration > 0) {
-        playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()
+        currentPosition.toFloat() / playbackState.duration.toFloat()
     } else 0f
     
     LinearProgressIndicator(

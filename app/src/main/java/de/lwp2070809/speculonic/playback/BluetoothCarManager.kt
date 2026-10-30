@@ -262,11 +262,12 @@ class BluetoothCarManager(
             if (realDuration > 0 && realDuration != C.TIME_UNSET) {
                 return realDuration
             }
-            val metaDuration = currentMediaItem?.mediaMetadata?.durationMs
+            val rawItem = super.getCurrentMediaItem()
+            val metaDuration = rawItem?.mediaMetadata?.durationMs
             if (metaDuration != null && metaDuration > 0 && metaDuration != C.TIME_UNSET) {
                 return metaDuration
             }
-            val extrasDuration = currentMediaItem?.mediaMetadata?.extras?.getLong("durationMs", 0L) ?: 0L
+            val extrasDuration = rawItem?.mediaMetadata?.extras?.getLong("durationMs", 0L) ?: 0L
             if (extrasDuration > 0) {
                 return extrasDuration
             }
@@ -277,7 +278,8 @@ class BluetoothCarManager(
             if (isHideProgressBarActive()) return false
             val isSeekable = super.isCurrentMediaItemSeekable()
             if (isSeekable) return true
-            val metaDuration = currentMediaItem?.mediaMetadata?.durationMs ?: 0L
+            val rawItem = super.getCurrentMediaItem()
+            val metaDuration = rawItem?.mediaMetadata?.durationMs ?: 0L
             return metaDuration > 0
         }
 

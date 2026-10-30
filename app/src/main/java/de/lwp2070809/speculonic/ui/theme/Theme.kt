@@ -1,7 +1,5 @@
 package de.lwp2070809.speculonic.ui.theme
 
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -14,6 +12,7 @@ import android.content.ContextWrapper
 import android.annotation.SuppressLint
 import androidx.core.graphics.drawable.toDrawable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
@@ -53,20 +52,12 @@ fun SpeculonicTheme(
         else -> LightColorScheme
     }
 
-    val colorScheme = if (seedColor != null) {
-        
-        val animatedSeed = animateColorAsState(
-            targetValue = seedColor, 
-            animationSpec = tween(700), 
-            label = "seedColor"
-        ).value
-
-        
-        
-        
-        generateColorSchemeFromSeed(animatedSeed.toArgb(), darkTheme)
-    } else {
-        baseScheme
+    val colorScheme = remember(seedColor, darkTheme, dynamicColor) {
+        if (seedColor != null) {
+            generateColorSchemeFromSeed(seedColor.toArgb(), darkTheme)
+        } else {
+            baseScheme
+        }
     }
 
     val view = LocalView.current

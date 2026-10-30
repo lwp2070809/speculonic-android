@@ -203,24 +203,28 @@ object LogManager {
 
     fun d(message: String) = d(LogTag.APP, message)
     fun d(tag: String, message: String) {
+        if (LogLevel.DEBUG.priority < minLevel.priority) return
         val (finalTag, finalMsg) = parseTagAndMessage(tag, message)
         addLogAndPrint(LogLevel.DEBUG, finalTag, finalMsg)
     }
 
     fun i(message: String) = i(LogTag.APP, message)
     fun i(tag: String, message: String) {
+        if (LogLevel.INFO.priority < minLevel.priority) return
         val (finalTag, finalMsg) = parseTagAndMessage(tag, message)
         addLogAndPrint(LogLevel.INFO, finalTag, finalMsg)
     }
 
     fun w(message: String, throwable: Throwable? = null) = w(LogTag.APP, message, throwable)
     fun w(tag: String, message: String, throwable: Throwable? = null) {
+        if (LogLevel.WARN.priority < minLevel.priority) return
         val (finalTag, finalMsg) = parseTagAndMessage(tag, message)
         addLogAndPrint(LogLevel.WARN, finalTag, finalMsg, throwable)
     }
 
     fun e(message: String, throwable: Throwable? = null) = e(LogTag.APP, message, throwable)
     fun e(tag: String, message: String, throwable: Throwable? = null) {
+        if (LogLevel.ERROR.priority < minLevel.priority) return
         val (finalTag, finalMsg) = parseTagAndMessage(tag, message)
         addLogAndPrint(LogLevel.ERROR, finalTag, finalMsg, throwable)
     }

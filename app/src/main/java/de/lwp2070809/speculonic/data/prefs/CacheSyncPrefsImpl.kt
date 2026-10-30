@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import de.lwp2070809.speculonic.data.dataStore
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -42,26 +43,26 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
 
     override fun getCachedMaxCoverCacheSize(): Long = cachedMaxCoverCacheSize.get()
 
-    override val cacheLocation: Flow<String> = context.dataStore.data.map { it[CACHE_LOCATION] ?: "" }
-    override val maxCacheSize: Flow<Long> = context.dataStore.data.map { it[MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024) }
+    override val cacheLocation: Flow<String> = context.dataStore.data.map { it[CACHE_LOCATION] ?: "" }.distinctUntilChanged()
+    override val maxCacheSize: Flow<Long> = context.dataStore.data.map { it[MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024) }.distinctUntilChanged()
     override val maxCoverCacheSize: Flow<Long> = context.dataStore.data.map { 
         val size = it[MAX_COVER_CACHE_SIZE] ?: DEFAULT_MAX_COVER_CACHE_SIZE
         if (cachedMaxCoverCacheSize.getAndSet(size) != size) {
             syncPrefs.edit().putLong(KEY_MAX_COVER_CACHE_SIZE, size).apply()
         }
         size
-    }
-    override val silentCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[SILENT_CACHE_ENABLED] ?: true }
-    override val autoExportSilentCache: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_SILENT_CACHE] ?: false }
-    override val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC_TIME] ?: 0L }
-    override val lastFullSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_FULL_SYNC_TIME] ?: 0L }
-    override val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }
-    override val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }
-    override val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }
-    override val syncError: Flow<String?> = context.dataStore.data.map { it[SYNC_ERROR] }
-    override val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: false }
-    override val lastCacheScanTime: Flow<Long> = context.dataStore.data.map { it[LAST_CACHE_SCAN_TIME] ?: 0L }
-    override val syncCoverArtOnForce: Flow<Boolean> = context.dataStore.data.map { it[SYNC_COVER_ART_ON_FORCE] ?: false }
+    }.distinctUntilChanged()
+    override val silentCacheEnabled: Flow<Boolean> = context.dataStore.data.map { it[SILENT_CACHE_ENABLED] ?: true }.distinctUntilChanged()
+    override val autoExportSilentCache: Flow<Boolean> = context.dataStore.data.map { it[AUTO_EXPORT_SILENT_CACHE] ?: false }.distinctUntilChanged()
+    override val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC_TIME] ?: 0L }.distinctUntilChanged()
+    override val lastFullSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_FULL_SYNC_TIME] ?: 0L }.distinctUntilChanged()
+    override val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }.distinctUntilChanged()
+    override val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }.distinctUntilChanged()
+    override val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }.distinctUntilChanged()
+    override val syncError: Flow<String?> = context.dataStore.data.map { it[SYNC_ERROR] }.distinctUntilChanged()
+    override val backgroundSyncEnabled: Flow<Boolean> = context.dataStore.data.map { it[BACKGROUND_SYNC_ENABLED] ?: false }.distinctUntilChanged()
+    override val lastCacheScanTime: Flow<Long> = context.dataStore.data.map { it[LAST_CACHE_SCAN_TIME] ?: 0L }.distinctUntilChanged()
+    override val syncCoverArtOnForce: Flow<Boolean> = context.dataStore.data.map { it[SYNC_COVER_ART_ON_FORCE] ?: false }.distinctUntilChanged()
 
     override suspend fun saveCacheLocation(location: String) {
         context.dataStore.edit { preferences ->

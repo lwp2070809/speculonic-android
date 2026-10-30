@@ -4,10 +4,12 @@
     @kotlinx.serialization.Serializable *;
 }
 -keep class *$$serializer { *; }
--keepclassmembers class * {
+-keepclassmembers class de.lwp2070809.speculonic.** {
     *** Companion;
+    *** $serializer;
 }
--keepclassmembers class * {
+-keepclassmembers @kotlinx.serialization.Serializable class * {
+    *** Companion;
     *** $serializer;
 }
 

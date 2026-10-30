@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -26,6 +27,8 @@ fun PlaybackSeekBar(
     playbackState: PlaybackState,
     playbackController: PlaybackController
 ) {
+    val currentPosition by playbackController.currentPosition.collectAsStateWithLifecycle()
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -42,7 +45,7 @@ fun PlaybackSeekBar(
         var sliderDragValue by rememberSaveable { mutableFloatStateOf(0f) }
         
         val currentSliderValue = if (isSliderDragging) sliderDragValue else if (playbackState.duration > 0) {
-            playbackState.currentPosition.toFloat() / playbackState.duration.toFloat()
+            currentPosition.toFloat() / playbackState.duration.toFloat()
         } else 0f
         
         Slider(
@@ -72,7 +75,7 @@ fun PlaybackSeekBar(
         ) {
             val displayPosition = if (isSliderDragging && playbackState.duration > 0) {
                 (sliderDragValue * playbackState.duration).toLong()
-            } else playbackState.currentPosition
+            } else currentPosition
             
             Text(
                 text = FormatUtils.formatDuration(displayPosition),

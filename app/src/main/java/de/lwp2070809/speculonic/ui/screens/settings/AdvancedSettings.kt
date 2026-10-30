@@ -47,6 +47,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.isActive
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -231,8 +232,8 @@ fun LogViewerPane(
 
     LaunchedEffect(Unit) {
         LogManager.flushIfDirty()
-        while (true) {
-            kotlinx.coroutines.delay(300)
+        while (isActive) {
+            kotlinx.coroutines.delay(1000)
             LogManager.flushIfDirty()
         }
     }

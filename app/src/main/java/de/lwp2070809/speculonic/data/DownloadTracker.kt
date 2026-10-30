@@ -1,7 +1,6 @@
-﻿package de.lwp2070809.speculonic.data
+package de.lwp2070809.speculonic.data
 
 import android.content.Context
-import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
@@ -12,9 +11,6 @@ import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
-import coil3.BitmapImage
-import coil3.SingletonImageLoader
-import coil3.request.SuccessResult
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.domain.repository.AuthManager
@@ -34,7 +30,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import org.json.JSONObject
-import java.io.ByteArrayOutputStream
 import java.util.concurrent.atomic.AtomicBoolean
 
 @OptIn(UnstableApi::class)
@@ -184,6 +179,26 @@ object DownloadTracker {
         checkAndStartPolling(downloadManager)
     }
 
+    private fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
+        val currentActiveDownloads = downloadManager.currentDownloads
+        if (currentActiveDownloads.isEmpty()) {
+            checkAndStartPolling(downloadManager)
+            return
+        }
+        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
+        _allDownloads.update { list ->
+            list.map { item ->
+                val active = currentActiveMap[item.task.request.id]
+                if (active != null) {
+                    DownloadTaskInfo(active)
+                } else {
+                    item
+                }
+            }
+        }
+        checkAndStartPolling(downloadManager)
+    }
+
     private fun checkAndStartPolling(downloadManager: DownloadManager) {
         val hasActive = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }
         if (hasActive) {
@@ -192,7 +207,7 @@ object DownloadTracker {
                 val newJob = scope.launch {
                     while (true) {
                         kotlinx.coroutines.delay(1000)
-                        refreshDownloads(downloadManager)
+                        pollActiveDownloadsProgress(downloadManager)
                     }
                 }
                 if (!pollJob.compareAndSet(currentJob, newJob)) {
@@ -334,7 +349,7 @@ object DownloadTracker {
             val song = entityMapper.toSong(songEntity).copy(isTranscoded = isTranscoded)
             
             var lyrics: String? = null
-            var coverArtBytes: ByteArray? = null
+
             
             try {
                 val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
@@ -346,23 +361,7 @@ object DownloadTracker {
                     val (rawLyrics, _) = repository.getLyricsData(song.id, song.artist, song.title, true)
                     lyrics = rawLyrics
 
-                    if (!song.coverArt.isNullOrBlank()) {
-                        val coverUrl = repository.buildCoverArtUrl(song.coverArt)
-                        val imageLoader = SingletonImageLoader.get(context)
-                        val request = coil3.request.ImageRequest.Builder(context)
-                            .data(coverUrl)
-                            .build()
-                        val result = imageLoader.execute(request)
-                        if (result is SuccessResult) {
-                            val bitmap = (result.image as? BitmapImage)?.bitmap
-                            if (bitmap != null) {
-                                val bos = ByteArrayOutputStream()
-                                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, bos)
-                                coverArtBytes = bos.toByteArray()
-                                LogManager.d("DownloadTracker: Cover art fetched for export")
-                            }
-                        }
-                    }
+
                 }
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -375,7 +374,6 @@ object DownloadTracker {
                         context,
                         song,
                         lyrics,
-                        coverArtBytes,
                         cacheDataSourceFactory,
                         targetTranscodeFormat = targetFormat
                     )
@@ -384,7 +382,6 @@ object DownloadTracker {
                         context,
                         song,
                         lyrics,
-                        coverArtBytes,
                         cacheDataSourceFactory,
                         targetTranscodeFormat = targetFormat
                     )

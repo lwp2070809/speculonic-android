@@ -83,6 +83,9 @@ class PlaybackController private constructor(context: Context) {
     private val _playbackState = MutableStateFlow(PlaybackState())
     val playbackState = _playbackState.asStateFlow()
 
+    private val _currentPosition = MutableStateFlow(0L)
+    val currentPosition = _currentPosition.asStateFlow()
+
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
     private var sleepTimerDeadlineRealtime: Long = 0L
@@ -200,17 +203,26 @@ class PlaybackController private constructor(context: Context) {
 
     private fun updatePosition() {
         val controller = controller ?: return
+        val pos = controller.currentPosition
+        _currentPosition.value = pos
+
         val currentState = _playbackState.value
         val remainingMillis = if (currentState.isSleepTimerRunning && currentState.sleepTimerMode == SleepTimerMode.TIME && sleepTimerDeadlineRealtime > 0L) {
             (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         } else {
             currentState.sleepTimerRemainingMillis
         }
-        _playbackState.value = currentState.copy(
-            currentPosition = controller.currentPosition,
-            duration = getEffectiveDuration(controller),
-            sleepTimerRemainingMillis = remainingMillis
-        )
+
+        val timerChanged = kotlin.math.abs(remainingMillis - currentState.sleepTimerRemainingMillis) >= 1000L
+        val effectiveDur = getEffectiveDuration(controller)
+        val durationChanged = effectiveDur > 0L && effectiveDur != currentState.duration
+        if (timerChanged || durationChanged) {
+            _playbackState.value = currentState.copy(
+                currentPosition = pos,
+                duration = if (durationChanged) effectiveDur else currentState.duration,
+                sleepTimerRemainingMillis = remainingMillis
+            )
+        }
     }
 
     private fun updateState(events: Player.Events? = null) {
@@ -254,6 +266,9 @@ class PlaybackController private constructor(context: Context) {
             sessionExtras.getLong("sleepTimerRemainingMillis", 0L)
         }
 
+        val pos = controller.currentPosition
+        _currentPosition.value = pos
+
         _playbackState.value = _playbackState.value.copy(
             currentSongId = currentMediaItem?.mediaId ?: "",
             currentSongTitle = realTitle,
@@ -261,7 +276,7 @@ class PlaybackController private constructor(context: Context) {
             artworkUri = currentMediaItem?.mediaMetadata?.artworkUri,
             artworkId = artworkId,
             isPlaying = controller.isPlaying,
-            currentPosition = controller.currentPosition,
+            currentPosition = pos,
             duration = getEffectiveDuration(controller, currentMediaItem),
             repeatMode = controller.repeatMode,
             shuffleModeEnabled = controller.shuffleModeEnabled,

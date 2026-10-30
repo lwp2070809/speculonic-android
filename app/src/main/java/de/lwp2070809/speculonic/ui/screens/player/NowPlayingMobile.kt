@@ -162,7 +162,7 @@ fun NowPlayingMobile(
                                 LyricsView(
                                     lyricsLines = uiState.lyricsLines,
                                     rawLyrics = uiState.rawLyrics,
-                                    currentPosition = playbackState.currentPosition,
+                                    currentPositionFlow = playbackController.currentPosition,
                                     isPlaying = playbackState.isPlaying,
                                     isLoading = uiState.isLoadingLyrics,
                                     onSeek = { playbackController.seekTo(it) },
