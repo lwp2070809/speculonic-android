@@ -26,6 +26,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
@@ -48,6 +49,89 @@ import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.buildRequest
 import de.lwp2070809.speculonic.util.FormatUtils
 
+/**
+ * 歌曲列表项高频文本资源包装类，避免大列表快速滚动时子项内部重复查询 CompositionLocal。
+ */
+@Immutable
+data class SongListItemStrings(
+    val successMsg: String,
+    val existsMsg: String,
+    val errorMsg: String,
+    val cdDownloaded: String,
+    val cdStar: String,
+    val moreOptions: String,
+    val download: String,
+    val removeDownload: String,
+    val songDetails: String,
+    val addToPlaylist: String,
+    val removeFromPlaylist: String,
+    val incompatibleDownloadedTemplate: String,
+    val unsupportedFormatTemplate: String
+) {
+    fun formatIncompatibleDownloaded(suffix: String): String =
+        String.format(incompatibleDownloadedTemplate, suffix)
+
+    fun formatUnsupportedFormat(suffix: String): String =
+        String.format(unsupportedFormatTemplate, suffix)
+}
+
+/**
+ * 在列表父级作用域中缓存并记忆常用的歌曲列表项文本，实现整表复用。
+ */
+@Composable
+fun rememberSongListItemStrings(): SongListItemStrings {
+    val successMsg = stringResource(R.string.add_to_playlist_success)
+    val existsMsg = stringResource(R.string.song_already_in_playlist)
+    val errorMsg = stringResource(R.string.add_to_playlist_error)
+    val cdDownloaded = stringResource(R.string.cd_downloaded)
+    val cdStar = stringResource(R.string.cd_star)
+    val moreOptions = stringResource(R.string.more_options)
+    val download = stringResource(R.string.download)
+    val removeDownload = stringResource(R.string.remove_download)
+    val songDetails = stringResource(R.string.song_details)
+    val addToPlaylist = stringResource(R.string.add_to_playlist)
+    val removeFromPlaylist = stringResource(R.string.remove_from_playlist)
+    val context = LocalContext.current
+    val incompatibleDownloadedTemplate = remember(context) {
+        context.getString(R.string.incompatible_downloaded_hint)
+    }
+    val unsupportedFormatTemplate = remember(context) {
+        context.getString(R.string.unsupported_format_hint)
+    }
+
+    return remember(
+        successMsg,
+        existsMsg,
+        errorMsg,
+        cdDownloaded,
+        cdStar,
+        moreOptions,
+        download,
+        removeDownload,
+        songDetails,
+        addToPlaylist,
+        removeFromPlaylist,
+        incompatibleDownloadedTemplate,
+        unsupportedFormatTemplate
+    ) {
+        SongListItemStrings(
+            successMsg = successMsg,
+            existsMsg = existsMsg,
+            errorMsg = errorMsg,
+            cdDownloaded = cdDownloaded,
+            cdStar = cdStar,
+            moreOptions = moreOptions,
+            download = download,
+            removeDownload = removeDownload,
+            songDetails = songDetails,
+            addToPlaylist = addToPlaylist,
+            removeFromPlaylist = removeFromPlaylist,
+            incompatibleDownloadedTemplate = incompatibleDownloadedTemplate,
+            unsupportedFormatTemplate = unsupportedFormatTemplate
+        )
+    }
+}
+
 @Composable
 fun SongListItem(
     song: Song,
@@ -63,7 +147,8 @@ fun SongListItem(
     transcodeIncompatible: Boolean = false,
     onRemoveFromPlaylistClick: (() -> Unit)? = null,
     isRemoveFromPlaylistEnabled: Boolean = true,
-    trailingContentOverride: @Composable (() -> Unit)? = null
+    trailingContentOverride: @Composable (() -> Unit)? = null,
+    strings: SongListItemStrings = rememberSongListItemStrings()
 ) {
     val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
@@ -79,13 +164,6 @@ fun SongListItem(
     var showMenu by remember { mutableStateOf(false) }
     var showDetailDialog by remember { mutableStateOf(false) }
     var showAddToPlaylistDialog by remember { mutableStateOf(false) }
-    
-    val successMsg = stringResource(R.string.add_to_playlist_success)
-    val existsMsg = stringResource(R.string.song_already_in_playlist)
-    val errorMsg = stringResource(R.string.add_to_playlist_error)
-    val suffixText = remember(song.suffix) { (song.suffix ?: "UNKNOWN").uppercase() }
-    val incompatibleDownloadedHint = stringResource(R.string.incompatible_downloaded_hint, suffixText)
-    val unsupportedFormatHint = stringResource(R.string.unsupported_format_hint, suffixText)
 
     if (showDetailDialog) {
         SongDetailDialog(song = song, onDismiss = { showDetailDialog = false })
@@ -97,9 +175,9 @@ fun SongListItem(
             onDismiss = { showAddToPlaylistDialog = false },
             onResult = { result ->
                 val message = when (result) {
-                    PlaylistAddResult.SUCCESS -> successMsg
-                    PlaylistAddResult.ALREADY_EXISTS -> existsMsg
-                    PlaylistAddResult.ERROR -> errorMsg
+                    PlaylistAddResult.SUCCESS -> strings.successMsg
+                    PlaylistAddResult.ALREADY_EXISTS -> strings.existsMsg
+                    PlaylistAddResult.ERROR -> strings.errorMsg
                 }
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
@@ -124,7 +202,7 @@ fun SongListItem(
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.Default.CheckCircle,
-                        contentDescription = stringResource(R.string.cd_downloaded),
+                        contentDescription = strings.cdDownloaded,
                         modifier = Modifier.size(14.dp),
                         tint = MaterialTheme.colorScheme.primary
                     )
@@ -178,13 +256,13 @@ fun SongListItem(
                     ) {
                         Icon(
                             painter = if (isStarred) rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
-                            contentDescription = stringResource(R.string.cd_star),
+                            contentDescription = strings.cdStar,
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                     Box {
                         IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, contentDescription = stringResource(R.string.more_options))
+                            Icon(Icons.Default.MoreVert, contentDescription = strings.moreOptions)
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -192,7 +270,7 @@ fun SongListItem(
                         ) {
                             if (isDownloaded) {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.remove_download)) },
+                                    text = { Text(strings.removeDownload) },
                                     leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete), contentDescription = null) },
                                     onClick = { 
                                         onRemoveDownloadClick()
@@ -201,7 +279,7 @@ fun SongListItem(
                                 )
                             } else {
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.download)) },
+                                    text = { Text(strings.download) },
                                     leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = null) },
                                     onClick = { 
                                         onDownloadClick()
@@ -211,7 +289,7 @@ fun SongListItem(
                                 )
                             }
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.song_details)) },
+                                text = { Text(strings.songDetails) },
                                 leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info), contentDescription = null) },
                                 onClick = { 
                                     showDetailDialog = true
@@ -219,7 +297,7 @@ fun SongListItem(
                                 }
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.add_to_playlist)) },
+                                text = { Text(strings.addToPlaylist) },
                                 leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_add), contentDescription = null) },
                                 onClick = { 
                                     showAddToPlaylistDialog = true
@@ -230,7 +308,7 @@ fun SongListItem(
                             if (onRemoveFromPlaylistClick != null) {
                                 HorizontalDivider()
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.remove_from_playlist)) },
+                                    text = { Text(strings.removeFromPlaylist) },
                                     leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
                                     onClick = {
                                         showMenu = false
@@ -252,9 +330,9 @@ fun SongListItem(
                     val isRawIncompatibleCached = song.isFullyCached && !song.isTranscoded && !isDirectSupported
 
                     val toastText = if (isRawIncompatibleCached) {
-                        incompatibleDownloadedHint
+                        strings.formatIncompatibleDownloaded(suffixText)
                     } else {
-                        unsupportedFormatHint
+                        strings.formatUnsupportedFormat(suffixText)
                     }
                     Toast.makeText(context, toastText, Toast.LENGTH_SHORT).show()
                 } else if (isDownloaded || isStreamingAllowed) {

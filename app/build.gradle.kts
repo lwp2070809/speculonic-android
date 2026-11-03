@@ -1,6 +1,7 @@
 import java.io.FileInputStream
 import java.util.Properties
 import com.android.build.api.variant.FilterConfiguration.FilterType.ABI
+import com.android.build.api.variant.HasUnitTestBuilder
 
 plugins {
     alias(libs.plugins.android.application)
@@ -105,6 +106,7 @@ android {
     sourceSets {
         getByName("debug") {
             java.srcDir("build/generated/ksp/debug/java")
+            assets.srcDirs("$projectDir/schemas")
         }
         getByName("release") {
             java.srcDir("build/generated/ksp/release/java")
@@ -115,16 +117,32 @@ android {
                 res.srcDirs("build/generated/res/easter-eggs")
             }
         }
+        getByName("test") {
+            assets.srcDirs("$projectDir/schemas")
+            resources.srcDirs("$projectDir/schemas")
+        }
     }
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+        screenshotTests.create("screenshotTest") {
+            engineVersion = "0.0.1-alpha16"
+            targetVariants.add("githubDebug")
+            dependencies {
+                implementation(libs.androidx.compose.ui.tooling)
+                implementation("com.android.tools.screenshot:screenshot-validation-api:0.0.1-alpha16")
+            }
+        }
     }
 }
 
 val abiCodes = mapOf("x86_64" to 1, "arm64-v8a" to 2)
 
 androidComponents {
+    beforeVariants { variantBuilder ->
+        (variantBuilder as? HasUnitTestBuilder)?.enableUnitTest = true
+    }
     onVariants { variant ->
         variant.outputs.forEach { output ->
             val name = output.filters.find { it.filterType == ABI }?.identifier
@@ -138,6 +156,17 @@ androidComponents {
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
     compilerOptions.freeCompilerArgs.add("-Xannotation-default-target=param-property")
+}
+
+tasks.register<Sync>("syncRoomSchemasToTestAssets") {
+    from("$projectDir/schemas")
+    into("$projectDir/src/test/assets")
+}
+tasks.named("preBuild") {
+    dependsOn("syncRoomSchemasToTestAssets")
+}
+tasks.withType<Test>().configureEach {
+    dependsOn("syncRoomSchemasToTestAssets")
 }
 
 
@@ -207,6 +236,9 @@ dependencies {
     implementation(libs.androidx.room.paging)
 
     testImplementation(libs.junit)
+    testImplementation(libs.androidx.junit)
+    testImplementation(libs.androidx.room.testing)
+    testImplementation(libs.robolectric)
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(platform(libs.androidx.compose.bom))
@@ -229,3 +261,21 @@ val isFdroidTask = gradle.startParameter.taskNames.any { it.contains("fdroid", i
 if (localGradle.exists() && !isFdroidTask) {
     apply(from = localGradle)
 }
+
+tasks.register("validateScreenshotTest") {
+    group = "verification"
+    description = "执行 Compose Preview 截图比对验证测试"
+    dependsOn("testGithubDebugScreenshotTestDefaultTestSuite")
+}
+
+tasks.register("updateScreenshotTest") {
+    group = "verification"
+    description = "生成并更新 Compose Preview 截图测试黄金基准图片 (Golden Images)"
+    dependsOn("updateGithubDebugScreenshotTestDefaultTestSuite")
+}
+
+tasks.withType<Test>().configureEach {
+    failOnNoDiscoveredTests = false
+}
+
+

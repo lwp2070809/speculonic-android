@@ -39,7 +39,7 @@ abstract class AppDatabase : RoomDatabase() {
 
         
         
-        private val MIGRATION_14_15 = object : Migration(14, 15) {
+        val MIGRATION_14_15 = object : Migration(14, 15) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 
                 db.execSQL("""
@@ -65,7 +65,7 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         
-        private val MIGRATION_15_16 = object : Migration(15, 16) {
+        val MIGRATION_15_16 = object : Migration(15, 16) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS `song_interaction_stats` (
@@ -81,20 +81,26 @@ abstract class AppDatabase : RoomDatabase() {
         }
 
         
-        private val MIGRATION_16_17 = object : Migration(16, 17) {
+        val MIGRATION_16_17 = object : Migration(16, 17) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("DROP TABLE IF EXISTS `song_interaction_stats`")
             }
         }
 
         
-        private val MIGRATION_17_18 = object : Migration(17, 18) {
+        val MIGRATION_17_18 = object : Migration(17, 18) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE playlists ADD COLUMN pinned INTEGER NOT NULL DEFAULT 0")
             }
         }
 
-        private val MIGRATION_19_20 = object : Migration(19, 20) {
+                val MIGRATION_18_19 = object : Migration(18, 19) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE playlists ADD COLUMN `public` INTEGER NOT NULL DEFAULT 0")
+            }
+        }
+
+val MIGRATION_19_20 = object : Migration(19, 20) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_albumId_track` ON `songs` (`albumId`, `track`)")
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_artistId_title` ON `songs` (`artistId`, `title`)")
@@ -102,7 +108,7 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_20_21 = object : Migration(20, 21) {
+        val MIGRATION_20_21 = object : Migration(20, 21) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("""
                     CREATE TABLE IF NOT EXISTS playlist_song_cross_ref_new (
@@ -127,31 +133,44 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
-        private val MIGRATION_21_22 = object : Migration(21, 22) {
+        val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(db: SupportSQLiteDatabase) {
             }
         }
 
-        private val MIGRATION_22_23 = object : Migration(22, 23) {
+        val MIGRATION_22_23 = object : Migration(22, 23) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN isTranscoded INTEGER NOT NULL DEFAULT 0")
             }
         }
 
-        private val MIGRATION_23_24 = object : Migration(23, 24) {
+        val MIGRATION_23_24 = object : Migration(23, 24) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("CREATE INDEX IF NOT EXISTS `index_albums_artistId` ON `albums` (`artistId`)")
             }
         }
 
-        fun getDatabase(context: Context): AppDatabase {
+                val ALL_MIGRATIONS = arrayOf(
+            MIGRATION_14_15,
+            MIGRATION_15_16,
+            MIGRATION_16_17,
+            MIGRATION_17_18,
+            MIGRATION_18_19,
+            MIGRATION_19_20,
+            MIGRATION_20_21,
+            MIGRATION_21_22,
+            MIGRATION_22_23,
+            MIGRATION_23_24
+        )
+
+fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     "speculonic_database"
                 )
-                    .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24)
+                    .addMigrations(*ALL_MIGRATIONS)
                     .fallbackToDestructiveMigration(dropAllTables = true)
                     .build()
                 INSTANCE = instance

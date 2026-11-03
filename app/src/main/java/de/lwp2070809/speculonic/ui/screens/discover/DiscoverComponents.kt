@@ -40,6 +40,7 @@ import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
@@ -90,6 +91,7 @@ fun FavoriteSongsRow(
     val playbackController = LocalPlaybackController.current
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
+    val strings = rememberSongListItemStrings()
 
     val downloadController = LocalDownloadController.current
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
@@ -106,7 +108,8 @@ fun FavoriteSongsRow(
                     onStarClick(song.id, star)
                 },
                 onDownloadClick = { downloadController.downloadSong(song) },
-                onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
+                onRemoveDownloadClick = { downloadController.removeDownload(song.id) },
+                strings = strings
             )
         }
     }
@@ -117,6 +120,7 @@ fun AlbumRow(
     albums: List<Album>,
     onAlbumClick: (Album) -> Unit
 ) {
+    val unknownArtistText = stringResource(R.string.unknown_artist)
     LazyRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
@@ -124,6 +128,7 @@ fun AlbumRow(
         items(albums, key = { it.id }) { album ->
             AlbumCard(
                 album = album,
+                unknownArtistText = unknownArtistText,
                 onClick = { onAlbumClick(album) }
             )
         }
@@ -131,7 +136,11 @@ fun AlbumRow(
 }
 
 @Composable
-fun AlbumCard(album: Album, onClick: () -> Unit) {
+fun AlbumCard(
+    album: Album,
+    onClick: () -> Unit,
+    unknownArtistText: String = stringResource(R.string.unknown_artist)
+) {
     val coverRequester = LocalCoverArtRequester.current
     Column(
         modifier = Modifier
@@ -161,7 +170,7 @@ fun AlbumCard(album: Album, onClick: () -> Unit) {
             fontWeight = FontWeight.Medium
         )
         Text(
-            text = album.artist ?: stringResource(R.string.unknown_artist),
+            text = album.artist ?: unknownArtistText,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             maxLines = 1

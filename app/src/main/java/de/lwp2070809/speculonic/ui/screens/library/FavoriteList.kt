@@ -30,6 +30,7 @@ import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
@@ -80,6 +81,7 @@ fun FavoriteList(
     var lastStarClickTime by remember { mutableLongStateOf(0L) }
     val isDualPane = de.lwp2070809.speculonic.ui.composition.LocalIsDualPane.current
     val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
+    val songStrings = rememberSongListItemStrings()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
@@ -185,7 +187,8 @@ fun FavoriteList(
                         }
                     },
                     onDownloadClick = { downloadController.downloadSong(song) },
-                    onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
+                    onRemoveDownloadClick = { downloadController.removeDownload(song.id) },
+                    strings = songStrings
                 )
             }
         }

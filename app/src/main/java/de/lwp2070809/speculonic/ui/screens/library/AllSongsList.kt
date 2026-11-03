@@ -31,6 +31,7 @@ import androidx.paging.compose.LazyPagingItems
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
@@ -59,7 +60,8 @@ fun AllSongsList(
     val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
     val isDualPane = de.lwp2070809.speculonic.ui.composition.LocalIsDualPane.current
     val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
- 
+    val songStrings = rememberSongListItemStrings()
+
     Column(modifier = Modifier.fillMaxSize()) {
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 340.dp),
@@ -112,7 +114,8 @@ fun AllSongsList(
                             onStarClick(song.id, star)
                         },
                         onDownloadClick = { downloadController.downloadSong(song) },
-                        onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
+                        onRemoveDownloadClick = { downloadController.removeDownload(song.id) },
+                        strings = songStrings
                     )
                 } else {
                     Spacer(
