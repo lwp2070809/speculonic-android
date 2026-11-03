@@ -49,7 +49,14 @@ class SubsonicRepository(
 
     @Volatile private var components: Components? = null
     
-    private fun requireComponents(): Components = components ?: throw IllegalStateException("SubsonicRepository components not initialized")
+    private fun requireComponents(): Components {
+        return components ?: synchronized(this) {
+            components ?: run {
+                reconfigure("", "", CharArray(0))
+                components!!
+            }
+        }
+    }
     
     private val baseUrl: String get() = components?.baseUrl ?: ""
     private val api: SubsonicService get() = requireComponents().api
@@ -72,6 +79,8 @@ class SubsonicRepository(
     @Volatile private var lastConfiguredPassword: String = ""
 
     init {
+        // 同步创建初始安全占位组件，杜绝首屏 ViewModel 订阅本地流时的空指针与初始化竞态
+        reconfigure("", "", CharArray(0))
         startObservingPreferences()
     }
 
@@ -240,6 +249,7 @@ class SubsonicRepository(
     }
 
     suspend fun ping(force: Boolean = false): Boolean {
+        if (!isConfigured) return false
         val (u, t, s) = authManager.getAuthParams()
         
         val hasLocal = hasLocalData()

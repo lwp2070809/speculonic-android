@@ -70,7 +70,7 @@ fun MainScreen(
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit
 ) {
-    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = "")
+    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = null)
 
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
@@ -161,14 +161,14 @@ private fun MainContent(
 
     var showServerSetupDialog by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(serverUrl) {
-        if (serverUrl.isNullOrBlank()) {
-            showServerSetupDialog = true
+        if (serverUrl != null) {
+            showServerSetupDialog = serverUrl.isBlank()
         }
     }
 
     val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
-    val searchViewModel: SearchViewModel = hiltViewModel(key = "search_$serverUrl")
-    val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_$serverUrl")
+    val searchViewModel: SearchViewModel = hiltViewModel(key = "search_${serverUrl ?: ""}")
+    val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_${serverUrl ?: ""}")
 
     data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: @Composable () -> Unit)
     val navItems = listOf(
@@ -484,7 +484,7 @@ private fun MainContent(
             
             if (showServerSetupDialog) {
                 ServerConfigDialog(
-                    initialUrl = "",
+                    initialUrl = serverUrl ?: "",
                     initialUser = "",
                     initialPass = "",
                     viewModel = settingsViewModel,
