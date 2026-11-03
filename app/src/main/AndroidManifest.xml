@@ -51,6 +51,7 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize"
             android:theme="@style/Theme.Speculonic">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

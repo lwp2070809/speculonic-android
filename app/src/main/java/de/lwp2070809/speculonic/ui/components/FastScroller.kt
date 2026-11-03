@@ -33,7 +33,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.IntOffset
@@ -126,7 +127,7 @@ private fun FastScrollerInternal(
         modifier = modifier
             .fillMaxHeight()
             .width(64.dp)
-            .onGloballyPositioned { scrollerHeight = it.size.height }
+            .onSizeChanged { scrollerHeight = it.height }
             .pointerInput(flatItems) {
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
@@ -188,7 +189,7 @@ private fun FastScrollerInternal(
                 .width(8.dp)
                 .height(thumbHeight)
                 .clip(RoundedCornerShape(4.dp))
-                .alpha(thumbAlpha)
+                .graphicsLayer { alpha = thumbAlpha }
                 .background(MaterialTheme.colorScheme.primary)
         )
 

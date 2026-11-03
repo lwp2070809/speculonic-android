@@ -383,4 +383,19 @@
     <string name="cd_back">返回</string>
     <string name="cd_clear">清除</string>
     <string name="cd_edit">编辑</string>
+    <!-- 运行时权限三态引导 -->
+    <string name="permission_notification_title">通知权限</string>
+    <string name="permission_notification_rationale">Speculonic 需要通知权限以向您展示正在播放的歌曲控制与后台下载进度。</string>
+    <string name="permission_notification_settings_guide">请在系统设置中为 Speculonic 开启通知权限，以便在通知栏控制音乐播放与查看下载进度。</string>
+
+    <string name="permission_local_network_title">本地网络权限</string>
+    <string name="permission_local_network_rationale">您配置的 Subsonic 服务器位于本地局域网，Speculonic 需要本地网络访问权限才能连接您的自建服务器。</string>
+    <string name="permission_local_network_settings_guide">请在系统设置中为 Speculonic 开启本地网络权限，以便连接位于局域网的音乐服务器。</string>
+
+    <string name="permission_bluetooth_title">蓝牙连接权限</string>
+    <string name="permission_bluetooth_rationale">车载蓝牙识别与元数据同步需要蓝牙连接权限，以便识别车机并同步当前播放曲目与歌词。</string>
+    <string name="permission_bluetooth_settings_guide">请在系统设置中为 Speculonic 开启蓝牙/附近设备权限，以便使用车载蓝牙识别与同步功能。</string>
+
+    <string name="action_go_to_settings">前往设置</string>
+    <string name="action_grant">授予权限</string>
 </resources>

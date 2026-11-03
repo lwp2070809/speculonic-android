@@ -8,6 +8,8 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import de.lwp2070809.speculonic.util.LogTag
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -103,9 +105,18 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
 
-    // 在内嵌展示第三栏日志面板时，返回键优先关闭日志面板
-    BackHandler(enabled = isDualPane && showLogViewer) {
-        showLogViewer = false
+    // 在内嵌展示第三栏日志面板时，返回键优先关闭日志面板（支持预测性返回缩放动效）
+    var logBackProgress by remember { mutableFloatStateOf(0f) }
+    androidx.activity.compose.PredictiveBackHandler(enabled = isDualPane && showLogViewer) { progressFlow ->
+        try {
+            progressFlow.collect { event ->
+                logBackProgress = event.progress
+            }
+            showLogViewer = false
+        } catch (e: kotlinx.coroutines.CancellationException) {
+        } finally {
+            logBackProgress = 0f
+        }
     }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
@@ -180,6 +191,12 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                     modifier = Modifier
                         .weight(1f)
                         .fillMaxHeight()
+                        .graphicsLayer {
+                            val scale = 1f - (logBackProgress * 0.08f)
+                            scaleX = scale
+                            scaleY = scale
+                            translationX = logBackProgress * 48.dp.toPx()
+                        }
                 )
             }
         }
@@ -505,7 +522,10 @@ fun LogViewerPane(
 fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
     ) {
         LogViewerPane(
             currentLogLevel = currentLogLevel,

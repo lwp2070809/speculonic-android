@@ -120,6 +120,16 @@ fun AppNavDisplay(
         ) + fadeOut(animationSpec = tween(300))
     }
 
+    val myPredictivePopTransitionSpec: AnimatedContentTransitionScope<androidx.navigation3.scene.Scene<NavKey>>.(Int) -> ContentTransform = {
+        slideIntoContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.End,
+            animationSpec = tween(300)
+        ) + fadeIn(animationSpec = tween(300)) togetherWith slideOutOfContainer(
+            towards = AnimatedContentTransitionScope.SlideDirection.End,
+            animationSpec = tween(300)
+        ) + fadeOut(animationSpec = tween(300))
+    }
+
     val entryProvider: (NavKey) -> androidx.navigation3.runtime.NavEntry<NavKey> = entryProvider {
         entry<AppRoute.Discover>(
             metadata = ListDetailSceneStrategy.listPane(
@@ -381,7 +391,8 @@ fun AppNavDisplay(
             sceneStrategies = listOf(listDetailStrategy),
             modifier = modifier.fillMaxSize(),
             transitionSpec = myTransitionSpec,
-            popTransitionSpec = myPopTransitionSpec
+            popTransitionSpec = myPopTransitionSpec,
+            predictivePopTransitionSpec = myPredictivePopTransitionSpec
         )
     }
 }

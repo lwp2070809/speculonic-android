@@ -26,6 +26,7 @@ import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 import javax.inject.Inject
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.flow.first
 
@@ -55,13 +56,16 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
         LogManager.setupCrashHandler(this)
         
         val prefsManager = PreferencesManager.getInstance(this)
-        val trustAll = prefsManager.getAllowInsecureConnectionsSync()
-        LogManager.i(
-            LogTag.APP,
-            "SpeculonicApp: Cold start initialized (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
-        )
-        if (trustAll) {
-            NetworkModule.rebuildClientIfNeeded(true)
+        applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
+            val trustAll = prefsManager.getAllowInsecureConnectionsSync()
+            LogManager.i(
+                LogTag.APP,
+                "SpeculonicApp: Async security settings loaded (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
+            )
+            if (trustAll) {
+                NetworkModule.rebuildClientIfNeeded(true)
+            }
+            de.lwp2070809.speculonic.data.DownloadManagerHelper.initializeAsync(this@SpeculonicApp)
         }
         
         

@@ -79,9 +79,30 @@ class MainActivity : AppCompatActivity() {
             val artworkUriState by remember { derivedStateOf { playbackStateState.value.artworkUri } }
             val scope = rememberCoroutineScope()
 
+            var permissionRationaleDialog by remember { mutableStateOf<Triple<String, String, () -> Unit>?>(null) }
+            var permissionSettingsDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+
+            var notificationLauncherRef: androidx.activity.result.ActivityResultLauncher<String>? = null
             val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                 androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-            ) {}
+            ) { isGranted ->
+                if (!isGranted && android.os.Build.VERSION.SDK_INT >= 33) {
+                    if (shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
+                        permissionRationaleDialog = Triple(
+                            getString(R.string.permission_notification_title),
+                            getString(R.string.permission_notification_rationale)
+                        ) {
+                            notificationLauncherRef?.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                        }
+                    } else {
+                        permissionSettingsDialog = Pair(
+                            getString(R.string.permission_notification_title),
+                            getString(R.string.permission_notification_settings_guide)
+                        )
+                    }
+                }
+            }
+            notificationLauncherRef = notificationPermissionLauncher
             LaunchedEffect(Unit) {
                 de.lwp2070809.speculonic.playback.DownloadController.permissionRequests.collect {
                     notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
@@ -96,11 +117,28 @@ class MainActivity : AppCompatActivity() {
             val preferencesManager = remember { PreferencesManager.getInstance(context) }
             val serverUrlState by preferencesManager.serverUrl.collectAsState(initial = "")
             if (android.os.Build.VERSION.SDK_INT >= 37) {
+                var localNetworkLauncherRef: androidx.activity.result.ActivityResultLauncher<String>? = null
                 val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
                     androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
                 ) { isGranted ->
                     LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Local network permission granted = $isGranted")
+                    if (!isGranted) {
+                        if (shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_LOCAL_NETWORK)) {
+                            permissionRationaleDialog = Triple(
+                                getString(R.string.permission_local_network_title),
+                                getString(R.string.permission_local_network_rationale)
+                            ) {
+                                localNetworkLauncherRef?.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+                            }
+                        } else {
+                            permissionSettingsDialog = Pair(
+                                getString(R.string.permission_local_network_title),
+                                getString(R.string.permission_local_network_settings_guide)
+                            )
+                        }
+                    }
                 }
+                localNetworkLauncherRef = localNetworkPermissionLauncher
                 LaunchedEffect(serverUrlState) {
                     if (serverUrlState.isNotBlank() && de.lwp2070809.speculonic.util.NetworkUtils.isLocalNetworkAddress(serverUrlState)) {
                         if (context.checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
@@ -331,6 +369,51 @@ class MainActivity : AppCompatActivity() {
                 darkTheme = darkTheme,
                 seedColor = seedColor
             ) {
+                permissionRationaleDialog?.let { (title, message, onRetry) ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { permissionRationaleDialog = null },
+                        title = { androidx.compose.material3.Text(title) },
+                        text = { androidx.compose.material3.Text(message) },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                permissionRationaleDialog = null
+                                onRetry()
+                            }) {
+                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.action_grant))
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { permissionRationaleDialog = null }) {
+                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
+                permissionSettingsDialog?.let { (title, message) ->
+                    androidx.compose.material3.AlertDialog(
+                        onDismissRequest = { permissionSettingsDialog = null },
+                        title = { androidx.compose.material3.Text(title) },
+                        text = { androidx.compose.material3.Text(message) },
+                        confirmButton = {
+                            androidx.compose.material3.TextButton(onClick = {
+                                permissionSettingsDialog = null
+                                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                                    data = android.net.Uri.fromParts("package", packageName, null)
+                                }
+                                startActivity(intent)
+                            }) {
+                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.action_go_to_settings))
+                            }
+                        },
+                        dismissButton = {
+                            androidx.compose.material3.TextButton(onClick = { permissionSettingsDialog = null }) {
+                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
                 if (showCancelDownloadsDialog) {
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { showCancelDownloadsDialog = false },

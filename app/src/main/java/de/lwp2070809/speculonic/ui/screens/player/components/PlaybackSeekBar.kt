@@ -11,6 +11,8 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -69,21 +71,32 @@ fun PlaybackSeekBar(
             )
         )
         
+        val displaySeconds by remember(isSliderDragging, sliderDragValue, playbackState.duration) {
+            derivedStateOf {
+                val pos = if (isSliderDragging && playbackState.duration > 0) {
+                    (sliderDragValue * playbackState.duration).toLong()
+                } else currentPosition
+                pos / 1000L
+            }
+        }
+        val formattedPosition by remember {
+            derivedStateOf { FormatUtils.formatDuration(displaySeconds * 1000L) }
+        }
+        val formattedDuration = remember(playbackState.duration) {
+            FormatUtils.formatDuration(playbackState.duration)
+        }
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            val displayPosition = if (isSliderDragging && playbackState.duration > 0) {
-                (sliderDragValue * playbackState.duration).toLong()
-            } else currentPosition
-            
             Text(
-                text = FormatUtils.formatDuration(displayPosition),
+                text = formattedPosition,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Text(
-                text = FormatUtils.formatDuration(playbackState.duration),
+                text = formattedDuration,
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -386,4 +386,19 @@
     <string name="cd_back">Back</string>
     <string name="cd_clear">Clear</string>
     <string name="cd_edit">Edit</string>
+    <!-- Runtime Permissions -->
+    <string name="permission_notification_title">Notification Permission</string>
+    <string name="permission_notification_rationale">Speculonic needs notification permission to display playback controls and background download progress.</string>
+    <string name="permission_notification_settings_guide">Please enable notification permission for Speculonic in System Settings to control playback and view download progress.</string>
+
+    <string name="permission_local_network_title">Local Network Permission</string>
+    <string name="permission_local_network_rationale">Your configured Subsonic server is on a local network. Speculonic needs local network access to connect to your private server.</string>
+    <string name="permission_local_network_settings_guide">Please enable local network permission for Speculonic in System Settings to connect to your local music server.</string>
+
+    <string name="permission_bluetooth_title">Bluetooth Permission</string>
+    <string name="permission_bluetooth_rationale">Car Bluetooth identification and metadata sync require Bluetooth permission to detect car devices and sync songs and lyrics.</string>
+    <string name="permission_bluetooth_settings_guide">Please enable Bluetooth / Nearby Devices permission for Speculonic in System Settings to use car audio features.</string>
+
+    <string name="action_go_to_settings">Go to Settings</string>
+    <string name="action_grant">Grant</string>
 </resources>

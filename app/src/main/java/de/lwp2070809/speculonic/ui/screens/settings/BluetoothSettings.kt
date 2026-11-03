@@ -66,10 +66,23 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         }
     }
     
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val activity = context as? androidx.activity.ComponentActivity
+    var showBluetoothRationaleDialog by remember { mutableStateOf(false) }
+    var showBluetoothSettingsDialog by remember { mutableStateOf(false) }
+
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
         viewModel.onBluetoothPermissionResult(isGranted)
+        if (!isGranted) {
+            val shouldShowRationale = activity?.shouldShowRequestPermissionRationale(android.Manifest.permission.BLUETOOTH_CONNECT) == true
+            if (shouldShowRationale) {
+                showBluetoothRationaleDialog = true
+            } else {
+                showBluetoothSettingsDialog = true
+            }
+        }
     }
 
     LaunchedEffect(uiState.showBluetoothPermissionRequest) {
@@ -161,6 +174,51 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             onDismiss = { showBluetoothNamesDialog = false },
             onAdd = { viewModel.addBluetoothCarDeviceName(it) },
             onRemove = { viewModel.removeBluetoothCarDeviceName(it) }
+        )
+    }
+
+    if (showBluetoothRationaleDialog) {
+        AlertDialog(
+            onDismissRequest = { showBluetoothRationaleDialog = false },
+            title = { Text(stringResource(R.string.permission_bluetooth_title)) },
+            text = { Text(stringResource(R.string.permission_bluetooth_rationale)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBluetoothRationaleDialog = false
+                    bluetoothPermissionLauncher.launch(android.Manifest.permission.BLUETOOTH_CONNECT)
+                }) {
+                    Text(stringResource(R.string.action_grant))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBluetoothRationaleDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    if (showBluetoothSettingsDialog) {
+        AlertDialog(
+            onDismissRequest = { showBluetoothSettingsDialog = false },
+            title = { Text(stringResource(R.string.permission_bluetooth_title)) },
+            text = { Text(stringResource(R.string.permission_bluetooth_settings_guide)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showBluetoothSettingsDialog = false
+                    val intent = android.content.Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = android.net.Uri.fromParts("package", context.packageName, null)
+                    }
+                    context.startActivity(intent)
+                }) {
+                    Text(stringResource(R.string.action_go_to_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBluetoothSettingsDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 }

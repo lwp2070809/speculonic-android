@@ -199,14 +199,17 @@ fun MiniPlayer(
 
 @Composable
 private fun MiniPlayerProgressBar(playbackController: de.lwp2070809.speculonic.playback.PlaybackController) {
-    val currentPosition by playbackController.currentPosition.collectAsStateWithLifecycle()
-    val playbackState by playbackController.playbackState.collectAsStateWithLifecycle()
-    val progress = if (playbackState.duration > 0) {
-        currentPosition.toFloat() / playbackState.duration.toFloat()
-    } else 0f
-    
+    // 将 State 对象本身传入 lambda，在 Draw 阶段直接访问 .value，完全跳过函数重组
+    val currentPositionState = playbackController.currentPosition.collectAsStateWithLifecycle()
+    val playbackStateState = playbackController.playbackState.collectAsStateWithLifecycle()
+
     LinearProgressIndicator(
-        progress = { progress },
+        progress = {
+            val duration = playbackStateState.value.duration
+            if (duration > 0) {
+                (currentPositionState.value.toFloat() / duration.toFloat()).coerceIn(0f, 1f)
+            } else 0f
+        },
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.primary,
         trackColor = MaterialTheme.colorScheme.surfaceVariant,

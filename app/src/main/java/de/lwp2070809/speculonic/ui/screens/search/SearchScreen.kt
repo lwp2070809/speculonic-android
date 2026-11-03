@@ -14,6 +14,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.ime
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -83,7 +87,18 @@ fun SearchScreen(
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
     val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
     
-    BackHandler(enabled = backHandlerEnabled, onBack = onClose)
+    var searchBackProgress by remember { mutableFloatStateOf(0f) }
+    androidx.activity.compose.PredictiveBackHandler(enabled = backHandlerEnabled) { progressFlow ->
+        try {
+            progressFlow.collect { event ->
+                searchBackProgress = event.progress
+            }
+            onClose()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+        } finally {
+            searchBackProgress = 0f
+        }
+    }
 
     val uiState by viewModel.uiState.collectAsState()
 
@@ -98,6 +113,12 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .graphicsLayer {
+                val scale = 1f - (searchBackProgress * 0.08f)
+                scaleX = scale
+                scaleY = scale
+                translationX = -searchBackProgress * 48.dp.toPx()
+            }
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(
@@ -151,10 +172,13 @@ fun SearchScreen(
                 }
             } else {
                 val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+                val bottomInset = maxOf(navigationBarsPadding + 80.dp, imePadding + 16.dp)
+
                 LazyColumn(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(
-                        bottom = navigationBarsPadding + 80.dp
+                        bottom = bottomInset
                     )
                 ) {
                     if (uiState.results.artist.isNotEmpty()) {
