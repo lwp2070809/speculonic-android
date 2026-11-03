@@ -1,7 +1,5 @@
 package de.lwp2070809.speculonic
 
-import de.lwp2070809.speculonic.R
-
 import android.content.Intent
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -29,7 +27,6 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil3.SingletonImageLoader
 import dagger.hilt.android.AndroidEntryPoint
-import de.lwp2070809.speculonic.data.CacheSyncWorker
 import de.lwp2070809.speculonic.data.ColorMode
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.data.MetadataSyncWorker
@@ -78,7 +75,6 @@ class MainActivity : AppCompatActivity() {
             val lifecycleOwner = LocalLifecycleOwner.current
             val playbackController = remember { PlaybackController.getInstance(context) }
             val playbackStateState = playbackController.playbackState.collectAsState()
-            val isPlayingState by remember { derivedStateOf { playbackStateState.value.isPlaying } }
             val currentSongIdState by remember { derivedStateOf { playbackStateState.value.currentSongId } }
             val artworkUriState by remember { derivedStateOf { playbackStateState.value.artworkUri } }
             val scope = rememberCoroutineScope()
@@ -115,7 +111,6 @@ class MainActivity : AppCompatActivity() {
             }
             val themeMode by preferencesManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val colorMode by preferencesManager.colorMode.collectAsState(initial = ColorMode.ALBUM_COVER)
-            val mobilePlayAllowed by preferencesManager.mobilePlayAllowed.collectAsState(initial = true)
             val offlineMode by preferencesManager.offlineModeEnabled.collectAsState(initial = false)
             val autoOffline by preferencesManager.autoOfflineOnMetered.collectAsState(initial = false)
 

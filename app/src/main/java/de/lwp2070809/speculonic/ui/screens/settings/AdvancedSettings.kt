@@ -43,7 +43,6 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -373,8 +372,9 @@ fun LogViewerPane(
                                 onDismissRequest = { moreMenuExpanded = false }
                             ) {
                                 // 分享/导出完整日志文件
+                                val shareLogsTitle = stringResource(R.string.share_logs)
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.share_logs)) },
+                                    text = { Text(shareLogsTitle) },
                                     leadingIcon = {
                                         Icon(
                                             painterResource(id = R.drawable.ic_symbol_share),
@@ -399,7 +399,7 @@ fun LogViewerPane(
                                                 }
                                                 val chooser = Intent.createChooser(
                                                     shareIntent,
-                                                    context.getString(R.string.share_logs)
+                                                    shareLogsTitle
                                                 ).apply {
                                                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                 }
@@ -407,10 +407,11 @@ fun LogViewerPane(
                                                     context.startActivity(chooser)
                                                 }
                                             } catch (e: Exception) {
+                                                val errorText = context.applicationContext.getString(R.string.export_logs_failed, e.message ?: "")
                                                 withContext(Dispatchers.Main) {
                                                     Toast.makeText(
                                                         context,
-                                                        context.getString(R.string.export_logs_failed, e.message ?: ""),
+                                                        errorText,
                                                         Toast.LENGTH_SHORT
                                                     ).show()
                                                 }

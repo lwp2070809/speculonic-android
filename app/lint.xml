@@ -11,4 +11,10 @@
     <issue id="InsecureBaseConfiguration">
         <ignore path="res/xml/network_security_config.xml" />
     </issue>
+    <issue id="ExportedService">
+        <ignore path="src/main/AndroidManifest.xml" />
+    </issue>
+    <issue id="ChromeOsAbiSupport">
+        <ignore path="build.gradle.kts" />
+    </issue>
 </lint>

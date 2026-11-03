@@ -55,8 +55,8 @@ fun NowPlayingMobile(
     onShowQueue: () -> Unit,
     onShowSleepTimer: () -> Unit,
     onShowSongInfo: () -> Unit,
-    dragModifier: Modifier = Modifier,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dragModifier: Modifier = Modifier
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
     val scrimBrush = remember(surfaceColor) {

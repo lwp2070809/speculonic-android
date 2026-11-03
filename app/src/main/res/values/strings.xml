@@ -143,8 +143,6 @@
     <string name="silent_cache_description">Automatically download songs after 5s of playback.</string>
     <string name="silent_cache_warning_title">Disable Silent Cache?</string>
     <string name="silent_cache_warning_message">Disabling silent cache will prevent songs from being saved locally while listening. You will consume more data if you listen to the same songs again. Are you sure?</string>
-    <string name="sync_progress_status">Status: %1$s</string>
-    <string name="sync_progress_warning">This operation may take some time. Please keep the app open.</string>
 
     
     <string name="title">Title</string>
@@ -186,7 +184,6 @@
     </plurals>
     <string name="end_of_playlist">At end of playlist</string>
     <string name="all_songs">All Songs</string>
-    <string name="set_minutes">Set Minutes</string>
     <string name="set_countdown">Set Countdown</string>
     <string name="unit_hours">hours</string>
     <string name="unit_minutes">minutes</string>
@@ -350,14 +347,12 @@
     <string name="download_state_removing">Removing…</string>
     <string name="download_state_restarting">Restarting…</string>
     <string name="download_state_unknown">Unknown</string>
-    <string name="sync_progress_full_sync">Performing full metadata synchronization…</string>
     <string name="unknown_error">Unknown error</string>
     <string name="scanning_cache">Scanning cache…</string>
     <string name="server_url_placeholder">https://your-server.com</string>
     <string name="log_level_all">All Levels</string>
     <string name="logs_copied_to_clipboard">Logs copied to clipboard</string>
     <string name="content_description_copy_all">Copy All</string>
-    <string name="force_sync_overwrite_local">Force Sync (Overwrite Local)</string>
     <string name="healing_cover_art">Healing album covers…</string>
     <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
     <string name="export_failed">Export failed: %1$s</string>
@@ -375,9 +370,6 @@
     <string name="placeholder_settings_subtitle">Choose an item from the left panel to configure options</string>
     <string name="placeholder_detail_title">Select an item</string>
     <string name="placeholder_detail_subtitle">Choose an album, artist, or playlist to view details</string>
-    <string name="log_control_panel">Log Control Panel</string>
-    <string name="log_filter_settings">Filter &amp; Settings</string>
-    <string name="total_logs_count">Total Logs: %1$d</string>
     <string name="share_logs">Share Logs</string>
     <string name="log_tag_all">All Modules</string>
     <string name="log_tag_playback">Playback</string>
@@ -387,7 +379,6 @@
     <string name="log_tag_app">System &amp; App</string>
     <string name="export_logs_failed">Failed to export logs: %1$s</string>
     <string name="more_options">More options</string>
-    <string name="cd_more">More options</string>
     <string name="cd_previous">Previous</string>
     <string name="cd_next">Next</string>
     <string name="cd_star">Favorite</string>

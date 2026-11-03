@@ -143,8 +143,6 @@
     <string name="silent_cache_description">播放 5 秒后自动下载歌曲。</string>
     <string name="silent_cache_warning_title">关闭静默缓存？</string>
     <string name="silent_cache_warning_message">关闭后，收听过的歌曲将不会自动保存到本地，下次收听相同歌曲时将重新消耗网络流量。是否确认关闭？</string>
-    <string name="sync_progress_status">当前状态：%1$s</string>
-    <string name="sync_progress_warning">此操作可能耗时较长，请保持应用在前台运行。</string>
 
     
     <string name="title">标题</string>
@@ -183,7 +181,6 @@
     </plurals>
     <string name="end_of_playlist">在播放列表末尾</string>
     <string name="all_songs">所有歌曲</string>
-    <string name="set_minutes">设置分钟数</string>
     <string name="set_countdown">设置倒计时</string>
     <string name="unit_hours">小时</string>
     <string name="unit_minutes">分钟</string>
@@ -347,14 +344,12 @@
     <string name="download_state_removing">正在删除…</string>
     <string name="download_state_restarting">正在重试…</string>
     <string name="download_state_unknown">未知</string>
-    <string name="sync_progress_full_sync">正在执行全量同步…</string>
     <string name="unknown_error">未知错误</string>
     <string name="scanning_cache">正在扫描缓存…</string>
     <string name="server_url_placeholder">https://your-server.com</string>
     <string name="log_level_all">全部级别</string>
     <string name="logs_copied_to_clipboard">日志已复制到剪贴板</string>
     <string name="content_description_copy_all">复制全部</string>
-    <string name="force_sync_overwrite_local">继续同步 (覆盖本地)</string>
     <string name="healing_cover_art">正在补全专辑封面…</string>
     <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
     <string name="export_failed">导出失败: %1$s</string>
@@ -372,9 +367,6 @@
     <string name="placeholder_settings_subtitle">从左侧面板选择要查看或修改的设置选项</string>
     <string name="placeholder_detail_title">选择内容查看</string>
     <string name="placeholder_detail_subtitle">从左侧选择专辑、歌手或歌单查看详细信息</string>
-    <string name="log_control_panel">日志控制面板</string>
-    <string name="log_filter_settings">过滤与设置</string>
-    <string name="total_logs_count">日志总数: %1$d</string>
     <string name="share_logs">分享日志</string>
     <string name="log_tag_all">全部模块</string>
     <string name="log_tag_playback">播放引擎</string>
@@ -384,7 +376,6 @@
     <string name="log_tag_app">应用系统</string>
     <string name="export_logs_failed">导出日志失败: %1$s</string>
     <string name="more_options">更多选项</string>
-    <string name="cd_more">更多选项</string>
     <string name="cd_previous">上一首</string>
     <string name="cd_next">下一首</string>
     <string name="cd_star">收藏</string>

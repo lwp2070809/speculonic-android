@@ -78,10 +78,10 @@ fun FastScroller(
 private fun FastScrollerInternal(
     isScrollInProgress: Boolean,
     firstVisibleItemIndexProvider: () -> Int,
-    visibleItemCountProvider: () -> Int = { 0 },
     scrollToItem: suspend (Int) -> Unit,
     flatItems: List<ArtistListItem>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    visibleItemCountProvider: () -> Int = { 0 }
 ) {
     if (flatItems.isEmpty()) return
 

@@ -45,8 +45,8 @@ fun NowPlayingExpanded(
     onShowQueue: () -> Unit,
     onShowSleepTimer: () -> Unit,
     onShowSongInfo: () -> Unit,
-    dragModifier: Modifier = Modifier,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    dragModifier: Modifier = Modifier
 ) {
     Row(
         modifier = modifier

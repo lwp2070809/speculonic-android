@@ -16,7 +16,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -28,7 +27,6 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Playlist
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.TopBarState
@@ -48,8 +46,7 @@ fun PlaylistDetailScreen(
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
-    onBackClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
@@ -57,10 +54,10 @@ fun PlaylistDetailScreen(
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val uiState by viewModel.uiState.collectAsState()
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
+    val playlistNotFoundMsg = stringResource(R.string.playlist_not_found)
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
     val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
     val isAnyDownloading = remember(activeDownloads, uiState.songs) {
@@ -82,7 +79,6 @@ fun PlaylistDetailScreen(
     val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {
         playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
     }
-    val playlistTitle = stringResource(R.string.playlists)
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
     var isNavigatingBack by remember { mutableStateOf(false) }
@@ -106,7 +102,7 @@ fun PlaylistDetailScreen(
 
     LaunchedEffect(uiState.isDeleted, uiState.shouldAutoExit) {
         if (uiState.isDeleted && uiState.shouldAutoExit) {
-            Toast.makeText(context, context.getString(R.string.playlist_not_found), Toast.LENGTH_SHORT).show()
+            Toast.makeText(context, playlistNotFoundMsg, Toast.LENGTH_SHORT).show()
             safeBackClick()
         }
     }

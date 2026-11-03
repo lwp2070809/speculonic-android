@@ -64,13 +64,13 @@ import kotlinx.coroutines.launch
 fun LyricsView(
     lyricsLines: List<LyricLine>,
     rawLyrics: String?,
-    currentPosition: Long = 0L,
-    currentPositionFlow: StateFlow<Long>? = null,
-    currentPositionProvider: (() -> Long)? = null,
     isPlaying: Boolean,
     isLoading: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
+    currentPosition: Long = 0L,
+    currentPositionFlow: StateFlow<Long>? = null,
+    currentPositionProvider: (() -> Long)? = null,
     onClick: (() -> Unit)? = null
 ) {
     val listState = rememberLazyListState()

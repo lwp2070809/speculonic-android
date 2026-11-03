@@ -181,6 +181,10 @@ fun NowPlayingScreen(
                     showQueue = false
                 },
                 onRemoveItem = { playbackController.removeFromQueue(it) },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.8f)
+                    .padding(16.dp),
                 applyMiniPlayerInset = false
             )
         }

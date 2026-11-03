@@ -34,10 +34,7 @@ fun QueueView(
     currentIndex: Int,
     onItemClick: (Int) -> Unit,
     onRemoveItem: (Int) -> Unit,
-    modifier: Modifier = Modifier
-        .fillMaxWidth()
-        .fillMaxHeight(0.8f)
-        .padding(16.dp),
+    modifier: Modifier = Modifier,
     showTitle: Boolean = true,
     applyMiniPlayerInset: Boolean = true
 ) {
