@@ -71,7 +71,11 @@ fun InconsistencyDialog(
                             .weight(1f)
                             .fillMaxWidth()
                     ) {
-                        items(inconsistentItems) { item ->
+                        items(
+                            items = inconsistentItems,
+                            key = { it.id },
+                            contentType = { "inconsistent_item" }
+                        ) { item ->
                             ListItem(
                                 headlineContent = {
                                     Text(

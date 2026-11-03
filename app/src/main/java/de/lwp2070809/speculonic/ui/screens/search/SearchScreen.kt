@@ -158,8 +158,14 @@ fun SearchScreen(
                     )
                 ) {
                     if (uiState.results.artist.isNotEmpty()) {
-                        item { SectionHeader(stringResource(R.string.artists)) }
-                        items(uiState.results.artist) { artist ->
+                        item(key = "header_artists", contentType = "section_header") {
+                            SectionHeader(stringResource(R.string.artists))
+                        }
+                        items(
+                            items = uiState.results.artist,
+                            key = { "artist_${it.id}" },
+                            contentType = { "artist_item" }
+                        ) { artist ->
                             ArtistSearchItem(artist) {
                                 onArtistClick(artist.id)
                             }
@@ -167,8 +173,14 @@ fun SearchScreen(
                     }
 
                     if (uiState.results.album.isNotEmpty()) {
-                        item { SectionHeader(stringResource(R.string.albums)) }
-                        items(uiState.results.album) { album ->
+                        item(key = "header_albums", contentType = "section_header") {
+                            SectionHeader(stringResource(R.string.albums))
+                        }
+                        items(
+                            items = uiState.results.album,
+                            key = { "album_${it.id}" },
+                            contentType = { "album_item" }
+                        ) { album ->
                             AlbumSearchItem(album) {
                                 onAlbumClick(album.id)
                             }
@@ -176,8 +188,14 @@ fun SearchScreen(
                     }
 
                     if (uiState.results.song.isNotEmpty()) {
-                        item { SectionHeader(stringResource(R.string.songs)) }
-                        items(uiState.results.song) { song ->
+                        item(key = "header_songs", contentType = "section_header") {
+                            SectionHeader(stringResource(R.string.songs))
+                        }
+                        items(
+                            items = uiState.results.song,
+                            key = { "song_${it.id}" },
+                            contentType = { "song_item" }
+                        ) { song ->
                             SongListItem(
                                 song = song,
                                 isCurrent = song.id == currentSongId,

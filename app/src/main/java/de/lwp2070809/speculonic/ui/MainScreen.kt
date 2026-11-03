@@ -69,7 +69,7 @@ fun MainScreen(
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit
 ) {
-    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = preferencesManager.getServerUrlSync())
+    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = "")
 
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()

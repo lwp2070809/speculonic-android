@@ -176,7 +176,7 @@ fun PlaylistDetailScreen(
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
                     contentPadding = PaddingValues(bottom = 16.dp + LocalMiniPlayerBottomInset.current)
                 ) {
-                    item {
+                    item(key = "playlist_header", contentType = "header") {
                         PlaylistHeader(
                             playlist = uiState.playlist,
                             songCountOverride = uiState.songs.size,
@@ -185,7 +185,7 @@ fun PlaylistDetailScreen(
                     }
 
                     if (uiState.songs.isNotEmpty()) {
-                        item {
+                        item(key = "action_row", contentType = "action_row") {
                             ActionButtonsRow(
                                 onPlayAll = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
@@ -219,7 +219,7 @@ fun PlaylistDetailScreen(
                     }
 
                     if (uiState.songs.isEmpty()) {
-                        item {
+                        item(key = "empty_content", contentType = "empty_content") {
                             Box(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -235,7 +235,11 @@ fun PlaylistDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.songs, key = { index, song -> "${song.id}_$index" }) { index, song ->
+                    itemsIndexed(
+                        items = uiState.songs,
+                        key = { index, song -> "${song.id}_$index" },
+                        contentType = { _, _ -> "song_item" }
+                    ) { index, song ->
                         SongListItem(
                             song = song,
                             isCurrent = song.id == currentSongId,

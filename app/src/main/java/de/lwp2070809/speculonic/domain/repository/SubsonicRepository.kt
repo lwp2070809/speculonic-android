@@ -72,23 +72,25 @@ class SubsonicRepository(
     @Volatile private var lastConfiguredPassword: String = ""
 
     init {
-        val initialUrl = preferencesManager.getServerUrlSync()
-        val initialUser = preferencesManager.getUsernameSync()
-        val initialPass = preferencesManager.getPasswordSync()
-        lastConfiguredPassword = String(initialPass)
-        
-        val cachedCaps = preferencesManager.getServerCapabilitiesSync()
-        if (cachedCaps != null) {
-            serverCapabilities = cachedCaps
-        }
-        
-        reconfigure(initialUrl, initialUser, initialPass)
         startObservingPreferences()
-
     }
 
     private fun startObservingPreferences() {
-        observationScope.launch {
+        observationScope.launch(Dispatchers.IO) {
+            val initialUrl = preferencesManager.getServerUrlSync()
+            val initialUser = preferencesManager.getUsernameSync()
+            val initialPass = preferencesManager.getPasswordSync()
+            lastConfiguredPassword = String(initialPass)
+
+            val cachedCaps = preferencesManager.getServerCapabilitiesSync()
+            if (cachedCaps != null) {
+                serverCapabilities = cachedCaps
+            }
+
+            if (initialUrl.isNotEmpty()) {
+                reconfigure(initialUrl, initialUser, initialPass)
+            }
+
             combine(
                 preferencesManager.serverUrl,
                 preferencesManager.username,
@@ -96,18 +98,21 @@ class SubsonicRepository(
             ) { url, username, password ->
                 Triple(url, username, password)
             }.collectLatest { (url, username, password) ->
-                if (url != baseUrl || username != authManager.getAuthParams().first || password != lastConfiguredPassword) {
+                val currentUsername = components?.authManager?.getAuthParams()?.first ?: ""
+                if (url != baseUrl || username != currentUsername || password != lastConfiguredPassword) {
                     lastConfiguredPassword = password
                     reconfigure(url, username, password.toCharArray())
-                    }
+                }
             }
         }
-        observationScope.launch {
+
+        observationScope.launch(Dispatchers.IO) {
             preferencesManager.transcodeIncompatibleFormats.collectLatest {
                 transcodeIncompatible = it
             }
         }
-        observationScope.launch {
+
+        observationScope.launch(Dispatchers.IO) {
             preferencesManager.targetTranscodeFormat.collectLatest {
                 targetTranscodeFormat = it
             }

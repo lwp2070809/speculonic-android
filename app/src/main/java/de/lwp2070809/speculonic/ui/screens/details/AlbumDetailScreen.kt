@@ -137,12 +137,12 @@ fun AlbumDetailScreen(
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(bottom = 16.dp + LocalMiniPlayerBottomInset.current)
                 ) {
-                    item {
+                    item(key = "album_header", contentType = "header") {
                         AlbumHeader(album = uiState.album)
                     }
 
                     if (uiState.songs.isNotEmpty()) {
-                        item {
+                        item(key = "action_row", contentType = "action_row") {
                             ActionButtonsRow(
                                 onPlayAll = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
@@ -175,7 +175,11 @@ fun AlbumDetailScreen(
                         }
                     }
 
-                    itemsIndexed(uiState.songs, key = { _, song -> song.id }) { _, song ->
+                    itemsIndexed(
+                        items = uiState.songs,
+                        key = { _, song -> song.id },
+                        contentType = { _, _ -> "song_item" }
+                    ) { _, song ->
                         SongListItem(
                             song = song,
                             isCurrent = song.id == currentSongId,

@@ -2,11 +2,19 @@ package de.lwp2070809.speculonic.ui.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshots.SnapshotStateList
+import androidx.compose.runtime.toMutableStateList
+import androidx.lifecycle.viewmodel.navigation3.rememberViewModelStoreNavEntryDecorator
+import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
+import androidx.navigation3.runtime.rememberDecoratedNavEntries
+import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -124,6 +132,28 @@ class NavigationState(
         
         val activeKeys = backStacks[topLevelRoute]?.takeIf { it.isNotEmpty() } ?: listOf(startRoute)
         return inactiveKeys + activeKeys
+    }
+
+    @Composable
+    fun toDecoratedEntries(
+        entryProvider: (NavKey) -> NavEntry<NavKey>
+    ): SnapshotStateList<NavEntry<NavKey>> {
+        val decoratedEntries = topLevelRoutes.associateWith { topKey ->
+            key(topKey) {
+                val stack = backStacks[topKey] ?: listOf(topKey)
+                val decorators = listOf(
+                    rememberSaveableStateHolderNavEntryDecorator<NavKey>(),
+                    rememberViewModelStoreNavEntryDecorator<NavKey>(),
+                    remember { ClickBlockerNavEntryDecorator<NavKey>() }
+                )
+                rememberDecoratedNavEntries(
+                    backStack = stack,
+                    entryDecorators = decorators,
+                    entryProvider = entryProvider
+                )
+            }
+        }
+        return (decoratedEntries[topLevelRoute] ?: emptyList()).toMutableStateList()
     }
 
     companion object {

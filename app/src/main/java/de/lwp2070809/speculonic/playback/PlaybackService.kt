@@ -547,13 +547,21 @@ class PlaybackService : MediaSessionService() {
             session: MediaSession,
             controller: MediaSession.ControllerInfo
         ): MediaSession.ConnectionResult {
-            val sessionCommands = MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
-                .add(androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY))
-                .add(androidx.media3.session.SessionCommand("SET_SLEEP_TIMER", android.os.Bundle.EMPTY))
-                .add(androidx.media3.session.SessionCommand("CANCEL_SLEEP_TIMER", android.os.Bundle.EMPTY))
-                .build()
+            val isInternalClient = controller.uid == android.os.Process.myUid()
+
+            val availableSessionCommands = if (isInternalClient) {
+                MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS.buildUpon()
+                    .add(androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY))
+                    .add(androidx.media3.session.SessionCommand("SET_SLEEP_TIMER", android.os.Bundle.EMPTY))
+                    .add(androidx.media3.session.SessionCommand("CANCEL_SLEEP_TIMER", android.os.Bundle.EMPTY))
+                    .build()
+            } else {
+                // 外部系统调用方仅允许标准会话指令，屏蔽应用专有自定义指令
+                MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
+            }
+
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
-                .setAvailableSessionCommands(sessionCommands)
+                .setAvailableSessionCommands(availableSessionCommands)
                 .build()
         }
 
@@ -580,6 +588,11 @@ class PlaybackService : MediaSessionService() {
             customCommand: androidx.media3.session.SessionCommand,
             args: android.os.Bundle
         ): com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.SessionResult> {
+            if (controller.uid != android.os.Process.myUid()) {
+                return com.google.common.util.concurrent.Futures.immediateFuture(
+                    androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_ERROR_PERMISSION_DENIED)
+                )
+            }
             when (customCommand.customAction) {
                 "SET_QUEUE_TITLE" -> {
                     val title = args.getString("queueTitle")

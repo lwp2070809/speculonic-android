@@ -57,12 +57,15 @@ object LogTag {
     }
 }
 
+private val logIdSequence = java.util.concurrent.atomic.AtomicLong(0L)
+
 data class LogEntry(
     val timestamp: String,
     val level: LogLevel,
     val tag: String = LogTag.APP,
     val message: String,
-    val isEasterEgg: Boolean = false
+    val isEasterEgg: Boolean = false,
+    val id: Long = logIdSequence.incrementAndGet()
 )
 
 object LogManager {

@@ -374,19 +374,14 @@ fun AppNavDisplay(
 
     val isDualPane = directive.maxHorizontalPartitions > 1
     androidx.compose.runtime.CompositionLocalProvider(de.lwp2070809.speculonic.ui.composition.LocalIsDualPane provides isDualPane) {
+        val entries = navigationState.toDecoratedEntries(entryProvider = safeEntryProvider)
         NavDisplay(
-            backStack = navigationState.getCurrentBackStack(),
+            entries = entries,
             onBack = { navigator.goBack() },
             sceneStrategies = listOf(listDetailStrategy),
             modifier = modifier.fillMaxSize(),
-            entryDecorators = listOf(
-                rememberSaveableStateHolderNavEntryDecorator(),
-                rememberViewModelStoreNavEntryDecorator(),
-                remember { ClickBlockerNavEntryDecorator() }
-            ),
             transitionSpec = myTransitionSpec,
-            popTransitionSpec = myPopTransitionSpec,
-            entryProvider = safeEntryProvider
+            popTransitionSpec = myPopTransitionSpec
         )
     }
 }
@@ -434,7 +429,7 @@ private fun PanePlaceholder(
     }
 }
 
-private class ClickBlockerNavEntryDecorator<T : Any> : NavEntryDecorator<T>(
+internal class ClickBlockerNavEntryDecorator<T : Any> : NavEntryDecorator<T>(
     decorate = { entry ->
         val lifecycleOwner = LocalLifecycleOwner.current
         val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState(initial = lifecycleOwner.lifecycle.currentState)

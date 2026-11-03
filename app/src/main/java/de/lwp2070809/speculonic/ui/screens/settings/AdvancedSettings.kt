@@ -474,7 +474,11 @@ fun LogViewerPane(
                         .padding(horizontal = 8.dp),
                     contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + LocalMiniPlayerBottomInset.current)
                 ) {
-                    items(filteredLogs) { log ->
+                    items(
+                        items = filteredLogs,
+                        key = { it.id },
+                        contentType = { "log_item" }
+                    ) { log ->
                         val color = when (log.level) {
                             LogLevel.ERROR -> MaterialTheme.colorScheme.error
                             LogLevel.WARN -> MaterialTheme.colorScheme.tertiary
