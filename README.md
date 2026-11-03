@@ -31,14 +31,14 @@ Therefore, some common features found in mainstream Subsonic clients will not be
 
 ## Requirements
 
-* **Android Version**: Android 12.0 (API 31) or higher.
+* **Android Version**: Android 13.0 (API 33) or higher.
 
 ## Roadmap
 
 - [x] Provide Github Action builds
 - [x] Refactor tablet UI layout
-- [ ] Support API 37
-- [ ] Provide Android X86 builds
+- [x] Support API 37
+- [x] Provide Android X86 builds
 - [ ] Supports bilingual lyrics (work in progress)
 - [ ] Publish on F-Droid
 - [ ] Release v1.0.0 Stable (Currently under active development, but features are becoming stable)
@@ -104,14 +104,14 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 ## 系统要求
 
-* **Android 版本**: Android 12.0 (API 31) 及以上.
+* **Android 版本**: Android 13.0 (API 33) 及以上.
 
 ## 开发路线图
 
 - [x] 提供 Github Action 构建
 - [x] 重构平板电脑的 UI
-- [ ] 支持API 37
-- [ ] 提供 Android X86 版本
+- [x] 支持API 37
+- [x] 提供 Android X86 版本
 - [ ] 支持双语歌词 (正在研究)
 - [ ] 上架 F-Droid
 - [ ] 发布`v1.0.0` 正式版 (当前处于积极开发阶段, 但功能已趋于稳定)

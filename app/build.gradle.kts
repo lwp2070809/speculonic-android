@@ -1,5 +1,6 @@
 import java.io.FileInputStream
 import java.util.Properties
+import com.android.build.api.variant.FilterConfiguration.FilterType.ABI
 
 plugins {
     alias(libs.plugins.android.application)
@@ -14,6 +15,9 @@ android {
     namespace = "de.lwp2070809.speculonic"
     compileSdk = 37
 
+    val supportedAbis = listOf("arm64-v8a", "x86_64")
+    val injectedAbi = project.findProperty("android.injected.build.abi")?.toString()
+
     defaultConfig {
         applicationId = "de.lwp2070809.speculonic"
         minSdk = 33
@@ -23,8 +27,28 @@ android {
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
-        ndk {
-            abiFilters.add("arm64-v8a")
+        if (!injectedAbi.isNullOrBlank()) {
+            ndk {
+                val targetAbis = injectedAbi.split(",")
+                    .map { it.trim() }
+                    .filter { it in supportedAbis }
+                if (targetAbis.isNotEmpty()) {
+                    abiFilters.addAll(targetAbis)
+                } else {
+                    abiFilters.addAll(supportedAbis)
+                }
+            }
+        }
+    }
+
+    if (injectedAbi.isNullOrBlank()) {
+        splits {
+            abi {
+                isEnable = true
+                reset()
+                include(*supportedAbis.toTypedArray())
+                isUniversalApk = false
+            }
         }
     }
 
@@ -95,6 +119,20 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+val abiCodes = mapOf("x86_64" to 1, "arm64-v8a" to 2)
+
+androidComponents {
+    onVariants { variant ->
+        variant.outputs.forEach { output ->
+            val name = output.filters.find { it.filterType == ABI }?.identifier
+            val baseAbiCode = abiCodes[name]
+            if (baseAbiCode != null) {
+                output.versionCode.set(baseAbiCode * 1000 + (output.versionCode.get() ?: 0))
+            }
+        }
     }
 }
 
