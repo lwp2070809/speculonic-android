@@ -10,8 +10,8 @@
 #    (a) 保留 Tag 实现类的原始名称，供 SongAudioMetadataExtractor 中 tag.javaClass.simpleName 提取标签格式（如 FLAC/ID3）
 -keepnames class * implements org.jaudiotagger.tag.Tag
 
-#    (b) 仅保留 ID3 帧体反射实例化的构造函数
--keepclassmembers class org.jaudiotagger.tag.id3.framebody.** {
+#    (b) 保留 ID3 帧体类及其反射实例化的构造函数（防范 Class.forName 动态加载被 R8 移除）
+-keep class org.jaudiotagger.tag.id3.framebody.** {
     public <init>(...);
 }
 

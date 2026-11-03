@@ -6,8 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -15,7 +13,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -28,6 +25,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
@@ -122,8 +121,13 @@ fun NowPlayingMobile(
                     if (artworkAlpha > 0f) {
                         Box(
                             modifier = Modifier
-                                .fillMaxHeight()
-                                .aspectRatio(1f)
+                                .layout { measurable, constraints ->
+                                    val side = minOf(constraints.maxWidth, constraints.maxHeight)
+                                    val placeable = measurable.measure(Constraints.fixed(side, side))
+                                    layout(side, side) {
+                                        placeable.placeRelative(0, 0)
+                                    }
+                                }
                                 .clip(RoundedCornerShape(24.dp))
                                 .clickable { onToggleLyrics() }
                                 .graphicsLayer {

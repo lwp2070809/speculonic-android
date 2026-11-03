@@ -3,7 +3,6 @@ package de.lwp2070809.speculonic.ui.screens.player
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -11,13 +10,14 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackState
@@ -69,7 +69,7 @@ fun NowPlayingExpanded(
                 onShowQueue = onShowQueue
             )
 
-            // 唱片大封面
+            // 唱片大封面：在 Layout 阶段零子组合计算 minOf(maxWidth, maxHeight) 的 1:1 最大内切正方形
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -79,8 +79,13 @@ fun NowPlayingExpanded(
             ) {
                 Box(
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .aspectRatio(1f)
+                        .layout { measurable, constraints ->
+                            val side = minOf(constraints.maxWidth, constraints.maxHeight)
+                            val placeable = measurable.measure(Constraints.fixed(side, side))
+                            layout(side, side) {
+                                placeable.placeRelative(0, 0)
+                            }
+                        }
                         .clip(RoundedCornerShape(24.dp))
                 ) {
                     ArtworkView(

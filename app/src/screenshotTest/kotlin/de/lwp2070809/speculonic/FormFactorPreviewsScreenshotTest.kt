@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic
 
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.tooling.preview.Preview
+import com.android.tools.screenshot.PreviewTest
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
@@ -14,6 +15,7 @@ import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
  */
 class FormFactorPreviewsScreenshotTest {
 
+    @PreviewTest
     @Preview(showBackground = true)
     @FormFactorPreviews
     @Composable
