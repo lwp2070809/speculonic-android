@@ -185,6 +185,13 @@ fun SongListItem(
     }
 
     ListItem(
+        colors = androidx.compose.material3.ListItemDefaults.colors(
+            containerColor = if (isCurrent) {
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+            } else {
+                Color.Transparent
+            }
+        ),
         headlineContent = { 
             Row(
                 modifier = Modifier.alpha(alpha),
@@ -323,6 +330,7 @@ fun SongListItem(
             }
         },
         modifier = modifier
+            .clip(RoundedCornerShape(8.dp))
             .clickable {
                 if (!isPlayable) {
                     val suffixText = (song.suffix ?: "UNKNOWN").uppercase()

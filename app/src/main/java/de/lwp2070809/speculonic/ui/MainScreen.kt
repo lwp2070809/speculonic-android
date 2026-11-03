@@ -344,16 +344,24 @@ private fun MainContent(
                         visible = showSearch,
                         enter = if (isDualPane) slideInHorizontally { -it } + fadeIn() else slideInVertically { it } + fadeIn(),
                         exit = if (isDualPane) slideOutHorizontally { -it } + fadeOut() else slideOutVertically { it } + fadeOut(),
-                        modifier = if (isDualPane) Modifier.width(listPaneWidth).fillMaxHeight() else Modifier.fillMaxSize()
+                        modifier = if (isDualPane) Modifier.width(listPaneWidth + 1.dp).fillMaxHeight() else Modifier.fillMaxSize()
                     ) {
                         Row(modifier = Modifier.fillMaxSize()) {
                             Surface(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .fillMaxHeight()
-                                    .pointerInput(Unit) {
-                                        detectTapGestures { }
-                                    },
+                                modifier = if (isDualPane) {
+                                    Modifier
+                                        .width(listPaneWidth)
+                                        .fillMaxHeight()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures { }
+                                        }
+                                } else {
+                                    Modifier
+                                        .fillMaxSize()
+                                        .pointerInput(Unit) {
+                                            detectTapGestures { }
+                                        }
+                                },
                                 color = MaterialTheme.colorScheme.background
                             ) {
                                 val hasActiveDetailInDualPane = isDualPane && navigationState.getCurrentBackStack().lastOrNull()?.let { (it as? AppRoute)?.isDetailPane == true } == true
@@ -380,6 +388,7 @@ private fun MainContent(
                             }
                             if (isDualPane) {
                                 androidx.compose.material3.VerticalDivider(
+                                    modifier = Modifier.width(1.dp).fillMaxHeight(),
                                     color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
                                 )
                             }

@@ -175,7 +175,11 @@ fun LyricsView(
                     )
                 }
             } else {
-                Text(stringResource(R.string.no_lyrics), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    text = stringResource(R.string.no_lyrics),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
             }
         } else {
             LazyColumn(

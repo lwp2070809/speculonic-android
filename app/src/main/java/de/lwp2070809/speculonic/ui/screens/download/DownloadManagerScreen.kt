@@ -93,11 +93,11 @@ fun DownloadManagerScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val manualDownloads = remember(allDownloads) {
-        allDownloads.filter { !isSilentDownload(it.task) }
+        allDownloads.filter { !isSilentDownload(it.task) }.reversed()
     }
 
     val silentDownloads = remember(allDownloads) {
-        allDownloads.filter { isSilentDownload(it.task) }
+        allDownloads.filter { isSilentDownload(it.task) }.reversed()
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -125,9 +125,11 @@ fun DownloadManagerScreen(
             ) {
                 TextButton(
                     onClick = {
-                        currentTasks.forEach { info ->
-                            downloadController.cancelDownloadTaskOnly(info.task.request.id)
-                        }
+                        currentTasks
+                            .filter { it.state != androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING }
+                            .forEach { info ->
+                                downloadController.cancelDownloadTaskOnly(info.task.request.id)
+                            }
                     },
                     colors = ButtonDefaults.textButtonColors(
                         contentColor = MaterialTheme.colorScheme.primary

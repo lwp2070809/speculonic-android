@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -66,13 +67,21 @@ fun QueueView(
                 key = { index, item -> "${item.mediaId}_$index" },
                 contentType = { _, _ -> "queueItem" }
             ) { index, item ->
+                val isCurrent = index == currentIndex
                 ListItem(
+                    colors = androidx.compose.material3.ListItemDefaults.colors(
+                        containerColor = if (isCurrent) {
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
+                        } else {
+                            androidx.compose.ui.graphics.Color.Transparent
+                        }
+                    ),
                     headlineContent = { 
                         val title = item.mediaMetadata.title?.toString() ?: ""
                         Text(
                             text = title.ifEmpty { stringResource(R.string.not_playing) },
-                            fontWeight = if (index == currentIndex) FontWeight.Bold else FontWeight.Normal,
-                            color = if (index == currentIndex) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
                         ) 
                     },
                     supportingContent = { 
@@ -80,7 +89,7 @@ fun QueueView(
                         Text(artist.ifEmpty { stringResource(R.string.not_playing_artist) })
                     },
                     leadingContent = {
-                        if (index == currentIndex) {
+                        if (isCurrent) {
                             Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_volume_up), null, tint = MaterialTheme.colorScheme.primary)
                         } else {
                             Text("${index + 1}", modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
@@ -91,7 +100,9 @@ fun QueueView(
                             Icon(Icons.Default.Close, null)
                         }
                     },
-                    modifier = Modifier.clickable { onItemClick(index) }
+                    modifier = Modifier
+                        .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+                        .clickable { onItemClick(index) }
                 )
             }
         }
