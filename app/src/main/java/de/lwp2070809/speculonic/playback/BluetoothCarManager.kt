@@ -87,6 +87,10 @@ class BluetoothCarManager(
 
     var bluetoothLyricsEnabled = false
     var bluetoothLyricsHideProgressBar = false
+    var lyricsOffsetMs: Long
+        get() = lyricsManager.lyricsOffsetMs
+        set(value) { lyricsManager.lyricsOffsetMs = value }
+
 
     
 
@@ -152,15 +156,17 @@ class BluetoothCarManager(
 
         override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
             val original = super.getMediaMetadata()
-            var builder = original.buildUpon()
-            var changed = false
-
             synchronized(stateLock) {
                 if (currentLyricTitle != null) {
-                    builder = builder.setTitle(currentLyricTitle)
+                    return original.buildUpon()
+                        .setTitle(currentLyricTitle)
                         .setArtist(currentLyricArtist ?: original.artist)
-                    changed = true
+                        .setArtworkUri(original.artworkUri)
+                        .build()
                 }
+
+                var builder = original.buildUpon()
+                var changed = false
 
                 if (syncTimestamp > 0) {
                     val extras = android.os.Bundle(original.extras ?: android.os.Bundle.EMPTY).apply {
@@ -177,22 +183,25 @@ class BluetoothCarManager(
                     builder = builder.setArtworkUri(syncedUri)
                     changed = true
                 }
-            }
 
-            return if (changed) builder.build() else original
+                return if (changed) builder.build() else original
+            }
         }
 
         override fun getCurrentMediaItem(): androidx.media3.common.MediaItem? {
             val original = super.getCurrentMediaItem() ?: return null
-            var metaBuilder = original.mediaMetadata.buildUpon()
-            var changed = false
-
             synchronized(stateLock) {
                 if (currentLyricTitle != null) {
-                    metaBuilder = metaBuilder.setTitle(currentLyricTitle)
+                    val lightMeta = original.mediaMetadata.buildUpon()
+                        .setTitle(currentLyricTitle)
                         .setArtist(currentLyricArtist ?: original.mediaMetadata.artist)
-                    changed = true
+                        .setArtworkUri(original.mediaMetadata.artworkUri)
+                        .build()
+                    return original.buildUpon().setMediaMetadata(lightMeta).build()
                 }
+
+                var metaBuilder = original.mediaMetadata.buildUpon()
+                var changed = false
 
                 if (syncTimestamp > 0) {
                     val extras = android.os.Bundle(original.mediaMetadata.extras ?: android.os.Bundle.EMPTY).apply {
@@ -209,12 +218,12 @@ class BluetoothCarManager(
                     metaBuilder = metaBuilder.setArtworkUri(syncedUri)
                     changed = true
                 }
-            }
 
-            return if (changed) {
-                original.buildUpon().setMediaMetadata(metaBuilder.build()).build()
-            } else {
-                original
+                return if (changed) {
+                    original.buildUpon().setMediaMetadata(metaBuilder.build()).build()
+                } else {
+                    original
+                }
             }
         }
 

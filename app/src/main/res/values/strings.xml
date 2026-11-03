@@ -200,6 +200,10 @@
     <string name="sync_playback_state_description">Force sync song info to the car screen when connected, even if the app is paused.</string>
     <string name="bluetooth_lyrics_hide_progress_bar">Hide Progress Bar</string>
     <string name="bluetooth_lyrics_hide_progress_bar_description">Avoid screen flickering caused by frequent progress changes on some car media systems. Enabling this option will disguise the player engine as playing a live radio stream, making the progress bar unavailable for viewing or seeking.</string>
+    <string name="bluetooth_lyrics_offset">Car Lyrics Timing Advance</string>
+    <string name="bluetooth_lyrics_offset_description">Send lyrics to the car in advance to offset system Bluetooth throttling and car screen animation delays. Recommended: 2.0s.</string>
+    <string name="bluetooth_lyrics_offset_disabled">Disabled (0s)</string>
+    <string name="bluetooth_lyrics_offset_value_format">Advance %1$d ms (%2$.1f s)</string>
     <string name="add_device_name">Add Device Name</string>
     <string name="device_name_placeholder">e.g., My Car BT</string>
 

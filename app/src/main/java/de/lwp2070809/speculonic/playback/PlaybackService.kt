@@ -361,6 +361,11 @@ class PlaybackService : MediaSessionService() {
             }
             
             launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
+            launch {
+                prefs.bluetoothLyricsOffsetMs.collect { offset ->
+                    carAudioManager.lyricsOffsetMs = offset
+                }
+            }
             
             launch {
                 prefs.skipSilenceEnabled.collect { skip ->

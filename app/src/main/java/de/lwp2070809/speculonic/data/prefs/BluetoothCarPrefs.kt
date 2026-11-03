@@ -7,6 +7,7 @@ interface BluetoothCarPrefs {
     val bluetoothLyricsEnabled: Flow<Boolean>
     val bluetoothLyricsHideProgressBar: Flow<Boolean>
     val bluetoothCarDeviceNames: Flow<Set<String>>
+    val bluetoothLyricsOffsetMs: Flow<Long>
 
     suspend fun saveCarBluetoothEnabled(enabled: Boolean)
     suspend fun saveBluetoothLyricsEnabled(enabled: Boolean)
@@ -14,4 +15,5 @@ interface BluetoothCarPrefs {
     suspend fun saveBluetoothCarDeviceNames(names: Set<String>)
     suspend fun addBluetoothCarDeviceName(name: String)
     suspend fun removeBluetoothCarDeviceName(name: String)
+    suspend fun saveBluetoothLyricsOffsetMs(offsetMs: Long)
 }

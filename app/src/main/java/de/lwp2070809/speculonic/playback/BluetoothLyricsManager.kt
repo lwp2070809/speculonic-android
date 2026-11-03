@@ -33,6 +33,7 @@ class BluetoothLyricsManager(
     private var currentLyricsJob: Job? = null
     private var lastUpdateTimestamp = 0L
     private var pendingUpdateJob: Job? = null
+    @Volatile var lyricsOffsetMs: Long = 2000L
     @Volatile var isPlayPauseJitterProtected = false
     @Volatile private var currentLoadedMediaId: String? = null
 
@@ -108,8 +109,9 @@ class BluetoothLyricsManager(
                 
                 while (isActive) {
                     val position = player.currentPosition
+                    val effectivePosition = position + lyricsOffsetMs
                     
-                    val lineIndex = currentLyricsLines.indexOfLast { it.timeMs <= position }
+                    val lineIndex = currentLyricsLines.indexOfLast { it.timeMs <= effectivePosition }
                     
                     if (lineIndex != lastLineIndex) {
                         val line = if (lineIndex != -1) currentLyricsLines[lineIndex].content else null
@@ -125,14 +127,18 @@ class BluetoothLyricsManager(
                         -1L
                     }
 
-                    val delayTime = if (nextLineTime != -1L && nextLineTime > position) {
-                        (nextLineTime - position).coerceIn(100L, 1000L)
-                    } else {
-                        500L
+                    val nextTriggerPosition = if (nextLineTime != -1L) nextLineTime - lyricsOffsetMs else -1L
+                    val remainingMs = if (nextTriggerPosition != -1L) nextTriggerPosition - position else -1L
+
+                    val delayTime = when {
+                        remainingMs > 1000L -> 1000L
+                        remainingMs > 20L -> remainingMs
+                        remainingMs > 0L -> remainingMs.coerceAtLeast(10L)
+                        else -> 200L
                     }
 
+
                     delay(delayTime)
-                    
                     
                     if (player.currentMediaItem?.mediaId != initialMediaId) {
                         break
@@ -162,13 +168,14 @@ class BluetoothLyricsManager(
 
         pendingUpdateJob?.cancel()
 
-        if (forceUpdate || now - lastUpdateTimestamp >= minInterval) {
+        val elapsedSinceLast = now - lastUpdateTimestamp
+        if (forceUpdate || elapsedSinceLast >= minInterval) {
             lastUpdateTimestamp = now
             serviceScope.launch(Dispatchers.Main) {
                 dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
             }
         } else {
-            val remainingDelay = minInterval - (now - lastUpdateTimestamp)
+            val remainingDelay = minInterval - elapsedSinceLast
             pendingUpdateJob = serviceScope.launch(Dispatchers.Main) {
                 delay(remainingDelay)
                 lastUpdateTimestamp = System.currentTimeMillis()

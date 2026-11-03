@@ -33,6 +33,7 @@ data class SettingsUiState(
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
     val bluetoothCarDeviceNames: Set<String> = emptySet(),
+    val bluetoothLyricsOffsetMs: Long = 2000L,
     
     val isSaving: Boolean = false,
     val isRefreshing: Boolean = false,

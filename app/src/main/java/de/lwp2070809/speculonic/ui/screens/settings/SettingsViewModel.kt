@@ -148,15 +148,24 @@ class SettingsViewModel @Inject constructor(
                 preferencesManager.syncPlaybackState,
                 preferencesManager.bluetoothLyricsEnabled,
                 preferencesManager.bluetoothLyricsHideProgressBar,
-                preferencesManager.bluetoothCarDeviceNames
-            ) { carEnabled, syncState, lyricsEnabled, hideProgress, deviceNames ->
+                preferencesManager.bluetoothCarDeviceNames,
+                preferencesManager.bluetoothLyricsOffsetMs
+            ) { args: Array<Any> ->
+                val carEnabled = args[0] as Boolean
+                val syncState = args[1] as Boolean
+                val lyricsEnabled = args[2] as Boolean
+                val hideProgress = args[3] as Boolean
+                @Suppress("UNCHECKED_CAST")
+                val deviceNames = args[4] as Set<String>
+                val lyricsOffset = args[5] as Long
                 _uiState.update { current ->
                     current.copy(
                         carBluetoothEnabled = carEnabled,
                         syncPlaybackState = syncState,
                         bluetoothLyricsEnabled = lyricsEnabled,
                         bluetoothLyricsHideProgressBar = hideProgress,
-                        bluetoothCarDeviceNames = deviceNames
+                        bluetoothCarDeviceNames = deviceNames,
+                        bluetoothLyricsOffsetMs = lyricsOffset
                     )
                 }
             }.collect()
@@ -447,6 +456,7 @@ class SettingsViewModel @Inject constructor(
 
     fun updateBluetoothLyricsEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsEnabled(enabled) } }
     fun updateBluetoothLyricsHideProgressBar(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsHideProgressBar(enabled) } }
+    fun updateBluetoothLyricsOffsetMs(offsetMs: Long) { viewModelScope.launch { preferencesManager.saveBluetoothLyricsOffsetMs(offsetMs) } }
 
     fun addBluetoothCarDeviceName(name: String) {
         if (name.isBlank()) return

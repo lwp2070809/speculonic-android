@@ -23,6 +23,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -30,6 +31,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -115,6 +117,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 )
             }
         )
+
         ListItem(
             modifier = Modifier
                 .clickable(enabled = uiState.carBluetoothEnabled) { showBluetoothNamesDialog = true }
@@ -164,8 +167,53 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 )
             }
         )
+
+        val lyricsOffsetEnabled = uiState.carBluetoothEnabled && uiState.bluetoothLyricsEnabled
+        var sliderPosition by remember(uiState.bluetoothLyricsOffsetMs) {
+            mutableFloatStateOf(uiState.bluetoothLyricsOffsetMs.toFloat())
+        }
+        val displayOffsetMs = (kotlin.math.round(sliderPosition / 100f) * 100f).toLong()
+        ListItem(
+            modifier = Modifier
+                .padding(start = SettingsConstants.SUB_ITEM_PADDING)
+                .alpha(if (lyricsOffsetEnabled) 1f else 0.38f),
+            headlineContent = { Text(stringResource(R.string.bluetooth_lyrics_offset)) },
+            supportingContent = {
+                Column {
+                    Text(stringResource(R.string.bluetooth_lyrics_offset_description))
+                    val offsetText = if (displayOffsetMs <= 0L) {
+                        stringResource(R.string.bluetooth_lyrics_offset_disabled)
+                    } else {
+                        stringResource(
+                            R.string.bluetooth_lyrics_offset_value_format,
+                            displayOffsetMs,
+                            displayOffsetMs / 1000f
+                        )
+                    }
+                    Text(
+                        text = offsetText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    Slider(
+                        value = sliderPosition,
+                        onValueChange = { sliderPosition = it },
+                        onValueChangeFinished = {
+                            viewModel.updateBluetoothLyricsOffsetMs(displayOffsetMs)
+                        },
+                        valueRange = 0f..4000f,
+                        steps = 39,
+                        enabled = lyricsOffsetEnabled,
+                        modifier = Modifier.fillMaxWidth().padding(top = 2.dp)
+                    )
+                }
+            }
+        )
         
         HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
+
+
     }
 
     if (showBluetoothNamesDialog) {
