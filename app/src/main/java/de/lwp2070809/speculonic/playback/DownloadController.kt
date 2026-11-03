@@ -39,9 +39,8 @@ class DownloadController @Inject constructor(
     }
 
     fun downloadSong(song: Song, isSilent: Boolean = false) {
-        if (!isSilent && android.os.Build.VERSION.SDK_INT >= 33) {
-            val hasPermission = androidx.core.content.ContextCompat.checkSelfPermission(
-                context,
+        if (!isSilent) {
+            val hasPermission = context.checkSelfPermission(
                 android.Manifest.permission.POST_NOTIFICATIONS
             ) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!hasPermission) {

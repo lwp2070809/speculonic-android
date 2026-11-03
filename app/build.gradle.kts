@@ -16,10 +16,10 @@ android {
 
     defaultConfig {
         applicationId = "de.lwp2070809.speculonic"
-        minSdk = 31
-        targetSdk = 36
+        minSdk = 33
+        targetSdk = 37
         versionCode = 1
-        versionName = "0.9.12"
+        versionName = "0.10.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

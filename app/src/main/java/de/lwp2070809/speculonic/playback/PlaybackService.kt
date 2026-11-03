@@ -114,11 +114,10 @@ class PlaybackService : MediaSessionService() {
 
         sleepTimerManager = PlaybackSleepTimerManager(serviceScope) { mediaSession }
         
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
+        registerReceiver(
             noisyReceiver,
             IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY),
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            RECEIVER_NOT_EXPORTED
         )
 
         audioFocusHelper = PlaybackAudioFocusHelper(this, volumeCoordinator) { mediaSession?.player }
@@ -553,7 +552,7 @@ class PlaybackService : MediaSessionService() {
                 .add(androidx.media3.session.SessionCommand("SET_SLEEP_TIMER", android.os.Bundle.EMPTY))
                 .add(androidx.media3.session.SessionCommand("CANCEL_SLEEP_TIMER", android.os.Bundle.EMPTY))
                 .build()
-            return MediaSession.ConnectionResult.AcceptedResultBuilder(session)
+            return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(sessionCommands)
                 .build()
         }

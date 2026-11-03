@@ -58,6 +58,28 @@ fun ServerConfigDialog(
     var allowInsecureConnections by rememberSaveable { mutableStateOf(uiState.allowInsecureConnections) }
     var showInsecureWarning by rememberSaveable { mutableStateOf(false) }
     var syncCoverArt by rememberSaveable { mutableStateOf(false) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    var pendingLocalNetworkAction by remember { mutableStateOf<(() -> Unit)?>(null) }
+    val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            pendingLocalNetworkAction?.invoke()
+        }
+        pendingLocalNetworkAction = null
+    }
+
+    val executeWithLocalNetworkCheck: (() -> Unit) -> Unit = { action ->
+        if (android.os.Build.VERSION.SDK_INT >= 37 &&
+            de.lwp2070809.speculonic.util.NetworkUtils.isLocalNetworkAddress(url) &&
+            context.checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
+            pendingLocalNetworkAction = action
+            localNetworkPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+        } else {
+            action()
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -165,7 +187,7 @@ fun ServerConfigDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
-                        onClick = { viewModel.testConnection(url, user, pass) },
+                        onClick = { executeWithLocalNetworkCheck { viewModel.testConnection(url, user, pass) } },
                         enabled = !uiState.isTestingConnection && url.isNotBlank(),
                         modifier = Modifier.weight(1f)
                     ) {
@@ -203,7 +225,7 @@ fun ServerConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { onSave(url, user, pass, syncCoverArt) },
+                onClick = { executeWithLocalNetworkCheck { onSave(url, user, pass, syncCoverArt) } },
                 enabled = url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()
             ) {
                 Text(stringResource(R.string.save_configuration))

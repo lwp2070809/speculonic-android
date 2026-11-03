@@ -99,11 +99,10 @@ class DownloadService : DownloadService(
         super.onCreate()
         createNotificationChannels()
         val filter = android.content.IntentFilter(ACTION_CANCEL_ALL_DOWNLOADS)
-        androidx.core.content.ContextCompat.registerReceiver(
-            this,
+        registerReceiver(
             cancelReceiver,
             filter,
-            androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED
+            RECEIVER_NOT_EXPORTED
         )
         try {
             if (!de.lwp2070809.speculonic.data.CacheManager.isReleasing) {

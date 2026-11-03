@@ -83,14 +83,12 @@ class MainActivity : AppCompatActivity() {
             val artworkUriState by remember { derivedStateOf { playbackStateState.value.artworkUri } }
             val scope = rememberCoroutineScope()
 
-            if (android.os.Build.VERSION.SDK_INT >= 33) {
-                val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-                ) {}
-                LaunchedEffect(Unit) {
-                    de.lwp2070809.speculonic.playback.DownloadController.permissionRequests.collect {
-                        notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                    }
+            val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+            ) {}
+            LaunchedEffect(Unit) {
+                de.lwp2070809.speculonic.playback.DownloadController.permissionRequests.collect {
+                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
                 }
             }
             
@@ -100,6 +98,21 @@ class MainActivity : AppCompatActivity() {
             val isMetered = networkStatus.isMetered
 
             val preferencesManager = remember { PreferencesManager.getInstance(context) }
+            val serverUrlState by preferencesManager.serverUrl.collectAsState(initial = "")
+            if (android.os.Build.VERSION.SDK_INT >= 37) {
+                val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
+                ) { isGranted ->
+                    LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Local network permission granted = $isGranted")
+                }
+                LaunchedEffect(serverUrlState) {
+                    if (serverUrlState.isNotBlank() && de.lwp2070809.speculonic.util.NetworkUtils.isLocalNetworkAddress(serverUrlState)) {
+                        if (context.checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+                            localNetworkPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
+                        }
+                    }
+                }
+            }
             val themeMode by preferencesManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
             val colorMode by preferencesManager.colorMode.collectAsState(initial = ColorMode.ALBUM_COVER)
             val mobilePlayAllowed by preferencesManager.mobilePlayAllowed.collectAsState(initial = true)
