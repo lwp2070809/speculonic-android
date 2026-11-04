@@ -198,7 +198,7 @@
     <string name="bluetooth_lyrics_hide_progress_bar">隐藏进度条以避免闪烁</string>
     <string name="bluetooth_lyrics_hide_progress_bar_description">避免部分车机进度条频繁变化导致闪烁。开启这个选项会将播放器引擎伪装为播放电台直播流，此时无法查看和拖拽进度条。</string>
     <string name="bluetooth_lyrics_offset">车载歌词提前量补偿</string>
-    <string name="bluetooth_lyrics_offset_description">提前将歌词发送给车机，以抵消系统蓝牙限流与车机跑马灯动画带来的延迟。推荐值 2.0 秒。</string>
+    <string name="bluetooth_lyrics_offset_description">提前将歌词发送给车机，以抵消系统蓝牙限流带来的延迟。</string>
     <string name="bluetooth_lyrics_offset_disabled">已关闭 (0秒)</string>
     <string name="bluetooth_lyrics_offset_value_format">提前 %1$d 毫秒 (%2$.1f 秒)</string>
     <string name="add_device_name">添加设备名称</string>
