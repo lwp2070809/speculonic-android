@@ -87,9 +87,7 @@ class BluetoothCarManager(
 
     var bluetoothLyricsEnabled = false
     var bluetoothLyricsHideProgressBar = false
-    var lyricsOffsetMs: Long
-        get() = lyricsManager.lyricsOffsetMs
-        set(value) { lyricsManager.lyricsOffsetMs = value }
+
 
 
     
@@ -143,6 +141,19 @@ class BluetoothCarManager(
         private var syncTimestamp: Long = 0L
         private var coverSyncTimestamp: Long = 0L
 
+        val isLyricsDisguiseActive: Boolean
+            get() = synchronized(stateLock) { currentLyricTitle != null }
+
+        private fun resolveDisguisedArtworkUri(originalUri: android.net.Uri?): android.net.Uri? {
+            if (originalUri == null) return null
+            if (coverSyncTimestamp > 0) {
+                val uriStr = originalUri.toString()
+                val separator = if (uriStr.contains("?")) "&" else "?"
+                return "$uriStr${separator}bt_sync_ts=$coverSyncTimestamp".toUri()
+            }
+            return originalUri
+        }
+
         override fun addListener(listener: Player.Listener) {
             val wrapped = DisguisedPlayerListener(this, listener)
             listenerMap[listener] = wrapped
@@ -157,16 +168,25 @@ class BluetoothCarManager(
         override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
             val original = super.getMediaMetadata()
             synchronized(stateLock) {
+                val consistentArtworkUri = resolveDisguisedArtworkUri(original.artworkUri)
                 if (currentLyricTitle != null) {
                     return original.buildUpon()
                         .setTitle(currentLyricTitle)
                         .setArtist(currentLyricArtist ?: original.artist)
-                        .setArtworkUri(original.artworkUri)
+                        // 显式剥离音频流内嵌的 ID3 原始封面字节数组，强制复用已缓存的 URI 位图
+                        .setArtworkData(null, null)
+                        .setArtworkUri(consistentArtworkUri)
                         .build()
                 }
 
                 var builder = original.buildUpon()
                 var changed = false
+
+                // 仅当存在可用的封面 URI 时才剥离内嵌字节数组，兼顾服务端无 coverArt ID 但音频流内嵌封面的极端曲目
+                if (original.artworkData != null && consistentArtworkUri != null) {
+                    builder = builder.setArtworkData(null, null)
+                    changed = true
+                }
 
                 if (syncTimestamp > 0) {
                     val extras = android.os.Bundle(original.extras ?: android.os.Bundle.EMPTY).apply {
@@ -176,11 +196,8 @@ class BluetoothCarManager(
                     changed = true
                 }
 
-                if (coverSyncTimestamp > 0 && original.artworkUri != null) {
-                    val uriStr = original.artworkUri.toString()
-                    val separator = if (uriStr.contains("?")) "&" else "?"
-                    val syncedUri = "$uriStr${separator}bt_sync_ts=$coverSyncTimestamp".toUri()
-                    builder = builder.setArtworkUri(syncedUri)
+                if (consistentArtworkUri != original.artworkUri) {
+                    builder = builder.setArtworkUri(consistentArtworkUri)
                     changed = true
                 }
 
@@ -191,17 +208,24 @@ class BluetoothCarManager(
         override fun getCurrentMediaItem(): androidx.media3.common.MediaItem? {
             val original = super.getCurrentMediaItem() ?: return null
             synchronized(stateLock) {
+                val consistentArtworkUri = resolveDisguisedArtworkUri(original.mediaMetadata.artworkUri)
                 if (currentLyricTitle != null) {
                     val lightMeta = original.mediaMetadata.buildUpon()
                         .setTitle(currentLyricTitle)
                         .setArtist(currentLyricArtist ?: original.mediaMetadata.artist)
-                        .setArtworkUri(original.mediaMetadata.artworkUri)
+                        .setArtworkData(null, null)
+                        .setArtworkUri(consistentArtworkUri)
                         .build()
                     return original.buildUpon().setMediaMetadata(lightMeta).build()
                 }
 
                 var metaBuilder = original.mediaMetadata.buildUpon()
                 var changed = false
+
+                if (original.mediaMetadata.artworkData != null && consistentArtworkUri != null) {
+                    metaBuilder = metaBuilder.setArtworkData(null, null)
+                    changed = true
+                }
 
                 if (syncTimestamp > 0) {
                     val extras = android.os.Bundle(original.mediaMetadata.extras ?: android.os.Bundle.EMPTY).apply {
@@ -211,11 +235,8 @@ class BluetoothCarManager(
                     changed = true
                 }
 
-                if (coverSyncTimestamp > 0 && original.mediaMetadata.artworkUri != null) {
-                    val uriStr = original.mediaMetadata.artworkUri.toString()
-                    val separator = if (uriStr.contains("?")) "&" else "?"
-                    val syncedUri = "$uriStr${separator}bt_sync_ts=$coverSyncTimestamp".toUri()
-                    metaBuilder = metaBuilder.setArtworkUri(syncedUri)
+                if (consistentArtworkUri != original.mediaMetadata.artworkUri) {
+                    metaBuilder = metaBuilder.setArtworkUri(consistentArtworkUri)
                     changed = true
                 }
 

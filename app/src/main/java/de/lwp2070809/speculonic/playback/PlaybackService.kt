@@ -361,11 +361,7 @@ class PlaybackService : MediaSessionService() {
             }
             
             launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
-            launch {
-                prefs.bluetoothLyricsOffsetMs.collect { offset ->
-                    carAudioManager.lyricsOffsetMs = offset
-                }
-            }
+
             
             launch {
                 prefs.skipSilenceEnabled.collect { skip ->
@@ -631,6 +627,36 @@ class PlaybackService : MediaSessionService() {
                 androidx.media3.session.SessionResult(androidx.media3.session.SessionError.ERROR_UNKNOWN)
             )
         }
+    }
+
+    private var lastNotifiedMediaId: String? = null
+    private var lastNotifiedPlaybackState: Int = -1
+    private var lastNotifiedPlayWhenReady: Boolean = false
+
+    override fun onUpdateNotificationAsync(
+        session: MediaSession,
+        startInForegroundRequired: Boolean
+    ): com.google.common.util.concurrent.ListenableFuture<Void?> {
+        val player = session.player
+        val currentMediaId = player.currentMediaItem?.mediaId
+        val state = player.playbackState
+        val playWhenReady = player.playWhenReady
+
+        val isForegroundTransitionRequired = startInForegroundRequired && !isPlaybackOngoing
+        val isSongChanged = currentMediaId != lastNotifiedMediaId
+        val isStateChanged = state != lastNotifiedPlaybackState || playWhenReady != lastNotifiedPlayWhenReady
+        val isLyricsDisguiseActive = (player as? BluetoothCarManager.CarDisguisePlayer)?.isLyricsDisguiseActive == true
+
+        // 仅在车载歌词高频更新帧（且非首次拉起前台、非切歌、非播放状态变化）时拦截系统通知栏刷新，
+        // 避免 NotificationManagerService 触发通知限流，让歌词纯粹通过 MediaSessionLegacyStub 直达蓝牙 AVRCP
+        if (isLyricsDisguiseActive && !isForegroundTransitionRequired && !isSongChanged && !isStateChanged) {
+            return com.google.common.util.concurrent.Futures.immediateVoidFuture()
+        }
+
+        lastNotifiedMediaId = currentMediaId
+        lastNotifiedPlaybackState = state
+        lastNotifiedPlayWhenReady = playWhenReady
+        return super.onUpdateNotificationAsync(session, startInForegroundRequired)
     }
 
     override fun onTaskRemoved(rootIntent: Intent?) {

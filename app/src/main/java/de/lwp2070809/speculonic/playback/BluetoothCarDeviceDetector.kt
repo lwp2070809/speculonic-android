@@ -9,6 +9,7 @@ import android.bluetooth.BluetoothProfile
 import android.content.Context
 import android.media.AudioDeviceCallback
 import android.media.AudioManager
+import androidx.core.content.ContextCompat
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -16,7 +17,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-
 
 class BluetoothCarDeviceDetector(
     private val context: Context,
@@ -54,7 +54,7 @@ class BluetoothCarDeviceDetector(
     private val debounceMutex = kotlinx.coroutines.sync.Mutex()
 
     private fun hasBluetoothConnectPermission(): Boolean {
-        return androidx.core.content.ContextCompat.checkSelfPermission(
+        return ContextCompat.checkSelfPermission(
             context, 
             android.Manifest.permission.BLUETOOTH_CONNECT
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
@@ -115,7 +115,7 @@ class BluetoothCarDeviceDetector(
                 val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager
                 bluetoothManager.adapter?.closeProfileProxy(BluetoothProfile.A2DP, bluetoothA2dp)
             }
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             
         }
         bluetoothA2dp = null
@@ -143,7 +143,6 @@ class BluetoothCarDeviceDetector(
         }
     }
 
-    
     fun isCarBluetoothConnected(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
@@ -163,7 +162,7 @@ class BluetoothCarDeviceDetector(
                 var foundCar = false
                 connectedDevices.forEach { device ->
                     if (device == null) return@forEach
-                    val name = try { device.name ?: "" } catch (e: Exception) { "" }
+                    val name = try { device.name ?: "" } catch (_: Exception) { "" }
                     
                     if (bluetoothCarDeviceNames.contains(name)) {
                         foundCar = true
@@ -186,7 +185,7 @@ class BluetoothCarDeviceDetector(
                 }
                 foundCar
             }
-        } catch (e: SecurityException) {
+        } catch (_: SecurityException) {
             LogManager.w("BluetoothCarDeviceDetector: SecurityException - Missing android.Manifest.permission.BLUETOOTH_CONNECT permission, car Bluetooth features will be disabled.")
             false
         } catch (e: Exception) {

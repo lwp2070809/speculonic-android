@@ -33,7 +33,26 @@ class CoilBitmapLoader(
         val future = SettableFuture.create<Bitmap>()
         scope.launch(Dispatchers.Default) {
             try {
-                val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size)
+                val boundsOptions = BitmapFactory.Options().apply {
+                    inJustDecodeBounds = true
+                }
+                BitmapFactory.decodeByteArray(data, 0, data.size, boundsOptions)
+
+                val targetSize = 512
+                var sampleSize = 1
+                if (boundsOptions.outHeight > targetSize || boundsOptions.outWidth > targetSize) {
+                    val halfHeight = boundsOptions.outHeight / 2
+                    val halfWidth = boundsOptions.outWidth / 2
+                    while ((halfHeight / sampleSize) >= targetSize && (halfWidth / sampleSize) >= targetSize) {
+                        sampleSize *= 2
+                    }
+                }
+
+                val decodeOptions = BitmapFactory.Options().apply {
+                    inSampleSize = sampleSize
+                    inPreferredConfig = Bitmap.Config.ARGB_8888
+                }
+                val bitmap = BitmapFactory.decodeByteArray(data, 0, data.size, decodeOptions)
                 if (bitmap != null) {
                     future.set(bitmap)
                 } else {

@@ -17,7 +17,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-
+import kotlinx.coroutines.withTimeoutOrNull
 
 class BluetoothLyricsManager(
     private val context: Context,
@@ -31,9 +31,6 @@ class BluetoothLyricsManager(
     private var bluetoothLyricsJob: Job? = null
     @Volatile private var currentLyricsLines: List<LyricLine> = emptyList()
     private var currentLyricsJob: Job? = null
-    private var lastUpdateTimestamp = 0L
-    private var pendingUpdateJob: Job? = null
-    @Volatile var lyricsOffsetMs: Long = 2000L
     @Volatile var isPlayPauseJitterProtected = false
     @Volatile private var currentLoadedMediaId: String? = null
 
@@ -43,7 +40,6 @@ class BluetoothLyricsManager(
         currentLyricsJob = null
     }
 
-    
     fun loadLyricsForBluetooth(mediaItem: MediaItem) {
         if (mediaItem.mediaId == currentLoadedMediaId && currentLyricsLines.isNotEmpty()) {
             startBluetoothLyricsUpdate()
@@ -61,7 +57,7 @@ class BluetoothLyricsManager(
             val realTitle = metadata.extras?.getString("realTitle") ?: metadata.title?.toString()
             val realArtist = metadata.extras?.getString("realArtist") ?: metadata.artist?.toString()
             
-            val result = kotlinx.coroutines.withTimeoutOrNull(6000L) {
+            val result = withTimeoutOrNull(6000L) {
                 repo.getLyricsData(
                     mediaItem.mediaId,
                     realArtist ?: "",
@@ -108,35 +104,33 @@ class BluetoothLyricsManager(
                 val initialMediaId = player.currentMediaItem?.mediaId
                 
                 while (isActive) {
+                    val lines = currentLyricsLines
                     val position = player.currentPosition
-                    val effectivePosition = position + lyricsOffsetMs
                     
-                    val lineIndex = currentLyricsLines.indexOfLast { it.timeMs <= effectivePosition }
+                    val lineIndex = if (lines.isEmpty()) {
+                        -1
+                    } else {
+                        lines.indexOfLast { it.timeMs <= position }
+                    }
                     
                     if (lineIndex != lastLineIndex) {
-                        val line = if (lineIndex != -1) currentLyricsLines[lineIndex].content else null
+                        val line = if (lineIndex != -1) lines[lineIndex].content else null
                         if (line != null || !isPlayPauseJitterProtected) {
                             updateMediaSessionMetadata(line)
                             lastLineIndex = lineIndex
                         }
                     }
 
-                    val nextLineTime = if (lineIndex + 1 < currentLyricsLines.size) {
-                        currentLyricsLines[lineIndex + 1].timeMs
-                    } else {
-                        -1L
-                    }
-
-                    val nextTriggerPosition = if (nextLineTime != -1L) nextLineTime - lyricsOffsetMs else -1L
-                    val remainingMs = if (nextTriggerPosition != -1L) nextTriggerPosition - position else -1L
+                    val nextLineTime = if (lineIndex + 1 < lines.size) lines[lineIndex + 1].timeMs else -1L
+                    val remainingMs = if (nextLineTime != -1L) nextLineTime - position else -1L
 
                     val delayTime = when {
+                        !player.isPlaying -> 250L
                         remainingMs > 1000L -> 1000L
-                        remainingMs > 20L -> remainingMs
-                        remainingMs > 0L -> remainingMs.coerceAtLeast(10L)
+                        remainingMs > 15L -> remainingMs
+                        remainingMs > 0L -> 15L
                         else -> 200L
                     }
-
 
                     delay(delayTime)
                     
@@ -153,8 +147,11 @@ class BluetoothLyricsManager(
         bluetoothLyricsJob = null
     }
 
-    
-    fun updateMediaSessionMetadata(lyricLine: String?, forceUpdate: Boolean = false) {
+    /**
+     * 将歌词文本直接推送到系统 MediaSession。
+     * 无内部去抖延迟，无丢弃式 Cancel，杜绝吞字。
+     */
+    fun updateMediaSessionMetadata(lyricLine: String?, @Suppress("UNUSED_PARAMETER") forceUpdate: Boolean = false) {
         val session = mediaSessionProvider() ?: return
         val player = session.player
         val currentItem = player.currentMediaItem ?: return
@@ -163,24 +160,8 @@ class BluetoothLyricsManager(
         val realTitle = originalMetadata.extras?.getString("realTitle") ?: originalMetadata.title?.toString() ?: ""
         val realArtist = originalMetadata.extras?.getString("realArtist") ?: originalMetadata.artist?.toString() ?: ""
 
-        val now = System.currentTimeMillis()
-        val minInterval = 300L
-
-        pendingUpdateJob?.cancel()
-
-        val elapsedSinceLast = now - lastUpdateTimestamp
-        if (forceUpdate || elapsedSinceLast >= minInterval) {
-            lastUpdateTimestamp = now
-            serviceScope.launch(Dispatchers.Main) {
-                dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
-            }
-        } else {
-            val remainingDelay = minInterval - elapsedSinceLast
-            pendingUpdateJob = serviceScope.launch(Dispatchers.Main) {
-                delay(remainingDelay)
-                lastUpdateTimestamp = System.currentTimeMillis()
-                dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
-            }
+        serviceScope.launch(Dispatchers.Main) {
+            dispatchLyricsUpdate(player, lyricLine, realTitle, realArtist)
         }
     }
 

@@ -1,4 +1,4 @@
-package de.lwp2070809.speculonic.ui.screens.settings
+﻿package de.lwp2070809.speculonic.ui.screens.settings
 
 import de.lwp2070809.speculonic.data.ColorMode
 import de.lwp2070809.speculonic.data.ThemeMode
@@ -33,7 +33,6 @@ data class SettingsUiState(
     val bluetoothLyricsEnabled: Boolean = false,
     val bluetoothLyricsHideProgressBar: Boolean = false,
     val bluetoothCarDeviceNames: Set<String> = emptySet(),
-    val bluetoothLyricsOffsetMs: Long = 2000L,
     
     val isSaving: Boolean = false,
     val isRefreshing: Boolean = false,
@@ -91,4 +90,3 @@ data class SettingsUiState(
     val otherCacheSize: String = "0 B",
     val serverCapabilities: de.lwp2070809.speculonic.domain.repository.ServerCapabilities? = null
 )
-
