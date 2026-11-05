@@ -27,7 +27,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
         PlaybackQueueEntity::class,
         SyncTempIdEntity::class
     ],
-    version = 24,
+    version = 25,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -150,6 +150,14 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             }
         }
 
+        val MIGRATION_24_25 = object : Migration(24, 25) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE songs ADD COLUMN discNumber INTEGER DEFAULT NULL")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_albumId_discNumber_track` ON `songs` (`albumId`, `discNumber`, `track`)")
+                db.execSQL("ALTER TABLE albums ADD COLUMN discTitlesJson TEXT DEFAULT NULL")
+            }
+        }
+
                 val ALL_MIGRATIONS = arrayOf(
             MIGRATION_14_15,
             MIGRATION_15_16,
@@ -160,7 +168,8 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             MIGRATION_20_21,
             MIGRATION_21_22,
             MIGRATION_22_23,
-            MIGRATION_23_24
+            MIGRATION_23_24,
+            MIGRATION_24_25
         )
 
 fun getDatabase(context: Context): AppDatabase {

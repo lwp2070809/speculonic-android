@@ -26,15 +26,15 @@ class RoomMigrationTest {
     }
 
     @Test
-    fun migrateAll_from15to24_succeeds() {
+    fun migrateAll_from15to25_succeeds() {
         val dbPath = getDbPath("migration-test-all")
         // 创建项目现存最早导出架构的数据库版本 (15)
         helper.createDatabase(dbPath, 15).apply {
             close()
         }
 
-        // 自动连续执行所有版本迁移脚本并严格比对 24.json 导出的表结构与索引哈希
-        val db = helper.runMigrationsAndValidate(dbPath, 24, true, *AppDatabase.ALL_MIGRATIONS)
+        // 自动连续执行所有版本迁移脚本并严格比对 25.json 导出的表结构与索引哈希
+        val db = helper.runMigrationsAndValidate(dbPath, 25, true, *AppDatabase.ALL_MIGRATIONS)
         db.close()
     }
 
@@ -74,6 +74,19 @@ class RoomMigrationTest {
 
         // 执行 23 -> 24 迁移并校验 index_albums_artistId 索引
         val db = helper.runMigrationsAndValidate(dbPath, 24, true, AppDatabase.MIGRATION_23_24)
+        db.close()
+    }
+
+    @Test
+    fun testMigration24To25_addsDiscNumberAndDiscTitlesColumns() {
+        val dbPath = getDbPath("migration-test-24-25")
+        // 创建版本 24 的数据库
+        helper.createDatabase(dbPath, 24).apply {
+            close()
+        }
+
+        // 执行 24 -> 25 迁移并校验 songs 表的 discNumber 列、复合索引以及 albums 表的 discTitlesJson 列
+        val db = helper.runMigrationsAndValidate(dbPath, 25, true, AppDatabase.MIGRATION_24_25)
         db.close()
     }
 }

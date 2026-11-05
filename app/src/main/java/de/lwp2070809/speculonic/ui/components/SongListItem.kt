@@ -148,6 +148,7 @@ fun SongListItem(
     onRemoveFromPlaylistClick: (() -> Unit)? = null,
     isRemoveFromPlaylistEnabled: Boolean = true,
     trailingContentOverride: @Composable (() -> Unit)? = null,
+    trackNumberDisplay: String? = null,
     strings: SongListItemStrings = rememberSongListItemStrings()
 ) {
     val coverRequester = LocalCoverArtRequester.current
@@ -225,6 +226,21 @@ fun SongListItem(
             ) 
         },
         leadingContent = {
+            if (trackNumberDisplay != null) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .alpha(alpha),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = trackNumberDisplay,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else {
             val model = remember(song.coverArt) {
                 coverRequester.buildRequest(song.coverArt, preferLocal = true)
             }
@@ -245,7 +261,8 @@ fun SongListItem(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentScale = ContentScale.Crop
             )
-        },
+        }
+    },
         trailingContent = {
             if (trailingContentOverride != null) {
                 Box(modifier = Modifier.alpha(alpha)) {

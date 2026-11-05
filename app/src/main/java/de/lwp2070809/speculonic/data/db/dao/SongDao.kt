@@ -68,13 +68,13 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE parent = :parentId")
     suspend fun deleteSongsByParent(parentId: String)
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY track ASC")
+    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, id ASC")
     suspend fun getSongsByAlbum(albumId: String): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY track ASC, title ASC")
+    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, title ASC, id ASC")
     suspend fun getSongsByParent(parentId: String): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY track ASC, title ASC")
+    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, title ASC, id ASC")
     fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
@@ -155,7 +155,7 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongByIdFlow(songId: String): Flow<SongEntity?>
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY track ASC")
+    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, id ASC")
     fun getSongsByAlbumFlow(albumId: String): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")

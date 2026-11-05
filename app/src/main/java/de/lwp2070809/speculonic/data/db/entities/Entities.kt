@@ -31,6 +31,7 @@ data class AlbumEntity(
     val genre: String? = null,
     val starred: Boolean = false,
     val created: String? = null,
+    val discTitlesJson: String? = null,
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
@@ -45,6 +46,7 @@ data class AlbumListItemEntity(
     tableName = "songs",
     indices = [
         Index(value = ["albumId", "track"]),
+        Index(value = ["albumId", "discNumber", "track"]),
         Index(value = ["artistId", "title"]),
         Index(value = ["starred"])
     ]
@@ -57,6 +59,7 @@ data class SongEntity(
     val title: String,
     val album: String? = null,
     val artist: String? = null,
+    val discNumber: Int? = null,
     val track: Int? = null,
     val year: Int? = null,
     val genre: String? = null,

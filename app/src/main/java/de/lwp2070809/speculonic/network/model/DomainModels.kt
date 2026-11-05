@@ -38,7 +38,16 @@ data class Album(
     val artists: List<Artist> = emptyList(),
     val displayArtist: String? = null,
     val releaseDate: ItemDate? = null,
-    val isCompilation: Boolean? = null
+    val isCompilation: Boolean? = null,
+    val discTitles: List<DiscTitle> = emptyList()
+)
+
+@Serializable
+data class DiscTitle(
+    val disc: Int,
+    val title: String,
+    val coverArt: String? = null
+
 )
 
 @Serializable

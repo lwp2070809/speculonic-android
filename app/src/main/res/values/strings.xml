@@ -401,4 +401,11 @@
 
     <string name="action_go_to_settings">Go to Settings</string>
     <string name="action_grant">Grant</string>
+    <!-- Multi-disc support -->
+    <string name="disc">Disc</string>
+    <string name="disc_format">Disc %1$d</string>
+    <string name="disc_named_format">Disc %1$d: %2$s</string>
+    <string name="disc_summary_format">%1$d songs • %2$s</string>
+    <string name="play_disc">Play Disc</string>
+    <string name="cd_play_disc">Play this disc</string>
 </resources>

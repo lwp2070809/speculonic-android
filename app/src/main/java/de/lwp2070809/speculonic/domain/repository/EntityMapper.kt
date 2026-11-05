@@ -4,13 +4,21 @@ import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.network.model.Album
+import de.lwp2070809.speculonic.network.model.DiscTitle
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
 
 object EntityMapper {
     private val isoFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
+    private val json = Json {
+        ignoreUnknownKeys = true
+        isLenient = true
+        encodeDefaults = true
+    }
 
     fun songToEntity(
         song: Song,
@@ -35,6 +43,7 @@ object EntityMapper {
             title = song.title,
             album = song.album,
             artist = song.artist,
+            discNumber = song.discNumber,
             track = song.track,
             year = song.year,
             genre = song.genre,
@@ -66,6 +75,7 @@ object EntityMapper {
             albumId = entity.albumId,
             artistId = entity.artistId,
             track = entity.track,
+            discNumber = entity.discNumber,
             year = entity.year,
             genre = entity.genre,
             coverArt = entity.coverArt,
@@ -89,6 +99,15 @@ object EntityMapper {
         require(album.id.isNotBlank()) { "Album ID cannot be blank" }
         val serverStarredTime = album.starred?.let { parseIsoTime(it) }
         val finalStarred = isStarred ?: (album.starred != null)
+        val discTitlesJson = if (album.discTitles.isNotEmpty()) {
+            try {
+                json.encodeToString(album.discTitles)
+            } catch (e: Exception) {
+                existing?.discTitlesJson
+            }
+        } else {
+            existing?.discTitlesJson
+        }
         
         return AlbumEntity(
             id = album.id,
@@ -102,11 +121,20 @@ object EntityMapper {
             genre = album.genre ?: existing?.genre,
             starred = finalStarred,
             created = album.created ?: existing?.created,
+            discTitlesJson = discTitlesJson,
             lastUpdated = serverStarredTime ?: existing?.lastUpdated ?: System.currentTimeMillis()
         )
     }
 
     fun toAlbum(entity: AlbumEntity, songs: List<Song> = emptyList()): Album {
+        val discTitles: List<DiscTitle> = entity.discTitlesJson?.let {
+            try {
+                json.decodeFromString<List<DiscTitle>>(it)
+            } catch (e: Exception) {
+                emptyList()
+            }
+        } ?: emptyList()
+
         return Album(
             id = entity.id,
             name = entity.name,
@@ -119,7 +147,8 @@ object EntityMapper {
             genre = entity.genre,
             starred = if (entity.starred) formatIsoTime(entity.lastUpdated) else null,
             created = entity.created,
-            song = songs
+            song = songs,
+            discTitles = discTitles
         )
     }
 

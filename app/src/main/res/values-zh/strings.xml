@@ -398,4 +398,11 @@
 
     <string name="action_go_to_settings">前往设置</string>
     <string name="action_grant">授予权限</string>
+    <!-- 多光盘支持 -->
+    <string name="disc">光盘</string>
+    <string name="disc_format">光盘 %1$d</string>
+    <string name="disc_named_format">光盘 %1$d：%2$s</string>
+    <string name="disc_summary_format">%1$d 首歌曲 • %2$s</string>
+    <string name="play_disc">播放本碟</string>
+    <string name="cd_play_disc">播放此光盘</string>
 </resources>

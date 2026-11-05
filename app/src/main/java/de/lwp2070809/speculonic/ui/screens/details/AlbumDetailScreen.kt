@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
@@ -26,9 +27,11 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Album
+import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
+import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
@@ -56,6 +59,7 @@ fun AlbumDetailScreen(
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val uiState by viewModel.uiState.collectAsState()
+    val songStrings = rememberSongListItemStrings()
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
@@ -118,6 +122,11 @@ fun AlbumDetailScreen(
         uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
     }
 
+    val discGroups = remember(uiState.songs) {
+        uiState.songs.groupBy { it.discNumber ?: 1 }.toSortedMap()
+    }
+    val isMultiDisc = discGroups.size > 1
+
     val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {
         playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
     }
@@ -175,37 +184,69 @@ fun AlbumDetailScreen(
                         }
                     }
 
-                    itemsIndexed(
-                        items = uiState.songs,
-                        key = { _, song -> song.id },
-                        contentType = { _, _ -> "song_item" }
-                    ) { _, song ->
-                        SongListItem(
-                            song = song,
-                            isCurrent = song.id == currentSongId,
-                            isOnline = isOnline,
-                            isEffectivelyOnline = isEffectivelyOnline,
-                            isStreamingAllowed = isStreamingAllowed,
-                            transcodeIncompatible = transcodeIncompatible,
-                            onClick = {
-                                val playIndex = playableSongs.indexOfFirst { it.id == song.id }
-                                if (playIndex != -1) {
-                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
-                                    if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, playIndex, queueTitle = uiState.album?.name)
+                    discGroups.forEach { (discNum, songsInDisc) ->
+                        if (isMultiDisc) {
+                            item(key = "disc_header_$discNum", contentType = "disc_header") {
+                                DiscSectionHeader(
+                                    discNumber = discNum,
+                                    discTitle = uiState.album?.discTitles?.find { it.disc == discNum }?.title,
+                                    songs = songsInDisc,
+                                    isStreamingAllowed = isStreamingAllowed,
+                                    transcodeIncompatible = transcodeIncompatible,
+                                    onPlayDisc = {
+                                        val discPlayable = songsInDisc.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                        val mediaItems = discPlayable.map { mediaItemConverter.toMediaItem(it) }
+                                        if (mediaItems.isNotEmpty()) {
+                                            val queueTitle = uiState.album?.let { album ->
+                                                val discName = album.discTitles.find { it.disc == discNum }?.title
+                                                val discLabel = if (!discName.isNullOrBlank()) {
+                                                    context.getString(R.string.disc_named_format, discNum, discName)
+                                                } else {
+                                                    context.getString(R.string.disc_format, discNum)
+                                                }
+                                                "${album.name} • $discLabel"
+                                            }
+                                            playbackController.play(mediaItems, 0, shuffle = false, queueTitle = queueTitle)
+                                        }
                                     }
-                                }
-                            },
-                            onStarClick = { star ->
-                                viewModel.toggleStarSong(song.id, star)
-                            },
-                            onDownloadClick = {
-                                downloadController.downloadSong(song)
-                            },
-                            onRemoveDownloadClick = {
-                                downloadController.removeDownload(song.id)
+                                )
                             }
-                        )
+                        }
+
+                        itemsIndexed(
+                            items = songsInDisc,
+                            key = { _, song -> song.id },
+                            contentType = { _, _ -> "song_item" }
+                        ) { index, song ->
+                            SongListItem(
+                                song = song,
+                                isCurrent = song.id == currentSongId,
+                                isOnline = isOnline,
+                                isEffectivelyOnline = isEffectivelyOnline,
+                                isStreamingAllowed = isStreamingAllowed,
+                                transcodeIncompatible = transcodeIncompatible,
+                                trackNumberDisplay = (song.track ?: (index + 1)).toString(),
+                                strings = songStrings,
+                                onClick = {
+                                    val playIndex = playableSongs.indexOfFirst { it.id == song.id }
+                                    if (playIndex != -1) {
+                                        val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
+                                        if (mediaItems.isNotEmpty()) {
+                                            playbackController.play(mediaItems, playIndex, queueTitle = uiState.album?.name)
+                                        }
+                                    }
+                                },
+                                onStarClick = { star ->
+                                    viewModel.toggleStarSong(song.id, star)
+                                },
+                                onDownloadClick = {
+                                    downloadController.downloadSong(song)
+                                },
+                                onRemoveDownloadClick = {
+                                    downloadController.removeDownload(song.id)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -263,3 +304,62 @@ fun AlbumHeader(album: Album?) {
     }
 }
 
+@Composable
+fun DiscSectionHeader(
+    discNumber: Int,
+    discTitle: String?,
+    songs: List<Song>,
+    isStreamingAllowed: Boolean,
+    transcodeIncompatible: Boolean,
+    onPlayDisc: () -> Unit
+) {
+    val playableSongs = remember(songs, transcodeIncompatible) {
+        songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    }
+    val isPlayEnabled = remember(playableSongs, isStreamingAllowed) {
+        playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
+    }
+    val totalDuration = remember(songs) { songs.sumOf { it.duration ?: 0 } }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 16.dp, end = 8.dp, top = 16.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (!discTitle.isNullOrBlank()) {
+                    stringResource(R.string.disc_named_format, discNumber, discTitle)
+                } else {
+                    stringResource(R.string.disc_format, discNumber)
+                },
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = stringResource(
+                    R.string.disc_summary_format,
+                    songs.size,
+                    FormatUtils.formatDuration(totalDuration)
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+
+        IconButton(
+            onClick = onPlayDisc,
+            enabled = isPlayEnabled,
+            modifier = Modifier.alpha(if (isPlayEnabled) 1.0f else 0.38f)
+        ) {
+            Icon(
+                imageVector = Icons.Default.PlayArrow,
+                contentDescription = stringResource(R.string.cd_play_disc),
+                tint = MaterialTheme.colorScheme.primary
+            )
+        }
+    }
+}

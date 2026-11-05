@@ -61,6 +61,7 @@ fun LocalDbTab(
             onClick = if (hasAlbumId && onAlbumClick != null) { { onAlbumClick(albumId) } } else null
         )
 
+        DetailItem(stringResource(R.string.disc), songEntity.discNumber?.toString() ?: "-")
         DetailItem(stringResource(R.string.track), songEntity.track?.toString() ?: "-")
         DetailItem(stringResource(R.string.year), songEntity.year?.toString() ?: "-")
         DetailItem(stringResource(R.string.genre), songEntity.genre ?: "-")
@@ -228,6 +229,8 @@ fun compareSongs(
     check(context.getString(R.string.title), local.title, remote.title)
     check(context.getString(R.string.artist), local.artist, remote.artist)
     check(context.getString(R.string.album), local.album, remote.album)
+    check(context.getString(R.string.disc), local.discNumber, remote.discNumber)
+    check(context.getString(R.string.track), local.track, remote.track)
     check(context.getString(R.string.duration), local.duration, remote.duration)
     check(context.getString(R.string.suffix_label), local.suffix, remote.suffix)
     check(context.getString(R.string.bitrate), local.bitRate, remote.bitRate)
