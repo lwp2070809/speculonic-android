@@ -21,7 +21,6 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import android.content.Context
@@ -403,29 +402,13 @@ private fun MainContent(
                 exit = slideOutVertically { it } + fadeOut(),
                 modifier = Modifier.fillMaxSize()
             ) {
-                var nowPlayingBackProgress by remember { mutableFloatStateOf(0f) }
-                androidx.activity.compose.PredictiveBackHandler(enabled = showNowPlaying) { progressFlow ->
-                    try {
-                        progressFlow.collect { event ->
-                            nowPlayingBackProgress = event.progress
-                        }
-                        showNowPlaying = false
-                    } catch (e: kotlinx.coroutines.CancellationException) {
-                        // 手势取消，恢复原状
-                    } finally {
-                        nowPlayingBackProgress = 0f
-                    }
+                androidx.activity.compose.BackHandler(enabled = showNowPlaying) {
+                    showNowPlaying = false
                 }
 
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
-                        .graphicsLayer {
-                            val scale = 1f - (nowPlayingBackProgress * 0.1f)
-                            scaleX = scale
-                            scaleY = scale
-                            translationY = nowPlayingBackProgress * 56.dp.toPx()
-                        }
                         .pointerInput(Unit) {
                             detectTapGestures { }
                         }
