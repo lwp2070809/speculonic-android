@@ -128,8 +128,8 @@ class BluetoothCarManager(
         lyricsManager.stopBluetoothLyricsUpdate()
     }
 
-    fun updateMediaSessionMetadata(lyricLine: String?, forceUpdate: Boolean = false) {
-        lyricsManager.updateMediaSessionMetadata(lyricLine, forceUpdate)
+    fun updateMediaSessionMetadata(lyricLine: String?) {
+        lyricsManager.updateMediaSessionMetadata(lyricLine)
     }
 
     
@@ -319,10 +319,6 @@ class BluetoothCarManager(
 
         override fun isCurrentMediaItemDynamic(): Boolean {
             return if (isHideProgressBarActive()) true else super.isCurrentMediaItemDynamic()
-        }
-
-        override fun getAvailableCommands(): Player.Commands {
-            return super.getAvailableCommands()
         }
     }
 }

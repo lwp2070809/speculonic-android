@@ -561,8 +561,23 @@ class PlaybackService : MediaSessionService() {
                 MediaSession.ConnectionResult.DEFAULT_SESSION_COMMANDS
             }
 
+            val isNotificationOrExternal =
+                session.isMediaNotificationController(controller) || !isInternalClient
+            val availablePlayerCommands = if (isNotificationOrExternal) {
+                // 为平台级 MediaSessionLegacyStub（由 MediaNotificationController 驱动配置）及外部控制器
+                // 移除 COMMAND_GET_TIMELINE，使 sessionCompat.setQueue(null) 禁用 Legacy 队列同步，
+                // 规避 Android 17 蓝牙栈 MediaPlayerWrapper.isMetadataSynced() 因比对未伪装的 QueueItem
+                // 与伪装后的车载歌词 MediaMetadata 不一致而触发 2000ms 超时防抖造成的延迟与吞歌词问题。
+                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                    .remove(Player.COMMAND_GET_TIMELINE)
+                    .build()
+            } else {
+                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
+            }
+
             return MediaSession.ConnectionResult.AcceptedResultBuilder(session, controller)
                 .setAvailableSessionCommands(availableSessionCommands)
+                .setAvailablePlayerCommands(availablePlayerCommands)
                 .build()
         }
 

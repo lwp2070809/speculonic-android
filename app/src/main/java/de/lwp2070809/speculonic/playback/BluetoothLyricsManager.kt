@@ -96,7 +96,7 @@ class BluetoothLyricsManager(
         bluetoothLyricsJob = serviceScope.launch {
             carConnectionState.collectLatest { isConnected ->
                 if (!isConnected) {
-                    updateMediaSessionMetadata(null, forceUpdate = true)
+                    updateMediaSessionMetadata(null)
                     return@collectLatest
                 }
 
@@ -151,7 +151,7 @@ class BluetoothLyricsManager(
      * 将歌词文本直接推送到系统 MediaSession。
      * 无内部去抖延迟，无丢弃式 Cancel，杜绝吞字。
      */
-    fun updateMediaSessionMetadata(lyricLine: String?, @Suppress("UNUSED_PARAMETER") forceUpdate: Boolean = false) {
+    fun updateMediaSessionMetadata(lyricLine: String?) {
         val session = mediaSessionProvider() ?: return
         val player = session.player
         val currentItem = player.currentMediaItem ?: return
