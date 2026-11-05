@@ -17,3 +17,14 @@
 
 # 忽略第三方库警告
 -dontwarn org.jaudiotagger.**
+
+# 3. Jetpack Glance 桌面微件接收器、跨进程组件及 ActionCallback 反射构造函数保护
+-keep class * extends androidx.glance.appwidget.GlanceAppWidgetReceiver { *; }
+-keep class * extends androidx.glance.appwidget.GlanceAppWidget { *; }
+-keepclassmembers class * extends androidx.glance.appwidget.GlanceAppWidget {
+    public <init>(...);
+}
+-keep class * implements androidx.glance.appwidget.action.ActionCallback {
+    public <init>();
+}
+-keep class androidx.glance.appwidget.action.** { *; }

@@ -23,6 +23,14 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.flow.map
 
 enum class SleepTimerMode {
     OFF, TIME, SONG_COUNT, END_OF_PLAYLIST
@@ -48,6 +56,15 @@ data class PlaybackState(
     val sleepTimerSongsRemaining: Int = 0
 )
 
+private data class WidgetStateSnapshot(
+    val songId: String,
+    val title: String,
+    val artist: String,
+    val artworkUri: Uri?,
+    val isPlaying: Boolean
+)
+
+@OptIn(ExperimentalCoroutinesApi::class)
 class PlaybackController private constructor(context: Context) {
     companion object {
         @Volatile
@@ -86,6 +103,9 @@ class PlaybackController private constructor(context: Context) {
     private val _currentPosition = MutableStateFlow(0L)
     val currentPosition = _currentPosition.asStateFlow()
 
+    private val _isSessionReady = MutableStateFlow(false)
+    val isSessionReady = _isSessionReady.asStateFlow()
+
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var progressJob: Job? = null
     private var sleepTimerDeadlineRealtime: Long = 0L
@@ -93,14 +113,94 @@ class PlaybackController private constructor(context: Context) {
     private var isAppVisible = true
     private val pendingActions = java.util.concurrent.CopyOnWriteArrayList<(MediaController) -> Unit>()
 
+    init {
+        scope.launch {
+            playbackState
+                .map { state ->
+                    WidgetStateSnapshot(
+                        songId = state.currentSongId,
+                        title = state.currentSongTitle,
+                        artist = state.currentArtist,
+                        artworkUri = state.artworkUri,
+                        isPlaying = state.isPlaying
+                    )
+                }
+                .distinctUntilChanged()
+                .collect {
+                SpeculonicWidgetUpdater.enqueueUpdate(appContext)
+            }
+        }
+    }
+
     private fun executeWhenReady(action: (MediaController) -> Unit) {
         ensureController()
         val ctrl = controller
         if (ctrl != null) {
-            action(ctrl)
+            if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
+                action(ctrl)
+            } else {
+                scope.launch { action(ctrl) }
+            }
         } else {
             LogManager.i("PlaybackController: Controller not ready, queueing action")
             pendingActions.add(action)
+        }
+    }
+
+    /**
+     * 供微件 ActionCallback 或后台任务调用的异步安全执行，挂起至 MediaController 就绪且 PlaybackService 真实 Player 与队列恢复完毕后在主线程执行
+     */
+    suspend fun executeOnControllerAsync(action: (MediaController) -> Unit) {
+        withContext(Dispatchers.Main) {
+            ensureController()
+            val ctrl = controller
+            if (ctrl != null && _isSessionReady.value) {
+                action(ctrl)
+                return@withContext
+            }
+
+            val readyCtrl = try {
+                kotlinx.coroutines.withTimeoutOrNull(5000L) {
+                    val c = ctrl ?: run {
+                        val future = controllerFuture ?: return@run null
+                        if (future.isDone) {
+                            try { future.get() } catch (_: Exception) { null }
+                        } else {
+                                kotlinx.coroutines.suspendCancellableCoroutine<MediaController?> { continuation ->
+                                    future.addListener({
+                                        try {
+                                            val resolved = if (future.isDone) future.get() else null
+                                            if (continuation.isActive) {
+                                                continuation.resume(resolved)
+                                            }
+                                        } catch (_: Exception) {
+                                            if (continuation.isActive) {
+                                                continuation.resume(null)
+                                            }
+                                        }
+                                    }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
+                                }
+                        }
+                    } ?: return@withTimeoutOrNull null
+
+                    if (_isSessionReady.value || c.sessionExtras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)) {
+                        _isSessionReady.value = true
+                        c
+                    } else {
+                        _isSessionReady.first { it }
+                        c
+                    }
+                }
+            } catch (e: Exception) {
+                LogManager.w("PlaybackController: Error awaiting ready controller: ${e.message}")
+                null
+            }
+
+            if (readyCtrl != null) {
+                action(readyCtrl)
+            } else {
+                LogManager.w("PlaybackController: Timed out awaiting session ready, aborting action to prevent memory leak")
+            }
         }
     }
 
@@ -128,7 +228,14 @@ class PlaybackController private constructor(context: Context) {
                     extras: android.os.Bundle
                 ) {
                     super.onExtrasChanged(controller, extras)
+                    _isSessionReady.value = extras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)
                     updateState()
+                }
+
+                override fun onDisconnected(controller: MediaController) {
+                    super.onDisconnected(controller)
+                    _isSessionReady.value = false
+                    LogManager.w("PlaybackController: MediaController disconnected")
                 }
             })
             .buildAsync()
@@ -146,6 +253,7 @@ class PlaybackController private constructor(context: Context) {
 
     private fun setupController() {
         val controller = controller ?: return
+        _isSessionReady.value = controller.sessionExtras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)
         controller.addListener(object : Player.Listener {
             override fun onEvents(player: Player, events: Player.Events) {
                 updateState(events)

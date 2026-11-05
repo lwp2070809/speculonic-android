@@ -405,4 +405,19 @@
     <string name="disc_summary_format">%1$d 首歌曲 • %2$s</string>
     <string name="play_disc">播放本碟</string>
     <string name="cd_play_disc">播放此光盘</string>
+
+    <!-- 微件文案 -->
+    <string name="widget_name">音乐控制器</string>
+    <string name="widget_description">快速控制音乐播放与查看曲目信息</string>
+    <string name="widget_no_playing">未在播放</string>
+    <string name="widget_action_play">播放</string>
+    <string name="widget_action_pause">暂停</string>
+    <string name="widget_action_previous">上一首</string>
+    <string name="widget_action_next">下一首</string>
+    <string name="widget_open_app">打开 Speculonic</string>
+    <string name="widget_settings_title">微件设置</string>
+    <string name="widget_opacity">微件不透明度</string>
+    <string name="widget_opacity_desc">调节桌面音乐微件的卡片背景透明度</string>
+    <string name="widget_preview">效果预览</string>
+    <string name="action_save">保存</string>
 </resources>

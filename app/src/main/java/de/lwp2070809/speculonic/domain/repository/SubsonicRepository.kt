@@ -26,6 +26,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
 class SubsonicRepository(
@@ -166,6 +167,19 @@ class SubsonicRepository(
     }
 
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")
+
+    suspend fun ensureConfigured() = withContext(Dispatchers.IO) {
+        if (components != null && baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")) {
+            return@withContext
+        }
+        val url = preferencesManager.getServerUrlSync()
+        val user = preferencesManager.getUsernameSync()
+        val pass = preferencesManager.getPasswordSync()
+        if (url.isNotEmpty()) {
+            reconfigure(url, user, pass)
+            lastConfiguredPassword = String(pass)
+        }
+    }
 
     val lyricsRepositoryGet: LyricsRepository get() = lyricsRepository
 
@@ -571,9 +585,15 @@ class SubsonicRepository(
 
     fun getAllSongsFlow(): Flow<List<Song>> = mediaRepository.getAllSongsFlow()
 
-    suspend fun starSong(id: String, star: Boolean): Boolean = userActionRepository.starSong(id, star)
+    suspend fun starSong(id: String, star: Boolean): Boolean {
+        ensureConfigured()
+        return userActionRepository.starSong(id, star)
+    }
 
-    suspend fun starAlbum(id: String, star: Boolean): Boolean = userActionRepository.starAlbum(id, star)
+    suspend fun starAlbum(id: String, star: Boolean): Boolean {
+        ensureConfigured()
+        return userActionRepository.starAlbum(id, star)
+    }
 
     suspend fun getLyricsData(songId: String, artist: String?, title: String?): Pair<String?, List<LyricLine>> {
         return lyricsRepository.getLyricsData(songId, artist, title, serverCapabilities.extensions.contains("songLyrics"))

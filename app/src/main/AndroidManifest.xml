@@ -10,8 +10,6 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.ACCESS_LOCAL_NETWORK" />
-    
-    
 
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
@@ -47,6 +45,7 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
@@ -83,6 +82,27 @@
         <service
             android:name=".playback.SilentDownloadService"
             android:exported="false" />
+
+        <receiver
+            android:name=".ui.widget.SpeculonicMusicWidgetReceiver"
+            android:label="@string/widget_name"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/speculonic_music_widget_info" />
+        </receiver>
+
+        <activity
+            android:name=".ui.widget.SpeculonicWidgetConfigureActivity"
+            android:exported="true"
+            android:theme="@style/Theme.Speculonic">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

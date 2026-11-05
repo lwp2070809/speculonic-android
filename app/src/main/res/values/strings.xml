@@ -408,4 +408,19 @@
     <string name="disc_summary_format">%1$d songs • %2$s</string>
     <string name="play_disc">Play Disc</string>
     <string name="cd_play_disc">Play this disc</string>
+
+    <!-- Widget Strings -->
+    <string name="widget_name">Music Controller</string>
+    <string name="widget_description">Quickly control music playback and view track info</string>
+    <string name="widget_no_playing">No track playing</string>
+    <string name="widget_action_play">Play</string>
+    <string name="widget_action_pause">Pause</string>
+    <string name="widget_action_previous">Previous</string>
+    <string name="widget_action_next">Next</string>
+    <string name="widget_open_app">Open Speculonic</string>
+    <string name="widget_settings_title">Widget Settings</string>
+    <string name="widget_opacity">Widget Opacity</string>
+    <string name="widget_opacity_desc">Adjust background transparency of the music widget</string>
+    <string name="widget_preview">Preview</string>
+    <string name="action_save">Save</string>
 </resources>

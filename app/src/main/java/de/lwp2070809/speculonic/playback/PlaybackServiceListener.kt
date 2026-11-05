@@ -1,10 +1,12 @@
 package de.lwp2070809.speculonic.playback
 
+import android.content.Context
 import android.media.AudioManager
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
+import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 
@@ -16,7 +18,8 @@ class PlaybackServiceListener(
     private val audioFocusHelper: PlaybackAudioFocusHelper,
     private val onTriggerSilentCache: (MediaItem) -> Unit,
     private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
-    private val onPlaybackEndedForTimer: (() -> Unit)? = null
+    private val onPlaybackEndedForTimer: (() -> Unit)? = null,
+    private val context: Context? = null
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
@@ -57,6 +60,7 @@ class PlaybackServiceListener(
         if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled && carAudioManager.isCarBluetoothConnected()) {
             carAudioManager.loadLyricsForBluetooth(mediaItem)
         }
+        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
         persistence.savePlaybackState(player)
     }
 
@@ -118,6 +122,7 @@ class PlaybackServiceListener(
             else -> "REASON_$reason"
         }
         LogManager.i(LogTag.PLAYBACK, "playWhenReady changed -> $playWhenReady (reason=$reasonStr)")
+        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
 
         if (!playWhenReady) {
             persistence.savePlaybackState(player, immediate = true)

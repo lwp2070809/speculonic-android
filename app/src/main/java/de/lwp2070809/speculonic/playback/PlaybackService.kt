@@ -44,6 +44,7 @@ import javax.inject.Inject
 class PlaybackService : MediaSessionService() {
     companion object {
         const val ACTION_SHOW_PLAYER = "de.lwp2070809.speculonic.ACTION_SHOW_PLAYER"
+        const val EXTRA_KEY_SESSION_READY = "is_session_ready"
     }
 
     @Inject
@@ -108,7 +109,10 @@ class PlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, placeholderPlayer)
             .setSessionActivity(pendingIntent)
             .setCallback(CustomCallback())
-            .setSessionExtras(android.os.Bundle().apply { putString("queueTitle", null) })
+            .setSessionExtras(android.os.Bundle().apply {
+                putString("queueTitle", null)
+                putBoolean(EXTRA_KEY_SESSION_READY, false)
+            })
             .setBitmapLoader(CoilBitmapLoader(this, serviceScope, networkMonitor))
             .build()
 
@@ -167,6 +171,12 @@ class PlaybackService : MediaSessionService() {
                 val newPlaceholderPlayer = ExoPlayer.Builder(service).build()
                 service.mediaSession?.player = newPlaceholderPlayer
                 service.volumeCoordinator.setPlayer(newPlaceholderPlayer)
+                service.mediaSession?.let { session ->
+                    val extras = android.os.Bundle(session.sessionExtras).apply {
+                        putBoolean(EXTRA_KEY_SESSION_READY, false)
+                    }
+                    session.sessionExtras = extras
+                }
                 
                 try {
                     oldPlayer?.stop()
@@ -267,7 +277,8 @@ class PlaybackService : MediaSessionService() {
                     audioFocusHelper = audioFocusHelper,
                     onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
                     onMediaItemTransitionForTimer = { item, reason -> sleepTimerManager.handleMediaItemTransitionForTimer(item, reason) },
-                    onPlaybackEndedForTimer = { sleepTimerManager.handlePlaybackEndedForTimer() }
+                    onPlaybackEndedForTimer = { sleepTimerManager.handlePlaybackEndedForTimer() },
+                    context = this@PlaybackService
                 ))
 
                 persistence.restorePlaybackState(realPlayer, repository)
@@ -276,6 +287,12 @@ class PlaybackService : MediaSessionService() {
                     val oldPlayer = mediaSession?.player
                     mediaSession?.player = sessionPlayer
                     volumeCoordinator.setPlayer(sessionPlayer)
+                    mediaSession?.let { session ->
+                        val extras = android.os.Bundle(session.sessionExtras).apply {
+                            putBoolean(EXTRA_KEY_SESSION_READY, true)
+                        }
+                        session.sessionExtras = extras
+                    }
                     
                     lastInitializedServerUrl = config.serverUrl
                     lastInitializedUsername = config.username

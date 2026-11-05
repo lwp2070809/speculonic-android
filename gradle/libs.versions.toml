@@ -30,6 +30,7 @@ hilt = "2.60.1"
 hiltWork = "1.4.0"
 jaudiotagger = "3.0.1"
 robolectric = "4.14.1"
+glance = "1.1.1"
 
 [libraries]
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
@@ -92,6 +93,8 @@ google-hilt-compiler = { group = "com.google.dagger", name = "hilt-compiler", ve
 androidx-hilt-work = { group = "androidx.hilt", name = "hilt-work", version.ref = "hiltWork" }
 androidx-hilt-compiler = { group = "androidx.hilt", name = "hilt-compiler", version.ref = "hiltWork" }
 androidx-hilt-navigation-compose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hiltWork" }
+androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidget", version.ref = "glance" }
+androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
