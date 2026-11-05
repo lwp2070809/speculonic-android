@@ -202,7 +202,7 @@ fun AppNavDisplay(
         ) {
             val uiState by discoverViewModel.uiState.collectAsState()
             AlbumGrid(
-                albums = uiState.favoriteAlbums,
+                albums = uiState.allFavoriteAlbums,
                 onAlbumClick = { albumId -> navigator.navigate(AppRoute.AlbumDetail(albumId)) },
                 isLoading = uiState.isLoading,
                 onRefresh = { if (isOnline) discoverViewModel.refreshFavoriteAlbums() }

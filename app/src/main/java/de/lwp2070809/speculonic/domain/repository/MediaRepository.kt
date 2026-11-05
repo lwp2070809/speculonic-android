@@ -112,6 +112,7 @@ class MediaRepository(
         val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
         try {
             val response = api.getAlbumList2(u, t, s, type = type, size = size, offset = offset)
+            response.response.ensureOk()
             val list = response.response.albumList2?.album ?: emptyList()
             if (list.isNotEmpty() && !skipInsert) {
                 saveAlbumListChunk(type, list, offset)
@@ -120,8 +121,12 @@ class MediaRepository(
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("MediaRepository: refreshAlbumList failed for $type", e)
-            return emptyList()
+            throw e
         }
+    }
+
+    suspend fun getAlbumsWithoutSongs(albumIds: List<String>): List<String> {
+        return musicDao.getAlbumsWithoutSongs(albumIds)
     }
 
     private suspend fun saveAlbumListChunk(listType: String, albums: List<Album>, offset: Int) {

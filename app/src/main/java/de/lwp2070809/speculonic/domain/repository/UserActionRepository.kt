@@ -30,6 +30,13 @@ class UserActionRepository(
         return getStarredData(forceRefresh, skipInsert).album
     }
 
+    suspend fun refreshStarredData(
+        forceRefresh: Boolean = false,
+        skipInsert: Boolean = false
+    ): Starred2Response {
+        return getStarredData(forceRefresh, skipInsert)
+    }
+
     private suspend fun getStarredData(
         forceRefresh: Boolean = false, 
         skipInsert: Boolean = false
@@ -88,6 +95,7 @@ class UserActionRepository(
             Starred2Response(song = finalSongs, album = finalAlbums)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
+            if (forceRefresh) throw e
             Starred2Response(
                 song = cachedSongs.map { entityMapper.toSong(it) }, 
                 album = cachedAlbums.map { entityMapper.toAlbum(it) }
@@ -96,21 +104,31 @@ class UserActionRepository(
     }
 
     private suspend fun syncStarredAlbums(albums: List<Album>) {
-        musicDao.clearAllAlbumStarredFlags()
-        musicDao.deleteAlbumListItems("starred")
-        albums.asSequence().chunked(500).forEachIndexed { chunkIndex, chunk ->
+        if (albums.isEmpty()) {
+            musicDao.syncStarredAlbums("starred", emptyList(), emptyList())
+            return
+        }
+        val albumEntities = mutableListOf<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>()
+        val listItems = mutableListOf<de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity>()
+        val currentTime = System.currentTimeMillis()
+
+        albums.chunked(500).forEachIndexed { chunkIndex, chunk ->
             val chunkIds = chunk.map { it.id }
             val existingAlbumsMap = musicDao.getAlbumsByIds(chunkIds).associateBy { it.id }
             
-            val entities = chunk.map { album ->
-                entityMapper.albumToEntity(album, existing = existingAlbumsMap[album.id], isStarred = true)
+            chunk.forEachIndexed { index, album ->
+                val existing = existingAlbumsMap[album.id]
+                val entity = entityMapper.albumToEntity(album, existing = existing, isStarred = true)
+                val updatedEntity = if (album.starred == null && (existing?.lastUpdated ?: 0L) > 0L) {
+                    entity.copy(lastUpdated = currentTime)
+                } else {
+                    entity
+                }
+                albumEntities.add(updatedEntity)
+                listItems.add(de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity("starred", album.id, chunkIndex * 500 + index))
             }
-            val listItems = chunk.mapIndexed { index, album -> 
-                de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity("starred", album.id, chunkIndex * 500 + index)
-            }
-            musicDao.insertAlbums(entities)
-            musicDao.insertAlbumListItems(listItems)
         }
+        musicDao.syncStarredAlbums("starred", albumEntities, listItems)
     }
 
     suspend fun starSong(id: String, star: Boolean): Boolean {
@@ -134,19 +152,19 @@ class UserActionRepository(
 
     suspend fun starAlbum(id: String, star: Boolean): Boolean {
         val (u, t, s) = authManager.getAuthParams()
+        val currentTime = System.currentTimeMillis()
         
-        musicDao.updateAlbumStarred(id, star, System.currentTimeMillis())
+        musicDao.setAlbumStarredStatus(id, star, currentTime)
         return try {
             val response = if (star) api.star(id, u, t, s) else api.unstar(id, u, t, s)
             val ok = response.response.status == "ok"
             if (!ok) {
-                
-                musicDao.updateAlbumStarred(id, !star, System.currentTimeMillis())
+                musicDao.setAlbumStarredStatus(id, !star, currentTime)
             }
             ok
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            musicDao.updateAlbumStarred(id, !star, System.currentTimeMillis())
+            musicDao.setAlbumStarredStatus(id, !star, currentTime)
             false
         }
     }

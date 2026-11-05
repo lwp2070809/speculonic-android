@@ -24,7 +24,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.drop
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 class SubsonicRepository(
     private val context: Context,
     private val musicDao: MusicDao,
@@ -197,18 +200,21 @@ class SubsonicRepository(
             keepSyncingState = keepSyncingState,
             onProgress = onProgress,
             onSyncComplete = { currentTime, serverLastModified ->
-
-                    getStarred(forceRefresh = true)
-                    
-                    refreshAlbumList("newest")
-                    refreshAlbumList("frequent")
-                    refreshAlbumList("random")
-                    
-                    musicDao.deleteOrphanedAlbums()
-                    preferencesManager.saveLastSyncTime(currentTime)
-                    if (serverLastModified != 0L) {
-                        preferencesManager.saveServerLastModified(serverLastModified)
-                    }
+                runCatching { getStarred(forceRefresh = true) }
+                    .onFailure { LogManager.w("SubsonicRepository: Failed to sync starred data in onSyncComplete: ${it.message}") }
+                
+                runCatching { refreshAlbumList("newest") }
+                    .onFailure { LogManager.w("SubsonicRepository: Failed to sync newest albums in onSyncComplete: ${it.message}") }
+                runCatching { refreshAlbumList("frequent") }
+                    .onFailure { LogManager.w("SubsonicRepository: Failed to sync frequent albums in onSyncComplete: ${it.message}") }
+                runCatching { refreshAlbumList("random") }
+                    .onFailure { LogManager.w("SubsonicRepository: Failed to sync random albums in onSyncComplete: ${it.message}") }
+                
+                musicDao.deleteOrphanedAlbums()
+                preferencesManager.saveLastSyncTime(currentTime)
+                if (serverLastModified != 0L) {
+                    preferencesManager.saveServerLastModified(serverLastModified)
+                }
             }
         )
 
@@ -466,6 +472,79 @@ class SubsonicRepository(
 
     suspend fun removeFromPlaylist(playlistId: String, index: Int): Boolean {
         return playlistRepository.removeFromPlaylist(playlistId, index, hasLocalData())
+    }
+
+    suspend fun refreshStarredData(forceRefresh: Boolean = false): de.lwp2070809.speculonic.network.model.Starred2Response {
+        resetReachableIfForced(forceRefresh)
+        return userActionRepository.refreshStarredData(forceRefresh, skipInsert = false)
+    }
+
+    data class ServerModifiedCheckResult(
+        val isModified: Boolean,
+        val newLastModified: Long? = null
+    )
+
+    suspend fun checkServerModified(): ServerModifiedCheckResult {
+        return try {
+            val lastServerModified = preferencesManager.serverLastModified.first()
+            if (lastServerModified == 0L) {
+                return ServerModifiedCheckResult(isModified = true, newLastModified = null)
+            }
+            val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
+            val indexesResponse = api.getIndexes(u, t, s, ifModifiedSince = lastServerModified)
+            if (indexesResponse.response.status == "ok") {
+                val returnedLastModified = indexesResponse.response.indexes?.lastModified
+                if (returnedLastModified == null) {
+                    // 服务端未提供 lastModified 属性，无法可靠比对指纹，安全降级为可能已修改
+                    ServerModifiedCheckResult(isModified = true, newLastModified = null)
+                } else if (returnedLastModified != lastServerModified) {
+                    ServerModifiedCheckResult(isModified = true, newLastModified = returnedLastModified)
+                } else {
+                    ServerModifiedCheckResult(isModified = false, newLastModified = null)
+                }
+            } else {
+                ServerModifiedCheckResult(isModified = true, newLastModified = null)
+            }
+        } catch (e: Exception) {
+            LogManager.w("SubsonicRepository: checkServerModified check failed, assuming modified: ${e.message}")
+            ServerModifiedCheckResult(isModified = true, newLastModified = null)
+        }
+    }
+
+    suspend fun refreshNewestAlbumsAndSyncSongs(windowSize: Int = 20) {
+        resetReachableIfForced(true)
+        val checkResult = checkServerModified()
+        val albums = mediaRepository.refreshAlbumList(type = "newest", size = windowSize, offset = 0, skipInsert = false)
+        if (albums.isEmpty()) return
+
+        if (checkResult.isModified) {
+            val albumIds = albums.map { it.id }
+            val missingSongAlbumIds = mediaRepository.getAlbumsWithoutSongs(albumIds)
+            if (missingSongAlbumIds.isNotEmpty()) {
+                LogManager.i("SubsonicRepository: Found ${missingSongAlbumIds.size} newly added albums without songs, prefetching tracks...")
+                coroutineScope {
+                    val semaphore = Semaphore(3)
+                    missingSongAlbumIds.map { albumId ->
+                        async(Dispatchers.IO) {
+                            semaphore.withPermit {
+                                try {
+                                    mediaRepository.getAlbum(albumId, forceRefresh = true, skipInsert = false)
+                                } catch (e: Exception) {
+                                    LogManager.w("SubsonicRepository: Failed to prefetch songs for new album $albumId: ${e.message}")
+                                }
+                            }
+                        }
+                    }.awaitAll()
+                }
+                LogManager.i("SubsonicRepository: Tracks for new albums prefetched successfully.")
+            }
+            // 仅在新增专辑及曲目预取成功入库后，才持久化更新服务端指纹
+            checkResult.newLastModified?.let { newTimestamp ->
+                if (newTimestamp != 0L) {
+                    preferencesManager.saveServerLastModified(newTimestamp)
+                }
+            }
+        }
     }
 
     suspend fun getStarred(forceRefresh: Boolean = false): List<Song> {

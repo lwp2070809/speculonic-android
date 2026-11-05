@@ -23,6 +23,8 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.launch
 import javax.inject.Inject
@@ -34,6 +36,7 @@ data class DiscoverUiState(
     val pinnedPlaylists: List<de.lwp2070809.speculonic.network.model.Playlist> = emptyList(),
     val favoriteSongs: List<Song> = emptyList(),
     val favoriteAlbums: List<Album> = emptyList(),
+    val allFavoriteAlbums: List<Album> = emptyList(),
     val recentlyAdded: List<Album> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
     val mostPlayed: List<Album> = emptyList(),
@@ -142,6 +145,7 @@ class DiscoverViewModel @Inject constructor(
                         favoriteSongs = data.starredSongs.take(10),
                         pinnedPlaylists = data.pinnedPlaylists,
                         favoriteAlbums = data.starredAlbums.take(10),
+                        allFavoriteAlbums = data.starredAlbums,
                         recentlyAdded = data.newest.take(20),
                         mostPlayed = data.frequent.take(20),
                         randomAlbums = data.random.take(20),
@@ -174,19 +178,38 @@ class DiscoverViewModel @Inject constructor(
             LogManager.d("DiscoverViewModel: Targeted refresh triggered.")
             _uiState.update { it.copy(isRefreshing = true) }
             try {
-                repository.getAlbumList("newest", forceRefresh = true)
-                repository.getAlbumList("frequent", forceRefresh = true)
-                repository.getAlbumList("random", forceRefresh = true)
-                repository.getStarred(forceRefresh = true)
-                repository.getStarredAlbums(forceRefresh = true)
+                supervisorScope {
+                    // 1. 核心任务：最新专辑（含曲目补全）与收藏数据
+                    val newestDeferred = async { repository.refreshNewestAlbumsAndSyncSongs(windowSize = 20) }
+                    val starredDeferred = async { repository.refreshStarredData(forceRefresh = true) }
+
+                    // 2. 辅助推荐任务：最常播放与随机推荐（容错保护，避免影响核心数据）
+                    val frequentDeferred = async {
+                        runCatching { repository.getAlbumList("frequent", forceRefresh = true) }
+                            .onFailure { LogManager.w("DiscoverViewModel: Failed to refresh frequent albums: ${it.message}") }
+                    }
+                    val randomDeferred = async {
+                        runCatching { repository.getAlbumList("random", forceRefresh = true) }
+                            .onFailure { LogManager.w("DiscoverViewModel: Failed to refresh random albums: ${it.message}") }
+                    }
+
+                    // 核心任务必须成功
+                    newestDeferred.await()
+                    starredDeferred.await()
+
+                    // 等待辅助任务执行完成
+                    frequentDeferred.await()
+                    randomDeferred.await()
+                }
                 
                 _uiState.update { state ->
                     state.copy(error = null)
                 }
-                LogManager.i("DiscoverViewModel: Targeted refresh completed.")
+                LogManager.i("DiscoverViewModel: Targeted refresh completed successfully.")
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: refreshData failed", e)
-                _uiState.update { it.copy(error = e.message) }
+                _uiState.update { it.copy(error = e.localizedMessage ?: "刷新失败") }
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
@@ -197,15 +220,16 @@ class DiscoverViewModel @Inject constructor(
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true, error = null) }
             try {
-                repository.getStarredAlbums(forceRefresh = true)
+                repository.refreshStarredData(forceRefresh = true)
                 _uiState.update { state ->
                     state.copy(
                         isLoading = false
                     )
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: refreshFavoriteAlbums failed", e)
-                _uiState.update { it.copy(isLoading = false, error = e.message) }
+                _uiState.update { it.copy(isLoading = false, error = e.localizedMessage ?: "刷新失败") }
             }
         }
     }

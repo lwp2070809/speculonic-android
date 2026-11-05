@@ -63,11 +63,29 @@ interface AlbumDao {
     """)
     fun getAlbumsByListTypeFlow(listType: String): Flow<List<AlbumEntity>>
 
-    @Query("SELECT * FROM albums WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
+    @Query("""
+        SELECT albums.* FROM albums 
+        LEFT JOIN album_list_items ON albums.id = album_list_items.albumId AND album_list_items.listType = 'starred' 
+        WHERE albums.starred = 1 
+        ORDER BY COALESCE(album_list_items.orderIndex, 999999) ASC, albums.lastUpdated DESC, albums.id ASC
+    """)
     suspend fun getStarredAlbums(): List<AlbumEntity>
 
-    @Query("SELECT * FROM albums WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
+    @Query("""
+        SELECT albums.* FROM albums 
+        LEFT JOIN album_list_items ON albums.id = album_list_items.albumId AND album_list_items.listType = 'starred' 
+        WHERE albums.starred = 1 
+        ORDER BY COALESCE(album_list_items.orderIndex, 999999) ASC, albums.lastUpdated DESC, albums.id ASC
+    """)
     fun getStarredAlbumsFlow(): Flow<List<AlbumEntity>>
+
+    @Query("SELECT id FROM albums WHERE id IN (:ids) AND NOT EXISTS (SELECT 1 FROM songs WHERE songs.albumId = albums.id)")
+    suspend fun _getAlbumsWithoutSongs(ids: List<String>): List<String>
+
+    suspend fun getAlbumsWithoutSongs(ids: List<String>): List<String> {
+        if (ids.isEmpty()) return emptyList()
+        return ids.chunked(900).flatMap { _getAlbumsWithoutSongs(it) }
+    }
 
     @Query("SELECT id FROM albums WHERE starred = 1")
     suspend fun getStarredAlbumIds(): List<String>
@@ -94,9 +112,26 @@ interface AlbumDao {
     suspend fun syncStarredAlbums(listType: String, albums: List<AlbumEntity>, items: List<AlbumListItemEntity>) {
         if (albums.isEmpty()) {
             clearAllAlbumStarredFlags()
+            deleteAlbumListItems(listType)
         } else {
             unstarAlbumsNotIn(albums.map { it.id })
             updateAlbumList(listType, albums, items)
+        }
+    }
+
+    @Query("DELETE FROM album_list_items WHERE listType = 'starred' AND albumId = :albumId")
+    suspend fun deleteStarredAlbumListItem(albumId: String)
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAlbumListItem(item: AlbumListItemEntity)
+
+    @Transaction
+    suspend fun setAlbumStarredStatus(albumId: String, starred: Boolean, lastUpdated: Long) {
+        updateAlbumStarred(albumId, starred, lastUpdated)
+        if (starred) {
+            insertAlbumListItem(AlbumListItemEntity("starred", albumId, 0))
+        } else {
+            deleteStarredAlbumListItem(albumId)
         }
     }
 
