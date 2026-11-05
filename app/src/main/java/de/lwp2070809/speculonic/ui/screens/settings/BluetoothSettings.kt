@@ -1,4 +1,4 @@
-﻿package de.lwp2070809.speculonic.ui.screens.settings
+package de.lwp2070809.speculonic.ui.screens.settings
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -162,7 +162,6 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 )
             }
         )
-        HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
     }
 
     if (showBluetoothNamesDialog) {
