@@ -39,8 +39,9 @@ Therefore, some common features found in mainstream Subsonic clients will not be
 - [x] Refactor tablet UI layout
 - [x] Support API 37
 - [x] Provide Android X86 builds
-- [ ] Supports bilingual lyrics (work in progress)
+- [ ] Supports bilingual lyrics
 - [ ] Publish on F-Droid
+- [ ] Optimize App widgets
 - [ ] Release v1.0.0 Stable (Currently under active development, but features are becoming stable)
 
 ## Build
@@ -73,9 +74,9 @@ If you distribute a modified version of this software:
 
 ## Screenshot
 
-| Home | Player | Settings |
-|------|---------|---------|
-| ![](screenshot/discover.png) | ![](screenshot/player.png) | ![](screenshot/settings.png) |
+| <code>             Home             </code> | <code>            Player            </code> | <code>           Settings           </code> |
+| :---: | :---: | :---: |
+| <img src="screenshot/discover.png" width="250" /> | <img src="screenshot/player.png" width="250" /> | <img src="screenshot/settings.png" width="250" /> |
 
 ---
 
@@ -108,12 +109,13 @@ Speculonic 是一款使用 Android 原生技术开发的开源 OpenSubsonic / Su
 
 ## 开发路线图
 
-- [x] 提供 Github Action 构建
+- [x] 提供Github Action构建
 - [x] 重构平板电脑的 UI
 - [x] 支持API 37
-- [x] 提供 Android X86 版本
-- [ ] 支持双语歌词 (正在研究)
-- [ ] 上架 F-Droid
+- [x] 提供Android X86 版本
+- [ ] 支持双语歌词
+- [ ] 上架F-Droid
+- [ ] 完善应用Widgets
 - [ ] 发布`v1.0.0` 正式版 (当前处于积极开发阶段, 但功能已趋于稳定)
 
 ## 本地构建
