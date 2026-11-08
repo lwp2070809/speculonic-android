@@ -140,11 +140,8 @@ object DownloadManagerHelper {
         ).apply {
             maxParallelDownloads = 5
 
-            requirements = if (mobilePlayAllowed) {
-                Requirements(Requirements.NETWORK)
-            } else {
-                Requirements(Requirements.NETWORK_UNMETERED)
-            }
+            // 避免 Media3 强制依赖系统 NET_CAPABILITY_VALIDATED 导致自托管内网或无公网验证环境下任务永久排队阻塞
+            requirements = Requirements(0)
 
             addListener(object : DownloadManager.Listener {
                 private val lastStates = java.util.concurrent.ConcurrentHashMap<String, Int>()
@@ -184,13 +181,8 @@ object DownloadManagerHelper {
 
     fun updateRequirements(mobilePlayAllowed: Boolean) {
         val manager = getDownloadManagerOnlyIfInitialized() ?: return
-        LogManager.i("Updating DownloadManager requirements: mobilePlayAllowed=$mobilePlayAllowed")
-        val requirements = if (mobilePlayAllowed) {
-            Requirements(Requirements.NETWORK)
-        } else {
-            Requirements(Requirements.NETWORK_UNMETERED)
-        }
-        manager.requirements = requirements
+        LogManager.i("Updating DownloadManager requirements: mobilePlayAllowed=$mobilePlayAllowed (Requirements set to 0)")
+        manager.requirements = Requirements(0)
     }
 
     fun release() {
