@@ -18,20 +18,19 @@ jobs:
 
     env:
       GITHUB_REPO: ${{ github.repository }}
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: 'true'
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
-          java-version: '17'
+          java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v4
+        uses: gradle/actions/setup-gradle@v6
 
       - env:
           URL_KAGUYA_1: ${{ secrets.EASTER_EGG_URL_KAGUYA_1 }}
@@ -58,15 +57,13 @@ jobs:
             echo "// Stub" > local.gradle.kts
           fi
 
-      - run: chmod +x gradlew
-
       - run: ./gradlew detekt
 
       - run: ./gradlew assembleRelease
 
       - name: Get build-tools version
         run: |
-          BUILD_TOOL_VERSION=$(ls $ANDROID_HOME/build-tools/ | tail -n 1)
+          BUILD_TOOL_VERSION=$(ls -1 "$ANDROID_HOME/build-tools" | sort -V | tail -n 1)
           echo "Detected build-tools version: $BUILD_TOOL_VERSION"
           echo "BUILD_TOOLS_VERSION=$BUILD_TOOL_VERSION" >> $GITHUB_ENV
 
@@ -121,7 +118,7 @@ jobs:
         run: |
           ls -lh app/build/outputs/apk/release/
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: release-apk
           path: app/build/outputs/apk/release/speculonic-*.apk
@@ -138,11 +135,12 @@ jobs:
             TAG_MSG=$(git log -1 --pretty=%B)
           fi
           
-          echo "RELEASE_BODY<<EOF" >> $GITHUB_ENV
+          EOF_DELIMITER="EOF_$(openssl rand -hex 8)"
+          echo "RELEASE_BODY<<$EOF_DELIMITER" >> $GITHUB_ENV
           echo "$TAG_MSG" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
+          echo "$EOF_DELIMITER" >> $GITHUB_ENV
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: Speculonic ${{ github.ref_name }}
