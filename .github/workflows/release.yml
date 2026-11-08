@@ -57,6 +57,8 @@ jobs:
             echo "// Stub" > local.gradle.kts
           fi
 
+      - run: chmod +x gradlew
+
       - run: ./gradlew detekt
 
       - run: ./gradlew assembleRelease
