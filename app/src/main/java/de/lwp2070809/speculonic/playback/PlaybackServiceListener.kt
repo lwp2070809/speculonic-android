@@ -19,10 +19,12 @@ class PlaybackServiceListener(
     private val onTriggerSilentCache: (MediaItem) -> Unit,
     private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
     private val onPlaybackEndedForTimer: (() -> Unit)? = null,
-    private val context: Context? = null
+    private val context: Context? = null,
+    private val isPauseOnVolumeZeroEnabled: () -> Boolean = { false }
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
+    private val volumeAutoPauseTracker = DeviceVolumeAutoPauseTracker()
 
     override fun onPlayerError(error: PlaybackException) {
         errorHandler.handlePlayerError(player, error)
@@ -115,6 +117,25 @@ class PlaybackServiceListener(
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         PlaybackService.isPlayerPlaying = isPlaying
         context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
+    }
+
+    override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
+        val isActivelyPlaying =
+            player.playWhenReady &&
+                (player.playbackState == Player.STATE_READY || player.playbackState == Player.STATE_BUFFERING)
+        if (volumeAutoPauseTracker.onDeviceVolumeChanged(
+                volume = volume,
+                muted = muted,
+                enabled = isPauseOnVolumeZeroEnabled(),
+                isActivelyPlaying = isActivelyPlaying
+            )
+        ) {
+            LogManager.i(
+                LogTag.PLAYBACK,
+                "Device volume dropped to zero (volume=$volume, muted=$muted); auto-pausing playback."
+            )
+            player.pause()
+        }
     }
 
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {

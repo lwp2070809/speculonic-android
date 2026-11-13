@@ -69,6 +69,17 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
     ) {
 
         ListItem(
+            headlineContent = { Text(stringResource(R.string.pause_on_volume_zero)) },
+            supportingContent = { Text(stringResource(R.string.pause_on_volume_zero_description)) },
+            trailingContent = {
+                Switch(
+                    checked = uiState.pauseOnVolumeZero,
+                    onCheckedChange = { viewModel.updatePauseOnVolumeZero(it) }
+                )
+            }
+        )
+
+        ListItem(
             headlineContent = { Text(stringResource(R.string.skip_silence)) },
             supportingContent = { Text(stringResource(R.string.skip_silence_description)) },
             trailingContent = {

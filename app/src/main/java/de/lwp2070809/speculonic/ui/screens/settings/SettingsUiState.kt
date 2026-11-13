@@ -24,6 +24,7 @@ data class SettingsUiState(
     
     val carBluetoothEnabled: Boolean = false,
     val syncPlaybackState: Boolean = false,
+    val pauseOnVolumeZero: Boolean = false,
     val skipSilenceEnabled: Boolean = false,
     val duckOnTransientFocusLoss: Boolean = true,
     val pauseOnAudioFocusLoss: Boolean = true,

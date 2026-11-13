@@ -140,6 +140,13 @@ class SettingsViewModel @Inject constructor(
                 }
             }.collect()
         }
+        viewModelScope.launch {
+            preferencesManager.pauseOnVolumeZero.collect { pauseZero ->
+                _uiState.update { current ->
+                    current.copy(pauseOnVolumeZero = pauseZero)
+                }
+            }
+        }
 
         // 3. 车载蓝牙与歌词推送配置
         viewModelScope.launch {
@@ -439,6 +446,7 @@ class SettingsViewModel @Inject constructor(
     }
     
     fun updateSyncPlaybackState(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSyncPlaybackState(enabled) } }
+    fun updatePauseOnVolumeZero(enabled: Boolean) { viewModelScope.launch { preferencesManager.savePauseOnVolumeZero(enabled) } }
     fun updateSkipSilenceEnabled(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveSkipSilenceEnabled(enabled) } }
     fun updateDuckOnTransientFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.saveDuckOnTransientFocusLoss(enabled) } }
     fun updatePauseOnAudioFocusLoss(enabled: Boolean) { viewModelScope.launch { preferencesManager.savePauseOnAudioFocusLoss(enabled) } }

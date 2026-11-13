@@ -81,6 +81,7 @@ class PlaybackService : MediaSessionService() {
 
     private var isMetered = false
     private var mobilePlayAllowed = true
+    @Volatile private var pauseOnVolumeZero = false
 
     private lateinit var persistence: PlaybackStatePersistence
     private lateinit var errorHandler: PlaybackErrorHandler
@@ -236,6 +237,7 @@ class PlaybackService : MediaSessionService() {
                     val pWord = prefs.password.first()
                     val duckFocus = prefs.duckOnTransientFocusLoss.first()
                     val pauseFocus = prefs.pauseOnAudioFocusLoss.first()
+                    pauseOnVolumeZero = prefs.pauseOnVolumeZero.first()
                     val mCacheSize = prefs.maxCacheSize.first()
                     object {
                         val serverUrl = sUrl
@@ -289,6 +291,7 @@ class PlaybackService : MediaSessionService() {
                     onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
                     onMediaItemTransitionForTimer = { item, reason -> sleepTimerManager.handleMediaItemTransitionForTimer(item, reason) },
                     onPlaybackEndedForTimer = { sleepTimerManager.handlePlaybackEndedForTimer() },
+                    isPauseOnVolumeZeroEnabled = { pauseOnVolumeZero },
                     context = this@PlaybackService
                 ))
 
@@ -348,6 +351,7 @@ class PlaybackService : MediaSessionService() {
             val networkMonitor = this@PlaybackService.networkMonitor
             launch { networkMonitor.isMetered.collect { isMetered = it } }
             launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
+            launch { prefs.pauseOnVolumeZero.collect { pauseOnVolumeZero = it } }
             
             launch {
                 kotlinx.coroutines.flow.combine(
@@ -596,8 +600,14 @@ class PlaybackService : MediaSessionService() {
                 // 移除 COMMAND_GET_TIMELINE，使 sessionCompat.setQueue(null) 禁用 Legacy 队列同步，
                 // 规避 Android 17 蓝牙栈 MediaPlayerWrapper.isMetadataSynced() 因比对未伪装的 QueueItem
                 // 与伪装后的车载歌词 MediaMetadata 不一致而触发 2000ms 超时防抖造成的延迟与吞歌词问题。
+                @Suppress("DEPRECATION")
                 MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                     .remove(Player.COMMAND_GET_TIMELINE)
+                    .remove(Player.COMMAND_GET_DEVICE_VOLUME)
+                    .remove(Player.COMMAND_SET_DEVICE_VOLUME)
+                    .remove(Player.COMMAND_SET_DEVICE_VOLUME_WITH_FLAGS)
+                    .remove(Player.COMMAND_ADJUST_DEVICE_VOLUME)
+                    .remove(Player.COMMAND_ADJUST_DEVICE_VOLUME_WITH_FLAGS)
                     .build()
             } else {
                 MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS

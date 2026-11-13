@@ -33,6 +33,8 @@
     <string name="chinese">简体中文</string>
     <string name="play">Play</string>
     <string name="bluetooth_audio">Bluetooth Audio</string>
+    <string name="pause_on_volume_zero">Pause When Volume Reaches Zero</string>
+    <string name="pause_on_volume_zero_description">Automatically pause playback when media volume is lowered to zero or muted</string>
     <string name="skip_silence">Skip Silence</string>
     <string name="skip_silence_description">Automatically skip silent parts of the audio</string>
     <string name="transient_focus_change">Transient Focus Change</string>

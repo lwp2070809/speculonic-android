@@ -33,6 +33,8 @@
     <string name="chinese">简体中文</string>
     <string name="play">播放</string>
     <string name="bluetooth_audio">蓝牙音频</string>
+    <string name="pause_on_volume_zero">音量为 0 时自动暂停</string>
+    <string name="pause_on_volume_zero_description">媒体音量降低到 0 或静音时自动暂停播放</string>
     <string name="skip_silence">跳过静音</string>
     <string name="skip_silence_description">自动跳过音频中的静音部分</string>
     <string name="transient_focus_change">短暂焦点变化</string>

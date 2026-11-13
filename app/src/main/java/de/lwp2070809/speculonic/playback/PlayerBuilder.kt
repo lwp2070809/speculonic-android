@@ -130,6 +130,7 @@ class PlayerBuilder(private val context: Context) {
             .setMediaSourceFactory(mediaSourceFactory)
             .setAudioAttributes(audioAttributes, handleAudioFocus)
             .setLoadControl(loadControl)
+            .setDeviceVolumeControlEnabled(true)
             .build()
     }
 }

@@ -24,6 +24,7 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         private val LAST_SLEEP_TIMER_MINUTES = intPreferencesKey("last_sleep_timer_minutes")
         private val LAST_SLEEP_TIMER_SONG_COUNT = intPreferencesKey("last_sleep_timer_song_count")
         private val SKIP_SILENCE_ENABLED = booleanPreferencesKey("skip_silence_enabled")
+        private val PAUSE_ON_VOLUME_ZERO = booleanPreferencesKey("pause_on_volume_zero")
         private val DUCK_ON_TRANSIENT_FOCUS_LOSS = booleanPreferencesKey("duck_on_transient_focus_loss")
         private val PAUSE_ON_AUDIO_FOCUS_LOSS = booleanPreferencesKey("pause_on_audio_focus_loss")
         private val SYNC_PLAYBACK_STATE = booleanPreferencesKey("sync_playback_state")
@@ -93,6 +94,7 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     }
 
     override val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }.distinctUntilChanged()
+    override val pauseOnVolumeZero: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_VOLUME_ZERO] ?: false }.distinctUntilChanged()
     override val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }.distinctUntilChanged()
     override val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }.distinctUntilChanged()
     override val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }.distinctUntilChanged()
@@ -102,6 +104,12 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     override suspend fun saveSkipSilenceEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[SKIP_SILENCE_ENABLED] = enabled
+        }
+    }
+
+    override suspend fun savePauseOnVolumeZero(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PAUSE_ON_VOLUME_ZERO] = enabled
         }
     }
 

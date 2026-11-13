@@ -13,6 +13,7 @@ interface PlaybackPrefs {
     val lastSleepTimerMinutes: Flow<Int>
     val lastSleepTimerSongCount: Flow<Int>
     val skipSilenceEnabled: Flow<Boolean>
+    val pauseOnVolumeZero: Flow<Boolean>
     val duckOnTransientFocusLoss: Flow<Boolean>
     val pauseOnAudioFocusLoss: Flow<Boolean>
     val syncPlaybackState: Flow<Boolean>
@@ -32,6 +33,7 @@ interface PlaybackPrefs {
     suspend fun saveLastSleepTimerSongCount(count: Int)
     suspend fun saveSyncPlaybackState(enabled: Boolean)
     suspend fun saveSkipSilenceEnabled(enabled: Boolean)
+    suspend fun savePauseOnVolumeZero(enabled: Boolean)
     suspend fun saveDuckOnTransientFocusLoss(enabled: Boolean)
     suspend fun savePauseOnAudioFocusLoss(enabled: Boolean)
     suspend fun saveTranscodeIncompatibleFormats(enabled: Boolean)
