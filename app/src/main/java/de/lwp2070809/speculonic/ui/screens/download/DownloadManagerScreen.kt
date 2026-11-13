@@ -52,6 +52,7 @@ import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.offline.Download
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.data.DownloadTaskInfo
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
@@ -93,11 +94,11 @@ fun DownloadManagerScreen(
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
     val manualDownloads = remember(allDownloads) {
-        allDownloads.filter { !isSilentDownload(it.task) }.reversed()
+        sortDownloadTasks(allDownloads, isSilent = false)
     }
 
     val silentDownloads = remember(allDownloads) {
-        allDownloads.filter { isSilentDownload(it.task) }.reversed()
+        sortDownloadTasks(allDownloads, isSilent = true)
     }
 
     Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -247,4 +248,47 @@ fun DownloadManagerScreen(
             }
         }
     }
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+internal fun downloadStatePriority(state: Int): Int = when (state) {
+    Download.STATE_DOWNLOADING, Download.STATE_RESTARTING -> 0
+    Download.STATE_QUEUED -> 1
+    Download.STATE_STOPPED, Download.STATE_FAILED, Download.STATE_REMOVING -> 2
+    Download.STATE_COMPLETED -> 3
+    else -> 4
+}
+
+@androidx.annotation.OptIn(UnstableApi::class)
+internal fun sortDownloadTasks(
+    downloads: List<DownloadTaskInfo>,
+    isSilent: Boolean
+): List<DownloadTaskInfo> {
+    return downloads
+        .asSequence()
+        .withIndex()
+        .filter { it.value.isSilent == isSilent }
+        .sortedWith { a, b ->
+            val priorityA = downloadStatePriority(a.value.state)
+            val priorityB = downloadStatePriority(b.value.state)
+            if (priorityA != priorityB) {
+                return@sortedWith priorityA.compareTo(priorityB)
+            }
+            val infoA = a.value
+            val infoB = b.value
+            when (priorityA) {
+                // 正在下载与排队任务按入队时间正序，与 Media3 实际调度顺序一致
+                0, 1 -> {
+                    val timeCmp = infoA.task.startTimeMs.compareTo(infoB.task.startTimeMs)
+                    if (timeCmp != 0) timeCmp else a.index.compareTo(b.index)
+                }
+                // 暂停、失败与已完成任务按最近更新时间倒序，方便查看刚结束或操作过的任务
+                else -> {
+                    val timeCmp = infoB.task.updateTimeMs.compareTo(infoA.task.updateTimeMs)
+                    if (timeCmp != 0) timeCmp else b.index.compareTo(a.index)
+                }
+            }
+        }
+        .map { it.value }
+        .toList()
 }
