@@ -436,29 +436,6 @@ class MainActivity : AppCompatActivity() {
                 }
 
 
-                updateResult?.let { result ->
-                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
-                        androidx.compose.material3.AlertDialog(
-                            onDismissRequest = { updateResult = null },
-                            title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_available_title)) },
-                            text = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_available_message, result.version, result.releaseNotes)) },
-                            confirmButton = {
-                                androidx.compose.material3.TextButton(onClick = {
-                                    updateManager.openBrowser(result.url)
-                                    updateResult = null
-                                }) {
-                                    androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_now))
-                                }
-                            },
-                            dismissButton = {
-                                androidx.compose.material3.TextButton(onClick = { updateResult = null }) {
-                                    androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.update_later))
-                                }
-                            }
-                        )
-                    }
-                }
-
                 MainScreen(
                     windowSizeClass = windowSizeClass,
                     preferencesManager = preferencesManager,
@@ -472,6 +449,20 @@ class MainActivity : AppCompatActivity() {
                     offlineMode = offlineMode,
                     onToggleOfflineMode = toggleOfflineMode
                 )
+
+                updateResult?.let { result ->
+                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
+                        de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog(
+                            version = result.version,
+                            releaseNotes = result.releaseNotes,
+                            onUpdateNow = {
+                                updateManager.openBrowser(result.url)
+                                updateResult = null
+                            },
+                            onDismiss = { updateResult = null }
+                        )
+                    }
+                }
             }
         }
     }

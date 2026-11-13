@@ -37,10 +37,10 @@ import de.lwp2070809.speculonic.ui.components.TopBarState
 
 
 import androidx.compose.foundation.layout.size
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.TextButton
 import androidx.compose.ui.draw.alpha
+import de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -191,23 +191,14 @@ fun AboutSettings(
     }
 
     uiState.manualUpdateResult?.let { result ->
-        AlertDialog(
-            onDismissRequest = { viewModel.dismissManualUpdateDialog() },
-            title = { Text(stringResource(R.string.update_available_title)) },
-            text = { Text(stringResource(R.string.update_available_message, result.version, result.releaseNotes)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    viewModel.openBrowser(result.url)
-                    viewModel.dismissManualUpdateDialog()
-                }) {
-                    Text(stringResource(R.string.update_now))
-                }
+        UpdateChangelogDialog(
+            version = result.version,
+            releaseNotes = result.releaseNotes,
+            onUpdateNow = {
+                viewModel.openBrowser(result.url)
+                viewModel.dismissManualUpdateDialog()
             },
-            dismissButton = {
-                TextButton(onClick = { viewModel.dismissManualUpdateDialog() }) {
-                    Text(stringResource(R.string.update_later))
-                }
-            }
+            onDismiss = { viewModel.dismissManualUpdateDialog() }
         )
     }
 }

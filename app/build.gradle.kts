@@ -236,6 +236,8 @@ dependencies {
     implementation(libs.androidx.room.paging)
     implementation(libs.androidx.glance.appwidget)
     implementation(libs.androidx.glance.material3)
+    implementation(libs.multiplatform.markdown.renderer)
+    implementation(libs.multiplatform.markdown.renderer.m3)
 
     testImplementation(libs.junit)
     testImplementation(libs.androidx.junit)
