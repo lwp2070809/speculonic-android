@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.background
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,12 +19,20 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -48,6 +57,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.isActive
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -61,8 +71,11 @@ import kotlinx.coroutines.withContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -71,6 +84,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
@@ -218,7 +233,9 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
 fun LogViewerPane(
     currentLogLevel: LogLevel,
     onClose: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // 仅在全屏 Dialog 模式下避让系统栏；大屏三栏内嵌时顶部已有 MainTopBar，不应重复叠加状态栏边距
+    applySystemBarInsets: Boolean = false
 ) {
     val logs by LogManager.logs.collectAsState()
     val context = LocalContext.current
@@ -230,7 +247,22 @@ fun LogViewerPane(
     var moreMenuExpanded by remember { mutableStateOf(false) }
 
     val isKaguya = currentLogLevel == LogLevel.KAGUYA
-    val isSystemDark = androidx.compose.foundation.isSystemInDarkTheme()
+    val isSystemDark = isSystemInDarkTheme()
+    val layoutDirection = LocalLayoutDirection.current
+    val headerInsetsModifier = if (applySystemBarInsets) {
+        Modifier.windowInsetsPadding(
+            WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
+        )
+    } else {
+        Modifier
+    }
+    val listSafeInsets = if (applySystemBarInsets) {
+        WindowInsets.safeDrawing
+            .only(WindowInsetsSides.Bottom + WindowInsetsSides.Horizontal)
+            .asPaddingValues()
+    } else {
+        PaddingValues(0.dp)
+    }
 
     val wallpaperRes = remember(isKaguya) {
         if (isKaguya) {
@@ -295,6 +327,7 @@ fun LogViewerPane(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .then(headerInsetsModifier)
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.SpaceBetween
@@ -487,9 +520,13 @@ fun LogViewerPane(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxSize()
-                        .background(Color.Transparent)
-                        .padding(horizontal = 8.dp),
-                    contentPadding = PaddingValues(top = 8.dp, bottom = 8.dp + LocalMiniPlayerBottomInset.current)
+                        .background(Color.Transparent),
+                    contentPadding = PaddingValues(
+                        start = 8.dp + listSafeInsets.calculateStartPadding(layoutDirection),
+                        top = 8.dp,
+                        end = 8.dp + listSafeInsets.calculateEndPadding(layoutDirection),
+                        bottom = 8.dp + LocalMiniPlayerBottomInset.current + listSafeInsets.calculateBottomPadding()
+                    )
                 ) {
                     items(
                         items = filteredLogs,
@@ -527,9 +564,30 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
             decorFitsSystemWindows = false
         )
     ) {
+        val view = LocalView.current
+        val isKaguya = currentLogLevel == LogLevel.KAGUYA
+        val isSystemDark = isSystemInDarkTheme()
+        val isLightSurface = if (isKaguya) {
+            !isSystemDark
+        } else {
+            MaterialTheme.colorScheme.surface.luminance() > 0.5f
+        }
+
+        // Dialog 拥有独立 Window，需同步状态栏/导航栏图标对比度，避免浅色背景下白色图标不可见
+        if (!view.isInEditMode) {
+            SideEffect {
+                val window = (view.parent as? DialogWindowProvider)?.window ?: return@SideEffect
+                val controller = WindowCompat.getInsetsController(window, view)
+                controller.isAppearanceLightStatusBars = isLightSurface
+                controller.isAppearanceLightNavigationBars = isLightSurface
+                window.isNavigationBarContrastEnforced = false
+            }
+        }
+
         LogViewerPane(
             currentLogLevel = currentLogLevel,
             onClose = onDismiss,
+            applySystemBarInsets = true,
             modifier = Modifier.fillMaxSize()
         )
     }
