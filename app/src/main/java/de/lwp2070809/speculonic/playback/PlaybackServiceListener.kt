@@ -112,6 +112,11 @@ class PlaybackServiceListener(
         }
     }
 
+    override fun onIsPlayingChanged(isPlaying: Boolean) {
+        PlaybackService.isPlayerPlaying = isPlaying
+        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
+    }
+
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
         val reasonStr = when (reason) {
             Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST -> "USER_REQUEST"

@@ -66,6 +66,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
                 NetworkModule.rebuildClientIfNeeded(true)
             }
             de.lwp2070809.speculonic.data.DownloadManagerHelper.initializeAsync(this@SpeculonicApp)
+            de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater.reconcileStalePlayingState(this@SpeculonicApp)
         }
         
         

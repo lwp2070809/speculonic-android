@@ -235,6 +235,8 @@ class PlaybackController private constructor(context: Context) {
                 override fun onDisconnected(controller: MediaController) {
                     super.onDisconnected(controller)
                     _isSessionReady.value = false
+                    _playbackState.value = _playbackState.value.copy(isPlaying = false)
+                    handleProgressTicker()
                     LogManager.w("PlaybackController: MediaController disconnected")
                 }
             })

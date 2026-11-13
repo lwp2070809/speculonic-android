@@ -45,6 +45,14 @@ class PlaybackService : MediaSessionService() {
     companion object {
         const val ACTION_SHOW_PLAYER = "de.lwp2070809.speculonic.ACTION_SHOW_PLAYER"
         const val EXTRA_KEY_SESSION_READY = "is_session_ready"
+
+        @Volatile
+        var isServiceActive: Boolean = false
+            private set
+
+        @Volatile
+        var isPlayerPlaying: Boolean = false
+            internal set
     }
 
     @Inject
@@ -91,6 +99,8 @@ class PlaybackService : MediaSessionService() {
 
     override fun onCreate() {
         super.onCreate()
+        isServiceActive = true
+        isPlayerPlaying = false
         
         val pendingIntent = PendingIntent.getActivity(
             this, 0,
@@ -163,6 +173,7 @@ class PlaybackService : MediaSessionService() {
             withContext(Dispatchers.Main) {
                 val service = serviceRef.get() ?: return@withContext
                 LogManager.w("PlaybackService: Cache release requested. Pausing playback and releasing internal player.")
+                isPlayerPlaying = false
                 service.persistence.stopPositionPersistence()
                 service.carAudioManager.stopBluetoothLyricsUpdate()
                 service.silentCacheJob?.cancel()
@@ -702,11 +713,17 @@ class PlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        isServiceActive = false
+        isPlayerPlaying = false
         unregisterReceiver(noisyReceiver)
         sleepTimerManager.release()
 
         carAudioManager.release()
         mediaSession?.player?.let { persistence.savePlaybackState(it, immediate = true) }
+        // 服务销毁时立即重置微件为暂停态，使用应用级非取消作用域避开 serviceScope 取消及 300ms 防抖延迟
+        de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
+            de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater.resetPlayingStateImmediate(applicationContext)
+        }
         CacheManager.onRequireCacheRelease = null
         CacheManager.onCacheRebuild = null
         serviceScope.cancel()

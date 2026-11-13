@@ -32,6 +32,7 @@ import androidx.glance.appwidget.appWidgetBackground
 import androidx.glance.appwidget.cornerRadius
 import androidx.glance.appwidget.provideContent
 import androidx.glance.appwidget.state.getAppWidgetState
+import androidx.glance.appwidget.state.updateAppWidgetState
 import androidx.glance.background
 import androidx.glance.color.ColorProvider
 import androidx.glance.currentState
@@ -68,6 +69,12 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
 
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         val initialPrefs = getAppWidgetState(context, PreferencesGlanceStateDefinition, id)
+        // 若进程曾被强杀导致持久化的播放标志位残留为 true，在首次渲染前自愈修正为暂停态
+        if ((initialPrefs[WidgetStateKeys.KEY_IS_PLAYING] ?: false) && !PlaybackService.isServiceActive) {
+            updateAppWidgetState(context, id) { prefs ->
+                prefs[WidgetStateKeys.KEY_IS_PLAYING] = false
+            }
+        }
         val initialArtworkUri = initialPrefs[WidgetStateKeys.KEY_ARTWORK_URI] ?: ""
         val initialSongId = initialPrefs[WidgetStateKeys.KEY_SONG_ID] ?: ""
 
@@ -87,7 +94,7 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
             val title = currentPrefs[WidgetStateKeys.KEY_TITLE] ?: ""
             val artist = currentPrefs[WidgetStateKeys.KEY_ARTIST] ?: ""
             val album = currentPrefs[WidgetStateKeys.KEY_ALBUM] ?: ""
-            val isPlaying = currentPrefs[WidgetStateKeys.KEY_IS_PLAYING] ?: false
+            val isPlaying = (currentPrefs[WidgetStateKeys.KEY_IS_PLAYING] ?: false) && PlaybackService.isServiceActive
             val currentSongId = currentPrefs[WidgetStateKeys.KEY_SONG_ID] ?: ""
             val currentArtworkUri = currentPrefs[WidgetStateKeys.KEY_ARTWORK_URI] ?: ""
             val backgroundAlpha = currentPrefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] ?: 0.85f
