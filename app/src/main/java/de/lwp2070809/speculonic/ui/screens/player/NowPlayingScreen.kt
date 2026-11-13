@@ -108,7 +108,7 @@ fun NowPlayingScreen(
 
     val context = LocalContext.current
     val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val sleepTimerSheetState = rememberModalBottomSheetState()
+    val sleepTimerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     var showSongInfo by rememberSaveable { mutableStateOf(false) }
 
