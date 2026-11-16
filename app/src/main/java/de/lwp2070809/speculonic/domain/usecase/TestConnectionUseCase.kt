@@ -7,10 +7,20 @@ import kotlinx.coroutines.withContext
 import javax.inject.Inject
 
 class TestConnectionUseCase @Inject constructor() {
-    suspend operator fun invoke(url: String, user: String, pass: String): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend operator fun invoke(
+        url: String,
+        user: String,
+        pass: String,
+        allowInsecureConnections: Boolean = false
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        var testClient: okhttp3.OkHttpClient? = null
+        val authManager = AuthManager(user, pass.toCharArray())
         try {
-            val service = NetworkModule.provideSubsonicService(url)
-            val authManager = AuthManager(user, pass.toCharArray())
+            val (service, client) = NetworkModule.createTestSubsonicServiceClient(
+                baseUrl = url,
+                allowInsecureConnections = allowInsecureConnections
+            )
+            testClient = client
             val (u, t, s) = authManager.getAuthParams()
             val response = service.ping(u, t, s)
             if (response.response.status == "ok") {
@@ -20,6 +30,9 @@ class TestConnectionUseCase @Inject constructor() {
             }
         } catch (e: Exception) {
             Result.failure(e)
+        } finally {
+            authManager.clearPassword()
+            testClient?.let { NetworkModule.evictClientConnections(it, shutdownExecutor = true) }
         }
     }
 }

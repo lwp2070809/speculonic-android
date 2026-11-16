@@ -18,7 +18,9 @@ import kotlin.math.log10
 import kotlin.math.pow
 
 @OptIn(UnstableApi::class)
-class CacheOperations(private val context: Context) {
+class CacheOperations @javax.inject.Inject constructor(
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
+) {
     
     suspend fun clearAllCache(): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {

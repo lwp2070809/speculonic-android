@@ -24,6 +24,8 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -46,19 +48,36 @@ fun ServerConfigDialog(
     initialUrl: String,
     initialUser: String,
     initialPass: String,
+    initialAllowInsecure: Boolean,
     viewModel: SettingsViewModel,
     showCancelButton: Boolean = true,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Boolean) -> Unit
+    onSave: (String, String, String, Boolean, Boolean) -> Unit
 ) {
     var url by rememberSaveable { mutableStateOf(initialUrl) }
     var user by rememberSaveable { mutableStateOf(initialUser) }
     var pass by rememberSaveable { mutableStateOf(initialPass) }
     val uiState by viewModel.uiState.collectAsState()
-    var allowInsecureConnections by rememberSaveable { mutableStateOf(uiState.allowInsecureConnections) }
+    var allowInsecureConnections by rememberSaveable { mutableStateOf(initialAllowInsecure) }
     var showInsecureWarning by rememberSaveable { mutableStateOf(false) }
     var syncCoverArt by rememberSaveable { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
+
+    val clearTransientFeedback = {
+        if (uiState.urlError != null || uiState.testConnectionResult != null || uiState.isTestingConnection) {
+            viewModel.clearServerConfigTransientState()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        viewModel.clearServerConfigTransientState()
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            viewModel.clearServerConfigTransientState()
+        }
+    }
     var pendingLocalNetworkAction by remember { mutableStateOf<(() -> Unit)?>(null) }
     val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
@@ -94,9 +113,9 @@ fun ServerConfigDialog(
                 Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
                 OutlinedTextField(
                     value = url,
-                    onValueChange = { 
+                    onValueChange = {
                         url = it
-                        viewModel.updateServerUrl(it) 
+                        clearTransientFeedback()
                     },
                     label = { Text(stringResource(R.string.server_url)) },
                     modifier = Modifier.fillMaxWidth(),
@@ -110,7 +129,10 @@ fun ServerConfigDialog(
                 Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                 OutlinedTextField(
                     value = user,
-                    onValueChange = { user = it },
+                    onValueChange = {
+                        user = it
+                        clearTransientFeedback()
+                    },
                     label = { Text(stringResource(R.string.username)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
@@ -118,7 +140,10 @@ fun ServerConfigDialog(
                 Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
                 OutlinedTextField(
                     value = pass,
-                    onValueChange = { pass = it },
+                    onValueChange = {
+                        pass = it
+                        clearTransientFeedback()
+                    },
                     label = { Text(stringResource(R.string.password)) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
@@ -176,7 +201,7 @@ fun ServerConfigDialog(
                                 showInsecureWarning = true
                             } else {
                                 allowInsecureConnections = false
-                                viewModel.updateAllowInsecureConnections(false)
+                                clearTransientFeedback()
                             }
                         }
                     )
@@ -187,7 +212,11 @@ fun ServerConfigDialog(
 
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Button(
-                        onClick = { executeWithLocalNetworkCheck { viewModel.testConnection(url, user, pass) } },
+                        onClick = {
+                            executeWithLocalNetworkCheck {
+                                viewModel.testConnection(url, user, pass, allowInsecureConnections)
+                            }
+                        },
                         enabled = !uiState.isTestingConnection && url.isNotBlank(),
                         modifier = Modifier.weight(1f)
                     ) {
@@ -225,7 +254,7 @@ fun ServerConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { executeWithLocalNetworkCheck { onSave(url, user, pass, syncCoverArt) } },
+                onClick = { executeWithLocalNetworkCheck { onSave(url, user, pass, syncCoverArt, allowInsecureConnections) } },
                 enabled = url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()
             ) {
                 Text(stringResource(R.string.save_configuration))
@@ -248,7 +277,7 @@ fun ServerConfigDialog(
             confirmButton = {
                 TextButton(onClick = {
                     allowInsecureConnections = true
-                    viewModel.updateAllowInsecureConnections(true)
+                    clearTransientFeedback()
                     showInsecureWarning = false
                 }) {
                     Text(stringResource(R.string.confirm), color = MaterialTheme.colorScheme.error)

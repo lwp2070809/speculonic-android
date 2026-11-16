@@ -30,6 +30,7 @@ import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -58,7 +59,8 @@ class SettingsViewModel @Inject constructor(
     private val verifyCacheConsistencyUseCase: de.lwp2070809.speculonic.domain.usecase.VerifyCacheConsistencyUseCase,
     private val resolveInconsistencyUseCase: de.lwp2070809.speculonic.domain.usecase.ResolveInconsistencyUseCase,
     private val database: de.lwp2070809.speculonic.data.db.AppDatabase,
-    private val updateManager: de.lwp2070809.speculonic.data.UpdateManager
+    private val updateManager: de.lwp2070809.speculonic.data.UpdateManager,
+    private val cacheOperations: CacheOperations
 ) : ViewModel() {
 
     private var workObserverJob: Job? = null
@@ -83,7 +85,8 @@ class SettingsViewModel @Inject constructor(
         initialValue = null
     )
     
-    private val cacheOperations = CacheOperations(context)
+    private var syncJob: kotlinx.coroutines.Job? = null
+    private var testConnectionJob: Job? = null
 
     init {
         observePlaybackState()
@@ -280,12 +283,18 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun updateServerUrl(url: String) { 
-        _uiState.value = _uiState.value.copy(serverUrl = url, urlError = null, testConnectionResult = null) 
+    fun clearServerConfigTransientState() {
+        testConnectionJob?.cancel()
+        testConnectionJob = null
+        _uiState.update {
+            it.copy(
+                isTestingConnection = false,
+                testConnectionResult = null,
+                urlError = null
+            )
+        }
     }
-    fun updateUsername(user: String) { _uiState.value = _uiState.value.copy(username = user, testConnectionResult = null) }
-    fun updatePassword(pass: String) { _uiState.value = _uiState.value.copy(password = pass, testConnectionResult = null) }
-    
+
     private fun validateUrl(url: String): Boolean {
         val trimmed = url.trim()
         if (trimmed.isEmpty()) return false
@@ -297,21 +306,42 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun testConnection(url: String, user: String, pass: String) {
-        if (!validateUrl(url)) {
-            _uiState.value = _uiState.value.copy(urlError = context.getString(de.lwp2070809.speculonic.R.string.error_invalid_url))
+    fun testConnection(
+        url: String,
+        user: String,
+        pass: String,
+        allowInsecureConnections: Boolean = _uiState.value.allowInsecureConnections
+    ) {
+        val trimmedUrl = url.trim()
+        val trimmedUser = user.trim()
+        if (!validateUrl(trimmedUrl)) {
+            _uiState.update {
+                it.copy(
+                    urlError = context.getString(de.lwp2070809.speculonic.R.string.error_invalid_url),
+                    testConnectionResult = null
+                )
+            }
             return
         }
 
-        viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isTestingConnection = true, testConnectionResult = null, urlError = null)
-            val result = testConnectionUseCase(url, user, pass)
-            result.onSuccess {
-                _uiState.value = _uiState.value.copy(testConnectionResult = true to null)
-            }.onFailure { e ->
-                _uiState.value = _uiState.value.copy(testConnectionResult = false to (e.message ?: context.getString(de.lwp2070809.speculonic.R.string.unknown_error)))
+        val previousJob = testConnectionJob
+        testConnectionJob = viewModelScope.launch {
+            previousJob?.cancelAndJoin()
+            _uiState.update { it.copy(isTestingConnection = true, testConnectionResult = null, urlError = null) }
+            try {
+                val result = testConnectionUseCase(trimmedUrl, trimmedUser, pass, allowInsecureConnections)
+                result.onSuccess {
+                    _uiState.update { it.copy(testConnectionResult = true to null) }
+                }.onFailure { e ->
+                    _uiState.update {
+                        it.copy(
+                            testConnectionResult = false to (e.message ?: context.getString(de.lwp2070809.speculonic.R.string.unknown_error))
+                        )
+                    }
+                }
+            } finally {
+                _uiState.update { it.copy(isTestingConnection = false) }
             }
-            _uiState.value = _uiState.value.copy(isTestingConnection = false)
         }
     }
 
@@ -426,13 +456,7 @@ class SettingsViewModel @Inject constructor(
         updateManager.openBrowser(url)
     }
 
-    fun updateAllowInsecureConnections(allow: Boolean) {
-        viewModelScope.launch {
-            preferencesManager.saveAllowInsecureConnections(allow)
-            
-            NetworkModule.rebuildClientIfNeeded(allow)
-        }
-    }
+    // 允许不安全连接选项已收敛为配置弹窗草稿态，仅在保存或删除服务器时统一落盘并切换网络状态
 
     fun updateCarBluetoothEnabled(enabled: Boolean) { 
         if (enabled) {
@@ -480,33 +504,58 @@ class SettingsViewModel @Inject constructor(
         _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = false)
     }
 
-    fun saveSettings(syncCoverArt: Boolean = false): Boolean {
-        val url = _uiState.value.serverUrl
+    fun saveSettings(
+        rawUrl: String,
+        rawUser: String,
+        pass: String,
+        syncCoverArt: Boolean = false,
+        allowInsecureConnections: Boolean = _uiState.value.allowInsecureConnections
+    ): Boolean {
+        val url = rawUrl.trim()
+        val user = rawUser.trim()
         if (!validateUrl(url)) {
-            _uiState.value = _uiState.value.copy(urlError = context.getString(de.lwp2070809.speculonic.R.string.error_invalid_url))
+            _uiState.update { it.copy(urlError = context.getString(de.lwp2070809.speculonic.R.string.error_invalid_url)) }
             return false
         }
 
+        testConnectionJob?.cancel()
+        testConnectionJob = null
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(isSaving = true)
-            val user = _uiState.value.username
-            val pass = _uiState.value.password
+            _uiState.update { it.copy(isSaving = true, isTestingConnection = false, urlError = null, testConnectionResult = null) }
 
             val oldUrl = preferencesManager.serverUrl.first()
             val oldUser = preferencesManager.username.first()
-            
-            
-            if (oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)) {
-                withContext(Dispatchers.IO) {
+
+            val isServerChanged = oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)
+            withContext(Dispatchers.IO) {
+                preferencesManager.saveAllowInsecureConnections(allowInsecureConnections)
+                if (isServerChanged) {
+                    // 换服时先取消后台同步循环、应用新安全策略并驱逐连接池，避免旧服同步继续发起请求或写入即将清空的库表
+                    stopSyncAndClearConnections(allowInsecureConnections)
+                    NetworkModule.clearSubsonicServiceCache()
                     database.clearAllTables()
                     cacheOperations.clearAllCache().onFailure { e ->
                         LogManager.e("SettingsViewModel: clearAllCache failed during server change", e)
                     }
+                } else if (de.lwp2070809.speculonic.network.ssl.DynamicSslTrustManager.allowInsecureConnections && !allowInsecureConnections) {
+                    // 安全降级时先取消在途同步再驱逐连接池，避免先断连触发异步异常并重复驱逐
+                    stopSyncAndClearConnections(allowInsecureConnections)
+                } else {
+                    NetworkModule.rebuildClientIfNeeded(allowInsecureConnections)
                 }
+                NetworkModule.ServerReachableManager.reset()
             }
 
+            _uiState.update {
+                it.copy(
+                    serverUrl = url,
+                    username = user,
+                    password = pass,
+                    allowInsecureConnections = allowInsecureConnections
+                )
+            }
             preferencesManager.saveServerSettings(url, user, pass)
-            
+
             withContext(Dispatchers.IO) {
                 try {
                     repository.ping(force = true)
@@ -514,15 +563,13 @@ class SettingsViewModel @Inject constructor(
                     LogManager.w("SettingsViewModel: Ping failed before sync: ${e.message}")
                 }
             }
-            
-            
+
             if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {
                 if (url.isNotEmpty()) {
-
                     performFullSync(isForced = true, syncCoverArt = syncCoverArt)
                 }
             }
-            _uiState.value = _uiState.value.copy(isSaving = false)
+            _uiState.update { it.copy(isSaving = false) }
         }
         return true
     }
@@ -554,11 +601,15 @@ class SettingsViewModel @Inject constructor(
                     preferencesManager.saveSyncProgress(status)
                 }
             })
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
         } catch (e: Exception) {
             LogManager.e("Settings: Cover Art Sync Failed", e)
         } finally {
-            preferencesManager.saveIsSyncing(false)
-            preferencesManager.saveSyncProgress(null)
+            withContext(kotlinx.coroutines.NonCancellable) {
+                preferencesManager.saveIsSyncing(false)
+                preferencesManager.saveSyncProgress(null)
+            }
         }
     }
 
@@ -567,8 +618,10 @@ class SettingsViewModel @Inject constructor(
         isForced: Boolean = false,
         syncCoverArt: Boolean = false
     ) {
-        _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false)
-        viewModelScope.launch(Dispatchers.IO) {
+        _uiState.update { it.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false) }
+        val previousSyncJob = syncJob
+        syncJob = viewModelScope.launch(Dispatchers.IO) {
+            previousSyncJob?.cancelAndJoin()
             val shouldSyncCovers = repository.isConfigured && 
                 (syncCoverArt || (isForced && preferencesManager.syncCoverArtOnForce.first()))
             var success = false
@@ -586,6 +639,8 @@ class SettingsViewModel @Inject constructor(
                     }
                 )
                 success = true
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: de.lwp2070809.speculonic.domain.repository.SafetyGuardException) {
                 withContext(Dispatchers.Main) {
                     _uiState.value = _uiState.value.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.message)
@@ -599,11 +654,22 @@ class SettingsViewModel @Inject constructor(
                 if (shouldSyncCovers) {
                     performCoverArtSyncInternal()
                 } else {
-                    preferencesManager.saveIsSyncing(false)
-                    preferencesManager.saveSyncProgress(null)
+                    withContext(kotlinx.coroutines.NonCancellable) {
+                        preferencesManager.saveIsSyncing(false)
+                        preferencesManager.saveSyncProgress(null)
+                    }
                 }
             }
         }
+    }
+
+    private suspend fun stopSyncAndClearConnections(allowInsecureConnections: Boolean) {
+        syncJob?.cancel()
+        if (!NetworkModule.rebuildClientIfNeeded(allowInsecureConnections)) {
+            NetworkModule.cancelAndEvictConnections()
+        }
+        syncJob?.join()
+        syncJob = null
     }
 
     fun confirmSafetyGuard() { performFullSync(ignoreSafetyGuard = true, isForced = true) }
@@ -611,19 +677,25 @@ class SettingsViewModel @Inject constructor(
     
     fun deleteServerSettings() {
         viewModelScope.launch(Dispatchers.IO) {
+            // 先于清除凭据终止同步任务与在途请求、驱逐连接池并重置不安全连接策略，防止删除后仍有旧会话复用
+            stopSyncAndClearConnections(allowInsecureConnections = false)
+            NetworkModule.clearSubsonicServiceCache()
+            preferencesManager.saveAllowInsecureConnections(false)
             preferencesManager.saveServerSettings("", "", "")
             
             database.clearAllTables()
             cacheOperations.clearAllCache().onFailure { e ->
                 LogManager.e("SettingsViewModel: clearAllCache failed during server deletion", e)
             }
+            NetworkModule.ServerReachableManager.reset()
             
-            withContext(Dispatchers.Main) {
-                _uiState.value = _uiState.value.copy(
+            _uiState.update {
+                it.copy(
                     serverUrl = "", 
                     username = "", 
                     password = "",
                     testConnectionResult = null,
+                    allowInsecureConnections = false,
                     urlError = null
                 )
             }

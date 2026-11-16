@@ -28,6 +28,7 @@ import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.NetworkMonitor
 import kotlinx.serialization.json.Json
 import okhttp3.Dns
+import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import java.io.IOException
@@ -36,7 +37,6 @@ import java.security.SecureRandom
 import java.util.concurrent.TimeUnit
 import javax.inject.Qualifier
 import javax.inject.Singleton
-import javax.net.ssl.HttpsURLConnection
 import javax.net.ssl.SSLContext
 import javax.net.ssl.TrustManager
 
@@ -125,15 +125,31 @@ object NetworkModule {
         }
     }
 
+    @Volatile
+    private var isClientInitialized = false
+
+    @Volatile
+    private var isServiceFactoryInitialized = false
+
     private val okHttpClientInstance: OkHttpClient by lazy {
         registerNetworkChangeObserver()
-        val sslContext = SSLContext.getInstance("TLS")
-        sslContext.init(null, arrayOf<TrustManager>(DynamicSslTrustManager), SecureRandom())
+        buildServerClientBuilder(
+            trustManager = DynamicSslTrustManager,
+            hostnameVerifier = DynamicSslTrustManager.createHostnameVerifier {
+                DynamicSslTrustManager.allowInsecureConnections
+            },
+            allowInsecureProvider = { DynamicSslTrustManager.allowInsecureConnections }
+        ).build().also { isClientInitialized = true }
+    }
 
-        val defaultHostnameVerifier = HttpsURLConnection.getDefaultHostnameVerifier()
-        val dynamicHostnameVerifier = javax.net.ssl.HostnameVerifier { hostname, session ->
-            DynamicSslTrustManager.allowInsecureConnections || defaultHostnameVerifier.verify(hostname, session)
-        }
+    private fun buildServerClientBuilder(
+        trustManager: javax.net.ssl.X509TrustManager,
+        hostnameVerifier: javax.net.ssl.HostnameVerifier,
+        allowInsecureProvider: () -> Boolean,
+        trackReachability: Boolean = true
+    ): OkHttpClient.Builder {
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
 
         val loggingInterceptor = HttpLoggingInterceptor().apply {
             level = if (BuildConfig.DEBUG) {
@@ -144,28 +160,88 @@ object NetworkModule {
             redactHeader("Authorization")
         }
 
-        OkHttpClient.Builder()
+        return OkHttpClient.Builder()
             .addInterceptor(loggingInterceptor)
-            .addInterceptor(SonicLogInterceptor())
+            .addInterceptor(SonicLogInterceptor(allowInsecureProvider, trackReachability))
             .addNetworkInterceptor(CacheOverrideInterceptor())
             .connectTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
             .readTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
             .writeTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
-            .sslSocketFactory(sslContext.socketFactory, DynamicSslTrustManager)
-            .hostnameVerifier(dynamicHostnameVerifier)
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier(hostnameVerifier)
             .dns(ipv4PreferredDns)
-            .build()
     }
 
     private val subsonicServiceFactory: SubsonicServiceFactory by lazy {
+        isServiceFactoryInitialized = true
         SubsonicServiceFactory(okHttpClientInstance, json)
     }
 
-    fun rebuildClientIfNeeded(allowInsecureConnections: Boolean) {
-        if (DynamicSslTrustManager.allowInsecureConnections != allowInsecureConnections) {
+    /**
+     * 动态切换全局不安全连接模式。
+     * 当从启用不安全连接切换为关闭（true -> false）时，立即掐断全部在途请求并驱逐连接池，
+     * 防止既有 Keep-Alive 或 TLS 会话继续被复用。
+     *
+     * @return 本次切换是否已触发连接池驱逐与在途请求取消。
+     */
+    @Synchronized
+    fun rebuildClientIfNeeded(allowInsecureConnections: Boolean): Boolean {
+        val wasInsecure = DynamicSslTrustManager.allowInsecureConnections
+        if (wasInsecure != allowInsecureConnections) {
             DynamicSslTrustManager.allowInsecureConnections = allowInsecureConnections
             LogManager.i("NetworkModule: Security mode switched, allowInsecureConnections=$allowInsecureConnections")
+            if (wasInsecure && !allowInsecureConnections) {
+                cancelAndEvictConnections()
+                return true
+            }
         }
+        return false
+    }
+
+    /**
+     * 立即取消所有在途请求并驱逐共享连接池中的所有空闲与不可复用连接。
+     * 由于 @StreamHttpClient 通过 okHttpClientInstance.newBuilder() 派生并共享 Dispatcher/ConnectionPool，
+     * 此操作会同步清理 API、图片、播放流及下载连接；@GithubHttpClient 为独立实例不受影响。
+     * 调用方需确保在后台 IO 线程执行，避免在主线程触发同步 Socket 关闭。
+     */
+    fun cancelAndEvictConnections() {
+        if (!isClientInitialized) return
+        evictClientConnections(okHttpClientInstance, shutdownExecutor = false)
+        LogManager.i("NetworkModule: Cancelled in-flight calls and evicted shared connection pool")
+    }
+
+    fun clearSubsonicServiceCache() {
+        if (!isServiceFactoryInitialized) return
+        subsonicServiceFactory.clearCache()
+    }
+
+    internal fun evictClientConnections(client: OkHttpClient, shutdownExecutor: Boolean) {
+        client.dispatcher.cancelAll()
+        client.connectionPool.evictAll()
+        if (shutdownExecutor) {
+            client.dispatcher.executorService.shutdown()
+        }
+    }
+
+    /**
+     * 为配置弹窗「测试连接」创建与全局状态及连接池完全隔离的一次性客户端与服务。
+     * 测试结束后由调用方负责销毁该客户端，防止测试连接或草稿安全策略污染全局运行态。
+     */
+    fun createTestSubsonicServiceClient(
+        baseUrl: String,
+        allowInsecureConnections: Boolean
+    ): Pair<SubsonicService, OkHttpClient> {
+        val testClient = buildServerClientBuilder(
+            trustManager = DynamicSslTrustManager.createTrustManager(allowInsecureConnections),
+            hostnameVerifier = DynamicSslTrustManager.createHostnameVerifier { allowInsecureConnections },
+            allowInsecureProvider = { allowInsecureConnections },
+            trackReachability = false
+        )
+            // 测试连接使用一次性无复用连接池，严禁污染全局连接池或复用旧会话
+            .connectionPool(ConnectionPool(0, 1, TimeUnit.MILLISECONDS))
+            .build()
+        val service = SubsonicServiceFactory.createUncachedService(baseUrl, testClient, json)
+        return service to testClient
     }
 
     @Provides

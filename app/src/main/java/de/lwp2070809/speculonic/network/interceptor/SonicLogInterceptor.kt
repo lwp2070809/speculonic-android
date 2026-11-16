@@ -16,7 +16,10 @@ import java.security.cert.CertificateException
 import javax.net.ssl.SSLHandshakeException
 import javax.net.ssl.SSLException
 
-class SonicLogInterceptor : Interceptor {
+class SonicLogInterceptor(
+    private val allowInsecureProvider: () -> Boolean = { DynamicSslTrustManager.allowInsecureConnections },
+    private val trackReachability: Boolean = true
+) : Interceptor {
     companion object {
         /**
          * 敏感参数脱敏正则：利用正向后行断言 (?<=[?&]) 精确匹配作为独立参数的 [utps]，
@@ -58,7 +61,7 @@ class SonicLogInterceptor : Interceptor {
         }
 
         var isProbeRequest = false
-        if (!ServerReachableManager.isServerReachable) {
+        if (trackReachability && !ServerReachableManager.isServerReachable) {
             val timeSinceLastFailure = System.currentTimeMillis() - ServerReachableManager.lastFailureTimestamp
             if (timeSinceLastFailure > 30000L) {
                 if (ServerReachableManager.tryAcquireProbe()) {
@@ -75,7 +78,7 @@ class SonicLogInterceptor : Interceptor {
         }
 
         val isHttps = request.url.isHttps
-        if (!isHttps && !DynamicSslTrustManager.allowInsecureConnections) {
+        if (!isHttps && !allowInsecureProvider()) {
             LogManager.w(LogTag.NETWORK, "OfflineInterceptor: Insecure connection blocked: $safeUrl")
             throw IOException("Insecure connection blocked: HTTP is not allowed by default. Please use HTTPS or enable 'Allow insecure connections' in settings.")
         }
@@ -86,7 +89,7 @@ class SonicLogInterceptor : Interceptor {
             val costMs = System.currentTimeMillis() - startTime
 
             if (!response.isSuccessful) {
-                if (isProbeRequest) {
+                if (trackReachability && isProbeRequest) {
                     ServerReachableManager.handleFailure()
                 }
                 LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
@@ -96,14 +99,16 @@ class SonicLogInterceptor : Interceptor {
                 } else if (BuildConfig.DEBUG) {
                     LogManager.d(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
                 }
-                ServerReachableManager.handleSuccess()
+                if (trackReachability) {
+                    ServerReachableManager.handleSuccess()
+                }
             }
             return response
         } catch (e: Exception) {
             val costMs = System.currentTimeMillis() - startTime
             val requestHost = request.url.host
             if (e.message?.startsWith("Unconfigured") == true) {
-                if (isProbeRequest) ServerReachableManager.releaseProbe()
+                if (trackReachability && isProbeRequest) ServerReachableManager.releaseProbe()
                 throw e
             }
 
@@ -113,18 +118,20 @@ class SonicLogInterceptor : Interceptor {
                 e is java.net.SocketException || 
                 e is javax.net.ssl.SSLException
 
-            if (isProbeRequest || isNetworkFailure) {
-                LogManager.w(LogTag.NETWORK, "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. Recording failure (probe=$isProbeRequest).")
-                ServerReachableManager.handleFailure()
-            } else if (isProbeRequest) {
-                ServerReachableManager.releaseProbe()
+            if (trackReachability) {
+                if (isProbeRequest || isNetworkFailure) {
+                    LogManager.w(LogTag.NETWORK, "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. Recording failure (probe=$isProbeRequest).")
+                    ServerReachableManager.handleFailure()
+                } else if (isProbeRequest) {
+                    ServerReachableManager.releaseProbe()
+                }
             }
 
             val errorMsg = when (e) {
                 is CertificateException,
                 is SSLHandshakeException,
                 is SSLException -> {
-                    "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current allow insecure connections mode is: ${DynamicSslTrustManager.allowInsecureConnections}"
+                    "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current allow insecure connections mode is: ${allowInsecureProvider()}"
                 }
                 is UnknownHostException -> {
                     "DNS resolution failed! Host not found: $requestHost. Please check your network connection or server hostname configuration."

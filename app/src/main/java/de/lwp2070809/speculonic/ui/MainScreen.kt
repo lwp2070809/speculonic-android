@@ -470,15 +470,21 @@ private fun MainContent(
                     initialUrl = serverUrl ?: "",
                     initialUser = "",
                     initialPass = "",
+                    initialAllowInsecure = settingsUiState.allowInsecureConnections,
                     viewModel = settingsViewModel,
                     showCancelButton = false,
                     onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
-                    onSave = { url, user, pass, syncCoverArt ->
-                        settingsViewModel.updateServerUrl(url)
-                        settingsViewModel.updateUsername(user)
-                        settingsViewModel.updatePassword(pass)
-                        settingsViewModel.saveSettings(syncCoverArt)
-                        showServerSetupDialog = false
+                    onSave = { url, user, pass, syncCoverArt, allowInsecure ->
+                        if (settingsViewModel.saveSettings(
+                                rawUrl = url,
+                                rawUser = user,
+                                pass = pass,
+                                syncCoverArt = syncCoverArt,
+                                allowInsecureConnections = allowInsecure
+                            )
+                        ) {
+                            showServerSetupDialog = false
+                        }
                     }
                 )
             }

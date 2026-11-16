@@ -20,28 +20,21 @@ class SubsonicServiceFactory(
     private var cachedBaseUrl: String? = null
 
     @Synchronized
+    fun clearCache() {
+        cachedService = null
+        cachedBaseUrl = null
+    }
+
+    @Synchronized
     fun getOrCreateService(baseUrl: String): SubsonicService {
-        val trimmed = baseUrl.trim()
-        val sanitizedUrl = when {
-            trimmed.isBlank() -> "http://unconfigured.local/"
-            trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
-                if (trimmed.endsWith("/")) trimmed else "$trimmed/"
-            }
-            else -> "http://invalid-url-no-protocol/"
-        }
+        val sanitizedUrl = sanitizeBaseUrl(baseUrl)
 
         if (cachedService != null && cachedBaseUrl == sanitizedUrl) {
             return cachedService!!
         }
 
         try {
-            val contentType = "application/json".toMediaType()
-            val service = Retrofit.Builder()
-                .baseUrl(sanitizedUrl)
-                .client(okHttpClient)
-                .addConverterFactory(json.asConverterFactory(contentType))
-                .build()
-                .create(SubsonicService::class.java)
+            val service = createUncachedService(sanitizedUrl, okHttpClient, json)
             cachedService = service
             cachedBaseUrl = sanitizedUrl
             return service
@@ -49,20 +42,46 @@ class SubsonicServiceFactory(
             LogManager.w("Failed to create SubsonicService with URL: $sanitizedUrl. Falling back to http://unconfigured.local/")
         }
 
-        val fallbackUrl = "http://unconfigured.local/"
+        val fallbackUrl = FALLBACK_URL
         if (cachedService != null && cachedBaseUrl == fallbackUrl) {
             return cachedService!!
         }
 
-        val contentType = "application/json".toMediaType()
-        val service = Retrofit.Builder()
-            .baseUrl(fallbackUrl)
-            .client(okHttpClient)
-            .addConverterFactory(json.asConverterFactory(contentType))
-            .build()
-            .create(SubsonicService::class.java)
+        val service = createUncachedService(fallbackUrl, okHttpClient, json)
         cachedService = service
         cachedBaseUrl = fallbackUrl
         return service
+    }
+
+    companion object {
+        private const val FALLBACK_URL = "http://unconfigured.local/"
+
+        internal fun sanitizeBaseUrl(baseUrl: String): String {
+            val trimmed = baseUrl.trim()
+            return when {
+                trimmed.isBlank() -> FALLBACK_URL
+                trimmed.startsWith("http://") || trimmed.startsWith("https://") -> {
+                    if (trimmed.endsWith("/")) trimmed else "$trimmed/"
+                }
+                else -> "http://invalid-url-no-protocol/"
+            }
+        }
+
+        /**
+         * 直接构建不写入缓存的 SubsonicService 实例，供测试连接等隔离场景使用。
+         */
+        fun createUncachedService(
+            baseUrl: String,
+            okHttpClient: OkHttpClient,
+            json: Json
+        ): SubsonicService {
+            val contentType = "application/json".toMediaType()
+            return Retrofit.Builder()
+                .baseUrl(sanitizeBaseUrl(baseUrl))
+                .client(okHttpClient)
+                .addConverterFactory(json.asConverterFactory(contentType))
+                .build()
+                .create(SubsonicService::class.java)
+        }
     }
 }

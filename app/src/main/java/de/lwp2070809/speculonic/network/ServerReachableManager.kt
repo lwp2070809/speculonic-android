@@ -101,6 +101,8 @@ object ServerReachableManager {
     fun reset() {
         isProbing.set(false)
         failureCount.set(0)
+        lastFailureTimestamp = 0L
+        lastFailureLogTime = 0L
         if (!isServerReachable) {
             isServerReachable = true
             LogManager.i("ServerReachableManager: reset")

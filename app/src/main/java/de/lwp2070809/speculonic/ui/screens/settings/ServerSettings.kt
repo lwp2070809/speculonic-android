@@ -351,13 +351,18 @@ fun ServerSettings(
             initialUrl = uiState.serverUrl,
             initialUser = uiState.username,
             initialPass = uiState.password,
+            initialAllowInsecure = uiState.allowInsecureConnections,
             viewModel = viewModel,
             onDismiss = { showEditDialog = false },
-            onSave = { url, user, pass, syncCoverArt ->
-                viewModel.updateServerUrl(url)
-                viewModel.updateUsername(user)
-                viewModel.updatePassword(pass)
-                if (viewModel.saveSettings(syncCoverArt)) {
+            onSave = { url, user, pass, syncCoverArt, allowInsecure ->
+                if (viewModel.saveSettings(
+                        rawUrl = url,
+                        rawUser = user,
+                        pass = pass,
+                        syncCoverArt = syncCoverArt,
+                        allowInsecureConnections = allowInsecure
+                    )
+                ) {
                     showEditDialog = false
                 }
             }
