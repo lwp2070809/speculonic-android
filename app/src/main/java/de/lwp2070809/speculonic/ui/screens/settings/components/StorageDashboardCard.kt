@@ -46,6 +46,7 @@ fun StorageDashboardCard(
     totalSpaceBytes: Long,
     maxCoverBytes: Long,
     isCoverOverQuota: Boolean,
+    isSafEnabled: Boolean,
     playbackSizeLabel: String,
     coverArtSizeLabel: String,
     songSizeLabel: String,
@@ -87,19 +88,24 @@ fun StorageDashboardCard(
                 if (isCoverOverQuota) {
                     IconButton(
                         onClick = onClearCoverArtClick,
-                        modifier = Modifier
-                            .background(
-                                MaterialTheme.colorScheme.errorContainer,
-                                shape = CircleShape
-                            )
-                            .size(32.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
-                        Icon(
-                            imageVector = Icons.Default.Warning,
-                            contentDescription = stringResource(R.string.clear_cache_quota_warning),
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(32.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.errorContainer,
+                                    shape = CircleShape
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Warning,
+                                contentDescription = stringResource(R.string.clear_cache_quota_warning),
+                                tint = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -131,17 +137,19 @@ fun StorageDashboardCard(
                 onClearClick = onClearPlaybackClick
             )
 
-            // 3. 已缓存歌曲
-            val songTotal = totalSpaceBytes
-            val songProgress = if (songTotal > 0) (songBytes.toFloat() / songTotal.toFloat()).coerceIn(0f, 1f) else 0f
-            StorageItemRow(
-                label = stringResource(R.string.song_cache_color_label),
-                sizeLabel = "$songSizeLabel / ${FormatUtils.formatSize(totalSpaceBytes)}",
-                progress = songProgress,
-                color = Color(0xFF2196F3),
-                trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
-                onClearClick = onClearSongsClick
-            )
+            if (!isSafEnabled) {
+                // 3. 已缓存歌曲（启用 SAF 外部存储后隐藏此内部统计项）
+                val songTotal = totalSpaceBytes
+                val songProgress = if (songTotal > 0) (songBytes.toFloat() / songTotal.toFloat()).coerceIn(0f, 1f) else 0f
+                StorageItemRow(
+                    label = stringResource(R.string.song_cache_color_label),
+                    sizeLabel = "$songSizeLabel / ${FormatUtils.formatSize(totalSpaceBytes)}",
+                    progress = songProgress,
+                    color = Color(0xFF2196F3),
+                    trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
+                    onClearClick = onClearSongsClick
+                )
+            }
 
             // 4. 其他缓存 (无进度条)
             StorageItemRow(
@@ -229,17 +237,17 @@ fun StorageItemRow(
                 if (onClearClick != null) {
                     IconButton(
                         onClick = onClearClick,
-                        modifier = Modifier.size(24.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Delete,
                             contentDescription = stringResource(R.string.clear),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(18.dp)
                         )
                     }
                 } else {
-                    Spacer(modifier = Modifier.width(24.dp))
+                    Spacer(modifier = Modifier.width(48.dp))
                 }
             }
         }

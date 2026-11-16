@@ -120,16 +120,18 @@ class PlaylistRepository(
 
             val entities = list.map { song ->
                 val local = existingSongsMap[song.id]
+                val isStarred = song.starred != null
+                val lastUpdated = if (isStarred && local?.starred != true) null else local?.lastUpdated
                 entityMapper.songToEntity(
-                    song = song, 
+                    song = song,
                     albumId = song.albumId ?: local?.albumId, 
                     artistId = song.artistId ?: local?.artistId,
                     localUri = local?.localUri, 
                     isCached = local?.isFullyCached ?: false,
                     isTranscoded = local?.isTranscoded ?: false,
                     parentId = song.parent ?: local?.parent,
-                    isStarred = if (song.starred != null) true else local?.starred,
-                    lastUpdated = local?.lastUpdated
+                    isStarred = isStarred,
+                    lastUpdated = lastUpdated
                 )
             }
             val refs = list.mapIndexed { index, song -> 

@@ -426,4 +426,12 @@
     <string name="widget_opacity_desc">Adjust background transparency of the music widget</string>
     <string name="widget_preview">Preview</string>
     <string name="action_save">Save</string>
+    <string name="clear_cover_art_cache_title">Clear Cover Art Cache</string>
+    <string name="clear_cover_art_cache_confirm">Are you sure you want to clear all cached album and artist cover images?</string>
+    <string name="clear_playback_cache_title">Clear Playback Buffer</string>
+    <string name="clear_playback_cache_confirm">Are you sure you want to clear the streaming playback buffer? Offline downloads will be kept.</string>
+    <string name="clear_song_downloads_title">Clear Cached Songs</string>
+    <string name="clear_song_downloads_confirm">Are you sure you want to delete all internal offline cached songs? Files stored in SAF directory will remain untouched.</string>
+    <string name="credentials_reset_warning_title">Server Credentials Need Re-verification</string>
+    <string name="credentials_reset_warning_message">Encrypted credentials could not be unlocked due to key or storage changes and have been safely cleared. Please re-enter your server address and login details. Local library metadata and cached songs remain untouched.</string>
 </resources>

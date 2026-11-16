@@ -1,10 +1,9 @@
 package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistSongCrossRef
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
@@ -12,7 +11,7 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface PlaylistDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertPlaylists(playlists: List<PlaylistEntity>)
 
     @Query("DELETE FROM playlists WHERE id = :playlistId")
@@ -88,7 +87,7 @@ interface PlaylistDao {
     @Query("SELECT * FROM playlists WHERE pinned = 1 ORDER BY name ASC")
     fun getPinnedPlaylistsFlow(): Flow<List<PlaylistEntity>>
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertPlaylistSongCrossRefs(refs: List<PlaylistSongCrossRef>)
 
     @Query("""

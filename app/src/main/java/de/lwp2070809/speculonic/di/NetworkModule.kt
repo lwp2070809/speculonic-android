@@ -315,8 +315,11 @@ object NetworkModule {
                     } catch (e: Exception) {
                         "Failed to read body: ${e.message}"
                     }
-                    LogManager.e("Stream/Download request returned non-audio response: code=${response.code}, contentType=$contentType, body=$bodyString")
                     val errorMessage = extractErrorMessage(bodyString)
+                    LogManager.e(
+                        "Stream/Download request returned non-audio response: code=${response.code}, " +
+                            "contentType=$contentType, detail=$errorMessage"
+                    )
                     throw IOException("Subsonic server returned error (code ${response.code}): $errorMessage")
                 }
             }

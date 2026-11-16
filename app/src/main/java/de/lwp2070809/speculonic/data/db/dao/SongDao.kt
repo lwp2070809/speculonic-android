@@ -2,17 +2,17 @@ package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.paging.PagingSource
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
+import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SongDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertSongs(songs: List<SongEntity>)
 
     @Query("SELECT COUNT(*) FROM songs")
@@ -33,17 +33,27 @@ interface SongDao {
         ids.chunked(900).forEach { _deleteSongsByIds(it) }
     }
 
+    @Query("SELECT id, localUri FROM songs WHERE albumId = :albumId")
+    suspend fun getSongCleanupTargetsByAlbum(albumId: String): List<SongCleanupTarget>
+
+    @Query("SELECT id, localUri FROM songs WHERE parent = :parentId")
+    suspend fun getSongCleanupTargetsByParent(parentId: String): List<SongCleanupTarget>
+
     @Transaction
-    suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>) {
+    suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>): List<SongCleanupTarget> {
+        val allInAlbum = getSongCleanupTargetsByAlbum(albumId)
+        val targets = if (ids.isEmpty()) {
+            allInAlbum
+        } else {
+            val keepSet = ids.toHashSet()
+            allInAlbum.filter { it.id !in keepSet }
+        }
         if (ids.isEmpty()) {
             deleteSongsByAlbum(albumId)
-        } else {
-            val localIds = getSongIdsByAlbum(albumId)
-            val toDelete = localIds.toSet() - ids.toSet()
-            if (toDelete.isNotEmpty()) {
-                deleteSongsByIds(toDelete.toList())
-            }
+        } else if (targets.isNotEmpty()) {
+            deleteSongsByIds(targets.map { it.id })
         }
+        return targets
     }
 
     @Query("DELETE FROM songs WHERE albumId = :albumId")
@@ -110,7 +120,7 @@ interface SongDao {
             clearAllSongStarredFlags()
         } else {
             unstarSongsNotIn(songs.map { it.id })
-            insertSongs(songs)
+            songs.chunked(500).forEach { insertSongs(it) }
         }
     }
 
@@ -131,6 +141,12 @@ interface SongDao {
 
     @Query("UPDATE songs SET isFullyCached = 0, localUri = NULL, isTranscoded = 0")
     suspend fun resetAllCacheStatus()
+
+    @Query(
+        "UPDATE songs SET isFullyCached = 0, localUri = NULL, isTranscoded = 0 " +
+            "WHERE localUri IS NULL OR localUri NOT LIKE 'content://%'"
+    )
+    suspend fun resetNonSafCacheStatus()
 
     @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred, lastUpdated FROM songs")
     suspend fun getAllSongsMetadata(): List<SongMetadata>

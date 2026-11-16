@@ -78,7 +78,7 @@ object WidgetCoverLoader {
             return@withContext coilCover
         }
 
-        LogManager.w("$TAG: All cover loading strategies exhausted for songId=$songId, uri=$uriString")
+        LogManager.w("$TAG: All cover loading strategies exhausted for songId=$songId, uri=${LogManager.redactUrl(uriString)}")
         null
     }
 
@@ -160,7 +160,10 @@ object WidgetCoverLoader {
                     else -> rawBitmap.copy(Bitmap.Config.RGB_565, false)
                 }
                 if (finalBmp != null) {
-                    LogManager.i("$TAG: Loaded Coil cover for $uriString (${finalBmp.width}x${finalBmp.height}, ${finalBmp.byteCount} bytes)")
+                    LogManager.i(
+                        "$TAG: Loaded Coil cover for ${LogManager.redactUrl(uriString)} " +
+                            "(${finalBmp.width}x${finalBmp.height}, ${finalBmp.byteCount} bytes)"
+                    )
                 }
                 finalBmp
             } else {

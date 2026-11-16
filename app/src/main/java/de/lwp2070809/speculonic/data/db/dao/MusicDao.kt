@@ -2,6 +2,8 @@ package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.room.Dao
 import androidx.room.Transaction
+import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
+import de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistSongCrossRef
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
@@ -38,5 +40,15 @@ interface MusicDao :
         if (refs.isNotEmpty()) {
             refs.chunked(500).forEach { insertPlaylistSongCrossRefs(it) }
         }
+    }
+
+    @Transaction
+    suspend fun syncStarredData(
+        songs: List<SongEntity>,
+        albums: List<AlbumEntity>,
+        albumListItems: List<AlbumListItemEntity>
+    ) {
+        syncStarredSongs(songs)
+        syncStarredAlbums("starred", albums, albumListItems)
     }
 }

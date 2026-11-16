@@ -71,10 +71,15 @@ class MetadataSyncWorker @AssistedInject constructor(
         try {
             if (needsFullSync) {
                 LogManager.i("MetadataSync: Executing deep synchronization...")
-                syncAllDataUseCase(forceRefresh = forceRefresh, onProgress = { status ->
-                    LogManager.d("MetadataSync Progress: $status")
-                    setProgress(workDataOf("status" to status))
-                })
+                val outcome = syncAllDataUseCase(
+                    forceRefresh = forceRefresh,
+                    ignoreLastModified = true,
+                    onProgress = { status ->
+                        LogManager.d("MetadataSync Progress: $status")
+                        setProgress(workDataOf("status" to status))
+                    }
+                )
+                LogManager.i("MetadataSync: Deep synchronization completed with outcome=$outcome.")
             } else {
                 LogManager.i("MetadataSync: Executing lightweight synchronization...")
                 repository.quickSync(onProgress = { status ->

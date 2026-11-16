@@ -72,13 +72,16 @@ object PaletteUtils {
                     }
                     color
                 } else {
-                    LogManager.e("PaletteUtils: ImageLoader FAILURE for $uri, result=${result.javaClass.simpleName}")
+                    LogManager.e(
+                        "PaletteUtils: ImageLoader FAILURE for ${LogManager.redactUrl(uri)}, " +
+                            "result=${result.javaClass.simpleName}"
+                    )
                     null
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                LogManager.e("PaletteUtils: 封面异步取色失败 - $uri", e)
+                LogManager.e("PaletteUtils: 封面异步取色失败 - ${LogManager.redactUrl(uri)}", e)
                 null
             }
         } 

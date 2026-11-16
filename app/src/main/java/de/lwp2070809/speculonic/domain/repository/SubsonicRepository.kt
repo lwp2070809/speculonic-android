@@ -143,11 +143,14 @@ class SubsonicRepository(
         val newUrlBuilder = UrlBuilder(url, newAuthManager)
         val newApi = de.lwp2070809.speculonic.di.NetworkModule.provideSubsonicService(url)
         
-        val newSyncManager = SyncManager(newApi, musicDao, newAuthManager, preferencesManager, entityMapper)
+        val cleanupCallback: suspend (List<de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget>) -> Unit = { targets ->
+            de.lwp2070809.speculonic.data.CacheCleanupHelper.purgeRemovedSongs(context, targets)
+        }
+        val newSyncManager = SyncManager(newApi, musicDao, newAuthManager, preferencesManager, entityMapper, cleanupCallback)
         val newPlaylistRepository = PlaylistRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newUserActionRepository = UserActionRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newLyricsRepository = LyricsRepository(context, newApi, musicDao, newAuthManager)
-        val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper)
+        val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper, cleanupCallback)
         val newCoverArtSyncManager = CoverArtSyncManager(context, url, musicDao, newUrlBuilder)
 
         components = Components(
@@ -201,11 +204,11 @@ class SubsonicRepository(
         ignoreSafetyGuard: Boolean = false,
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
-    ) {
-        if (!isConfigured) return
+    ): SyncOutcome {
+        if (!isConfigured) return SyncOutcome.SKIPPED_NOT_CONFIGURED
         val hasLocal = hasLocalData()
 
-        syncManager.syncAllData(
+        val outcome = syncManager.syncAllData(
             serverCapabilities = serverCapabilities,
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
@@ -232,11 +235,13 @@ class SubsonicRepository(
             }
         )
 
-        preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
-
-        if (forceRefresh || !hasLocal) {
-            preloadPlaylistsAndSongs()
+        if (outcome == SyncOutcome.SYNCED_FULL) {
+            preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
+            if (forceRefresh || !hasLocal) {
+                preloadPlaylistsAndSongs()
+            }
         }
+        return outcome
     }
 
     
@@ -334,8 +339,8 @@ class SubsonicRepository(
         ignoreLastModified: Boolean = false,
         ignoreSafetyGuard: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
-    ) {
-        syncAllData(
+    ): SyncOutcome {
+        return syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
             ignoreSafetyGuard = ignoreSafetyGuard,

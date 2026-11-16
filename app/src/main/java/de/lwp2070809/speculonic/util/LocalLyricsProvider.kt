@@ -69,7 +69,7 @@ object LocalLyricsProvider {
                             val lrcFile = existingLrc ?: rootDoc.createFile("application/octet-stream", lrcFileName)
                             
                             lrcFile?.let { file ->
-                                context.contentResolver.openOutputStream(file.uri)?.use { out ->
+                                de.lwp2070809.speculonic.data.CacheExporter.openTruncatedOutputStream(context, file.uri)?.use { out ->
                                     out.write(lrcContent.toByteArray())
                                     LogManager.i("LocalLyricsProvider: Successfully created and saved companion .lrc file")
                                     return@withContext true

@@ -20,17 +20,17 @@ jobs:
       GITHUB_REPO: ${{ github.repository }}
 
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-java@v6
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
         with:
           java-version: '21'
           distribution: 'temurin'
 
       - name: Setup Gradle
-        uses: gradle/actions/setup-gradle@v6
+        uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6.4.1
 
       - env:
           URL_KAGUYA_1: ${{ secrets.EASTER_EGG_URL_KAGUYA_1 }}
@@ -72,6 +72,9 @@ jobs:
       - name: Sign APK
         env:
           SIGNING_KEY_VAL: ${{ secrets.SIGNING_KEY }}
+          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
+          KEY_STORE_PASSWORD: ${{ secrets.KEY_STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         run: |
           BUILD_TOOL_PATH="$ANDROID_HOME/build-tools/$BUILD_TOOLS_VERSION"
           mkdir -p app/build/outputs/apk/release/
@@ -91,9 +94,9 @@ jobs:
                 if [ -f "$UNSIGNED_APK" ]; then
                   $BUILD_TOOL_PATH/zipalign -v 4 "$UNSIGNED_APK" "$ALIGNED_APK"
                   $BUILD_TOOL_PATH/apksigner sign --ks release.keystore \
-                    --ks-key-alias "${{ secrets.SIGNING_KEY_ALIAS }}" \
-                    --ks-pass pass:"${{ secrets.KEY_STORE_PASSWORD }}" \
-                    --key-pass pass:"${{ secrets.KEY_PASSWORD }}" \
+                    --ks-key-alias "$SIGNING_KEY_ALIAS" \
+                    --ks-pass env:KEY_STORE_PASSWORD \
+                    --key-pass env:KEY_PASSWORD \
                     --out "$SIGNED_APK" "$ALIGNED_APK"
                   
                   rm -f "$ALIGNED_APK" "$UNSIGNED_APK"
@@ -120,18 +123,20 @@ jobs:
         run: |
           ls -lh app/build/outputs/apk/release/
 
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: release-apk
           path: app/build/outputs/apk/release/speculonic-*.apk
 
       - name: Extract Tag Message
+        env:
+          TAG_NAME: ${{ github.ref_name }}
         run: |
           # Force fetch the specific tag to ensure we have the annotated tag object, not just a lightweight tag created by checkout
-          git fetch origin refs/tags/${{ github.ref_name }}:refs/tags/${{ github.ref_name }} --force
+          git fetch origin "refs/tags/${TAG_NAME}:refs/tags/${TAG_NAME}" --force
           
           # Extract the tag message and strip the PGP signature if present
-          TAG_MSG=$(git tag -l --format='%(contents)' ${{ github.ref_name }} | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
+          TAG_MSG=$(git tag -l --format='%(contents)' "$TAG_NAME" | sed '/-----BEGIN PGP SIGNATURE-----/,$d')
           
           if [ -z "$TAG_MSG" ]; then
             TAG_MSG=$(git log -1 --pretty=%B)
@@ -142,7 +147,7 @@ jobs:
           echo "$TAG_MSG" >> $GITHUB_ENV
           echo "$EOF_DELIMITER" >> $GITHUB_ENV
 
-      - uses: softprops/action-gh-release@v3
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           tag_name: ${{ github.ref_name }}
           name: Speculonic ${{ github.ref_name }}

@@ -39,7 +39,9 @@ class SubsonicServiceFactory(
             cachedBaseUrl = sanitizedUrl
             return service
         } catch (e: Exception) {
-            LogManager.w("Failed to create SubsonicService with URL: $sanitizedUrl. Falling back to http://unconfigured.local/")
+            LogManager.w(
+                "Failed to create SubsonicService with URL: ${LogManager.redactUrl(sanitizedUrl)}. Falling back to http://unconfigured.local/"
+            )
         }
 
         val fallbackUrl = FALLBACK_URL

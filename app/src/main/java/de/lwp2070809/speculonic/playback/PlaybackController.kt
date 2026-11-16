@@ -135,16 +135,24 @@ class PlaybackController private constructor(context: Context) {
     private fun executeWhenReady(action: (MediaController) -> Unit) {
         ensureController()
         val ctrl = controller
-        if (ctrl != null) {
+        if (ctrl != null && _isSessionReady.value) {
             if (android.os.Looper.myLooper() == android.os.Looper.getMainLooper()) {
                 action(ctrl)
             } else {
                 scope.launch { action(ctrl) }
             }
         } else {
-            LogManager.i("PlaybackController: Controller not ready, queueing action")
+            LogManager.i("PlaybackController: Session not ready (ctrl=${ctrl != null}, ready=${_isSessionReady.value}), queueing action")
             pendingActions.add(action)
         }
+    }
+
+    private fun flushPendingActionsIfReady(ctrl: MediaController) {
+        if (!_isSessionReady.value || pendingActions.isEmpty()) return
+        val actionsToRun = pendingActions.toList()
+        pendingActions.clear()
+        LogManager.i("PlaybackController: Executing ${actionsToRun.size} pending actions")
+        actionsToRun.forEach { it(ctrl) }
     }
 
     /**
@@ -228,7 +236,11 @@ class PlaybackController private constructor(context: Context) {
                     extras: android.os.Bundle
                 ) {
                     super.onExtrasChanged(controller, extras)
-                    _isSessionReady.value = extras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)
+                    val ready = extras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)
+                    _isSessionReady.value = ready
+                    if (ready) {
+                        flushPendingActionsIfReady(controller)
+                    }
                     updateState()
                 }
 
@@ -268,12 +280,8 @@ class PlaybackController private constructor(context: Context) {
         
         updateState()
         handleProgressTicker()
-        
-        if (pendingActions.isNotEmpty()) {
-            LogManager.i("PlaybackController: Executing ${pendingActions.size} pending actions")
-            pendingActions.forEach { it(controller) }
-            pendingActions.clear()
-        }
+
+        flushPendingActionsIfReady(controller)
     }
 
     fun onAppVisibilityChanged(visible: Boolean) {

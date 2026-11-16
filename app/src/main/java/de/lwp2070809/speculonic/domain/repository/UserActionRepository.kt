@@ -61,28 +61,26 @@ class UserActionRepository(
             val starred2 = response.response.starred2 ?: Starred2Response()
             
             if (!skipInsert) {
-                musicDao.clearAllSongStarredFlags()
-                starred2.song.asSequence().chunked(500).forEach { chunk ->
-                    val chunkIds = chunk.map { it.id }
-                    val existingSongsMap = musicDao.getSongsByIds(chunkIds).associateBy { it.id }
-                    val entities = chunk.map { song ->
+                val songEntities = starred2.song.chunked(500).flatMap { chunk ->
+                    val existingSongsMap = musicDao.getSongsByIds(chunk.map { it.id }).associateBy { it.id }
+                    chunk.map { song ->
                         val local = existingSongsMap[song.id]
+                        val lastUpdated = if (local?.starred != true) null else local.lastUpdated
                         entityMapper.songToEntity(
-                            song = song, 
-                            albumId = song.albumId ?: local?.albumId, 
+                            song = song,
+                            albumId = song.albumId ?: local?.albumId,
                             artistId = song.artistId ?: local?.artistId,
-                            localUri = local?.localUri, 
+                            localUri = local?.localUri,
                             isCached = local?.isFullyCached ?: false,
                             isTranscoded = local?.isTranscoded ?: false,
                             parentId = song.parent ?: local?.parent,
                             isStarred = true,
-                            lastUpdated = local?.lastUpdated
+                            lastUpdated = lastUpdated
                         )
                     }
-                    musicDao.insertSongs(entities)
                 }
-                
-                syncStarredAlbums(starred2.album)
+                val (albumEntities, listItems) = buildStarredAlbumsPayload(starred2.album)
+                musicDao.syncStarredData(songEntities, albumEntities, listItems)
             }
             
             if (skipInsert) {
@@ -103,10 +101,11 @@ class UserActionRepository(
         }
     }
 
-    private suspend fun syncStarredAlbums(albums: List<Album>) {
+    private suspend fun buildStarredAlbumsPayload(
+        albums: List<Album>
+    ): Pair<List<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>, List<de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity>> {
         if (albums.isEmpty()) {
-            musicDao.syncStarredAlbums("starred", emptyList(), emptyList())
-            return
+            return emptyList<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>() to emptyList()
         }
         val albumEntities = mutableListOf<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>()
         val listItems = mutableListOf<de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity>()
@@ -115,7 +114,7 @@ class UserActionRepository(
         albums.chunked(500).forEachIndexed { chunkIndex, chunk ->
             val chunkIds = chunk.map { it.id }
             val existingAlbumsMap = musicDao.getAlbumsByIds(chunkIds).associateBy { it.id }
-            
+
             chunk.forEachIndexed { index, album ->
                 val existing = existingAlbumsMap[album.id]
                 val entity = entityMapper.albumToEntity(album, existing = existing, isStarred = true)
@@ -128,7 +127,7 @@ class UserActionRepository(
                 listItems.add(de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity("starred", album.id, chunkIndex * 500 + index))
             }
         }
-        musicDao.syncStarredAlbums("starred", albumEntities, listItems)
+        return albumEntities to listItems
     }
 
     suspend fun starSong(id: String, star: Boolean): Boolean {

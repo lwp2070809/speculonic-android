@@ -2,11 +2,13 @@ package de.lwp2070809.speculonic.data.prefs
 
 import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.StateFlow
 
 interface ConnectionPrefs {
     val serverUrl: Flow<String>
     val username: Flow<String>
     val password: Flow<String>
+    val credentialsResetWarning: StateFlow<Boolean>
     val serverCapabilities: Flow<ServerCapabilities?>
     val lastPingTime: Flow<Long>
     val allowInsecureConnections: Flow<Boolean>

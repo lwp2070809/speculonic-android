@@ -198,8 +198,11 @@ interface SubsonicService {
         @Query("t") t: String,
         @Query("s") s: String,
         @Query("artistCount") artistCount: Int = 20,
+        @Query("artistOffset") artistOffset: Int = 0,
         @Query("albumCount") albumCount: Int = 20,
+        @Query("albumOffset") albumOffset: Int = 0,
         @Query("songCount") songCount: Int = 100,
+        @Query("songOffset") songOffset: Int = 0,
         @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
         @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"

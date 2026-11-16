@@ -183,7 +183,8 @@ dependencies {
     implementation(libs.work.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    implementation(libs.androidx.security.crypto)
+    // 短期仅用于历史 EncryptedSharedPreferences XML 的一次性只读兼容迁移，后续版本可直接移除
+    implementation(libs.tink.android)
     implementation(libs.androidx.documentfile)
     ksp(libs.androidx.room.compiler)
     

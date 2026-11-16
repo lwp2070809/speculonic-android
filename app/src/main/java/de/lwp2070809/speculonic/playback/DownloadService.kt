@@ -34,21 +34,23 @@ class DownloadService : DownloadService(
                 if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
                     return
                 }
-                isCancellingAll = true
                 val manager = DownloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return
+                isCancellingAll = true
+                var removedCount = 0
                 try {
-                    manager.downloadIndex.getDownloads().use { cursor ->
-                        while (cursor.moveToNext()) {
-                            val download = cursor.download
-                            if (!isSilent(download) && (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED || download.state == Download.STATE_RESTARTING)) {
-                                manager.removeDownload(download.request.id)
-                            }
+                    val activeDownloads = collectActiveDownloads(manager)
+                    for (download in activeDownloads) {
+                        if (!isSilent(download) && isActiveState(download.state)) {
+                            manager.removeDownload(download.request.id)
+                            removedCount++
                         }
                     }
+                    if (removedCount == 0) {
+                        isCancellingAll = false
+                    }
                 } catch (e: Exception) {
-                    de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to cancel downloads in cancelReceiver", e)
-                } finally {
                     isCancellingAll = false
+                    de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to cancel downloads in cancelReceiver", e)
                 }
             }
         }
@@ -56,8 +58,50 @@ class DownloadService : DownloadService(
 
     private val downloadListener = object : DownloadManager.Listener {
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
-            checkAndStopIfSilent()
+            syncCancellingFlagAndCheckSilent(downloadManager)
         }
+
+        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            syncCancellingFlagAndCheckSilent(downloadManager)
+        }
+
+        override fun onIdle(downloadManager: DownloadManager) {
+            isCancellingAll = false
+        }
+    }
+
+    private fun isActiveState(state: Int): Boolean {
+        return state == Download.STATE_DOWNLOADING ||
+            state == Download.STATE_QUEUED ||
+            state == Download.STATE_RESTARTING
+    }
+
+    private fun collectActiveDownloads(manager: DownloadManager): List<Download> {
+        if (manager.isInitialized) {
+            return manager.currentDownloads
+        }
+        val active = mutableListOf<Download>()
+        manager.downloadIndex.getDownloads(
+            Download.STATE_DOWNLOADING,
+            Download.STATE_QUEUED,
+            Download.STATE_RESTARTING,
+            Download.STATE_REMOVING
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                active.add(cursor.download)
+            }
+        }
+        return active
+    }
+
+    private fun syncCancellingFlagAndCheckSilent(downloadManager: DownloadManager) {
+        val hasManualPendingOrRemoving = downloadManager.currentDownloads.any {
+            !isSilent(it) && (isActiveState(it.state) || it.state == Download.STATE_REMOVING)
+        }
+        if (!hasManualPendingOrRemoving) {
+            isCancellingAll = false
+        }
+        checkAndStopIfSilent()
     }
 
     private fun checkAndStopIfSilent() {
@@ -75,16 +119,13 @@ class DownloadService : DownloadService(
         var hasActive = false
         var hasManual = false
         try {
-            manager.downloadIndex.getDownloads().use { cursor ->
-                while (cursor.moveToNext()) {
-                    val download = cursor.download
-                    if (download.state == Download.STATE_DOWNLOADING || 
-                        download.state == Download.STATE_QUEUED || 
-                        download.state == Download.STATE_RESTARTING) {
-                        hasActive = true
-                        if (!isSilent(download)) {
-                            hasManual = true
-                        }
+            val activeDownloads = collectActiveDownloads(manager)
+            for (download in activeDownloads) {
+                if (isActiveState(download.state) || download.state == Download.STATE_REMOVING) {
+                    hasActive = true
+                    if (!isSilent(download)) {
+                        hasManual = true
+                        break
                     }
                 }
             }
@@ -140,7 +181,8 @@ class DownloadService : DownloadService(
             }
             throw e
         }
-        checkAndStopIfSilent()
+        // 不在 onStartCommand 同步调用 checkAndStopIfSilent()，避免抢在 DownloadManager 异步处理
+        // Resume/AddDownload 消息更新前读取陈旧状态导致手动下载恢复时被立即停服
         return result
     }
 
@@ -157,6 +199,7 @@ class DownloadService : DownloadService(
 
     override fun onDestroy() {
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onDestroy")
+        isCancellingAll = false
         try {
             DownloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.removeListener(downloadListener)
         } catch (e: java.lang.Exception) {
@@ -191,10 +234,18 @@ class DownloadService : DownloadService(
         
         if (activeDownloads.isNotEmpty()) {
             val clickIntent = android.app.PendingIntent.getActivity(
-                this, 0,
+                this,
+                0,
                 android.content.Intent(this, MainActivity::class.java).apply {
                     flags = android.content.Intent.FLAG_ACTIVITY_CLEAR_TOP or android.content.Intent.FLAG_ACTIVITY_SINGLE_TOP
                 },
+                android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
+            )
+            val cancelIntent = android.content.Intent(ACTION_CANCEL_ALL_DOWNLOADS).setPackage(packageName)
+            val cancelPendingIntent = android.app.PendingIntent.getBroadcast(
+                this,
+                CANCEL_REQUEST_CODE,
+                cancelIntent,
                 android.app.PendingIntent.FLAG_UPDATE_CURRENT or android.app.PendingIntent.FLAG_IMMUTABLE
             )
 
@@ -203,6 +254,7 @@ class DownloadService : DownloadService(
                 .setContentTitle(getString(R.string.app_name))
                 .setContentText(getString(R.string.preparing_offline_content))
                 .setContentIntent(clickIntent)
+                .addAction(0, getString(R.string.cancel_downloads), cancelPendingIntent)
                 .setSilent(true)
                 .setOngoing(true)
                 .build()
@@ -267,6 +319,7 @@ class DownloadService : DownloadService(
         @Volatile
         var isCancellingAll = false
         private const val JOB_ID = 1001
+        private const val CANCEL_REQUEST_CODE = 1002
         const val ACTION_CANCEL_ALL_DOWNLOADS = "de.lwp2070809.speculonic.ACTION_CANCEL_ALL_DOWNLOADS"
         
         

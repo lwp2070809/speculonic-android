@@ -27,7 +27,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
         PlaybackQueueEntity::class,
         SyncTempIdEntity::class
     ],
-    version = 25,
+    version = 26,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -158,6 +158,64 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             }
         }
 
+        val MIGRATION_25_26 = object : Migration(25, 26) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // 启用外键约束前先剔除历史孤儿行，避免迁移期重插触发 CONSTRAINT 异常
+                db.execSQL("DELETE FROM `album_list_items` WHERE `albumId` NOT IN (SELECT `id` FROM `albums`)")
+                db.execSQL(
+                    "DELETE FROM `playlist_song_cross_ref` " +
+                        "WHERE `playlistId` NOT IN (SELECT `id` FROM `playlists`) OR `songId` NOT IN (SELECT `id` FROM `songs`)"
+                )
+                db.execSQL("DELETE FROM `playback_queue` WHERE `songId` NOT IN (SELECT `id` FROM `songs`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `album_list_items_new` (" +
+                        "`listType` TEXT NOT NULL, `albumId` TEXT NOT NULL, `orderIndex` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`listType`, `albumId`), " +
+                        "FOREIGN KEY(`albumId`) REFERENCES `albums`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "INSERT INTO `album_list_items_new` (`listType`, `albumId`, `orderIndex`) " +
+                        "SELECT `listType`, `albumId`, `orderIndex` FROM `album_list_items`"
+                )
+                db.execSQL("DROP TABLE `album_list_items`")
+                db.execSQL("ALTER TABLE `album_list_items_new` RENAME TO `album_list_items`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_album_list_items_albumId` ON `album_list_items` (`albumId`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `playlist_song_cross_ref_new` (" +
+                        "`playlistId` TEXT NOT NULL, `songId` TEXT NOT NULL, `order` INTEGER NOT NULL, " +
+                        "PRIMARY KEY(`playlistId`, `songId`, `order`), " +
+                        "FOREIGN KEY(`playlistId`) REFERENCES `playlists`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE , " +
+                        "FOREIGN KEY(`songId`) REFERENCES `songs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "INSERT INTO `playlist_song_cross_ref_new` (`playlistId`, `songId`, `order`) " +
+                        "SELECT `playlistId`, `songId`, `order` FROM `playlist_song_cross_ref`"
+                )
+                db.execSQL("DROP TABLE `playlist_song_cross_ref`")
+                db.execSQL("ALTER TABLE `playlist_song_cross_ref_new` RENAME TO `playlist_song_cross_ref`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_playlist_song_cross_ref_playlistId_songId_order` " +
+                        "ON `playlist_song_cross_ref` (`playlistId`, `songId`, `order`)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_playlist_song_cross_ref_songId` ON `playlist_song_cross_ref` (`songId`)")
+
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `playback_queue_new` (" +
+                        "`orderIndex` INTEGER NOT NULL, `songId` TEXT NOT NULL, PRIMARY KEY(`orderIndex`), " +
+                        "FOREIGN KEY(`songId`) REFERENCES `songs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )"
+                )
+                db.execSQL(
+                    "INSERT INTO `playback_queue_new` (`orderIndex`, `songId`) " +
+                        "SELECT `orderIndex`, `songId` FROM `playback_queue`"
+                )
+                db.execSQL("DROP TABLE `playback_queue`")
+                db.execSQL("ALTER TABLE `playback_queue_new` RENAME TO `playback_queue`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_playback_queue_songId` ON `playback_queue` (`songId`)")
+            }
+        }
+
                 val ALL_MIGRATIONS = arrayOf(
             MIGRATION_14_15,
             MIGRATION_15_16,
@@ -169,7 +227,8 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             MIGRATION_21_22,
             MIGRATION_22_23,
             MIGRATION_23_24,
-            MIGRATION_24_25
+            MIGRATION_24_25,
+            MIGRATION_25_26
         )
 
 fun getDatabase(context: Context): AppDatabase {

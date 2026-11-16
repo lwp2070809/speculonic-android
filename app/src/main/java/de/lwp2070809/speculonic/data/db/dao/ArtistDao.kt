@@ -1,15 +1,14 @@
 package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
+import androidx.room.Upsert
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface ArtistDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertArtists(artists: List<ArtistEntity>)
 
     @Query("""

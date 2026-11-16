@@ -423,4 +423,12 @@
     <string name="widget_opacity_desc">调节桌面音乐微件的卡片背景透明度</string>
     <string name="widget_preview">效果预览</string>
     <string name="action_save">保存</string>
+    <string name="clear_cover_art_cache_title">清除封面缓存</string>
+    <string name="clear_cover_art_cache_confirm">确定要清除全部已缓存的专辑与艺术家封面图片吗？</string>
+    <string name="clear_playback_cache_title">清除播放缓冲</string>
+    <string name="clear_playback_cache_confirm">确定要清除在线播放临时缓冲吗？离线下载的歌曲不会被删除。</string>
+    <string name="clear_song_downloads_title">清除已缓存歌曲</string>
+    <string name="clear_song_downloads_confirm">确定要删除所有内部存储中的离线缓存歌曲吗？外部 SAF 目录中的文件将被保留。</string>
+    <string name="credentials_reset_warning_title">服务器凭据需要重新验证</string>
+    <string name="credentials_reset_warning_message">由于设备密钥变动或存储异常，原加密凭据无法解锁，系统已将其安全清除。请重新输入服务器地址与账号密码；本地曲库数据及离线歌曲缓存均完好保留。</string>
 </resources>

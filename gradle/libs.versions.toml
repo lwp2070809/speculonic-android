@@ -20,7 +20,7 @@ appcompat = "1.8.0"
 workManager = "2.12.0"
 room = "2.8.5"
 ksp = "2.3.6"
-securityCrypto = "1.1.0"
+tink = "1.24.0"
 paging = "3.5.3"
 pagingCompose = "3.5.3"
 hilt = "2.60.1"
@@ -72,7 +72,7 @@ work-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
-androidx-security-crypto = { group = "androidx.security", name = "security-crypto", version.ref = "securityCrypto" }
+tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version = "1.1.0" }
 jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 

@@ -20,16 +20,24 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.screens.settings.CacheClearTarget
 
 @Composable
 fun ClearCacheConfirmDialog(
+    target: CacheClearTarget,
     onConfirm: () -> Unit,
     onDismiss: () -> Unit
 ) {
+    val (titleRes, messageRes) = when (target) {
+        CacheClearTarget.ALL -> R.string.clear_internal_cache to R.string.clear_cache_confirm
+        CacheClearTarget.PLAYBACK -> R.string.clear_playback_cache_title to R.string.clear_playback_cache_confirm
+        CacheClearTarget.COVER_ART -> R.string.clear_cover_art_cache_title to R.string.clear_cover_art_cache_confirm
+        CacheClearTarget.SONGS -> R.string.clear_song_downloads_title to R.string.clear_song_downloads_confirm
+    }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.clear_internal_cache)) },
-        text = { Text(stringResource(R.string.clear_cache_confirm)) },
+        title = { Text(stringResource(titleRes)) },
+        text = { Text(stringResource(messageRes)) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(stringResource(R.string.clear), color = MaterialTheme.colorScheme.error)

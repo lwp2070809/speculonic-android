@@ -1,17 +1,16 @@
 package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.room.Dao
-import androidx.room.Insert
-import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import androidx.room.Transaction
+import androidx.room.Upsert
 import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity
 import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface AlbumDao {
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAlbums(albums: List<AlbumEntity>)
 
     @Query("SELECT * FROM albums ORDER BY lastUpdated DESC")
@@ -34,7 +33,7 @@ interface AlbumDao {
         return ids.chunked(900).flatMap { _getAlbumsByIds(it) }
     }
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Upsert
     suspend fun insertAlbumListItems(items: List<AlbumListItemEntity>)
 
     @Query("DELETE FROM album_list_items WHERE listType = :listType")
@@ -42,9 +41,9 @@ interface AlbumDao {
 
     @Transaction
     suspend fun updateAlbumList(listType: String, albums: List<AlbumEntity>, items: List<AlbumListItemEntity>) {
-        insertAlbums(albums)
+        albums.chunked(500).forEach { insertAlbums(it) }
         deleteAlbumListItems(listType)
-        insertAlbumListItems(items)
+        items.chunked(500).forEach { insertAlbumListItems(it) }
     }
 
     @Query("""
@@ -122,15 +121,18 @@ interface AlbumDao {
     @Query("DELETE FROM album_list_items WHERE listType = 'starred' AND albumId = :albumId")
     suspend fun deleteStarredAlbumListItem(albumId: String)
 
-    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    @Query("SELECT EXISTS(SELECT 1 FROM albums WHERE id = :albumId)")
+    suspend fun albumExists(albumId: String): Boolean
+
+    @Upsert
     suspend fun insertAlbumListItem(item: AlbumListItemEntity)
 
     @Transaction
     suspend fun setAlbumStarredStatus(albumId: String, starred: Boolean, lastUpdated: Long) {
         updateAlbumStarred(albumId, starred, lastUpdated)
-        if (starred) {
+        if (starred && albumExists(albumId)) {
             insertAlbumListItem(AlbumListItemEntity("starred", albumId, 0))
-        } else {
+        } else if (!starred) {
             deleteStarredAlbumListItem(albumId)
         }
     }

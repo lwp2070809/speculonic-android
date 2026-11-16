@@ -1,188 +1,249 @@
-@file:Suppress("DEPRECATION")
-
 package de.lwp2070809.speculonic.data.prefs
 
 import android.content.Context
-import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.core.handlers.ReplaceFileCorruptionHandler
+import androidx.datastore.preferences.core.PreferenceDataStoreFactory
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
 import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
-import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.emitAll
+import kotlinx.coroutines.flow.filterNotNull
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
-import java.util.concurrent.ConcurrentHashMap
+import java.io.File
 
-class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
+private data class DecryptedCredentials(
+    val serverUrl: String = "",
+    val username: String = "",
+    val password: String = ""
+)
 
-    companion object {
-        private val SERVER_URL = stringPreferencesKey("server_url")
-        private val USERNAME = stringPreferencesKey("username")
-        private val PASSWORD = stringPreferencesKey("password")
-        private val SERVER_CONFIG_VERSION = intPreferencesKey("server_config_version")
-        private val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
-        private val SERVER_CAPABILITIES_JSON = stringPreferencesKey("server_capabilities_json")
-        private val LAST_PING_TIME = longPreferencesKey("last_ping_time")
-        private val OFFLINE_MODE_ENABLED = booleanPreferencesKey("offline_mode_enabled")
-        private val AUTO_OFFLINE_ON_METERED = booleanPreferencesKey("auto_offline_on_metered")
+class ConnectionPrefsImpl(
+    context: Context,
+    private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
+) : ConnectionPrefs {
 
-        private const val ENC_SERVER_URL = "enc_server_url"
-        private const val ENC_USERNAME = "enc_username"
-        private const val ENC_PASSWORD = "enc_password"
-    }
+    private val appContext: Context = context.applicationContext
+    private val secureDataStore: DataStore<Preferences> by lazy { getOrCreateSecureDataStore(appContext) }
 
-    private val encryptedPrefs: SharedPreferences by lazy {
-        createEncryptedPrefsWithSelfHealing()
-    }
+    private val initScope = CoroutineScope(SupervisorJob() + ioDispatcher)
+    private val initMutex = Mutex()
+    private val writeMutex = Mutex()
 
-    private fun createEncryptedPrefsWithSelfHealing(): SharedPreferences {
-        val masterKey = try {
-            MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-        } catch (e: Exception) {
-            LogManager.e("ConnectionPrefs: Failed to build MasterKey, falling back to unencrypted preferences: ${e.message}", e)
-            return context.getSharedPreferences("speculonic_secure_prefs_fallback", Context.MODE_PRIVATE)
+    // 以 null 表示凭据尚未在后台完成解密或迁移，避免主线程 Flow 收集触发同步阻塞或发出伪空值
+    private val credentialsState = MutableStateFlow<DecryptedCredentials?>(null)
+    private val _credentialsResetWarning = MutableStateFlow(false)
+    override val credentialsResetWarning: StateFlow<Boolean> = _credentialsResetWarning.asStateFlow()
+
+    init {
+        initScope.launch {
+            ensureInitializedSuspend()
         }
+    }
 
-        return try {
-            EncryptedSharedPreferences.create(
-                context,
-                "speculonic_secure_prefs",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-            )
-        } catch (e: Exception) {
-            LogManager.e("ConnectionPrefs: EncryptedSharedPreferences initialization failed, attempting self-healing recovery: ${e.message}", e)
-            try {
-                context.deleteSharedPreferences("speculonic_secure_prefs")
-                EncryptedSharedPreferences.create(
-                    context,
-                    "speculonic_secure_prefs",
-                    masterKey,
-                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
-                ).also {
-                    LogManager.i("ConnectionPrefs: Self-healing successful. Recreated EncryptedSharedPreferences.")
+    private suspend fun ensureInitializedSuspend(): DecryptedCredentials {
+        credentialsState.value?.let { return it }
+        return initMutex.withLock {
+            credentialsState.value?.let { return@withLock it }
+            withContext(ioDispatcher) {
+                loadOrMigrateCredentials().also { resolved ->
+                    credentialsState.value = resolved
                 }
-            } catch (retryEx: Exception) {
-                LogManager.e("ConnectionPrefs: Self-healing failed, falling back to unencrypted preferences: ${retryEx.message}", retryEx)
-                context.getSharedPreferences("speculonic_secure_prefs_fallback", Context.MODE_PRIVATE)
             }
         }
     }
 
-    private val encryptedCache = ConcurrentHashMap<String, String>()
+    private fun currentCredentialsSync(): DecryptedCredentials {
+        credentialsState.value?.let { return it }
+        return runBlocking(ioDispatcher) {
+            ensureInitializedSuspend()
+        }
+    }
 
-    private fun readEncryptedOrMigrate(encKey: String, dsKey: Preferences.Key<String>): Flow<String> {
-        return context.dataStore.data.map { preferences ->
-            val cachedValue = encryptedCache[encKey]
-            if (cachedValue != null) {
-                cachedValue
-            } else if (encryptedPrefs.contains(encKey)) {
-                val encValue = encryptedPrefs.getString(encKey, "") ?: ""
-                encryptedCache[encKey] = encValue
-                encValue
-            } else {
-                val isMigrated = encryptedPrefs.getBoolean("migrated_$encKey", false)
-                if (isMigrated) {
-                    ""
+    private fun <T> credentialsFlow(selector: (DecryptedCredentials) -> T): Flow<T> = flow {
+        ensureInitializedSuspend()
+        emitAll(credentialsState.filterNotNull().map(selector))
+    }.distinctUntilChanged()
+
+    private suspend fun loadOrMigrateCredentials(): DecryptedCredentials {
+        val currentPrefs = runCatching { secureDataStore.data.first() }.getOrElse { emptyPreferences() }
+        val encUrl = currentPrefs[SEC_SERVER_URL]
+        val encUser = currentPrefs[SEC_USERNAME]
+        val encPass = currentPrefs[SEC_PASSWORD]
+        val hasCipherEntries = encUrl != null || encUser != null || encPass != null
+
+        if (hasCipherEntries) {
+            return try {
+                val url = encUrl?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+                val user = encUser?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+                val pass = encPass?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+                // 清理历史可能残留的明文或旧 SharedPreferences 文件
+                cleanupAnyLeftoverLegacyStorage()
+                DecryptedCredentials(url, user, pass)
+            } catch (e: Exception) {
+                LogManager.e("ConnectionPrefs: Failed to decrypt Keystore DataStore credentials; wiping corrupted state", e)
+                wipeCorruptedCredentials()
+                DecryptedCredentials()
+            }
+        }
+
+        // 若加密库为空，尝试从历史 EncryptedSharedPreferences / 旧版 DataStore / fallback 一次性迁移
+        val legacyMainPrefs = runCatching { appContext.dataStore.data.first() }.getOrElse { emptyPreferences() }
+        val plainDsUrl = legacyMainPrefs[SERVER_URL] ?: ""
+        val plainDsUser = legacyMainPrefs[USERNAME] ?: ""
+        val plainDsPass = legacyMainPrefs[PASSWORD] ?: ""
+        val hasPlainDs = plainDsUrl.isNotEmpty() || plainDsUser.isNotEmpty() || plainDsPass.isNotEmpty()
+
+        return when (val legacyResult = LegacyEncryptedPrefsMigrator.readLegacyCredentials(appContext)) {
+            is LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Migrated -> {
+                val migrated = persistAndCleanupLegacy(
+                    url = legacyResult.serverUrl,
+                    user = legacyResult.username,
+                    pass = legacyResult.password
+                )
+                migrated
+            }
+            LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted -> {
+                if (hasPlainDs) {
+                    persistAndCleanupLegacy(plainDsUrl, plainDsUser, plainDsPass)
                 } else {
-                    val oldValue = preferences[dsKey] ?: ""
-                    if (oldValue.isNotEmpty()) {
-                        encryptedPrefs.edit().putString(encKey, oldValue).putBoolean("migrated_$encKey", true).apply()
-                        encryptedCache[encKey] = oldValue
-                    } else {
-                        encryptedPrefs.edit().putBoolean("migrated_$encKey", true).apply()
-                    }
-                    oldValue
+                    wipeCorruptedCredentials()
+                    LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+                    DecryptedCredentials()
                 }
             }
-        }.distinctUntilChanged()
-    }
-
-    override val serverUrl: Flow<String> = readEncryptedOrMigrate(ENC_SERVER_URL, SERVER_URL)
-    override val username: Flow<String> = readEncryptedOrMigrate(ENC_USERNAME, USERNAME)
-    override val password: Flow<String> = readEncryptedOrMigrate(ENC_PASSWORD, PASSWORD)
-
-    override fun getServerUrlSync(): String {
-        return encryptedCache[ENC_SERVER_URL]
-            ?: if (encryptedPrefs.contains(ENC_SERVER_URL)) {
-                (encryptedPrefs.getString(ENC_SERVER_URL, "") ?: "").also { encryptedCache[ENC_SERVER_URL] = it }
-            } else {
-                ""
+            LegacyEncryptedPrefsMigrator.LegacyMigrationResult.NonePresent -> {
+                if (hasPlainDs) {
+                    persistAndCleanupLegacy(plainDsUrl, plainDsUser, plainDsPass)
+                } else {
+                    LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+                    DecryptedCredentials()
+                }
             }
+        }
     }
 
-    override fun getUsernameSync(): String {
-        return encryptedCache[ENC_USERNAME]
-            ?: if (encryptedPrefs.contains(ENC_USERNAME)) {
-                (encryptedPrefs.getString(ENC_USERNAME, "") ?: "").also { encryptedCache[ENC_USERNAME] = it }
-            } else {
-                ""
-            }
+    private suspend fun persistAndCleanupLegacy(
+        url: String,
+        user: String,
+        pass: String
+    ): DecryptedCredentials {
+        return try {
+            writeEncryptedToDataStore(url, user, pass)
+            cleanupAnyLeftoverLegacyStorage()
+            DecryptedCredentials(url, user, pass)
+        } catch (e: Exception) {
+            LogManager.e("ConnectionPrefs: Keystore encryption failed during legacy migration; refusing plaintext fallback", e)
+            wipeCorruptedCredentials()
+            DecryptedCredentials()
+        }
     }
 
-    override fun getPasswordSync(): CharArray {
-        val passStr = encryptedCache[ENC_PASSWORD]
-            ?: if (encryptedPrefs.contains(ENC_PASSWORD)) {
-                (encryptedPrefs.getString(ENC_PASSWORD, "") ?: "").also { encryptedCache[ENC_PASSWORD] = it }
-            } else {
-                ""
-            }
-        return passStr.toCharArray()
+    private suspend fun cleanupAnyLeftoverLegacyStorage() {
+        LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+        appContext.dataStore.edit { prefs ->
+            prefs.remove(SERVER_URL)
+            prefs.remove(USERNAME)
+            prefs.remove(PASSWORD)
+        }
     }
+
+    private suspend fun wipeCorruptedCredentials() {
+        runCatching {
+            secureDataStore.edit { it.clear() }
+        }
+        KeystoreAesGcmCipher.deleteKeyQuietly()
+        _credentialsResetWarning.value = true
+    }
+
+    private suspend fun writeEncryptedToDataStore(url: String, user: String, pass: String) {
+        val encUrl = KeystoreAesGcmCipher.encrypt(url)
+        val encUser = KeystoreAesGcmCipher.encrypt(user)
+        val encPass = KeystoreAesGcmCipher.encrypt(pass)
+        secureDataStore.edit { prefs ->
+            prefs[SEC_SERVER_URL] = encUrl
+            prefs[SEC_USERNAME] = encUser
+            prefs[SEC_PASSWORD] = encPass
+        }
+    }
+
+    override val serverUrl: Flow<String> = credentialsFlow { it.serverUrl }
+
+    override val username: Flow<String> = credentialsFlow { it.username }
+
+    override val password: Flow<String> = credentialsFlow { it.password }
+
+    override fun getServerUrlSync(): String = currentCredentialsSync().serverUrl
+
+    override fun getUsernameSync(): String = currentCredentialsSync().username
+
+    override fun getPasswordSync(): CharArray = currentCredentialsSync().password.toCharArray()
 
     override suspend fun saveServerSettings(url: String, user: String, pass: String) {
-        encryptedPrefs.edit()
-            .putString(ENC_SERVER_URL, url)
-            .putString(ENC_USERNAME, user)
-            .putString(ENC_PASSWORD, pass)
-            .apply()
+        ensureInitializedSuspend()
+        writeMutex.withLock {
+            withContext(ioDispatcher) {
+                writeEncryptedToDataStore(url, user, pass)
+                credentialsState.value = DecryptedCredentials(url, user, pass)
+                _credentialsResetWarning.value = false
+                cleanupAnyLeftoverLegacyStorage()
 
-        encryptedCache[ENC_SERVER_URL] = url
-        encryptedCache[ENC_USERNAME] = user
-        encryptedCache[ENC_PASSWORD] = pass
-
-        context.dataStore.edit { preferences ->
-            preferences.remove(SERVER_URL)
-            preferences.remove(USERNAME)
-            preferences.remove(PASSWORD)
-            val currentVer = preferences[SERVER_CONFIG_VERSION] ?: 0
-            preferences[SERVER_CONFIG_VERSION] = currentVer + 1
+                appContext.dataStore.edit { preferences ->
+                    preferences.remove(SERVER_URL)
+                    preferences.remove(USERNAME)
+                    preferences.remove(PASSWORD)
+                    val currentVer = preferences[SERVER_CONFIG_VERSION] ?: 0
+                    preferences[SERVER_CONFIG_VERSION] = currentVer + 1
+                }
+            }
         }
     }
 
-    override val allowInsecureConnections: Flow<Boolean> = context.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }.distinctUntilChanged()
+    override val allowInsecureConnections: Flow<Boolean> =
+        appContext.dataStore.data.map { it[TRUST_ALL_CERTIFICATES] ?: false }.distinctUntilChanged()
 
     override suspend fun saveAllowInsecureConnections(allow: Boolean) {
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             preferences[TRUST_ALL_CERTIFICATES] = allow
         }
         setAllowInsecureConnectionsSync(allow)
     }
 
     override fun getAllowInsecureConnectionsSync(): Boolean {
-        return context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        return appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .getBoolean("trust_all_certificates", false)
     }
 
     override fun setAllowInsecureConnectionsSync(allow: Boolean) {
-        context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putBoolean("trust_all_certificates", allow).apply()
     }
 
-    override val serverCapabilities: Flow<ServerCapabilities?> = context.dataStore.data.map { preferences ->
+    override val serverCapabilities: Flow<ServerCapabilities?> = appContext.dataStore.data.map { preferences ->
         val jsonString = preferences[SERVER_CAPABILITIES_JSON]
         try {
             jsonString?.let { Json.decodeFromString(ServerCapabilities.serializer(), it) }
@@ -193,7 +254,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
 
     override suspend fun saveServerCapabilities(caps: ServerCapabilities?) {
         val jsonString = caps?.let { Json.encodeToString(ServerCapabilities.serializer(), it) }
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             if (jsonString == null) {
                 preferences.remove(SERVER_CAPABILITIES_JSON)
             } else {
@@ -204,7 +265,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
     }
 
     override fun getServerCapabilitiesSync(): ServerCapabilities? {
-        val jsonString = context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        val jsonString = appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .getString("server_capabilities_json", null)
         return try {
             jsonString?.let { Json.decodeFromString(ServerCapabilities.serializer(), it) }
@@ -215,41 +276,44 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
 
     override fun setServerCapabilitiesSync(caps: ServerCapabilities?) {
         val jsonString = caps?.let { Json.encodeToString(ServerCapabilities.serializer(), it) }
-        context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putString("server_capabilities_json", jsonString).apply()
     }
 
-    override val lastPingTime: Flow<Long> = context.dataStore.data.map { it[LAST_PING_TIME] ?: 0L }.distinctUntilChanged()
+    override val lastPingTime: Flow<Long> =
+        appContext.dataStore.data.map { it[LAST_PING_TIME] ?: 0L }.distinctUntilChanged()
 
     override suspend fun saveLastPingTime(time: Long) {
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             preferences[LAST_PING_TIME] = time
         }
         setLastPingTimeSync(time)
     }
 
     override fun getLastPingTimeSync(): Long {
-        return context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        return appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .getLong("last_ping_time", 0L)
     }
 
     override fun setLastPingTimeSync(time: Long) {
-        context.getSharedPreferences("speculonic_network_prefs", Context.MODE_PRIVATE)
+        appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .edit().putLong("last_ping_time", time).apply()
     }
 
-    override val offlineModeEnabled: Flow<Boolean> = context.dataStore.data.map { it[OFFLINE_MODE_ENABLED] ?: false }.distinctUntilChanged()
+    override val offlineModeEnabled: Flow<Boolean> =
+        appContext.dataStore.data.map { it[OFFLINE_MODE_ENABLED] ?: false }.distinctUntilChanged()
 
     override suspend fun saveOfflineModeEnabled(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             preferences[OFFLINE_MODE_ENABLED] = enabled
         }
     }
 
-    override val autoOfflineOnMetered: Flow<Boolean> = context.dataStore.data.map { it[AUTO_OFFLINE_ON_METERED] ?: false }.distinctUntilChanged()
+    override val autoOfflineOnMetered: Flow<Boolean> =
+        appContext.dataStore.data.map { it[AUTO_OFFLINE_ON_METERED] ?: false }.distinctUntilChanged()
 
     override suspend fun saveAutoOfflineOnMetered(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             preferences[AUTO_OFFLINE_ON_METERED] = enabled
         }
     }
@@ -257,7 +321,7 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
     override suspend fun toggleManualOfflineMode(): Pair<Boolean, Boolean> {
         var wasAutoOffline = false
         var newOffline = false
-        context.dataStore.edit { preferences ->
+        appContext.dataStore.edit { preferences ->
             val currentOffline = preferences[OFFLINE_MODE_ENABLED] ?: false
             val currentAuto = preferences[AUTO_OFFLINE_ON_METERED] ?: false
             if (currentAuto) {
@@ -268,5 +332,36 @@ class ConnectionPrefsImpl(private val context: Context) : ConnectionPrefs {
             preferences[OFFLINE_MODE_ENABLED] = newOffline
         }
         return Pair(newOffline, wasAutoOffline)
+    }
+
+    companion object {
+        private const val NETWORK_PREFS_NAME = "speculonic_network_prefs"
+        private const val SECURE_DATASTORE_REL_PATH = "datastore/secure_connection.preferences_pb"
+
+        private val SERVER_URL = stringPreferencesKey("server_url")
+        private val USERNAME = stringPreferencesKey("username")
+        private val PASSWORD = stringPreferencesKey("password")
+        private val SERVER_CONFIG_VERSION = intPreferencesKey("server_config_version")
+        private val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
+        private val SERVER_CAPABILITIES_JSON = stringPreferencesKey("server_capabilities_json")
+        private val LAST_PING_TIME = longPreferencesKey("last_ping_time")
+        private val OFFLINE_MODE_ENABLED = booleanPreferencesKey("offline_mode_enabled")
+        private val AUTO_OFFLINE_ON_METERED = booleanPreferencesKey("auto_offline_on_metered")
+
+        private val SEC_SERVER_URL = stringPreferencesKey("sec_server_url")
+        private val SEC_USERNAME = stringPreferencesKey("sec_username")
+        private val SEC_PASSWORD = stringPreferencesKey("sec_password")
+
+        @Volatile
+        private var secureDataStoreInstance: DataStore<Preferences>? = null
+
+        private fun getOrCreateSecureDataStore(appContext: Context): DataStore<Preferences> {
+            return secureDataStoreInstance ?: synchronized(this) {
+                secureDataStoreInstance ?: PreferenceDataStoreFactory.create(
+                    corruptionHandler = ReplaceFileCorruptionHandler { emptyPreferences() },
+                    produceFile = { File(appContext.noBackupFilesDir, SECURE_DATASTORE_REL_PATH) }
+                ).also { secureDataStoreInstance = it }
+            }
+        }
     }
 }

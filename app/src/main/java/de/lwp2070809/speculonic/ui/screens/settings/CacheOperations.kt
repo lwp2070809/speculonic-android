@@ -22,7 +22,7 @@ class CacheOperations @javax.inject.Inject constructor(
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) {
     
-    suspend fun clearAllCache(): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend fun clearAllCache(preserveSaf: Boolean = true): Result<Unit> = withContext(Dispatchers.IO) {
         runCatching {
             try {
                 context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
@@ -47,7 +47,11 @@ class CacheOperations @javax.inject.Inject constructor(
 
             try {
                 val db = AppDatabase.getDatabase(context)
-                db.musicDao().resetAllCacheStatus()
+                if (preserveSaf) {
+                    db.musicDao().resetNonSafCacheStatus()
+                } else {
+                    db.musicDao().resetAllCacheStatus()
+                }
             } catch (e: Exception) {
                 LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
             }
@@ -70,6 +74,8 @@ class CacheOperations @javax.inject.Inject constructor(
             CacheManager.executeWithCacheReleaseLock {
                 File(context.cacheDir, "media_playback_buffer").deleteRecursively()
             }
+            DownloadTracker.clearAll()
+            DownloadTracker.init(context)
         }.onFailure { e ->
             LogManager.e("CacheOperations: clearPlaybackCache failed", e)
         }
@@ -106,7 +112,7 @@ class CacheOperations @javax.inject.Inject constructor(
 
             try {
                 val db = AppDatabase.getDatabase(context)
-                db.musicDao().resetAllCacheStatus()
+                db.musicDao().resetNonSafCacheStatus()
             } catch (e: Exception) {
                 LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
             }
@@ -118,24 +124,27 @@ class CacheOperations @javax.inject.Inject constructor(
     }
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {
-        val playbackBufferBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
-        val persistentCacheBytes = getDirectorySize(File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache"))
-        val playbackBytes = playbackBufferBytes + persistentCacheBytes
-
+        val isSafEnabled = cacheLocation.isNotBlank()
+        // 播放缓冲仅计入 media_playback_buffer，与 clearPlaybackCache() 清理范围严格一致
+        val playbackBytes = getDirectorySize(File(context.cacheDir, "media_playback_buffer"))
         val coverArtBytes = getDirectorySize(File(context.cacheDir, "image_cache"))
-        
+
+        val persistentCacheBytes = getDirectorySize(
+            File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
+        )
         val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-        val songBytes = getDirectorySize(privateExportedDir)
-        
+        val privateExportedBytes = getDirectorySize(privateExportedDir)
+        val songBytes = if (isSafEnabled) 0L else persistentCacheBytes + privateExportedBytes
+
         var externalBytes = 0L
-        
+
         val totalCache = getDirectorySize(context.cacheDir)
         val totalFiles = getDirectorySize(context.filesDir)
         val totalExternalFiles = getDirectorySize(context.getExternalFilesDir(null))
         val totalPrivate = totalCache + totalFiles + totalExternalFiles
         val otherBytes = (totalPrivate - playbackBytes - coverArtBytes - songBytes).coerceAtLeast(0L)
 
-        if (cacheLocation.isNotBlank()) {
+        if (isSafEnabled) {
             try {
                 val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
                 rootDoc?.listFiles()?.forEach { file ->

@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.domain.usecase
 
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.domain.repository.SyncOutcome
 import de.lwp2070809.speculonic.util.LogManager
 import javax.inject.Inject
 
@@ -14,10 +15,10 @@ class SyncAllDataUseCase @Inject constructor(
         ignoreSafetyGuard: Boolean = false,
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
-    ) {
+    ): SyncOutcome {
         if (!repository.isConfigured) {
             LogManager.d("SyncAllDataUseCase: syncAllData skipped because repository is not configured.")
-            return
+            return SyncOutcome.SKIPPED_NOT_CONFIGURED
         }
         
         if (forceRefresh) {
@@ -31,7 +32,7 @@ class SyncAllDataUseCase @Inject constructor(
             LogManager.w("SyncAllDataUseCase: ping failed before sync, proceeding anyway")
         }
         
-        repository.syncAllData(
+        return repository.syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
             ignoreSafetyGuard = ignoreSafetyGuard,

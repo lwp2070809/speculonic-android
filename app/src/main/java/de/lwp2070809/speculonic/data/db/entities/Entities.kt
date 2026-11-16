@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.data.db.entities
 
 import androidx.room.Entity
+import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 
@@ -35,7 +36,19 @@ data class AlbumEntity(
     val lastUpdated: Long = System.currentTimeMillis()
 )
 
-@Entity(tableName = "album_list_items", primaryKeys = ["listType", "albumId"])
+@Entity(
+    tableName = "album_list_items",
+    primaryKeys = ["listType", "albumId"],
+    foreignKeys = [
+        ForeignKey(
+            entity = AlbumEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["albumId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["albumId"])]
+)
 data class AlbumListItemEntity(
     val listType: String, 
     val albumId: String,
@@ -98,7 +111,24 @@ data class PlaylistEntity(
 @Entity(
     tableName = "playlist_song_cross_ref",
     primaryKeys = ["playlistId", "songId", "order"],
-    indices = [Index(value = ["playlistId", "songId", "order"])]
+    foreignKeys = [
+        ForeignKey(
+            entity = PlaylistEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["playlistId"],
+            onDelete = ForeignKey.CASCADE
+        ),
+        ForeignKey(
+            entity = SongEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["songId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [
+        Index(value = ["playlistId", "songId", "order"]),
+        Index(value = ["songId"])
+    ]
 )
 data class PlaylistSongCrossRef(
     val playlistId: String,
@@ -106,7 +136,18 @@ data class PlaylistSongCrossRef(
     val order: Int
 )
 
-@Entity(tableName = "playback_queue")
+@Entity(
+    tableName = "playback_queue",
+    foreignKeys = [
+        ForeignKey(
+            entity = SongEntity::class,
+            parentColumns = ["id"],
+            childColumns = ["songId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index(value = ["songId"])]
+)
 data class PlaybackQueueEntity(
     @PrimaryKey val orderIndex: Int,
     val songId: String
@@ -125,4 +166,9 @@ data class SongMetadata(
     val isTranscoded: Boolean = false,
     val starred: Boolean,
     val lastUpdated: Long
+)
+
+data class SongCleanupTarget(
+    val id: String,
+    val localUri: String?
 )

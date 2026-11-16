@@ -171,13 +171,14 @@ fun StorageCacheSettings(
                 totalSpaceBytes = uiState.totalSpaceBytes,
                 maxCoverBytes = uiState.maxCoverCacheSize,
                 isCoverOverQuota = uiState.isCoverOverQuota,
+                isSafEnabled = uiState.cacheLocation.isNotEmpty(),
                 playbackSizeLabel = uiState.playbackCacheSize,
                 coverArtSizeLabel = uiState.coverArtCacheSize,
                 songSizeLabel = uiState.songCacheSize,
                 otherSizeLabel = uiState.otherCacheSize,
-                onClearPlaybackClick = { viewModel.clearPlaybackCache() },
-                onClearCoverArtClick = { viewModel.clearCoverArtCache() },
-                onClearSongsClick = { viewModel.clearSongDownloads() },
+                onClearPlaybackClick = { viewModel.requestClearCache(CacheClearTarget.PLAYBACK) },
+                onClearCoverArtClick = { viewModel.requestClearCache(CacheClearTarget.COVER_ART) },
+                onClearSongsClick = { viewModel.requestClearCache(CacheClearTarget.SONGS) },
                 modifier = Modifier.padding(
                     start = SettingsConstants.PAGE_PADDING,
                     end = SettingsConstants.PAGE_PADDING,
@@ -257,7 +258,7 @@ fun StorageCacheSettings(
                 supportingContent = { Text(stringResource(R.string.used_space, uiState.internalCacheSize)) },
                 trailingContent = {
                     TextButton(
-                        onClick = { viewModel.requestClearCache() },
+                        onClick = { viewModel.requestClearCache(CacheClearTarget.ALL) },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                     ) {
                         Text(stringResource(R.string.clear))
@@ -412,9 +413,10 @@ fun StorageCacheSettings(
         }
     }
 
-    if (uiState.showClearCacheConfirm) {
+    uiState.pendingClearCacheTarget?.let { target ->
         de.lwp2070809.speculonic.ui.screens.settings.components.ClearCacheConfirmDialog(
-            onConfirm = { viewModel.clearCache() },
+            target = target,
+            onConfirm = { viewModel.confirmClearCache() },
             onDismiss = { viewModel.cancelClearCache() }
         )
     }

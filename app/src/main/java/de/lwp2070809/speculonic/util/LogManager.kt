@@ -162,7 +162,7 @@ object LogManager {
         sb.append("=== Speculonic Crash Report ===\n")
         sb.append("Time: ").append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())).append("\n")
         sb.append("Thread: ").append(thread.name).append(" (ID: ").append(thread.id).append(")\n")
-        sb.append("Exception: ").append(Log.getStackTraceString(throwable)).append("\n\n")
+        sb.append("Exception: ").append(sanitizeSensitiveText(Log.getStackTraceString(throwable))).append("\n\n")
         sb.append("=== Recent In-Memory Logs (Last 200 entries) ===\n")
         val recentLogs: List<LogEntry>
         synchronized(this) {
@@ -248,6 +248,23 @@ object LogManager {
         }
     }
 
+    private val sensitiveQueryRegex = Regex(
+        """([?&](?:u|t|s|p|password|token|apiKey|salt)=)[^&\s\)\],;'"\}]+""",
+        RegexOption.IGNORE_CASE
+    )
+    private val userInfoUrlRegex = Regex("""(https?://)([^/@\s]+):([^/@\s]+)@""", RegexOption.IGNORE_CASE)
+
+    fun redactUrl(url: String): String {
+        if (url.isBlank()) return url
+        return sanitizeSensitiveText(url)
+    }
+
+    fun sanitizeSensitiveText(text: String): String {
+        if (text.isEmpty()) return text
+        val redactedUserInfo = userInfoUrlRegex.replace(text, "$1***:***@")
+        return sensitiveQueryRegex.replace(redactedUserInfo, "$1***")
+    }
+
     private val buffer = java.util.ArrayDeque<LogEntry>(MAX_LOGS)
 
     @Synchronized
@@ -260,11 +277,12 @@ object LogManager {
     ) {
         if (level.priority < minLevel.priority) return
 
-        val msg = if (throwable != null) {
+        val rawMsg = if (throwable != null) {
             "$message\n${Log.getStackTraceString(throwable)}"
         } else {
             message
         }
+        val msg = sanitizeSensitiveText(rawMsg)
 
         if (!isEasterEgg) {
             val logcatTag = "$TAG/$tag"

@@ -122,6 +122,13 @@ class SettingsViewModel @Inject constructor(
                 }
             }.collect()
         }
+        viewModelScope.launch {
+            preferencesManager.credentialsResetWarning.collect { hasWarning ->
+                _uiState.update { current ->
+                    current.copy(credentialsResetWarning = hasWarning)
+                }
+            }
+        }
 
         // 2. 音频控制与播放策略配置
         viewModelScope.launch {
@@ -358,6 +365,7 @@ class SettingsViewModel @Inject constructor(
                     }
                 }
             }
+            refreshCacheSize()
         }
     }
     fun updateMaxCoverCacheSize(size: Long) { viewModelScope.launch { preferencesManager.saveMaxCoverCacheSize(size) } }
@@ -534,7 +542,7 @@ class SettingsViewModel @Inject constructor(
                     stopSyncAndClearConnections(allowInsecureConnections)
                     NetworkModule.clearSubsonicServiceCache()
                     database.clearAllTables()
-                    cacheOperations.clearAllCache().onFailure { e ->
+                    cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
                         LogManager.e("SettingsViewModel: clearAllCache failed during server change", e)
                     }
                 } else if (de.lwp2070809.speculonic.network.ssl.DynamicSslTrustManager.allowInsecureConnections && !allowInsecureConnections) {
@@ -684,7 +692,7 @@ class SettingsViewModel @Inject constructor(
             preferencesManager.saveServerSettings("", "", "")
             
             database.clearAllTables()
-            cacheOperations.clearAllCache().onFailure { e ->
+            cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
                 LogManager.e("SettingsViewModel: clearAllCache failed during server deletion", e)
             }
             NetworkModule.ServerReachableManager.reset()
@@ -703,15 +711,32 @@ class SettingsViewModel @Inject constructor(
     }
 
 
-    fun requestClearCache() { _uiState.value = _uiState.value.copy(showClearCacheConfirm = true) }
-    fun cancelClearCache() { _uiState.value = _uiState.value.copy(showClearCacheConfirm = false) }
+    fun requestClearCache(target: CacheClearTarget = CacheClearTarget.ALL) {
+        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = target)
+    }
+
+    fun cancelClearCache() {
+        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
+    }
+
+    fun confirmClearCache() {
+        val target = _uiState.value.pendingClearCacheTarget ?: return
+        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
+        when (target) {
+            CacheClearTarget.ALL -> clearCache()
+            CacheClearTarget.PLAYBACK -> clearPlaybackCache()
+            CacheClearTarget.COVER_ART -> clearCoverArtCache()
+            CacheClearTarget.SONGS -> clearSongDownloads()
+        }
+    }
 
     fun clearCache() {
-        _uiState.value = _uiState.value.copy(showClearCacheConfirm = false)
+        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
         viewModelScope.launch {
-            val result = cacheOperations.clearAllCache()
+            val result = cacheOperations.clearAllCache(preserveSaf = true)
             result.onSuccess {
                 LogManager.i("Settings: Internal cache cleared.")
+                refreshCacheSize()
                 scanLocalFiles()
             }.onFailure { e ->
                 showCacheOperationFailureToast(e)

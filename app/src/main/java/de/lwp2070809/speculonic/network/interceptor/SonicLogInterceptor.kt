@@ -60,12 +60,21 @@ class SonicLogInterceptor(
             throw IOException("Offline: No active network connection available")
         }
 
-        var isProbeRequest = false
+        val isHttps = request.url.isHttps
+        if (!isHttps && !allowInsecureProvider()) {
+            LogManager.w(LogTag.NETWORK, "OfflineInterceptor: Insecure connection blocked: $safeUrl")
+            throw IOException(
+                "Insecure connection blocked: HTTP is not allowed by default. Please use HTTPS or enable 'Allow insecure connections' in settings."
+            )
+        }
+
+        var probeToken: Long? = null
         if (trackReachability && !ServerReachableManager.isServerReachable) {
             val timeSinceLastFailure = System.currentTimeMillis() - ServerReachableManager.lastFailureTimestamp
             if (timeSinceLastFailure > 30000L) {
-                if (ServerReachableManager.tryAcquireProbe()) {
-                    isProbeRequest = true
+                val acquiredToken = ServerReachableManager.tryAcquireProbe()
+                if (acquiredToken != null) {
+                    probeToken = acquiredToken
                     LogManager.i(LogTag.NETWORK, "OfflineInterceptor: probe: $safeUrl")
                 } else {
                     LogManager.w(LogTag.NETWORK, "OfflineInterceptor: probing in progress, blocking: $safeUrl")
@@ -77,19 +86,13 @@ class SonicLogInterceptor(
             }
         }
 
-        val isHttps = request.url.isHttps
-        if (!isHttps && !allowInsecureProvider()) {
-            LogManager.w(LogTag.NETWORK, "OfflineInterceptor: Insecure connection blocked: $safeUrl")
-            throw IOException("Insecure connection blocked: HTTP is not allowed by default. Please use HTTPS or enable 'Allow insecure connections' in settings.")
-        }
-
         val startTime = System.currentTimeMillis()
         try {
             val response = chain.proceed(request)
             val costMs = System.currentTimeMillis() - startTime
 
             if (!response.isSuccessful) {
-                if (trackReachability && isProbeRequest) {
+                if (trackReachability && probeToken != null) {
                     ServerReachableManager.handleFailure()
                 }
                 LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
@@ -108,30 +111,30 @@ class SonicLogInterceptor(
             val costMs = System.currentTimeMillis() - startTime
             val requestHost = request.url.host
             if (e.message?.startsWith("Unconfigured") == true) {
-                if (trackReachability && isProbeRequest) ServerReachableManager.releaseProbe()
                 throw e
             }
 
-            val isNetworkFailure = e is UnknownHostException || 
-                e is ConnectException || 
-                e is SocketTimeoutException || 
-                e is java.net.SocketException || 
-                e is javax.net.ssl.SSLException
+            val isNetworkFailure = e is UnknownHostException ||
+                e is ConnectException ||
+                e is SocketTimeoutException ||
+                e is java.net.SocketException ||
+                e is SSLException
 
-            if (trackReachability) {
-                if (isProbeRequest || isNetworkFailure) {
-                    LogManager.w(LogTag.NETWORK, "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. Recording failure (probe=$isProbeRequest).")
-                    ServerReachableManager.handleFailure()
-                } else if (isProbeRequest) {
-                    ServerReachableManager.releaseProbe()
-                }
+            if (trackReachability && (probeToken != null || isNetworkFailure)) {
+                LogManager.w(
+                    LogTag.NETWORK,
+                    "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. " +
+                        "Recording failure (probe=${probeToken != null})."
+                )
+                ServerReachableManager.handleFailure()
             }
 
             val errorMsg = when (e) {
                 is CertificateException,
                 is SSLHandshakeException,
                 is SSLException -> {
-                    "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. Current allow insecure connections mode is: ${allowInsecureProvider()}"
+                    "SSL handshake failed! Please check if your self-hosted server certificate is valid or expired. " +
+                        "Current allow insecure connections mode is: ${allowInsecureProvider()}"
                 }
                 is UnknownHostException -> {
                     "DNS resolution failed! Host not found: $requestHost. Please check your network connection or server hostname configuration."
@@ -146,6 +149,8 @@ class SonicLogInterceptor(
             }
             LogManager.e(LogTag.NETWORK, "Network connection diagnosis: $errorMsg (Host: $requestHost, Path: $path, Cost: ${costMs}ms)", e)
             throw e
+        } finally {
+            probeToken?.let { ServerReachableManager.releaseProbe(it) }
         }
     }
 }

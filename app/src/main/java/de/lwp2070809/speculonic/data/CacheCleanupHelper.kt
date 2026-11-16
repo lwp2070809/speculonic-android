@@ -1,0 +1,90 @@
+package de.lwp2070809.speculonic.data
+
+import android.content.Context
+import androidx.annotation.OptIn
+import androidx.core.net.toUri
+import androidx.media3.common.util.UnstableApi
+import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
+import de.lwp2070809.speculonic.util.FormatUtils
+import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
+
+/**
+ * 同步删歌或局部刷新移除曲目后的物理缓存联动清理助手。
+ * 仅清理应用私有导出目录及其伴生歌词和 Media3 内部缓存区块，
+ * 绝不在服务端元数据同步时删除用户外部 SAF 目录中的文件。
+ */
+@OptIn(UnstableApi::class)
+object CacheCleanupHelper {
+
+    suspend fun purgeRemovedSongs(context: Context, targets: List<SongCleanupTarget>) {
+        if (targets.isEmpty()) return
+
+        val managerRemovalIds = withContext(Dispatchers.IO) {
+            val privateDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+            val privateCanonicalPath = runCatching { privateDir.canonicalPath }.getOrNull()
+            val downloadCache = if (!CacheManager.isReleasing) {
+                runCatching { CacheManager.getDownloadCache(context) }.getOrNull()
+            } else null
+            val playbackCache = if (!CacheManager.isReleasing) {
+                runCatching { CacheManager.getPlaybackCache(context) }.getOrNull()
+            } else null
+
+            var removedPrivateFiles = 0
+            val activeIds = mutableListOf<String>()
+
+            targets.forEach { target ->
+                if (deletePrivateSongFile(target.localUri, privateCanonicalPath)) {
+                    removedPrivateFiles++
+                }
+                if (!CacheManager.isReleasing) {
+                    if (DownloadTracker.hasDownload(target.id)) {
+                        activeIds.add(target.id)
+                    }
+                    runCatching { downloadCache?.removeResource(target.id) }
+                    runCatching { playbackCache?.removeResource(target.id) }
+                }
+            }
+
+            if (removedPrivateFiles > 0) {
+                LogManager.i(
+                    "CacheCleanupHelper: Purged $removedPrivateFiles private file(s) across ${targets.size} removed songs"
+                )
+            }
+            activeIds
+        }
+
+        if (managerRemovalIds.isNotEmpty() && !CacheManager.isReleasing) {
+            val downloadManager = runCatching { DownloadManagerHelper.getDownloadManagerSuspend(context) }.getOrNull()
+            if (downloadManager != null) {
+                withContext(Dispatchers.Main.immediate) {
+                    managerRemovalIds.forEach { songId ->
+                        runCatching { downloadManager.removeDownload(songId) }
+                    }
+                }
+            }
+        }
+    }
+
+    private fun deletePrivateSongFile(localUri: String?, privateCanonicalPath: String?): Boolean {
+        if (localUri.isNullOrBlank() || privateCanonicalPath == null) return false
+        if (!localUri.startsWith("file:") && !localUri.startsWith("/")) return false
+        return runCatching {
+            val path = if (localUri.startsWith("file:")) localUri.toUri().path else localUri
+            if (path.isNullOrBlank()) return false
+            val file = File(path).canonicalFile
+            if (!file.path.startsWith(privateCanonicalPath + File.separator)) return false
+            val deletedAudio = if (file.exists()) file.delete() else false
+            val lrcFile = File(FormatUtils.replaceExtensionWithLrc(file.absolutePath))
+            if (lrcFile.exists()) {
+                lrcFile.delete()
+            }
+            deletedAudio
+        }.getOrElse { e ->
+            LogManager.w("CacheCleanupHelper: Failed removing private audio file for uri=$localUri: ${e.message}")
+            false
+        }
+    }
+}

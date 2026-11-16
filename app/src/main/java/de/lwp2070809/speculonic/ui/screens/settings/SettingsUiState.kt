@@ -5,6 +5,13 @@ import de.lwp2070809.speculonic.data.ThemeMode
 import de.lwp2070809.speculonic.domain.model.InconsistentItem
 import de.lwp2070809.speculonic.util.LogLevel
 
+enum class CacheClearTarget {
+    ALL,
+    PLAYBACK,
+    COVER_ART,
+    SONGS
+}
+
 data class SettingsUiState(
     val serverUrl: String = "",
     val username: String = "",
@@ -61,9 +68,10 @@ data class SettingsUiState(
     val testConnectionResult: Pair<Boolean, String?>? = null,
     val urlError: String? = null,
     val showMobileSyncConfirm: Boolean = false,
-    val showClearCacheConfirm: Boolean = false,
+    val pendingClearCacheTarget: CacheClearTarget? = null,
     val showForceSyncConfirm: Boolean = false,
     val allowInsecureConnections: Boolean = false,
+    val credentialsResetWarning: Boolean = false,
     val playerBackgroundMode: de.lwp2070809.speculonic.data.PlayerBackgroundMode = de.lwp2070809.speculonic.data.PlayerBackgroundMode.GAUSSIAN_BLUR,
     val updateCheckInterval: de.lwp2070809.speculonic.data.UpdateCheckInterval = de.lwp2070809.speculonic.data.UpdateCheckInterval.DISABLED,
     val isCheckingUpdate: Boolean = false,

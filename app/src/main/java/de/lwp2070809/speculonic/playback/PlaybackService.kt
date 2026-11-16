@@ -366,7 +366,10 @@ class PlaybackService : MediaSessionService() {
                     }
                     if (url.isNotBlank() && username.isNotBlank() && 
                         (url != lastInitializedServerUrl || username != lastInitializedUsername)) {
-                        LogManager.i("PlaybackService: Server config changed from '$lastInitializedServerUrl' to '$url'. Re-initializing player...")
+                        LogManager.i(
+                            "PlaybackService: Server config changed from " +
+                                "'${LogManager.redactUrl(lastInitializedServerUrl ?: "")}' to '${LogManager.redactUrl(url)}'. Re-initializing player..."
+                        )
                         withContext(Dispatchers.Main) {
                             initializeSessionAndPlayer()
                         }
@@ -601,14 +604,20 @@ class PlaybackService : MediaSessionService() {
                 // 规避 Android 17 蓝牙栈 MediaPlayerWrapper.isMetadataSynced() 因比对未伪装的 QueueItem
                 // 与伪装后的车载歌词 MediaMetadata 不一致而触发 2000ms 超时防抖造成的延迟与吞歌词问题。
                 @Suppress("DEPRECATION")
-                MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
+                val builder = MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS.buildUpon()
                     .remove(Player.COMMAND_GET_TIMELINE)
                     .remove(Player.COMMAND_GET_DEVICE_VOLUME)
                     .remove(Player.COMMAND_SET_DEVICE_VOLUME)
                     .remove(Player.COMMAND_SET_DEVICE_VOLUME_WITH_FLAGS)
                     .remove(Player.COMMAND_ADJUST_DEVICE_VOLUME)
                     .remove(Player.COMMAND_ADJUST_DEVICE_VOLUME_WITH_FLAGS)
-                    .build()
+                // 对所有非本应用外部三方控制器额外剥夺队列修改权限，禁止未授权篡改播放列表
+                if (!isInternalClient && !session.isMediaNotificationController(controller)) {
+                    builder
+                        .remove(Player.COMMAND_SET_MEDIA_ITEM)
+                        .remove(Player.COMMAND_CHANGE_MEDIA_ITEMS)
+                }
+                builder.build()
             } else {
                 MediaSession.ConnectionResult.DEFAULT_PLAYER_COMMANDS
             }

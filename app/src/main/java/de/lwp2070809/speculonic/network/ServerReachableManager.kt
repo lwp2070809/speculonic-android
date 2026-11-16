@@ -5,13 +5,22 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 sealed interface NetworkEvent {
     object ServerOffline : NetworkEvent
     object NetworkRestricted : NetworkEvent
 }
 
+private data class ProbeLock(
+    val token: Long,
+    val acquiredAtNanos: Long
+)
+
 object ServerReachableManager {
+    private const val PROBE_LOCK_TIMEOUT_NS = 35_000_000_000L
+
     @Volatile
     var isManualOffline: Boolean = false
 
@@ -31,14 +40,32 @@ object ServerReachableManager {
     private var lastFailureLogTime: Long = 0L
 
     private val failureCount = AtomicInteger(0)
-    private val isProbing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private val probeSequence = AtomicLong(0L)
+    private val probeLock = AtomicReference<ProbeLock?>(null)
 
-    fun tryAcquireProbe(): Boolean {
-        return isProbing.compareAndSet(false, true)
+    fun tryAcquireProbe(): Long? {
+        while (true) {
+            val current = probeLock.get()
+            val nowNanos = System.nanoTime()
+            if (current != null && (nowNanos - current.acquiredAtNanos) < PROBE_LOCK_TIMEOUT_NS) {
+                return null
+            }
+            if (current != null) {
+                LogManager.w("ServerReachableManager: Existing probe lock expired, reclaiming lock safely")
+            }
+            val next = ProbeLock(token = probeSequence.incrementAndGet(), acquiredAtNanos = nowNanos)
+            if (probeLock.compareAndSet(current, next)) {
+                return next.token
+            }
+        }
     }
 
-    fun releaseProbe() {
-        isProbing.set(false)
+    fun releaseProbe(token: Long) {
+        while (true) {
+            val current = probeLock.get() ?: return
+            if (current.token != token) return
+            if (probeLock.compareAndSet(current, null)) return
+        }
     }
 
     private val _networkEventFlow = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 10)
@@ -50,7 +77,7 @@ object ServerReachableManager {
 
     @Synchronized
     fun handleSuccess() {
-        isProbing.set(false)
+        probeLock.set(null)
         failureCount.set(0)
         if (!isServerReachable) {
             isServerReachable = true
@@ -65,12 +92,12 @@ object ServerReachableManager {
             // 当前处于熔断离线状态，半开探测再次失败：立即刷新冷却时间戳，保持熔断状态，重置探测标记
             lastFailureTimestamp = now
             failureCount.set(3)
-            isProbing.set(false)
+            probeLock.set(null)
             LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE, updated lastFailureTimestamp")
             return
         }
 
-        isProbing.set(false)
+        probeLock.set(null)
         // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
         if (now - lastFailureLogTime > 2000L) {
             // 若距离上次故障波次已超过 60 秒，重置陈旧的历史故障计数，防止跨长时间偶发错误累积误判
@@ -99,7 +126,7 @@ object ServerReachableManager {
 
     @Synchronized
     fun reset() {
-        isProbing.set(false)
+        probeLock.set(null)
         failureCount.set(0)
         lastFailureTimestamp = 0L
         lastFailureLogTime = 0L

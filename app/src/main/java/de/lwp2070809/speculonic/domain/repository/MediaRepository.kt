@@ -5,6 +5,7 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
@@ -20,7 +21,8 @@ class MediaRepository(
     private val api: SubsonicService,
     private val musicDao: MusicDao,
     private val authManager: AuthManager,
-    private val entityMapper: EntityMapper
+    private val entityMapper: EntityMapper,
+    private val onSongsRemoved: suspend (List<SongCleanupTarget>) -> Unit = {}
 ) {
     fun getArtistsFlow(): Flow<List<Artist>> {
         return musicDao.getAllArtistsFlow().map { list -> 
@@ -138,7 +140,7 @@ class MediaRepository(
         
         val entities = albums.map { album ->
             val existing = existingAlbumsMap[album.id]
-            entityMapper.albumToEntity(album, existing = existing, isStarred = album.starred != null || (existing?.starred ?: false))
+            entityMapper.albumToEntity(album, existing = existing, isStarred = album.starred != null)
         }
         val listItems = albums.mapIndexed { index, album -> 
             de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity(listType, album.id, index + offset)
@@ -173,7 +175,7 @@ class MediaRepository(
             val album = response.response.album
             if (album != null) {
                 if (!skipInsert) {
-                    val isStarred = if (album.starred != null) true else (albumEntity?.starred ?: false)
+                    val isStarred = album.starred != null
                     musicDao.insertAlbums(listOf(entityMapper.albumToEntity(album, existing = albumEntity, isStarred = isStarred)))
                     
                     val songIds = album.song.map { it.id }
@@ -183,24 +185,29 @@ class MediaRepository(
                     
                     val entities = album.song.map { song ->
                         val local = existingSongsMap[song.id]
-                        entityMapper.songToEntity(song, 
+                        val songIsStarred = song.starred != null
+                        val lastUpdated = if (songIsStarred && local?.starred != true) null else local?.lastUpdated
+                        entityMapper.songToEntity(song,
                             albumId = id, 
                             localUri = local?.localUri, 
                             isCached = local?.isFullyCached ?: false,
                             isTranscoded = local?.isTranscoded ?: false,
                             parentId = song.parent ?: id,
-                            lastUpdated = local?.lastUpdated
+                            isStarred = songIsStarred,
+                            lastUpdated = lastUpdated
                         )
                     }
                     
                     if (forceRefresh) {
-                        musicDao.deleteSongsByAlbumNotIn(id, songIds)
+                        val removedTargets = musicDao.deleteSongsByAlbumNotIn(id, songIds)
+                        onSongsRemoved(removedTargets)
                     }
                     entities.chunked(500).forEach { chunk -> musicDao.insertSongs(chunk) }
                 }
                 return album
             } else if (forceRefresh && !skipInsert) {
-                musicDao.deleteSongsByAlbumNotIn(id, emptyList())
+                val removedTargets = musicDao.deleteSongsByAlbumNotIn(id, emptyList())
+                onSongsRemoved(removedTargets)
             }
             album
         } catch (e: Exception) {

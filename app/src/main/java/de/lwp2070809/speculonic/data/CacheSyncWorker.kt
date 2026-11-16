@@ -100,8 +100,8 @@ class CacheSyncWorker @AssistedInject constructor(
 
         if (isSafEnabled) {
             migratePrivateCacheToSaf(context, musicDao)
-            cleanupOrphanedPrivateFiles(context, musicDao)
         }
+        cleanupOrphanedPrivateFiles(context, musicDao)
 
         var safFiles: Array<DocumentFile>? = null
         val cachedSongs = musicDao.getAllCachedSongs()
