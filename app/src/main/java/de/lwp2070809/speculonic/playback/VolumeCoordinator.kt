@@ -4,17 +4,15 @@ import androidx.media3.common.Player
 import de.lwp2070809.speculonic.util.LogManager
 
 /**
- * 统一音量协调器。
- * 解决音频焦点临时让步（Ducking）与蓝牙防休眠抖动（Jitter Mute）并发时对 player.volume 的竞态覆盖问题。
+ * 统一音量协调器，统筹音频焦点临时让步（Ducking）与基础音量状态。
  */
 class VolumeCoordinator {
 
     private val lock = Any()
     private var activePlayer: Player? = null
-    
+
     private var baseVolume: Float = 1.0f
     private var duckMultiplier: Float = 1.0f
-    private var isJitterMuted: Boolean = false
 
     fun setPlayer(player: Player?) {
         synchronized(lock) {
@@ -43,23 +41,12 @@ class VolumeCoordinator {
         }
     }
 
-    fun setJitterMuted(muted: Boolean) {
-        synchronized(lock) {
-            isJitterMuted = muted
-            applyVolumeLocked()
-        }
-    }
-
     private fun applyVolumeLocked() {
         val player = activePlayer ?: return
-        val targetVolume = if (isJitterMuted) {
-            0.0f
-        } else {
-            (baseVolume * duckMultiplier).coerceIn(0.0f, 1.0f)
-        }
+        val targetVolume = (baseVolume * duckMultiplier).coerceIn(0.0f, 1.0f)
         try {
             player.volume = targetVolume
-            LogManager.d("VolumeCoordinator: Applied volume $targetVolume (base=$baseVolume, duck=$duckMultiplier, jitterMuted=$isJitterMuted)")
+            LogManager.d("VolumeCoordinator: Applied volume $targetVolume (base=$baseVolume, duck=$duckMultiplier)")
         } catch (e: Exception) {
             LogManager.w("VolumeCoordinator: Failed to apply volume to player", e)
         }

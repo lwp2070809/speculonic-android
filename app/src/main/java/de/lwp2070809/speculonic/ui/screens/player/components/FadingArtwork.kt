@@ -1,22 +1,21 @@
 package de.lwp2070809.speculonic.ui.screens.player.components
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.EaseInOut
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,11 +27,15 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import coil3.compose.AsyncImage
+import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.PlayerBackgroundMode
 import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
-import kotlinx.coroutines.launch
+import kotlinx.coroutines.delay
+
+private const val BLUR_BACKGROUND_DEBOUNCE_MS = 150L
 
 @Composable
 fun ArtworkView(
@@ -42,109 +45,26 @@ fun ArtworkView(
 ) {
     if (artworkUri != null || artworkId != null) {
         val context = LocalContext.current
-        val coroutineScope = rememberCoroutineScope()
-
-        var activeSlot by remember { mutableIntStateOf(0) }
-        var model0 by remember { mutableStateOf<Any?>(null) }
-        var model1 by remember { mutableStateOf<Any?>(null) }
-
-        val alpha0 = remember { Animatable(1f) }
-        val alpha1 = remember { Animatable(0f) }
-
-        LaunchedEffect(artworkId, artworkUri) {
-            if (artworkId == null && artworkUri == null) return@LaunchedEffect
-
-            val newModel = coverRequester.buildCoverArtRequest(
+        val requestModel = remember(artworkId, artworkUri, coverRequester, context) {
+            coverRequester.buildCoverArtRequest(
                 id = artworkId,
                 context = context,
                 preferLocal = true,
-                crossfade = false
+                crossfade = false,
+                fallbackUri = artworkUri
             )
-
-            if (model0 == newModel) {
-                activeSlot = 0
-                if (alpha0.value < 1f) {
-                    coroutineScope.launch {
-                        launch { alpha0.animateTo(1f, tween(500, easing = EaseInOut)) }
-                        launch { alpha1.animateTo(0f, tween(500, easing = EaseInOut)) }
-                    }
-                }
-                return@LaunchedEffect
-            }
-            if (model1 == newModel) {
-                activeSlot = 1
-                if (alpha1.value < 1f) {
-                    coroutineScope.launch {
-                        launch { alpha1.animateTo(1f, tween(500, easing = EaseInOut)) }
-                        launch { alpha0.animateTo(0f, tween(500, easing = EaseInOut)) }
-                    }
-                }
-                return@LaunchedEffect
-            }
-
-            if (model0 == null) {
-                model0 = newModel
-                coroutineScope.launch { alpha0.snapTo(1f) }
-                activeSlot = 0
-            } else if (model1 == null) {
-                model1 = newModel
-                coroutineScope.launch { alpha1.snapTo(0f) }
-                activeSlot = 1
-            } else {
-                if (alpha0.value >= alpha1.value) {
-                    model1 = newModel
-                    coroutineScope.launch {
-                        alpha1.snapTo(0f)
-                    }
-                    activeSlot = 1
-                } else {
-                    model0 = newModel
-                    coroutineScope.launch {
-                        alpha0.snapTo(0f)
-                    }
-                    activeSlot = 0
-                }
-            }
         }
 
-        val startTransition = { targetSlot: Int ->
-            coroutineScope.launch {
-                if (targetSlot == 0 && activeSlot == 0) {
-                    launch { alpha0.animateTo(1f, tween(500, easing = EaseInOut)) }
-                    launch { alpha1.animateTo(0f, tween(500, easing = EaseInOut)) }
-                } else if (targetSlot == 1 && activeSlot == 1) {
-                    launch { alpha1.animateTo(1f, tween(500, easing = EaseInOut)) }
-                    launch { alpha0.animateTo(0f, tween(500, easing = EaseInOut)) }
-                }
-            }
-        }
-
-        Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant)) {
-            if (model0 != null) {
-                AsyncImage(
-                    model = model0,
-                    contentDescription = null,
-                    onSuccess = { if (activeSlot == 0 && alpha0.value < 1f) startTransition(0) },
-                    onError = { if (activeSlot == 0 && alpha0.value < 1f) startTransition(0) },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = alpha0.value },
-                    contentScale = ContentScale.Fit
-                )
-            }
-            if (model1 != null) {
-                AsyncImage(
-                    model = model1,
-                    contentDescription = null,
-                    onSuccess = { if (activeSlot == 1 && alpha1.value < 1f) startTransition(1) },
-                    onError = { if (activeSlot == 1 && alpha1.value < 1f) startTransition(1) },
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer { alpha = alpha1.value },
-                    contentScale = ContentScale.Fit
-                )
-            }
-        }
+        DualSlotCrossfadeImage(
+            requestModel = requestModel,
+            durationMillis = 500,
+            maxAlpha = 1f,
+            animateTransitions = true,
+            contentScale = ContentScale.Fit,
+            containerModifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceVariant)
+        )
     } else {
         Box(
             modifier = Modifier
@@ -153,7 +73,7 @@ fun ArtworkView(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note),
+                painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_symbol_music_note),
                 contentDescription = null,
                 modifier = Modifier.size(120.dp),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
@@ -173,137 +93,198 @@ fun PlayerBlurBackground(
 
     val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
     val lifecycleOwner = LocalLifecycleOwner.current
-
-    var activeSlot by remember { mutableIntStateOf(0) }
-    var model0 by remember { mutableStateOf<Any?>(null) }
-    var model1 by remember { mutableStateOf<Any?>(null) }
-
-    val alpha0 = remember { Animatable(1f) }
-    val alpha1 = remember { Animatable(0f) }
 
     var debouncedArtworkId by remember { mutableStateOf(artworkId) }
     var debouncedArtworkUri by remember { mutableStateOf(artworkUri) }
 
     LaunchedEffect(artworkId, artworkUri) {
-        kotlinx.coroutines.delay(150) 
+        delay(BLUR_BACKGROUND_DEBOUNCE_MS)
         debouncedArtworkId = artworkId
         debouncedArtworkUri = artworkUri
     }
 
-    LaunchedEffect(debouncedArtworkId, debouncedArtworkUri, lifecycleOwner) {
-        if (debouncedArtworkId == null && debouncedArtworkUri == null) return@LaunchedEffect
-
-        val isAppVisible = lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)
-
-        val newModel = coverRequester.buildCoverArtRequest(
-            id = debouncedArtworkId,
-            context = context,
-            preferLocal = true,
-            size = 300,
-            crossfade = false
-        )
-
-        if (!isAppVisible) {
-            if (alpha0.value >= alpha1.value) {
-                model1 = newModel
-                alpha1.snapTo(1f)
-                alpha0.snapTo(0f)
-                activeSlot = 1
-            } else {
-                model0 = newModel
-                alpha0.snapTo(1f)
-                alpha1.snapTo(0f)
-                activeSlot = 0
-            }
-            return@LaunchedEffect
-        }
-
-        if (model0 == newModel) {
-            activeSlot = 0
-            if (alpha0.value < 1f) {
-                coroutineScope.launch {
-                    launch { alpha0.animateTo(1f, tween(800, easing = EaseInOut)) }
-                    launch { alpha1.animateTo(0f, tween(800, easing = EaseInOut)) }
-                }
-            }
-            return@LaunchedEffect
-        }
-        if (model1 == newModel) {
-            activeSlot = 1
-            if (alpha1.value < 1f) {
-                coroutineScope.launch {
-                    launch { alpha1.animateTo(1f, tween(800, easing = EaseInOut)) }
-                    launch { alpha0.animateTo(0f, tween(800, easing = EaseInOut)) }
-                }
-            }
-            return@LaunchedEffect
-        }
-
-        if (model0 == null) {
-            model0 = newModel
-            coroutineScope.launch { alpha0.snapTo(1f) }
-            activeSlot = 0
-        } else if (model1 == null) {
-            model1 = newModel
-            coroutineScope.launch { alpha1.snapTo(0f) }
-            activeSlot = 1
+    val requestModel = remember(debouncedArtworkId, debouncedArtworkUri, coverRequester, context) {
+        if (debouncedArtworkId == null && debouncedArtworkUri == null) {
+            null
         } else {
-            if (alpha0.value >= alpha1.value) {
-                model1 = newModel
-                coroutineScope.launch {
-                    alpha1.snapTo(0f)
-                }
-                activeSlot = 1
-            } else {
-                model0 = newModel
-                coroutineScope.launch {
-                    alpha0.snapTo(0f)
-                }
-                activeSlot = 0
-            }
+            coverRequester.buildCoverArtRequest(
+                id = debouncedArtworkId,
+                context = context,
+                preferLocal = true,
+                size = 300,
+                crossfade = false,
+                fallbackUri = debouncedArtworkUri
+            )
         }
     }
 
-    val startTransition = { targetSlot: Int ->
-        coroutineScope.launch {
-            if (targetSlot == 0 && activeSlot == 0) {
-                launch { alpha0.animateTo(1f, tween(800, easing = EaseInOut)) }
-                launch { alpha1.animateTo(0f, tween(800, easing = EaseInOut)) }
-            } else if (targetSlot == 1 && activeSlot == 1) {
-                launch { alpha1.animateTo(1f, tween(800, easing = EaseInOut)) }
-                launch { alpha0.animateTo(0f, tween(800, easing = EaseInOut)) }
-            }
+    val lifecycleState by lifecycleOwner.lifecycle.currentStateAsState()
+    val isAppVisible = lifecycleState.isAtLeast(Lifecycle.State.STARTED)
+
+    DualSlotCrossfadeImage(
+        requestModel = requestModel,
+        durationMillis = 800,
+        maxAlpha = 0.5f,
+        animateTransitions = isAppVisible,
+        contentScale = ContentScale.Crop,
+        imageModifier = Modifier.blur(50.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded),
+        containerModifier = modifier.fillMaxSize()
+    )
+}
+
+private data class ArtworkCrossfadeState(
+    val slot0Model: Any? = null,
+    val slot1Model: Any? = null,
+    val slot0Ready: Boolean = false,
+    val slot1Ready: Boolean = false,
+    val slot0Failed: Boolean = false,
+    val slot1Failed: Boolean = false,
+    val slot0Attempt: Int = 0,
+    val slot1Attempt: Int = 0,
+    val displayedSlot: Int = 0,
+    val targetSlot: Int = 0,
+    val hasDisplayedInitialArtwork: Boolean = false
+) {
+    val isReadyToDisplay: Boolean
+        get() = targetSlot != -1 && ((displayedSlot == 0 && slot0Ready) || (displayedSlot == 1 && slot1Ready))
+
+    fun onRequestChanged(requestModel: Any?): ArtworkCrossfadeState {
+        if (requestModel == null) {
+            return copy(targetSlot = -1)
+        }
+        return when {
+            slot0Model == requestModel -> copy(
+                targetSlot = 0,
+                displayedSlot = if (slot0Ready) 0 else displayedSlot,
+                slot0Failed = if (slot0Failed) false else slot0Failed,
+                slot0Attempt = if (slot0Failed) slot0Attempt + 1 else slot0Attempt
+            )
+            slot1Model == requestModel -> copy(
+                targetSlot = 1,
+                displayedSlot = if (slot1Ready) 1 else displayedSlot,
+                slot1Failed = if (slot1Failed) false else slot1Failed,
+                slot1Attempt = if (slot1Failed) slot1Attempt + 1 else slot1Attempt
+            )
+            displayedSlot == 0 && slot0Model != null -> copy(
+                slot1Model = requestModel,
+                slot1Ready = false,
+                slot1Failed = false,
+                targetSlot = 1
+            )
+            else -> copy(
+                slot0Model = requestModel,
+                slot0Ready = false,
+                slot0Failed = false,
+                targetSlot = 0
+            )
         }
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
-        if (model0 != null) {
-            AsyncImage(
-                model = model0,
-                contentDescription = null,
-                onSuccess = { if (activeSlot == 0 && alpha0.value < 1f) startTransition(0) },
-                onError = { if (activeSlot == 0 && alpha0.value < 1f) startTransition(0) },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = 0.5f * alpha0.value }
-                    .blur(50.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded),
-                contentScale = ContentScale.Crop
-            )
+    fun onSlotResult(slotIndex: Int, model: Any?, success: Boolean): ArtworkCrossfadeState {
+        val currentSlotModel = if (slotIndex == 0) slot0Model else slot1Model
+        if (currentSlotModel != model) return this
+        val nextDisplayed = if (targetSlot == slotIndex) slotIndex else displayedSlot
+        return if (slotIndex == 0) {
+            copy(slot0Ready = success, slot0Failed = !success, displayedSlot = nextDisplayed)
+        } else {
+            copy(slot1Ready = success, slot1Failed = !success, displayedSlot = nextDisplayed)
         }
-        if (model1 != null) {
-            AsyncImage(
-                model = model1,
-                contentDescription = null,
-                onSuccess = { if (activeSlot == 1 && alpha1.value < 1f) startTransition(1) },
-                onError = { if (activeSlot == 1 && alpha1.value < 1f) startTransition(1) },
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer { alpha = 0.5f * alpha1.value }
-                    .blur(50.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded),
-                contentScale = ContentScale.Crop
-            )
+    }
+
+    fun onInitialArtworkCommitted(): ArtworkCrossfadeState =
+        if (!hasDisplayedInitialArtwork && isReadyToDisplay) {
+            copy(hasDisplayedInitialArtwork = true)
+        } else {
+            this
         }
+}
+
+/**
+ * 共享双槽位封面交叉淡入淡出组件（收敛 P1-09 与 P3-02）：
+ * 先将候选槽位的就绪状态置 false 再换模型，完全依托 displayedSlot 与 animateFloatAsState 驱动淡入淡出，
+ * 并通过 slotXAttempt 在失败后切回同一模型时强制触发重载、首帧就绪时跳过淡入延迟。
+ */
+@Composable
+private fun DualSlotCrossfadeImage(
+    requestModel: Any?,
+    durationMillis: Int,
+    maxAlpha: Float,
+    animateTransitions: Boolean,
+    contentScale: ContentScale,
+    containerModifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier
+) {
+    var state by remember { mutableStateOf(ArtworkCrossfadeState()) }
+
+    LaunchedEffect(requestModel) {
+        state = state.onRequestChanged(requestModel)
+    }
+
+    LaunchedEffect(state.isReadyToDisplay) {
+        if (state.isReadyToDisplay) {
+            state = state.onInitialArtworkCommitted()
+        }
+    }
+
+    val shouldAnimate = animateTransitions && state.hasDisplayedInitialArtwork
+    val animSpec = if (shouldAnimate) {
+        tween<Float>(durationMillis = durationMillis, easing = EaseInOut)
+    } else {
+        snap()
+    }
+    val alpha0 by animateFloatAsState(
+        targetValue = if (state.targetSlot != -1 && state.displayedSlot == 0 && state.slot0Ready) maxAlpha else 0f,
+        animationSpec = animSpec,
+        label = "crossfadeAlpha0"
+    )
+    val alpha1 by animateFloatAsState(
+        targetValue = if (state.targetSlot != -1 && state.displayedSlot == 1 && state.slot1Ready) maxAlpha else 0f,
+        animationSpec = animSpec,
+        label = "crossfadeAlpha1"
+    )
+
+    Box(modifier = containerModifier) {
+        ArtworkSlotImage(
+            model = state.slot0Model,
+            attempt = state.slot0Attempt,
+            alpha = alpha0,
+            contentScale = contentScale,
+            imageModifier = imageModifier,
+            onResult = { model, success -> state = state.onSlotResult(0, model, success) }
+        )
+        ArtworkSlotImage(
+            model = state.slot1Model,
+            attempt = state.slot1Attempt,
+            alpha = alpha1,
+            contentScale = contentScale,
+            imageModifier = imageModifier,
+            onResult = { model, success -> state = state.onSlotResult(1, model, success) }
+        )
+    }
+}
+
+@Composable
+private fun ArtworkSlotImage(
+    model: Any?,
+    attempt: Int,
+    alpha: Float,
+    contentScale: ContentScale,
+    imageModifier: Modifier,
+    onResult: (model: Any, success: Boolean) -> Unit
+) {
+    if (model == null) return
+    key(attempt) {
+        AsyncImage(
+            model = model,
+            contentDescription = null,
+            onSuccess = { onResult(model, true) },
+            onError = { onResult(model, false) },
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer { this.alpha = alpha }
+                .then(imageModifier),
+            contentScale = contentScale
+        )
     }
 }

@@ -47,6 +47,7 @@ class CacheStrategyManager(
                 LogManager.i("CacheStrategy: Triggering verified silent cache for $title")
             downloadController.downloadSong(song, isSilent = true)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("CacheStrategy: Error in silent cache trigger", e)
         }
     }

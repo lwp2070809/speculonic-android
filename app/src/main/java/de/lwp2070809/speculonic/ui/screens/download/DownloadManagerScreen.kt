@@ -38,6 +38,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -89,7 +90,7 @@ fun DownloadManagerScreen(
     val context = LocalContext.current
     val downloadController = LocalDownloadController.current
 
-    val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
+    val allDownloads by DownloadTracker.allDownloadsFlow.collectAsStateWithLifecycle()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 

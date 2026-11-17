@@ -29,6 +29,7 @@ class SyncAllDataUseCase @Inject constructor(
         try {
             repository.ping()
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.w("SyncAllDataUseCase: ping failed before sync, proceeding anyway")
         }
         

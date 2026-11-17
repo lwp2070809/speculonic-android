@@ -96,21 +96,23 @@ fun FavoriteSongsRow(
     val downloadController = LocalDownloadController.current
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         songs.take(3).forEach { song ->
-            SongListItem(
-                song = song,
-                isCurrent = song.id == currentSongId,
-                isOnline = isOnline,
-                isEffectivelyOnline = isEffectivelyOnline,
-                isStreamingAllowed = isStreamingAllowed,
-                transcodeIncompatible = transcodeIncompatible,
-                onClick = { onSongClick(song) },
-                onStarClick = { star ->
-                    onStarClick(song.id, star)
-                },
-                onDownloadClick = { downloadController.downloadSong(song) },
-                onRemoveDownloadClick = { downloadController.removeDownload(song.id) },
-                strings = strings
-            )
+            androidx.compose.runtime.key(song.id) {
+                SongListItem(
+                    song = song,
+                    isCurrent = song.id == currentSongId,
+                    isOnline = isOnline,
+                    isEffectivelyOnline = isEffectivelyOnline,
+                    isStreamingAllowed = isStreamingAllowed,
+                    transcodeIncompatible = transcodeIncompatible,
+                    onClick = { onSongClick(song) },
+                    onStarClick = { star ->
+                        onStarClick(song.id, star)
+                    },
+                    onDownloadClick = { downloadController.downloadSong(song) },
+                    onRemoveDownloadClick = { downloadController.removeDownload(song.id) },
+                    strings = strings
+                )
+            }
         }
     }
 }
@@ -125,7 +127,7 @@ fun AlbumRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(albums, key = { it.id }) { album ->
+        items(albums, key = { it.id }, contentType = { "album_card" }) { album ->
             AlbumCard(
                 album = album,
                 unknownArtistText = unknownArtistText,
@@ -187,7 +189,7 @@ fun PlaylistRow(
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        items(playlists, key = { it.id }) { playlist ->
+        items(playlists, key = { it.id }, contentType = { "playlist_card" }) { playlist ->
             PlaylistCard(
                 playlist = playlist,
                 onClick = { onPlaylistClick(playlist.id) }

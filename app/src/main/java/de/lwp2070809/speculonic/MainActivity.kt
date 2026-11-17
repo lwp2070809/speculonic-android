@@ -25,6 +25,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import dagger.hilt.android.AndroidEntryPoint
 import de.lwp2070809.speculonic.data.ColorMode
@@ -46,8 +47,6 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
-private val BT_SYNC_TS_REGEX = Regex("[?&]bt_sync_ts=[^&]*")
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
@@ -110,12 +109,12 @@ class MainActivity : AppCompatActivity() {
             }
             
             val networkMonitor = remember { this@MainActivity.networkMonitor }
-            val networkStatus by networkMonitor.networkStatus.collectAsState(initial = de.lwp2070809.speculonic.util.NetworkStatus(true, false))
+            val networkStatus by networkMonitor.networkStatus.collectAsStateWithLifecycle()
             val isOnlineReal = networkStatus.isOnline
             val isMetered = networkStatus.isMetered
 
             val preferencesManager = remember { PreferencesManager.getInstance(context) }
-            val serverUrlState by preferencesManager.serverUrl.collectAsState(initial = "")
+            val serverUrlState by preferencesManager.serverUrl.collectAsStateWithLifecycle(initialValue = "")
             if (android.os.Build.VERSION.SDK_INT >= 37) {
                 var localNetworkLauncherRef: androidx.activity.result.ActivityResultLauncher<String>? = null
                 val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
@@ -147,18 +146,20 @@ class MainActivity : AppCompatActivity() {
                     }
                 }
             }
-            val themeMode by preferencesManager.themeMode.collectAsState(initial = ThemeMode.SYSTEM)
-            val colorMode by preferencesManager.colorMode.collectAsState(initial = ColorMode.ALBUM_COVER)
-            val offlineMode by preferencesManager.offlineModeEnabled.collectAsState(initial = false)
-            val autoOffline by preferencesManager.autoOfflineOnMetered.collectAsState(initial = false)
+            val themeMode by preferencesManager.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
+            val colorMode by preferencesManager.colorMode.collectAsStateWithLifecycle(initialValue = ColorMode.ALBUM_COVER)
+            val offlineModePref by preferencesManager.offlineModeEnabled.collectAsStateWithLifecycle(initialValue = null)
+            val offlineMode = offlineModePref ?: false
+            val autoOfflinePref by preferencesManager.autoOfflineOnMetered.collectAsStateWithLifecycle(initialValue = null)
 
-            LaunchedEffect(offlineMode) {
-                de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offlineMode
-                LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Offline mode state updated -> $offlineMode")
+            LaunchedEffect(offlineModePref) {
+                val offline = offlineModePref ?: return@LaunchedEffect
+                de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offline
+                LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Offline mode state updated -> $offline")
             }
 
-            LaunchedEffect(isMetered, autoOffline) {
-                if (autoOffline) {
+            LaunchedEffect(isMetered, autoOfflinePref) {
+                if (autoOfflinePref == true) {
                     val targetOffline = isMetered
                     LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Auto-offline triggered (isMetered=$isMetered) -> offlineMode=$targetOffline")
                     preferencesManager.saveOfflineModeEnabled(targetOffline)
@@ -195,7 +196,7 @@ class MainActivity : AppCompatActivity() {
                 ) { status, offline ->
                     status.isOnline && !offline
                 }.distinctUntilChanged()
-            }.collectAsState(initial = true)
+            }.collectAsStateWithLifecycle(initialValue = networkMonitor.currentNetworkStatus.isOnline)
 
             val isStreamingAllowed by remember(networkMonitor, preferencesManager) {
                 combine(
@@ -205,7 +206,9 @@ class MainActivity : AppCompatActivity() {
                 ) { status, allowed, offline ->
                     status.isOnline && (!status.isMetered || allowed) && !offline
                 }.distinctUntilChanged()
-            }.collectAsState(initial = true)
+            }.collectAsStateWithLifecycle(
+                initialValue = networkMonitor.currentNetworkStatus.let { it.isOnline && !it.isMetered }
+            )
 
             var showCancelDownloadsDialog by remember { mutableStateOf(false) }
 
@@ -292,18 +295,12 @@ class MainActivity : AppCompatActivity() {
                 derivedStateOf {
                     val uri = artworkUriState ?: return@derivedStateOf null
                     val uriStr = uri.toString()
-                    if (uriStr.contains("bt_sync_ts=")) {
-                        val cleaned = uriStr.replace(BT_SYNC_TS_REGEX, "").let {
-                            if (it.contains("?") || !it.contains("&")) it else it.replaceFirst("&", "?")
-                        }
-                        cleaned.toUri()
-                    } else {
-                        uri
-                    }
+                    val cleaned = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(uriStr)
+                    if (cleaned != uriStr) cleaned.toUri() else uri
                 }
             }
-            val savedSeedColorLight by preferencesManager.lastSeedColorLight.collectAsState(initial = null)
-            val savedSeedColorDark by preferencesManager.lastSeedColorDark.collectAsState(initial = null)
+            val savedSeedColorLight by preferencesManager.lastSeedColorLight.collectAsStateWithLifecycle(initialValue = null)
+            val savedSeedColorDark by preferencesManager.lastSeedColorDark.collectAsStateWithLifecycle(initialValue = null)
             var activeSeedColor by remember { mutableStateOf<Color?>(null) }
             var hasEvaluatedColor by remember { mutableStateOf(false) }
             

@@ -14,6 +14,7 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -44,8 +45,8 @@ class SongDetailViewModel @Inject constructor(
     }
 
     fun prepareForSong(songId: String) {
-        if (_uiState.value.songId != songId) {
-            _uiState.value = SongDetailUiState(songId = songId)
+        _uiState.update { state ->
+            if (state.songId != songId) SongDetailUiState(songId = songId) else state
         }
     }
 
@@ -54,8 +55,8 @@ class SongDetailViewModel @Inject constructor(
         if (_uiState.value.sha1 != null) return
         viewModelScope.launch {
             val sha1 = SongAudioMetadataExtractor.calculateSha1(uri, context)
-            if (_uiState.value.songId == songId) {
-                _uiState.value = _uiState.value.copy(sha1 = sha1)
+            _uiState.update { state ->
+                if (state.songId == songId) state.copy(sha1 = sha1) else state
             }
         }
     }
@@ -65,38 +66,46 @@ class SongDetailViewModel @Inject constructor(
         if (_uiState.value.id3Metadata != null) return
         viewModelScope.launch {
             val metadata = SongAudioMetadataExtractor.extractId3(uri, suffix, isTranscoded, context)
-            if (_uiState.value.songId == songId) {
-                _uiState.value = _uiState.value.copy(id3Metadata = metadata)
+            _uiState.update { state ->
+                if (state.songId == songId) state.copy(id3Metadata = metadata) else state
             }
         }
     }
 
     fun fetchRemoteSong(songId: String, failedMessage: String) {
         prepareForSong(songId)
-        if (_uiState.value.remoteSong != null || _uiState.value.remoteLoading) return
+        val current = _uiState.value
+        if (current.remoteSong != null || current.remoteLoading) return
         if (ServerReachableManager.isOfflineOrUnreachable()) {
-            _uiState.value = _uiState.value.copy(remoteError = "OFFLINE")
+            _uiState.update { state ->
+                if (state.songId == songId) state.copy(remoteError = "OFFLINE") else state
+            }
             return
         }
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(remoteLoading = true, remoteError = null)
+            _uiState.update { state ->
+                if (state.songId == songId) state.copy(remoteLoading = true, remoteError = null) else state
+            }
             val result = repository.getSongRemote(songId)
-            if (_uiState.value.songId != songId) return@launch
-            if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(
-                    remoteSong = result.getOrNull(),
-                    remoteLoading = false
-                )
-            } else {
-                val error = if (ServerReachableManager.isOfflineOrUnreachable()) {
-                    "OFFLINE"
+            _uiState.update { state ->
+                if (state.songId != songId) {
+                    state
+                } else if (result.isSuccess) {
+                    state.copy(
+                        remoteSong = result.getOrNull(),
+                        remoteLoading = false
+                    )
                 } else {
-                    result.exceptionOrNull()?.message ?: failedMessage
+                    val error = if (ServerReachableManager.isOfflineOrUnreachable()) {
+                        "OFFLINE"
+                    } else {
+                        result.exceptionOrNull()?.message ?: failedMessage
+                    }
+                    state.copy(
+                        remoteError = error,
+                        remoteLoading = false
+                    )
                 }
-                _uiState.value = _uiState.value.copy(
-                    remoteError = error,
-                    remoteLoading = false
-                )
             }
         }
     }

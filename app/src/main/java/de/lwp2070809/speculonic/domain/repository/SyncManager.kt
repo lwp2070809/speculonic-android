@@ -55,7 +55,8 @@ class SyncManager(
     private val authManager: AuthManager,
     private val pref: PreferencesManager,
     private val entityMapper: EntityMapper,
-    private val onSongsRemoved: suspend (List<SongCleanupTarget>) -> Unit = {}
+    private val onSongsRemoved: suspend (List<SongCleanupTarget>) -> Unit = {},
+    private val runInTransaction: suspend (suspend () -> Unit) -> Unit = { it() }
 ) {
     private val syncMutex = Mutex()
     private val json = Json {
@@ -224,25 +225,34 @@ class SyncManager(
             )
             verifySafetyGuard(localSnapshot, remoteCounts, ignoreSafetyGuard)
 
+            var removalTargets: List<SongCleanupTarget> = emptyList()
             if (loopOutcome.offsetBugDetected) {
                 LogManager.w("SyncManager: Pagination offset loop guard triggered, skipping surgical deletion to prevent accidental data loss.")
+                val p4 = "正在更新统计信息..."
+                onProgress?.invoke(p4)
+                pref.saveSyncProgress(p4)
+                runInTransaction {
+                    musicDao.clearSyncTempIds()
+                    musicDao.repairAndCount()
+                }
             } else {
                 val p3 = "正在清理冗余数据..."
                 onProgress?.invoke(p3)
                 pref.saveSyncProgress(p3)
                 LogManager.d("SyncManager: Performing surgical sync-deletion via temp tables...")
-                val removalTargets = musicDao.getSongsNotInTempForCleanup()
-                musicDao.deleteSongsNotInTemp()
-                musicDao.deleteAlbumsNotInTemp()
-                musicDao.deleteArtistsNotInTemp()
+                val p4 = "正在更新统计信息..."
+                runInTransaction {
+                    removalTargets = musicDao.getSongsNotInTempForCleanup()
+                    musicDao.deleteSongsNotInTemp()
+                    musicDao.deleteAlbumsNotInTemp()
+                    musicDao.deleteArtistsNotInTemp()
+                    musicDao.clearSyncTempIds()
+                    musicDao.repairAndCount()
+                }
+                onProgress?.invoke(p4)
+                pref.saveSyncProgress(p4)
                 onSongsRemoved(removalTargets)
             }
-            musicDao.clearSyncTempIds()
-
-            val p4 = "正在更新统计信息..."
-            onProgress?.invoke(p4)
-            pref.saveSyncProgress(p4)
-            musicDao.repairAndCount()
 
             onSyncComplete(currentTime, serverLastModified)
             pref.saveSyncProgress(null)
@@ -279,34 +289,69 @@ class SyncManager(
                 var songClosed = false
                 var tempIdClosed = false
 
+                val pendingArtists = ArrayList<ArtistEntity>()
+                val pendingAlbums = ArrayList<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>()
+                val pendingSongs = ArrayList<de.lwp2070809.speculonic.data.db.entities.SongEntity>()
+                val pendingTempIds = ArrayList<SyncTempIdEntity>()
+
+                suspend fun flushBufferedWrites() {
+                    if (pendingArtists.isEmpty() && pendingAlbums.isEmpty() && pendingSongs.isEmpty() && pendingTempIds.isEmpty()) {
+                        return
+                    }
+                    // 分批事务提交可显著抑制全量同步期间 InvalidationTracker 的高频 UI 失效刷新
+                    runInTransaction {
+                        if (pendingArtists.isNotEmpty()) {
+                            pendingArtists.chunked(BATCH_SIZE).forEach { musicDao.insertArtists(it) }
+                        }
+                        if (pendingAlbums.isNotEmpty()) {
+                            pendingAlbums.chunked(BATCH_SIZE).forEach { musicDao.insertAlbums(it) }
+                        }
+                        if (pendingSongs.isNotEmpty()) {
+                            pendingSongs.chunked(BATCH_SIZE).forEach { musicDao.insertSongs(it) }
+                        }
+                        if (pendingTempIds.isNotEmpty()) {
+                            pendingTempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
+                        }
+                    }
+                    pendingArtists.clear()
+                    pendingAlbums.clear()
+                    pendingSongs.clear()
+                    pendingTempIds.clear()
+                }
+
                 while (!artistClosed || !albumClosed || !songClosed || !tempIdClosed) {
                     kotlinx.coroutines.selects.select {
                         if (!artistClosed) {
                             artistChannel.onReceiveCatching { result ->
-                                result.getOrNull()?.let { musicDao.insertArtists(it) }
+                                result.getOrNull()?.let { pendingArtists.addAll(it) }
                                 if (result.isClosed) artistClosed = true
                             }
                         }
                         if (!albumClosed) {
                             albumChannel.onReceiveCatching { result ->
-                                result.getOrNull()?.let { musicDao.insertAlbums(it) }
+                                result.getOrNull()?.let { pendingAlbums.addAll(it) }
                                 if (result.isClosed) albumClosed = true
                             }
                         }
                         if (!songClosed) {
                             songChannel.onReceiveCatching { result ->
-                                result.getOrNull()?.let { musicDao.insertSongs(it) }
+                                result.getOrNull()?.let { pendingSongs.addAll(it) }
                                 if (result.isClosed) songClosed = true
                             }
                         }
                         if (!tempIdClosed) {
                             tempIdChannel.onReceiveCatching { result ->
-                                result.getOrNull()?.let { musicDao.insertSyncTempIds(it) }
+                                result.getOrNull()?.let { pendingTempIds.addAll(it) }
                                 if (result.isClosed) tempIdClosed = true
                             }
                         }
                     }
+                    val totalBuffered = pendingArtists.size + pendingAlbums.size + pendingSongs.size + pendingTempIds.size
+                    if (totalBuffered >= TRANSACTION_FLUSH_THRESHOLD) {
+                        flushBufferedWrites()
+                    }
                 }
+                flushBufferedWrites()
             } catch (t: Throwable) {
                 artistChannel.close(t)
                 albumChannel.close(t)
@@ -473,6 +518,7 @@ class SyncManager(
         val syncResult = syncAllArtistsAndSongs()
         syncAllAlbums(recordTempIds = true)
 
+        var removalTargets: List<SongCleanupTarget> = emptyList()
         if (syncResult.totalCount > 0 && syncResult.failCount == 0) {
             val remoteCounts = EntityCountSnapshot(
                 artists = musicDao.getSyncTempIdCountByType("artist"),
@@ -481,18 +527,26 @@ class SyncManager(
             )
             verifySafetyGuard(localSnapshot, remoteCounts, ignoreSafetyGuard, isLegacy = true)
             LogManager.d("SyncManager: Performing legacy surgical sync-deletion via temp tables (zero directory failure)...")
-            val removalTargets = musicDao.getSongsNotInTempForCleanup()
-            musicDao.deleteSongsNotInTemp()
-            musicDao.deleteAlbumsNotInTemp()
-            musicDao.deleteArtistsNotInTemp()
+            runInTransaction {
+                removalTargets = musicDao.getSongsNotInTempForCleanup()
+                musicDao.deleteSongsNotInTemp()
+                musicDao.deleteAlbumsNotInTemp()
+                musicDao.deleteArtistsNotInTemp()
+                musicDao.clearSyncTempIds()
+                musicDao.repairAndCount()
+            }
             onSongsRemoved(removalTargets)
-        } else if (syncResult.failCount > 0) {
-            val skipMsg = "SyncManager: Directory fetch encountered failures " +
-                "(${syncResult.failCount}/${syncResult.totalCount} failed). Skipped surgical deletion."
-            LogManager.w(skipMsg)
+        } else {
+            if (syncResult.failCount > 0) {
+                val skipMsg = "SyncManager: Directory fetch encountered failures " +
+                    "(${syncResult.failCount}/${syncResult.totalCount} failed). Skipped surgical deletion."
+                LogManager.w(skipMsg)
+            }
+            runInTransaction {
+                musicDao.clearSyncTempIds()
+                musicDao.repairAndCount()
+            }
         }
-        musicDao.clearSyncTempIds()
-        musicDao.repairAndCount()
         onSyncComplete(currentTime, serverLastModified)
         pref.saveSyncProgress(null)
     }
@@ -540,6 +594,7 @@ class SyncManager(
             
             onComplete(currentTime)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LogManager.e("SyncManager: quickSync failed", e)
             throw e
         } finally {
@@ -694,19 +749,25 @@ class SyncManager(
                         lastUpdated = lastUpdated
                     )
                 }
-                entities.chunked(500).forEach { musicDao.insertSongs(it) }
-                musicDao.insertSyncTempIds(songs.map { SyncTempIdEntity(it.id, "song") })
-                
-                val albumIds = entities.mapNotNull { it.albumId }.distinct()
-                if (albumIds.isNotEmpty()) {
-                    musicDao.insertSyncTempIds(albumIds.map { SyncTempIdEntity(it, "album") })
-                }
-                
-                entities.groupBy { it.albumId }.forEach { (albumId, songsInAlbum) ->
-                    if (albumId != null) {
+                runInTransaction {
+                    entities.chunked(500).forEach { musicDao.insertSongs(it) }
+                    musicDao.insertSyncTempIds(songs.map { SyncTempIdEntity(it.id, "song") })
+
+                    val albumIds = entities.mapNotNull { it.albumId }.distinct()
+                    if (albumIds.isNotEmpty()) {
+                        musicDao.insertSyncTempIds(albumIds.map { SyncTempIdEntity(it, "album") })
+                    }
+
+                    val existingAlbums = if (albumIds.isNotEmpty()) {
+                        albumIds.chunked(500).flatMap { musicDao.getAlbumsByIds(it) }.associateBy { it.id }
+                    } else {
+                        emptyMap()
+                    }
+                    val albumEntitiesToUpsert = entities.groupBy { it.albumId }.mapNotNull { (albumId, songsInAlbum) ->
+                        albumId ?: return@mapNotNull null
                         val firstSong = songsInAlbum.first()
-                        val existingAlbum = musicDao.getAlbumById(albumId)
-                        val albumEntity = de.lwp2070809.speculonic.data.db.entities.AlbumEntity(
+                        val existingAlbum = existingAlbums[albumId]
+                        de.lwp2070809.speculonic.data.db.entities.AlbumEntity(
                             id = albumId,
                             name = firstSong.album ?: "Unknown Album",
                             artist = firstSong.artist ?: "Unknown Artist",
@@ -716,13 +777,16 @@ class SyncManager(
                             starred = existingAlbum?.starred ?: false,
                             lastUpdated = System.currentTimeMillis()
                         )
-                        musicDao.insertAlbums(listOf(albumEntity))
+                    }
+                    if (albumEntitiesToUpsert.isNotEmpty()) {
+                        albumEntitiesToUpsert.chunked(500).forEach { musicDao.insertAlbums(it) }
                     }
                 }
             }
 
             return SyncDirResult.Success(subDirs.map { it.id to artistId }, songs.size)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             LogManager.e("SyncManager: syncSingleDirectory failed for id=$id", e)
             return SyncDirResult.Failure
         }
@@ -731,6 +795,7 @@ class SyncManager(
     companion object {
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L
         private const val BATCH_SIZE = 500
+        private const val TRANSACTION_FLUSH_THRESHOLD = 4000
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
         private const val MIN_ENTITIES_FOR_SAFETY = 10
         private const val ARTIST_PAGE_SIZE = 1000

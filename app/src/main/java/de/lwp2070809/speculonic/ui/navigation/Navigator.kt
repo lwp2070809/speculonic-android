@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.ui.navigation
 import android.app.Activity
 import android.content.Context
 import android.content.ContextWrapper
+import android.os.SystemClock
 import androidx.navigation3.runtime.NavKey
 
 class Navigator(
@@ -22,8 +23,8 @@ class Navigator(
     }
 
     fun navigate(route: NavKey, inclusive: Boolean = false) {
-        val now = System.currentTimeMillis()
-        if (route == lastRoute && now - lastNavigationTime < 500) {
+        val now = SystemClock.elapsedRealtime()
+        if (route == lastRoute && now - lastNavigationTime < 500L) {
             return
         }
         lastRoute = route
@@ -51,9 +52,13 @@ class Navigator(
                 context?.findActivity()?.moveTaskToBack(true)
             }
         }
+        lastRoute = navigationState.getCurrentBackStack().lastOrNull()
+        lastNavigationTime = 0L
     }
 
     fun goBackList() {
         navigationState.popListRoute()
+        lastRoute = navigationState.getCurrentBackStack().lastOrNull()
+        lastNavigationTime = 0L
     }
 }

@@ -75,6 +75,7 @@ class UpdateManager(
             }
             return@withContext UpdateResult.Error("Failed to fetch latest release")
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("UpdateCheck: Failed", e)
             return@withContext UpdateResult.Error(e.message ?: "Unknown error")
         }

@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.ui.navigation
 
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -82,10 +83,16 @@ class NavigationState(
             route is AppRoute && route.isDetailPane && 
             lastRoute != null && lastRoute.isDetailPane && !isDetailDrillDown(lastRoute, route)
 
-        val baseStack = if ((inclusive || shouldReplaceDetail) && stack.isNotEmpty()) {
-            stack.dropLast(1)
-        } else {
-            stack
+        val baseStack = when {
+            shouldReplaceDetail -> {
+                var trimmed = stack
+                while (trimmed.size > 1 && (trimmed.last() as? AppRoute)?.isDetailPane == true) {
+                    trimmed = trimmed.dropLast(1)
+                }
+                trimmed
+            }
+            inclusive && stack.isNotEmpty() -> stack.dropLast(1)
+            else -> stack
         }
         backStacks = backStacks + (topLevelRoute to (baseStack + route))
     }
@@ -117,9 +124,11 @@ class NavigationState(
         return false
     }
 
-    fun getCurrentBackStack(): List<NavKey> {
-        return backStacks[topLevelRoute]?.takeIf { it.isNotEmpty() } ?: listOf(topLevelRoute)
+    private val currentBackStackState by derivedStateOf {
+        backStacks[topLevelRoute]?.takeIf { it.isNotEmpty() } ?: listOf(topLevelRoute)
     }
+
+    fun getCurrentBackStack(): List<NavKey> = currentBackStackState
 
     fun getRetainedKeys(): List<NavKey> {
         val inactiveKeys = topLevelRoutes.mapNotNull {

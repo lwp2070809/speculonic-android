@@ -25,12 +25,12 @@ object CacheCleanupHelper {
         val managerRemovalIds = withContext(Dispatchers.IO) {
             val privateDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
             val privateCanonicalPath = runCatching { privateDir.canonicalPath }.getOrNull()
-            val downloadCache = if (!CacheManager.isReleasing) {
-                runCatching { CacheManager.getDownloadCache(context) }.getOrNull()
-            } else null
-            val playbackCache = if (!CacheManager.isReleasing) {
-                runCatching { CacheManager.getPlaybackCache(context) }.getOrNull()
-            } else null
+            val downloadCache = runCatching { CacheManager.acquireDownloadCache(context) }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .getOrNull()
+            val playbackCache = runCatching { CacheManager.acquirePlaybackCache(context) }
+                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+                .getOrNull()
 
             var removedPrivateFiles = 0
             val activeIds = mutableListOf<String>()

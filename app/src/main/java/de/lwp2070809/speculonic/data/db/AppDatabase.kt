@@ -27,7 +27,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
         PlaybackQueueEntity::class,
         SyncTempIdEntity::class
     ],
-    version = 26,
+    version = 27,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -216,6 +216,22 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             }
         }
 
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("DROP INDEX IF EXISTS `index_songs_albumId_track`")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_coverArt` ON `songs` (`coverArt`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_parent` ON `songs` (`parent`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_isFullyCached` ON `songs` (`isFullyCached`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_title` ON `songs` (`title`)")
+
+                db.execSQL("DROP INDEX IF EXISTS `index_playlist_song_cross_ref_playlistId_songId_order`")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_playlist_song_cross_ref_playlistId_order` " +
+                        "ON `playlist_song_cross_ref` (`playlistId`, `order`)"
+                )
+            }
+        }
+
                 val ALL_MIGRATIONS = arrayOf(
             MIGRATION_14_15,
             MIGRATION_15_16,
@@ -228,7 +244,8 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             MIGRATION_22_23,
             MIGRATION_23_24,
             MIGRATION_24_25,
-            MIGRATION_25_26
+            MIGRATION_25_26,
+            MIGRATION_26_27
         )
 
 fun getDatabase(context: Context): AppDatabase {

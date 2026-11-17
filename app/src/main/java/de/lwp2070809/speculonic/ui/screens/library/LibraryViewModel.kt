@@ -103,6 +103,7 @@ class LibraryViewModel @Inject constructor(
                     try {
                         repository.getPlaylists(forceRefresh = true)
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         LogManager.e("LibraryViewModel: Initial playlist fetch failed", e)
                     } finally {
                         _uiState.update { it.copy(isLoading = false) }
@@ -113,6 +114,7 @@ class LibraryViewModel @Inject constructor(
                     try {
                         repository.getStarred(forceRefresh = true)
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         LogManager.e("LibraryViewModel: Initial starred fetch failed", e)
                     }
                 }
@@ -130,6 +132,7 @@ class LibraryViewModel @Inject constructor(
                 repository.refreshAlbumList(type = "alphabeticalByName", size = 2000)
                 _uiState.update { it.copy(isRefreshing = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: refreshAlbums failed", e)
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -144,6 +147,7 @@ class LibraryViewModel @Inject constructor(
                 repository.refreshArtists()
                 _uiState.update { it.copy(isRefreshing = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: refreshArtists failed", e)
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -158,6 +162,7 @@ class LibraryViewModel @Inject constructor(
                 repository.quickSync()
                 _uiState.update { it.copy(isRefreshing = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: refreshQuickly failed", e)
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -172,6 +177,7 @@ class LibraryViewModel @Inject constructor(
                 repository.getStarred(forceRefresh = true)
                 _uiState.update { it.copy(isRefreshing = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: refreshFavorites failed", e)
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -186,6 +192,7 @@ class LibraryViewModel @Inject constructor(
                 repository.getPlaylists(forceRefresh = true)
                 _uiState.update { it.copy(isRefreshing = false) }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: refreshPlaylists failed", e)
                 _uiState.update { it.copy(isRefreshing = false, error = e.message) }
             }
@@ -203,6 +210,7 @@ class LibraryViewModel @Inject constructor(
             try {
                 repository.createPlaylist(name)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: createPlaylist failed", e)
             }
         }
@@ -213,6 +221,7 @@ class LibraryViewModel @Inject constructor(
             try {
                 repository.deletePlaylist(id)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: deletePlaylist failed", e)
             }
         }
@@ -223,6 +232,7 @@ class LibraryViewModel @Inject constructor(
             val success = try {
                 repository.starSong(songId, star)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("LibraryViewModel: toggleStarSong failed", e)
                 false
             }

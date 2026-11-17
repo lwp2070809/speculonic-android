@@ -9,9 +9,9 @@ import de.lwp2070809.speculonic.util.LocalLyricsProvider
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LyricLine
 import de.lwp2070809.speculonic.util.LyricsParser
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -45,23 +45,38 @@ class LyricsRepository(
             return it
         }
 
-        val deferred = activeFetches.computeIfAbsent(songId) {
-            val def = repositoryScope.async {
+        val existing = activeFetches[songId]
+        if (existing != null) {
+            return existing.await()
+        }
+
+        // 先原子占坑再在独立协程作用域启动任务，避免 computeIfAbsent 内回调 remove 触发递归更新异常
+        val newDeferred = CompletableDeferred<Pair<String?, List<LyricLine>>>()
+        val racer = activeFetches.putIfAbsent(songId, newDeferred)
+        if (racer != null) {
+            return racer.await()
+        }
+
+        repositoryScope.launch {
+            try {
                 val result = fetchLyricsDataInternal(songId, artist, title, hasSongLyricsExtension)
                 if (result.second.isNotEmpty() || !result.first.isNullOrBlank()) {
                     synchronized(positiveCache) {
                         positiveCache.put(songId, result)
                     }
                 }
-                result
+                newDeferred.complete(result)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                newDeferred.cancel(e)
+                throw e
+            } catch (e: Throwable) {
+                newDeferred.completeExceptionally(e)
+            } finally {
+                activeFetches.remove(songId, newDeferred)
             }
-            def.invokeOnCompletion {
-                activeFetches.remove(songId)
-            }
-            def
         }
-        
-        return deferred.await()
+
+        return newDeferred.await()
     }
 
     private suspend fun fetchLyricsDataInternal(
@@ -83,7 +98,7 @@ class LyricsRepository(
             }
         }
 
-        if (negativeCache.get(songId) == true) {
+        if (synchronized(negativeCache) { negativeCache.get(songId) } == true) {
             LogManager.d("LyricsRepository: $songId is in negative cache, skipping network request")
             return Pair(null, emptyList())
         }
@@ -137,7 +152,9 @@ class LyricsRepository(
             val raw = api.getLyrics(artist, title, u, t, s).response.lyrics?.content
             val lines = LyricsParser.parse(raw)
             if (raw.isNullOrBlank() && lines.isEmpty()) {
-                negativeCache.put(songId, true)
+                synchronized(negativeCache) {
+                    negativeCache.put(songId, true)
+                }
             } else if (song?.localUri != null && !raw.isNullOrBlank()) {
                 repositoryScope.launch {
                     LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, raw)

@@ -19,6 +19,7 @@ import androidx.compose.material3.NavigationItemColors
 import androidx.compose.material3.windowsizeclass.WindowSizeClass
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -69,7 +70,7 @@ fun MainScreen(
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit
 ) {
-    val serverUrl by preferencesManager.serverUrl.collectAsState(initial = null)
+    val serverUrl by preferencesManager.serverUrl.collectAsStateWithLifecycle(initialValue = null)
 
     val settingsViewModel: SettingsViewModel = hiltViewModel()
     val settingsUiState by settingsViewModel.uiState.collectAsState()
@@ -85,9 +86,10 @@ fun MainScreen(
                 context: Context?,
                 preferLocal: Boolean,
                 size: Int?,
-                crossfade: Boolean
+                crossfade: Boolean,
+                fallbackUri: android.net.Uri?
             ): coil3.request.ImageRequest {
-                return repository.buildCoverArtRequest(id, context ?: currentContext, preferLocal, size, crossfade)
+                return repository.buildCoverArtRequest(id, context ?: currentContext, preferLocal, size, crossfade, fallbackUri)
             }
         }
     }
@@ -165,7 +167,6 @@ private fun MainContent(
         }
     }
 
-    val allDownloads by DownloadTracker.allDownloadsFlow.collectAsState()
     val searchViewModel: SearchViewModel = hiltViewModel(key = "search_${serverUrl ?: ""}")
     val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_${serverUrl ?: ""}")
 
@@ -245,11 +246,8 @@ private fun MainContent(
                         modifier = Modifier.fillMaxSize(),
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         topBar = {
-                            val activeDownloadsCount = remember(allDownloads) {
-                                allDownloads.count { info ->
-                                    !info.isSilent && (info.state == androidx.media3.exoplayer.offline.Download.STATE_DOWNLOADING || info.state == androidx.media3.exoplayer.offline.Download.STATE_QUEUED)
-                                }
-                            }
+                            val activeDownloadsCount by DownloadTracker.activeNonSilentCountFlow
+                                .collectAsStateWithLifecycle(initialValue = 0)
                             MainTopBar(
                                 currentRoute = currentRoute,
                                 currentBackStack = navigationState.getCurrentBackStack(),
@@ -417,6 +415,7 @@ private fun MainContent(
                         viewModel = nowPlayingViewModel,
                         isExpanded = isExpanded,
                         isEffectivelyOnline = isEffectivelyOnline,
+                        isVisible = showNowPlaying,
                         onCollapse = { showNowPlaying = false }
                     )
                 }

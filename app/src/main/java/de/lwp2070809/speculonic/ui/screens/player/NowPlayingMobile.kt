@@ -157,7 +157,9 @@ fun NowPlayingMobile(
                         ) {
                             if (uiState.isLoadingLyrics) {
                                 Box(
-                                    modifier = Modifier.fillMaxSize(),
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clickable { onToggleLyrics() },
                                     contentAlignment = Alignment.Center
                                 ) {
                                     CircularProgressIndicator()

@@ -70,6 +70,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
                             try {
                                 repository.getAlbum(albumId, forceRefresh = true)
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 LogManager.e("AlbumDetailViewModel: fetch songs failed for $albumId", e)
                             }
                         }
@@ -135,6 +136,7 @@ class AlbumDetailViewModel @AssistedInject constructor(
             try {
                 repository.starSong(songId, star)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 de.lwp2070809.speculonic.util.LogManager.e("AlbumDetailViewModel: toggleStarSong failed", e)
             }
         }

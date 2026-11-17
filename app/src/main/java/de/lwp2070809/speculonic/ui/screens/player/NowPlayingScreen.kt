@@ -95,6 +95,7 @@ fun NowPlayingScreen(
     viewModel: NowPlayingViewModel,
     isExpanded: Boolean = false,
     isEffectivelyOnline: Boolean,
+    isVisible: Boolean = true,
     onCollapse: () -> Unit
 ) {
     val playbackController = LocalPlaybackController.current
@@ -133,6 +134,7 @@ fun NowPlayingScreen(
             artworkId = playbackState.artworkId,
             artworkUri = playbackState.artworkUri,
             playerBackgroundMode = uiState.playerBackgroundMode,
+            isVisible = isVisible,
             onCollapse = onCollapse
         ) { dragModifier ->
             if (isExpanded) {

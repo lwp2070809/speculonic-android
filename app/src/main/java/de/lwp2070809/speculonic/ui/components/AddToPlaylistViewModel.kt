@@ -60,6 +60,7 @@ class AddToPlaylistViewModel @Inject constructor(
             try {
                 repository.getPlaylists(forceRefresh = true)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("AddToPlaylistViewModel: Failed to load playlists", e)
             } finally {
                 isRefreshing = false
@@ -88,6 +89,7 @@ class AddToPlaylistViewModel @Inject constructor(
                     onDismiss()
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("AddToPlaylistViewModel: Failed to add to playlist", e)
                 onResult(PlaylistAddResult.ERROR)
                 onDismiss()

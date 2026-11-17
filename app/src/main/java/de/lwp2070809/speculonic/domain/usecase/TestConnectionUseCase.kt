@@ -29,6 +29,7 @@ class TestConnectionUseCase @Inject constructor() {
                 Result.failure(Exception("Ping failed: status is not ok"))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         } finally {
             authManager.clearPassword()

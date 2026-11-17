@@ -11,7 +11,6 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
-import androidx.documentfile.provider.DocumentFile
 import androidx.hilt.work.HiltWorker
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.cache.Cache
@@ -92,7 +91,7 @@ class CacheSyncWorker @AssistedInject constructor(
             }
         }
 
-        val downloadCache = CacheManager.getDownloadCache(context)
+        val downloadCache = CacheManager.acquireDownloadCache(context)
         val serverUrl = preferencesManager.serverUrl.first()
         if (serverUrl.isBlank()) return Result.failure()
         
@@ -103,16 +102,16 @@ class CacheSyncWorker @AssistedInject constructor(
         }
         cleanupOrphanedPrivateFiles(context, musicDao)
 
-        var safFiles: Array<DocumentFile>? = null
+        var safEntries: List<SafChildEntry>? = null
         val cachedSongs = musicDao.getAllCachedSongs()
         if (cachedSongs.isNotEmpty()) {
             val existingSafSongIds = mutableSetOf<String>()
             if (isSafEnabled) {
                 try {
-                    val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                    safFiles = rootDoc?.listFiles()
-                    safFiles?.forEach { file ->
-                        val fileName = file.name ?: ""
+                    val entries = SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri())
+                    safEntries = entries
+                    entries.forEach { entry ->
+                        val fileName = entry.name
                         val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
                         if (songId != null && de.lwp2070809.speculonic.util.MediaFormatUtils.isSupportedAudioFile(fileName)) {
                             existingSafSongIds.add(songId)
@@ -179,8 +178,9 @@ class CacheSyncWorker @AssistedInject constructor(
                                         musicDao.updateSongCacheStatus(song.id, null, false)
                                         try {
                                             downloadCache.removeResource(song.id)
-                                            CacheManager.getPlaybackCache(context).removeResource(song.id)
+                                            CacheManager.acquirePlaybackCache(context).removeResource(song.id)
                                         } catch (e: Exception) {
+                                            if (e is CancellationException) throw e
                                             LogManager.e("CacheSync: Failed to clean old cache before redownload", e)
                                         }
                                         val songModel = EntityMapper.toSong(song)
@@ -207,27 +207,31 @@ class CacheSyncWorker @AssistedInject constructor(
         if (isSafEnabled) {
             setProgress(workDataOf(PROGRESS to 95, STATUS to context.getString(de.lwp2070809.speculonic.R.string.sync_scanning_orphans)))
             try {
-                if (safFiles == null) {
-                    val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                    safFiles = rootDoc?.listFiles()
+                val entries = safEntries ?: SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri()).also {
+                    safEntries = it
                 }
-                
-                safFiles?.forEach { file ->
-                    val fileName = file.name ?: ""
-                    val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
-                    
-                    if (songId != null) {
-                        val songInDb = musicDao.getSongById(songId)
-                        
-                        if (songInDb == null) {
-                            LogManager.i("CacheSync: Orphaned file detected: $fileName. Ignoring to prevent accidental deletion in non-exclusive directories.")
-                        } else if (de.lwp2070809.speculonic.util.MediaFormatUtils.isSupportedAudioFile(fileName)) {
-                            if (!songInDb.isFullyCached || songInDb.localUri == null) {
-                                val fileExt = fileName.substringAfterLast('.', "").lowercase()
-                                val isTranscoded = fileExt != (songInDb.suffix ?: "").lowercase()
-                                LogManager.i("CacheSync: Linked file by ID for ${songInDb.title} ($songId, isTranscoded: $isTranscoded)")
-                                musicDao.updateSongCacheStatus(songId, file.uri.toString(), true, isTranscoded)
-                            }
+                val audioEntries = entries.mapNotNull { entry ->
+                    val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(entry.name)
+                    if (songId != null) songId to entry else null
+                }
+                val songsById = if (audioEntries.isNotEmpty()) {
+                    musicDao.getSongsByIds(audioEntries.map { it.first }.distinct()).associateBy { it.id }
+                } else {
+                    emptyMap()
+                }
+
+                audioEntries.forEach { (songId, entry) ->
+                    val fileName = entry.name
+                    val songInDb = songsById[songId]
+
+                    if (songInDb == null) {
+                        LogManager.i("CacheSync: Orphaned file detected: $fileName. Ignoring to prevent accidental deletion in non-exclusive directories.")
+                    } else if (de.lwp2070809.speculonic.util.MediaFormatUtils.isSupportedAudioFile(fileName)) {
+                        if (!songInDb.isFullyCached || songInDb.localUri == null) {
+                            val fileExt = fileName.substringAfterLast('.', "").lowercase()
+                            val isTranscoded = fileExt != (songInDb.suffix ?: "").lowercase()
+                            LogManager.i("CacheSync: Linked file by ID for ${songInDb.title} ($songId, isTranscoded: $isTranscoded)")
+                            musicDao.updateSongCacheStatus(songId, entry.uri.toString(), true, isTranscoded)
                         }
                     }
                 }
@@ -323,9 +327,10 @@ class CacheSyncWorker @AssistedInject constructor(
 
                 LogManager.d("CacheSync: Cleaning private cache for ${song.title}.")
                 try {
-                    CacheManager.getDownloadCache(context).removeResource(song.id)
-                    CacheManager.getPlaybackCache(context).removeResource(song.id)
+                    CacheManager.acquireDownloadCache(context).removeResource(song.id)
+                    CacheManager.acquirePlaybackCache(context).removeResource(song.id)
                 } catch (e: Exception) {
+                    if (e is CancellationException) throw e
                     LogManager.e("CacheSync: Failed to clean playback/download cache for migrated ${song.title}", e)
                 }
             }.onFailure {
@@ -392,7 +397,7 @@ class CacheSyncWorker @AssistedInject constructor(
             WorkManager.getInstance(context).enqueueUniquePeriodicWork("CacheSync", ExistingPeriodicWorkPolicy.KEEP, request)
         }
         
-        fun runOnce(context: Context, forceScan: Boolean = false, healCovers: Boolean = false) {
+        fun runOnce(context: Context, forceScan: Boolean = false, healCovers: Boolean = false): java.util.UUID {
             val data = Data.Builder()
                 .putBoolean(KEY_FORCE_SCAN, forceScan)
                 .putBoolean(KEY_HEAL_COVERS, healCovers)
@@ -401,6 +406,7 @@ class CacheSyncWorker @AssistedInject constructor(
                 .setInputData(data)
                 .build()
             WorkManager.getInstance(context).enqueueUniqueWork("CacheSync_Once", ExistingWorkPolicy.REPLACE, request)
+            return request.id
         }
 
         fun runDeepSync(context: Context) {

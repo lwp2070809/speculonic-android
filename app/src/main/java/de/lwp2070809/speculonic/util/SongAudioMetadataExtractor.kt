@@ -4,9 +4,11 @@ import android.content.Context
 import android.net.Uri
 import androidx.core.net.toUri
 import de.lwp2070809.speculonic.data.PreferencesManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
+import org.jaudiotagger.audio.AudioFile
 import org.jaudiotagger.audio.AudioFileIO
 import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.TagOptionSingleton
@@ -38,6 +40,7 @@ object SongAudioMetadataExtractor {
                 digest.digest().joinToString("") { "%02x".format(it) }
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             null
         }
     }
@@ -53,38 +56,34 @@ object SongAudioMetadataExtractor {
             TagOptionSingleton.getInstance().isAndroid = true
 
             val physicalPath = FormatUtils.getFullPhysicalPath(uriString)
-            var file = File(physicalPath)
+            val directFile = File(physicalPath)
 
-            if ((!file.exists() || !file.canRead()) && uriString.startsWith("content://")) {
-                val ext = if (isTranscoded) {
-                    val decodedUri = Uri.decode(uriString)
-                    val segmentExt = decodedUri.substringAfterLast('.', "")
-                        .substringBefore('?')
-                        .lowercase()
-                        .takeIf { it.isNotBlank() }
-                    segmentExt ?: PreferencesManager.getInstance(context).targetTranscodeFormat.first().lowercase()
-                } else {
-                    suffix?.lowercase()
-                        ?: Uri.decode(uriString).substringAfterLast('.', "")
-                            .substringBefore('?')
-                            .lowercase()
-                            .takeIf { it.isNotEmpty() }
-                        ?: "mp3"
-                }
-                val createdTemp = File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
-                tempFile = createdTemp
-                context.contentResolver.openInputStream(uriString.toUri())?.use { input ->
-                    createdTemp.outputStream().use { output ->
-                        input.copyTo(output)
+            val audioFile: AudioFile? = when {
+                directFile.exists() && directFile.canRead() -> AudioFileIO.read(directFile)
+                uriString.startsWith("content://") -> {
+                    val ext = resolveExtension(uriString, suffix, isTranscoded, context)
+                    // 优先尝试基于文件描述符直读避免大文件整包拷入 cacheDir；若底层拒绝再回退临时文件
+                    readViaFileDescriptor(uriString, ext, context) ?: run {
+                        val createdTemp = File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
+                        tempFile = createdTemp
+                        context.contentResolver.openInputStream(uriString.toUri())?.use { input ->
+                            createdTemp.outputStream().use { output ->
+                                input.copyTo(output)
+                            }
+                        }
+                        if (createdTemp.exists() && createdTemp.canRead()) {
+                            AudioFileIO.read(createdTemp)
+                        } else {
+                            null
+                        }
                     }
                 }
-                file = createdTemp
+                else -> null
             }
 
-            if (!file.exists() || !file.canRead()) return@withContext emptyMap()
+            if (audioFile == null) return@withContext emptyMap()
 
             val metadataMap = mutableMapOf<String, String>()
-            val audioFile = AudioFileIO.read(file)
 
             val header = audioFile.audioHeader
             if (header != null) {
@@ -141,9 +140,47 @@ object SongAudioMetadataExtractor {
 
             metadataMap.filterValues { it.isNotEmpty() }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             emptyMap()
         } finally {
             tempFile?.delete()
+        }
+    }
+
+    private suspend fun resolveExtension(
+        uriString: String,
+        suffix: String?,
+        isTranscoded: Boolean,
+        context: Context
+    ): String {
+        val decodedUri = Uri.decode(uriString)
+        val uriExt = decodedUri.substringAfterLast('.', "")
+            .substringBefore('?')
+            .lowercase()
+            .takeIf { it.isNotBlank() }
+        return if (isTranscoded) {
+            uriExt ?: PreferencesManager.getInstance(context).targetTranscodeFormat.first().lowercase()
+        } else {
+            suffix?.lowercase() ?: uriExt ?: "mp3"
+        }
+    }
+
+    private fun readViaFileDescriptor(
+        uriString: String,
+        ext: String,
+        context: Context
+    ): AudioFile? {
+        return try {
+            context.contentResolver.openFileDescriptor(uriString.toUri(), "r")?.use { pfd ->
+                val fdFile = File("/proc/self/fd/${pfd.fd}")
+                if (fdFile.exists() && fdFile.canRead()) {
+                    AudioFileIO.readAs(fdFile, ext)
+                } else {
+                    null
+                }
+            }
+        } catch (_: Exception) {
+            null
         }
     }
 }

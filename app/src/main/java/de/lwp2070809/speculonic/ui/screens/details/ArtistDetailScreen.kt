@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.ui.screens.details
 
 import android.widget.Toast
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
@@ -73,7 +74,10 @@ fun ArtistDetailScreen(
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { if (isOnline) viewModel.loadArtistDetails(forceRefresh = true, isManualRefresh = true) },
+        onRefresh = {
+            if (isEffectivelyOnline) viewModel.loadArtistDetails(forceRefresh = true, isManualRefresh = true)
+            else context.showOfflineRefreshToast()
+        },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
@@ -89,11 +93,19 @@ fun ArtistDetailScreen(
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
                 ) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(
+                        key = "artist_header",
+                        span = { GridItemSpan(maxLineSpan) },
+                        contentType = { "artist_header" }
+                    ) {
                         ArtistHeader(artist = uiState.artist)
                     }
 
-                    items(uiState.albums) { album ->
+                    items(
+                        items = uiState.albums,
+                        key = { it.id },
+                        contentType = { "album_item" }
+                    ) { album ->
                         AlbumItem(album = album, onClick = { onAlbumClick(album.id) })
                     }
                 }

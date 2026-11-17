@@ -36,6 +36,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.onClick
@@ -56,6 +57,7 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailScreen
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailViewModel
@@ -97,6 +99,7 @@ fun AppNavDisplay(
 ) {
     val discoverViewModel: DiscoverViewModel = hiltViewModel()
     val libraryViewModel: LibraryViewModel = hiltViewModel()
+    val context = LocalContext.current
 
     val listDetailStrategy = rememberListDetailSceneStrategy<NavKey>(directive = directive)
 
@@ -205,7 +208,10 @@ fun AppNavDisplay(
                 albums = uiState.allFavoriteAlbums,
                 onAlbumClick = { albumId -> navigator.navigate(AppRoute.AlbumDetail(albumId)) },
                 isLoading = uiState.isLoading,
-                onRefresh = { if (isOnline) discoverViewModel.refreshFavoriteAlbums() }
+                onRefresh = {
+                    if (isEffectivelyOnline) discoverViewModel.refreshFavoriteAlbums()
+                    else context.showOfflineRefreshToast()
+                }
             )
         }
 

@@ -47,14 +47,18 @@ fun AlbumGrid(
                 horizontalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item(
+                    key = "albums_count_header",
+                    span = { GridItemSpan(maxLineSpan) },
+                    contentType = { "albums_count_header" }
+                ) {
                     Text(
                         text = pluralStringResource(R.plurals.albums_count, albums.size, albums.size),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                items(albums, key = { it.id }) { album ->
+                items(albums, key = { it.id }, contentType = { "album_card" }) { album ->
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()

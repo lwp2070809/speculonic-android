@@ -31,7 +31,7 @@ class SubsonicCoverArtFetcher(
         val id = data.toUri().getQueryParameter("id") ?: return null
         
         
-        val diskCacheKey = options.diskCacheKey
+        val diskCacheKey = options.diskCacheKey ?: CoverArtKeyUtils.buildStableKey(uriString)
         if (diskCacheKey != null) {
             val snapshot = imageLoader.diskCache?.openSnapshot(diskCacheKey)
             if (snapshot != null) {
@@ -71,16 +71,17 @@ class SubsonicCoverArtFetcher(
                 retriever.setDataSource(context, localUri)
                 return@withContext retriever.embeddedPicture
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.w("SubsonicCoverArtFetcher: Failed to extract picture from $localUri: ${e.message}")
                 null
             } finally {
                 try {
                     retriever.close()
-                } catch (e: Exception) {
-                    
+                } catch (_: Exception) {
                 }
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             null
         }
     }

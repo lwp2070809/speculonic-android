@@ -6,7 +6,18 @@ import coil3.key.Keyer
 import coil3.request.Options
 
 object CoverArtKeyUtils {
+    private val BT_SYNC_TS_REGEX = Regex("[?&]bt_sync_ts=[^&]*")
+
     fun normalizeBaseUrl(url: String): String = url.trim().lowercase().trimEnd('/')
+
+    fun stripVolatileParams(uriString: String): String {
+        val stripped = uriString.replace(BT_SYNC_TS_REGEX, "")
+        return if (!stripped.contains('?') && stripped.contains('&')) {
+            stripped.replaceFirst('&', '?')
+        } else {
+            stripped
+        }
+    }
 
     fun buildStableKey(baseUrl: String, id: String): String {
         val normalizedBaseUrl = normalizeBaseUrl(baseUrl)

@@ -27,7 +27,6 @@ import kotlinx.coroutines.CoroutineScope
 class BluetoothCarManager(
     private val context: Context,
     private val serviceScope: CoroutineScope,
-    private val volumeCoordinator: VolumeCoordinator? = null,
     private val mediaSessionProvider: () -> MediaSession?,
     private val repositoryProvider: () -> SubsonicRepository?
 ) {
@@ -63,12 +62,9 @@ class BluetoothCarManager(
     )
 
     val stateSynchronizer = BluetoothStateSynchronizer(
-        context = context,
         deviceDetector = deviceDetector,
         serviceScope = serviceScope,
-        volumeCoordinator = volumeCoordinator,
-        mediaSessionProvider = mediaSessionProvider,
-        setJitterProtected = { lyricsManager.isPlayPauseJitterProtected = it }
+        mediaSessionProvider = mediaSessionProvider
     )
 
     
@@ -270,15 +266,8 @@ class BluetoothCarManager(
                 syncTimestamp = System.currentTimeMillis()
             }
             val meta = mediaMetadata
-            
-            val state = playbackState
-            val pwr = playWhenReady
-            val reason = Player.PLAY_WHEN_READY_CHANGE_REASON_USER_REQUEST
-            
             listenerMap.keys.forEach {
                 it.onMediaMetadataChanged(meta)
-                it.onPlaybackStateChanged(state)
-                it.onPlayWhenReadyChanged(pwr, reason)
             }
         }
 

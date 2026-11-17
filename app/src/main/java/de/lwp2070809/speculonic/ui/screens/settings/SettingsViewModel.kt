@@ -35,6 +35,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -95,9 +97,12 @@ class SettingsViewModel @Inject constructor(
 
     private fun observePlaybackState() {
         viewModelScope.launch {
-            playbackController.playbackState.collect { state ->
-                _uiState.value = _uiState.value.copy(isPlaying = state.isPlaying)
-            }
+            playbackController.playbackState
+                .map { it.isPlaying }
+                .distinctUntilChanged()
+                .collect { playing ->
+                    _uiState.update { it.copy(isPlaying = playing) }
+                }
         }
     }
 
@@ -397,7 +402,7 @@ class SettingsViewModel @Inject constructor(
     
     fun updateSilentCacheEnabled(enabled: Boolean) { 
         if (!enabled) {
-            _uiState.value = _uiState.value.copy(showSilentCacheConfirm = true)
+            _uiState.update { it.copy(showSilentCacheConfirm = true) }
         } else {
             viewModelScope.launch { preferencesManager.saveSilentCacheEnabled(true) }
         }
@@ -406,12 +411,12 @@ class SettingsViewModel @Inject constructor(
     fun confirmDisableSilentCache() {
         viewModelScope.launch {
             preferencesManager.saveSilentCacheEnabled(false)
-            _uiState.value = _uiState.value.copy(showSilentCacheConfirm = false)
+            _uiState.update { it.copy(showSilentCacheConfirm = false) }
         }
     }
     
     fun cancelDisableSilentCache() {
-        _uiState.value = _uiState.value.copy(showSilentCacheConfirm = false)
+        _uiState.update { it.copy(showSilentCacheConfirm = false) }
     }
 
 
@@ -470,7 +475,7 @@ class SettingsViewModel @Inject constructor(
         if (enabled) {
             val hasPermission = context.checkSelfPermission(android.Manifest.permission.BLUETOOTH_CONNECT) == android.content.pm.PackageManager.PERMISSION_GRANTED
             if (!hasPermission) {
-                _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = true)
+                _uiState.update { it.copy(showBluetoothPermissionRequest = true) }
                 return
             }
         }
@@ -502,14 +507,14 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onBluetoothPermissionResult(granted: Boolean) {
-        _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = false)
+        _uiState.update { it.copy(showBluetoothPermissionRequest = false) }
         if (granted) {
             viewModelScope.launch { preferencesManager.saveCarBluetoothEnabled(true) }
         }
     }
 
     fun dismissBluetoothPermissionRequest() {
-        _uiState.value = _uiState.value.copy(showBluetoothPermissionRequest = false)
+        _uiState.update { it.copy(showBluetoothPermissionRequest = false) }
     }
 
     fun saveSettings(
@@ -568,6 +573,7 @@ class SettingsViewModel @Inject constructor(
                 try {
                     repository.ping(force = true)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.w("SettingsViewModel: Ping failed before sync: ${e.message}")
                 }
             }
@@ -582,12 +588,12 @@ class SettingsViewModel @Inject constructor(
         return true
     }
 
-    fun cancelFirstSync() { _uiState.value = _uiState.value.copy(showFirstSyncConfirm = false) }
+    fun cancelFirstSync() { _uiState.update { it.copy(showFirstSyncConfirm = false) } }
 
-    fun requestForceSync() { _uiState.value = _uiState.value.copy(showForceSyncConfirm = true) }
-    fun cancelForceSync() { _uiState.value = _uiState.value.copy(showForceSyncConfirm = false) }
+    fun requestForceSync() { _uiState.update { it.copy(showForceSyncConfirm = true) } }
+    fun cancelForceSync() { _uiState.update { it.copy(showForceSyncConfirm = false) } }
     fun confirmForceSync() { 
-        _uiState.value = _uiState.value.copy(showForceSyncConfirm = false)
+        _uiState.update { it.copy(showForceSyncConfirm = false) }
         performFullSync(isForced = true) 
     }
 
@@ -651,7 +657,7 @@ class SettingsViewModel @Inject constructor(
                 throw e
             } catch (e: de.lwp2070809.speculonic.domain.repository.SafetyGuardException) {
                 withContext(Dispatchers.Main) {
-                    _uiState.value = _uiState.value.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.message)
+                    _uiState.update { it.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.message) }
                 }
             } catch (e: Exception) {
                 LogManager.e("Settings: Initial sync failed", e)
@@ -681,7 +687,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun confirmSafetyGuard() { performFullSync(ignoreSafetyGuard = true, isForced = true) }
-    fun cancelSafetyGuard() { _uiState.value = _uiState.value.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) }
+    fun cancelSafetyGuard() { _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) } }
     
     fun deleteServerSettings() {
         viewModelScope.launch(Dispatchers.IO) {
@@ -712,16 +718,16 @@ class SettingsViewModel @Inject constructor(
 
 
     fun requestClearCache(target: CacheClearTarget = CacheClearTarget.ALL) {
-        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = target)
+        _uiState.update { it.copy(pendingClearCacheTarget = target) }
     }
 
     fun cancelClearCache() {
-        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
+        _uiState.update { it.copy(pendingClearCacheTarget = null) }
     }
 
     fun confirmClearCache() {
         val target = _uiState.value.pendingClearCacheTarget ?: return
-        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
+        _uiState.update { it.copy(pendingClearCacheTarget = null) }
         when (target) {
             CacheClearTarget.ALL -> clearCache()
             CacheClearTarget.PLAYBACK -> clearPlaybackCache()
@@ -731,7 +737,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun clearCache() {
-        _uiState.value = _uiState.value.copy(pendingClearCacheTarget = null)
+        _uiState.update { it.copy(pendingClearCacheTarget = null) }
         viewModelScope.launch {
             val result = cacheOperations.clearAllCache(preserveSaf = true)
             result.onSuccess {
@@ -746,23 +752,25 @@ class SettingsViewModel @Inject constructor(
 
     fun requestSyncWithServer() {
         if (isUnmeteredNetwork()) syncWithServer()
-        else _uiState.value = _uiState.value.copy(showMobileSyncConfirm = true)
+        else _uiState.update { it.copy(showMobileSyncConfirm = true) }
     }
 
-    fun cancelMobileSync() { _uiState.value = _uiState.value.copy(showMobileSyncConfirm = false) }
+    fun cancelMobileSync() { _uiState.update { it.copy(showMobileSyncConfirm = false) } }
 
     fun syncWithServer() {
-        _uiState.value = _uiState.value.copy(showMobileSyncConfirm = false)
+        _uiState.update { it.copy(showMobileSyncConfirm = false) }
         if (_uiState.value.isPlaying) playbackController.togglePlayPause()
         
         viewModelScope.launch {
-            _uiState.value = _uiState.value.copy(
-                isInteractiveScanning = true,
-                interactiveScanProgress = 0,
-                interactiveScanStatus = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing),
-                showInconsistencyDialog = false,
-                inconsistentItems = emptyList()
-            )
+            _uiState.update {
+                it.copy(
+                    isInteractiveScanning = true,
+                    interactiveScanProgress = 0,
+                    interactiveScanStatus = context.getString(de.lwp2070809.speculonic.R.string.sync_preparing),
+                    showInconsistencyDialog = false,
+                    inconsistentItems = emptyList()
+                )
+            }
 
             try {
                 withContext(Dispatchers.IO) {
@@ -771,18 +779,21 @@ class SettingsViewModel @Inject constructor(
                         ignoreLastModified = false,
                         ignoreSafetyGuard = false,
                         onProgress = { status ->
-                            _uiState.value = _uiState.value.copy(interactiveScanStatus = status)
+                            _uiState.update { it.copy(interactiveScanStatus = status) }
                         }
                     )
                 }
             } catch (e: de.lwp2070809.speculonic.domain.repository.SafetyGuardException) {
-                _uiState.value = _uiState.value.copy(
-                    isInteractiveScanning = false,
-                    showSafetyGuardConfirm = true,
-                    safetyGuardMessage = e.message
-                )
+                _uiState.update {
+                    it.copy(
+                        isInteractiveScanning = false,
+                        showSafetyGuardConfirm = true,
+                        safetyGuardMessage = e.message
+                    )
+                }
                 return@launch
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("Settings: Lightweight sync failed before cache check", e)
             }
 
@@ -790,25 +801,31 @@ class SettingsViewModel @Inject constructor(
             verifyCacheConsistencyUseCase(cacheLocation).collect { state ->
                 when (state) {
                     is de.lwp2070809.speculonic.domain.usecase.VerifyCacheState.Progress -> {
-                        _uiState.value = _uiState.value.copy(
-                            isInteractiveScanning = true,
-                            interactiveScanProgress = state.percentage,
-                            interactiveScanStatus = state.status
-                        )
+                        _uiState.update {
+                            it.copy(
+                                isInteractiveScanning = true,
+                                interactiveScanProgress = state.percentage,
+                                interactiveScanStatus = state.status
+                            )
+                        }
                     }
                     is de.lwp2070809.speculonic.domain.usecase.VerifyCacheState.Success -> {
-                        _uiState.value = _uiState.value.copy(
-                            isInteractiveScanning = false,
-                            showInconsistencyDialog = true,
-                            inconsistentItems = state.inconsistentItems
-                        )
+                        _uiState.update {
+                            it.copy(
+                                isInteractiveScanning = false,
+                                showInconsistencyDialog = true,
+                                inconsistentItems = state.inconsistentItems
+                            )
+                        }
                     }
                     is de.lwp2070809.speculonic.domain.usecase.VerifyCacheState.Error -> {
-                        _uiState.value = _uiState.value.copy(
-                            isInteractiveScanning = false,
-                            showInconsistencyDialog = true,
-                            inconsistentItems = emptyList()
-                        )
+                        _uiState.update {
+                            it.copy(
+                                isInteractiveScanning = false,
+                                showInconsistencyDialog = true,
+                                inconsistentItems = emptyList()
+                            )
+                        }
                     }
                 }
             }
@@ -816,7 +833,7 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun dismissInconsistencyDialog() {
-        _uiState.value = _uiState.value.copy(showInconsistencyDialog = false, inconsistentItems = emptyList())
+        _uiState.update { it.copy(showInconsistencyDialog = false, inconsistentItems = emptyList()) }
     }
 
     fun resolveInconsistentItem(item: InconsistentItem, action: String) {
@@ -828,40 +845,42 @@ class SettingsViewModel @Inject constructor(
             }
             val result = resolveInconsistencyUseCase(item, useCaseAction)
             if (result.isSuccess) {
-                _uiState.value = _uiState.value.copy(
-                    inconsistentItems = _uiState.value.inconsistentItems.filter { it.id != item.id }
-                )
+                _uiState.update { state ->
+                    state.copy(inconsistentItems = state.inconsistentItems.filter { it.id != item.id })
+                }
             }
         }
     }
 
     fun scanLocalFiles() {
-        _uiState.value = _uiState.value.copy(
-            isScanning = true,
-            syncPercentage = 0,
-            syncProgress = context.getString(de.lwp2070809.speculonic.R.string.stop_and_scan)
-        )
+        _uiState.update {
+            it.copy(
+                isScanning = true,
+                syncPercentage = 0,
+                syncProgress = context.getString(de.lwp2070809.speculonic.R.string.stop_and_scan)
+            )
+        }
         if (_uiState.value.isPlaying) playbackController.togglePlayPause()
-        
-        CacheSyncWorker.runOnce(context, forceScan = true, healCovers = false)
-        observeWorkProgress("CacheSync_Once") { copy(isScanning = false, isSyncing = false) }
+
+        val workId = CacheSyncWorker.runOnce(context, forceScan = true, healCovers = false)
+        observeWorkProgress(workId) { copy(isScanning = false, isSyncing = false) }
     }
 
-    private fun observeWorkProgress(uniqueName: String, onFinished: SettingsUiState.() -> SettingsUiState) {
+    private fun observeWorkProgress(workId: java.util.UUID, onFinished: SettingsUiState.() -> SettingsUiState) {
         workObserverJob?.cancel()
         workObserverJob = viewModelScope.launch {
             WorkManager.getInstance(context)
-                .getWorkInfosForUniqueWorkFlow(uniqueName)
-                .collect { workInfos ->
-                    val info = workInfos.firstOrNull() ?: return@collect
+                .getWorkInfoByIdFlow(workId)
+                .collect { info ->
+                    if (info == null) return@collect
                     val progress = info.progress.getInt(CacheSyncWorker.PROGRESS, 0)
                     val status = info.progress.getString(CacheSyncWorker.STATUS)
-                    
-                    _uiState.value = _uiState.value.copy(syncPercentage = progress, syncProgress = status)
-                    
+
+                    _uiState.update { it.copy(syncPercentage = progress, syncProgress = status) }
+
                     if (info.state.isFinished) {
                         refreshCacheSize()
-                        _uiState.value = onFinished(_uiState.value).copy(syncPercentage = null, syncProgress = null)
+                        _uiState.update { onFinished(it).copy(syncPercentage = null, syncProgress = null) }
                         workObserverJob?.cancel()
                     }
                 }
@@ -886,25 +905,27 @@ class SettingsViewModel @Inject constructor(
                 Triple(free, total, songsCount)
             }
             val totalInternal = breakdown.playbackBytes + breakdown.coverArtBytes + breakdown.songBytes + breakdown.otherBytes
-            val isCoverOverQuota = breakdown.coverArtBytes > _uiState.value.maxCoverCacheSize
-            _uiState.value = _uiState.value.copy(
-                internalCacheSize = cacheOperations.formatFileSize(totalInternal),
-                externalCacheSize = cacheOperations.formatFileSize(breakdown.externalBytes),
-                internalCacheBytes = totalInternal,
-                externalCacheBytes = breakdown.externalBytes,
-                freeSpaceBytes = freeSpace,
-                totalSpaceBytes = totalSpace,
-                cachedSongsCount = cachedSongs,
-                isCoverOverQuota = isCoverOverQuota,
-                playbackCacheBytes = breakdown.playbackBytes,
-                coverArtCacheBytes = breakdown.coverArtBytes,
-                songCacheBytes = breakdown.songBytes,
-                otherCacheBytes = breakdown.otherBytes,
-                playbackCacheSize = cacheOperations.formatFileSize(breakdown.playbackBytes),
-                coverArtCacheSize = cacheOperations.formatFileSize(breakdown.coverArtBytes),
-                songCacheSize = cacheOperations.formatFileSize(breakdown.songBytes),
-                otherCacheSize = cacheOperations.formatFileSize(breakdown.otherBytes)
-            )
+            _uiState.update { state ->
+                val isCoverOverQuota = breakdown.coverArtBytes > state.maxCoverCacheSize
+                state.copy(
+                    internalCacheSize = cacheOperations.formatFileSize(totalInternal),
+                    externalCacheSize = cacheOperations.formatFileSize(breakdown.externalBytes),
+                    internalCacheBytes = totalInternal,
+                    externalCacheBytes = breakdown.externalBytes,
+                    freeSpaceBytes = freeSpace,
+                    totalSpaceBytes = totalSpace,
+                    cachedSongsCount = cachedSongs,
+                    isCoverOverQuota = isCoverOverQuota,
+                    playbackCacheBytes = breakdown.playbackBytes,
+                    coverArtCacheBytes = breakdown.coverArtBytes,
+                    songCacheBytes = breakdown.songBytes,
+                    otherCacheBytes = breakdown.otherBytes,
+                    playbackCacheSize = cacheOperations.formatFileSize(breakdown.playbackBytes),
+                    coverArtCacheSize = cacheOperations.formatFileSize(breakdown.coverArtBytes),
+                    songCacheSize = cacheOperations.formatFileSize(breakdown.songBytes),
+                    otherCacheSize = cacheOperations.formatFileSize(breakdown.otherBytes)
+                )
+            }
         }
     }
 
@@ -955,7 +976,7 @@ class SettingsViewModel @Inject constructor(
             LocaleListCompat.forLanguageTags(languageCode)
         }
         AppCompatDelegate.setApplicationLocales(appLocale)
-        _uiState.value = _uiState.value.copy(language = getLanguageLabel(languageCode))
+        _uiState.update { it.copy(language = getLanguageLabel(languageCode)) }
     }
 
     private fun getCurrentLanguageLabel(): String {

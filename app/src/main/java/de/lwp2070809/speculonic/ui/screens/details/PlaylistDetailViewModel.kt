@@ -168,6 +168,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             try {
                 repository.togglePlaylistPinned(playlistId, !currentPlaylist.pinned)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 _uiState.update { it.copy(error = e.message) }
             }
         }
@@ -178,6 +179,7 @@ class PlaylistDetailViewModel @AssistedInject constructor(
             try {
                 repository.starSong(songId, star)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 de.lwp2070809.speculonic.util.LogManager.e("PlaylistDetailViewModel: toggleStarSong failed", e)
             }
         }

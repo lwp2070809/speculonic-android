@@ -81,7 +81,9 @@ class BluetoothCarDeviceDetector(
                         ) {
                             serviceScope.launch {
                                 delay(1500)
-                                if (carBluetoothEnabled && isCarBluetoothConnected()) {
+                                val connected = probeCarBluetoothConnected()
+                                _carConnectionState.value = connected
+                                if (carBluetoothEnabled && connected) {
                                     LogManager.i("BluetoothCarDeviceDetector: Car Bluetooth audio device mounted.")
                                     onCarConnected()
                                 }
@@ -120,6 +122,8 @@ class BluetoothCarDeviceDetector(
         }
         bluetoothA2dp = null
         connectionDebounceJob?.cancel()
+        connectionDebounceJob = null
+        _carConnectionState.value = false
         isInitialized.set(false)
     }
 
@@ -128,13 +132,13 @@ class BluetoothCarDeviceDetector(
             debounceMutex.lock()
             try {
                 connectionDebounceJob?.cancel()
-                val isConnected = isCarBluetoothConnected()
+                val isConnected = probeCarBluetoothConnected()
                 if (isConnected) {
                     _carConnectionState.value = true
                 } else {
                     connectionDebounceJob = serviceScope.launch {
                         delay(500)
-                        _carConnectionState.value = isCarBluetoothConnected()
+                        _carConnectionState.value = probeCarBluetoothConnected()
                     }
                 }
             } finally {
@@ -143,7 +147,10 @@ class BluetoothCarDeviceDetector(
         }
     }
 
-    fun isCarBluetoothConnected(): Boolean {
+    // 热路径统一读取内存状态缓存，避免高频切歌与歌词推送触发跨进程蓝牙 Binder IPC
+    fun isCarBluetoothConnected(): Boolean = _carConnectionState.value
+
+    private fun probeCarBluetoothConnected(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
         val hasBluetoothOutput = devices.any { 

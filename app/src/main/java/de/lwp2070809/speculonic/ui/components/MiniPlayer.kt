@@ -61,7 +61,7 @@ fun MiniPlayer(
     val artworkUri by remember { derivedStateOf { playbackStateState.value.artworkUri } }
     val currentSongTitle by remember { derivedStateOf { playbackStateState.value.currentSongTitle } }
     val currentArtist by remember { derivedStateOf { playbackStateState.value.currentArtist } }
-    val isPlaying by remember { derivedStateOf { playbackStateState.value.isPlaying } }
+    val isPlaying by remember { derivedStateOf { playbackStateState.value.playWhenReady } }
 
     val shape = if (isFloating) RoundedCornerShape(16.dp) else RoundedCornerShape(0.dp)
     val tonalElevation = if (isFloating) 8.dp else 2.dp
@@ -112,7 +112,8 @@ fun MiniPlayer(
                     val model = remember(artworkId, artworkUri) {
                         coverRequester.buildRequest(
                             id = artworkId,
-                            preferLocal = true
+                            preferLocal = true,
+                            fallbackUri = artworkUri
                         )
                     }
                     AsyncImage(

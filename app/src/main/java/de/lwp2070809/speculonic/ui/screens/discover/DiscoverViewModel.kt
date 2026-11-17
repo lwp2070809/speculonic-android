@@ -73,6 +73,7 @@ class DiscoverViewModel @Inject constructor(
             try {
                 repository.ping()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: Initial ping failed", e)
             }
         }
@@ -165,6 +166,7 @@ class DiscoverViewModel @Inject constructor(
                 try {
                     syncAllDataUseCase()
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("DiscoverViewModel: initial sync failed", e)
                 } finally {
                     _uiState.update { it.copy(isLoading = false, isInitialLoadComplete = true) }
@@ -186,11 +188,17 @@ class DiscoverViewModel @Inject constructor(
                     // 2. 辅助推荐任务：最常播放与随机推荐（容错保护，避免影响核心数据）
                     val frequentDeferred = async {
                         runCatching { repository.getAlbumList("frequent", forceRefresh = true) }
-                            .onFailure { LogManager.w("DiscoverViewModel: Failed to refresh frequent albums: ${it.message}") }
+                            .onFailure {
+                                if (it is kotlinx.coroutines.CancellationException) throw it
+                                LogManager.w("DiscoverViewModel: Failed to refresh frequent albums: ${it.message}")
+                            }
                     }
                     val randomDeferred = async {
                         runCatching { repository.getAlbumList("random", forceRefresh = true) }
-                            .onFailure { LogManager.w("DiscoverViewModel: Failed to refresh random albums: ${it.message}") }
+                            .onFailure {
+                                if (it is kotlinx.coroutines.CancellationException) throw it
+                                LogManager.w("DiscoverViewModel: Failed to refresh random albums: ${it.message}")
+                            }
                     }
 
                     // 核心任务必须成功
@@ -250,6 +258,7 @@ class DiscoverViewModel @Inject constructor(
                     }
                 }
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: Play favorite song failed", e)
             }
         }
@@ -260,6 +269,7 @@ class DiscoverViewModel @Inject constructor(
             try {
                 repository.starSong(songId, star)
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: toggleStarSong failed", e)
             }
         }

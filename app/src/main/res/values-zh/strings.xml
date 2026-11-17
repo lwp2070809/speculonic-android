@@ -431,4 +431,5 @@
     <string name="clear_song_downloads_confirm">确定要删除所有内部存储中的离线缓存歌曲吗？外部 SAF 目录中的文件将被保留。</string>
     <string name="credentials_reset_warning_title">服务器凭据需要重新验证</string>
     <string name="credentials_reset_warning_message">由于设备密钥变动或存储异常，原加密凭据无法解锁，系统已将其安全清除。请重新输入服务器地址与账号密码；本地曲库数据及离线歌曲缓存均完好保留。</string>
+    <string name="refresh_offline_toast">当前处于离线或无网络状态，无法刷新</string>
 </resources>

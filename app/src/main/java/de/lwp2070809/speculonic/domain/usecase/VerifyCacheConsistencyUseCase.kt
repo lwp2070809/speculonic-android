@@ -31,11 +31,16 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
             emit(VerifyCacheState.Progress(0, context.getString(R.string.sync_preparing)))
             val isSafEnabled = cacheLocation.isNotBlank()
             
-            val downloadCache = CacheManager.getDownloadCache(context)
+            val downloadCache = CacheManager.acquireDownloadCache(context)
             val inconsistentList = mutableListOf<InconsistentItem>()
             val validator = CacheValidator(context)
+            val safEntries = if (isSafEnabled) {
+                de.lwp2070809.speculonic.data.SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri())
+            } else {
+                emptyList()
+            }
+            val safUriSet = safEntries.mapTo(HashSet(safEntries.size)) { it.uri.toString() }
 
-            
             val cachedSongs = musicDao.getAllCachedSongs()
             if (cachedSongs.isNotEmpty()) {
                 val groups = cachedSongs.groupBy { it.albumId ?: it.parent ?: "unknown" }
@@ -49,12 +54,32 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
 
                     for (song in groupSongs) {
                         val physicalExists = if (isSafEnabled && song.localUri != null) {
-                            try { androidx.documentfile.provider.DocumentFile.fromSingleUri(context, song.localUri.toUri())?.exists() == true } catch(e: Exception) { false }
+                            when {
+                                song.localUri in safUriSet -> true
+                                song.localUri.startsWith("file:") -> {
+                                    val path = song.localUri.toUri().path
+                                    path != null && java.io.File(path).exists()
+                                }
+                                else -> {
+                                    try {
+                                        androidx.documentfile.provider.DocumentFile.fromSingleUri(
+                                            context,
+                                            song.localUri.toUri()
+                                        )?.exists() == true
+                                    } catch (e: Exception) {
+                                        if (e is kotlinx.coroutines.CancellationException) throw e
+                                        false
+                                    }
+                                }
+                            }
                         } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
                             try {
                                 val path = song.localUri.toUri().path
                                 path != null && java.io.File(path).exists()
-                            } catch (e: Exception) { false }
+                            } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
+                                false
+                            }
                         } else {
                             downloadCache.keys.contains(song.id)
                         }
@@ -75,47 +100,81 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
                 }
             }
 
-            
-            if (isSafEnabled) {
+            if (isSafEnabled && safEntries.isNotEmpty()) {
                 emit(VerifyCacheState.Progress(95, context.getString(R.string.sync_scanning_orphans)))
                 try {
-                    val rootDoc = androidx.documentfile.provider.DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                    val audioExtensions = de.lwp2070809.speculonic.util.MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS + de.lwp2070809.speculonic.util.MediaFormatUtils.EXTENSION_LRC
+                    val audioExtensions = de.lwp2070809.speculonic.util.MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS +
+                        de.lwp2070809.speculonic.util.MediaFormatUtils.EXTENSION_LRC
                     val validSafUris = cachedSongs.mapNotNull { it.localUri }.toSet()
-                    val validSafLrcUris = validSafUris.map { de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(it) }.toSet()
-                    
-                    rootDoc?.listFiles()?.forEach { file ->
-                        val fileUriStr = file.uri.toString()
-                        if (fileUriStr in validSafUris || fileUriStr in validSafLrcUris) {
-                            return@forEach
-                        }
-                        val fileName = file.name ?: ""
+                    val validSafLrcUris = validSafUris.map {
+                        de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(it)
+                    }.toSet()
+
+                    val unknownEntries = safEntries.filter { entry ->
+                        val uriStr = entry.uri.toString()
+                        uriStr !in validSafUris && uriStr !in validSafLrcUris
+                    }
+                    val extractedIds = unknownEntries.mapNotNull {
+                        de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(it.name)
+                    }.distinct()
+                    val dbSongsMap = if (extractedIds.isNotEmpty()) {
+                        musicDao.getSongsByIds(extractedIds).associateBy { it.id }
+                    } else {
+                        emptyMap()
+                    }
+
+                    unknownEntries.forEach { entry ->
+                        val fileUriStr = entry.uri.toString()
+                        val fileName = entry.name
                         val songId = de.lwp2070809.speculonic.util.MediaFormatUtils.extractSongIdFromFileName(fileName)
                         val extension = fileName.substringAfterLast('.', "").lowercase()
-                        
+
                         if (songId != null) {
-                            val songInDb = musicDao.getSongById(songId)
-                            if (songInDb == null) {
-                                inconsistentList.add(InconsistentItem(fileName, fileName, InconsistentItem.Type.ORPHANED_FILE, file.uri.toString(), null))
+                            val songInDb = dbSongsMap[songId]
+                            if (songInDb == null || !songInDb.isFullyCached) {
+                                inconsistentList.add(
+                                    InconsistentItem(
+                                        fileName,
+                                        fileName,
+                                        InconsistentItem.Type.ORPHANED_FILE,
+                                        fileUriStr,
+                                        songInDb
+                                    )
+                                )
                             }
                         } else if (audioExtensions.contains(extension)) {
-                            
                             val nameWithoutExt = fileName.substringBeforeLast(".")
                             if (nameWithoutExt.contains(" - ")) {
                                 val parts = nameWithoutExt.split(" - ", limit = 2)
                                 val artist = parts[0].trim()
                                 val title = parts[1].trim()
                                 val matchingSong = musicDao.getSongByTitleAndArtist(title, artist)
-                                if (matchingSong == null) {
-                                    inconsistentList.add(InconsistentItem(fileName, fileName, InconsistentItem.Type.ORPHANED_FILE, file.uri.toString(), null))
+                                if (matchingSong == null || !matchingSong.isFullyCached) {
+                                    inconsistentList.add(
+                                        InconsistentItem(
+                                            fileName,
+                                            fileName,
+                                            InconsistentItem.Type.ORPHANED_FILE,
+                                            fileUriStr,
+                                            matchingSong
+                                        )
+                                    )
                                 }
                             } else {
-                                
-                                inconsistentList.add(InconsistentItem(fileName, fileName, InconsistentItem.Type.ORPHANED_FILE, file.uri.toString(), null))
+                                inconsistentList.add(
+                                    InconsistentItem(
+                                        fileName,
+                                        fileName,
+                                        InconsistentItem.Type.ORPHANED_FILE,
+                                        fileUriStr,
+                                        null
+                                    )
+                                )
                             }
                         }
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("VerifyCacheConsistencyUseCase: Failed to scan SAF directory", e)
                 }
             }

@@ -72,8 +72,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -87,6 +87,25 @@ import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.ui.screens.settings.components.StorageDashboardCard
+
+@Composable
+private fun SpinningStorageRefreshIcon(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "refresh")
+    val rotation = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    Icon(
+        imageVector = Icons.Default.Refresh,
+        contentDescription = null,
+        modifier = modifier.graphicsLayer { rotationZ = rotation.value }
+    )
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -142,17 +161,6 @@ fun StorageCacheSettings(
             viewModel.updateCacheLocation(it.toString())
         }
     }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "refresh")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
 
     val bottomInset = LocalMiniPlayerBottomInset.current
 
@@ -350,12 +358,12 @@ fun StorageCacheSettings(
                             }
                         }
                     },
-                    leadingContent = { 
-                        Icon(
-                            if (uiState.isScanning) Icons.Default.Refresh else Icons.Default.Search, 
-                            contentDescription = null,
-                            modifier = if (uiState.isScanning) Modifier.rotate(rotation) else Modifier
-                        ) 
+                    leadingContent = {
+                        if (uiState.isScanning) {
+                            SpinningStorageRefreshIcon()
+                        } else {
+                            Icon(Icons.Default.Search, contentDescription = null)
+                        }
                     },
                     trailingContent = {
                         if (uiState.isScanning) {
@@ -386,16 +394,14 @@ fun StorageCacheSettings(
                     }
                 },
                 leadingContent = {
-                    val syncPainter = if (uiState.isInteractiveScanning) {
-                        androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Refresh)
+                    if (uiState.isInteractiveScanning) {
+                        SpinningStorageRefreshIcon()
                     } else {
-                        androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync)
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+                            contentDescription = null
+                        )
                     }
-                    Icon(
-                        painter = syncPainter,
-                        contentDescription = null,
-                        modifier = if (uiState.isInteractiveScanning) Modifier.rotate(rotation) else Modifier
-                    )
                 },
                 trailingContent = {
                     if (uiState.isInteractiveScanning) {

@@ -31,6 +31,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
                         androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)?.delete() == true
                     }
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("ResolveInconsistencyUseCase: Failed to delete physical file: $uriString", e)
                     false
                 }
@@ -76,6 +77,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
             }
             Result.success(Unit)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("ResolveInconsistencyUseCase: Failed to resolve item", e)
             Result.failure(e)
         }

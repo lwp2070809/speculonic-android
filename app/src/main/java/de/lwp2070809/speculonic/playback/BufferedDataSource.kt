@@ -9,14 +9,14 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.TransferListener
 import kotlin.math.min
 
-
 @OptIn(UnstableApi::class)
 class BufferedDataSource(
     private val upstream: DataSource,
-    private val bufferSize: Int = 512 * 1024 
+    private val bufferSize: Int = 512 * 1024
 ) : DataSource {
 
-    private val buffer = ByteArray(bufferSize)
+    // 按需在 open 时分配、close 时置空释放，避免双源兜底壳在未触发分支闲置占用 1MB 堆内存
+    private var buffer: ByteArray? = null
     private var bufferPos = 0
     private var bufferLimit = 0
 
@@ -25,25 +25,25 @@ class BufferedDataSource(
     }
 
     override fun open(dataSpec: DataSpec): Long {
-        
         bufferPos = 0
         bufferLimit = 0
-        return upstream.open(dataSpec)
+        val length = upstream.open(dataSpec)
+        if (buffer == null) {
+            buffer = ByteArray(bufferSize)
+        }
+        return length
     }
 
     override fun read(target: ByteArray, offset: Int, length: Int): Int {
         if (length == 0) return 0
 
-        
         if (bufferPos >= bufferLimit) {
-            
-            
             if (length >= bufferSize) {
                 return upstream.read(target, offset, length)
             }
 
-            
-            val bytesRead = upstream.read(buffer, 0, bufferSize)
+            val activeBuffer = buffer ?: ByteArray(bufferSize).also { buffer = it }
+            val bytesRead = upstream.read(activeBuffer, 0, bufferSize)
             if (bytesRead == C.RESULT_END_OF_INPUT) {
                 return C.RESULT_END_OF_INPUT
             }
@@ -51,10 +51,10 @@ class BufferedDataSource(
             bufferLimit = bytesRead
         }
 
-        
+        val activeBuffer = buffer ?: return C.RESULT_END_OF_INPUT
         val bytesAvailable = bufferLimit - bufferPos
         val bytesToCopy = min(length, bytesAvailable)
-        System.arraycopy(buffer, bufferPos, target, offset, bytesToCopy)
+        System.arraycopy(activeBuffer, bufferPos, target, offset, bytesToCopy)
         bufferPos += bytesToCopy
 
         return bytesToCopy
@@ -65,8 +65,12 @@ class BufferedDataSource(
     }
 
     override fun close() {
-        bufferPos = 0
-        bufferLimit = 0
-        upstream.close()
+        try {
+            upstream.close()
+        } finally {
+            bufferPos = 0
+            bufferLimit = 0
+            buffer = null
+        }
     }
 }

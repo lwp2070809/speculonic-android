@@ -1,8 +1,10 @@
 package de.lwp2070809.speculonic.domain.repository
 
 import android.content.Context
+import androidx.room.withTransaction
 import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
@@ -146,7 +148,17 @@ class SubsonicRepository(
         val cleanupCallback: suspend (List<de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget>) -> Unit = { targets ->
             de.lwp2070809.speculonic.data.CacheCleanupHelper.purgeRemovedSongs(context, targets)
         }
-        val newSyncManager = SyncManager(newApi, musicDao, newAuthManager, preferencesManager, entityMapper, cleanupCallback)
+        val newSyncManager = SyncManager(
+            api = newApi,
+            musicDao = musicDao,
+            authManager = newAuthManager,
+            pref = preferencesManager,
+            entityMapper = entityMapper,
+            onSongsRemoved = cleanupCallback,
+            runInTransaction = { block ->
+                AppDatabase.getDatabase(context).withTransaction { block() }
+            }
+        )
         val newPlaylistRepository = PlaylistRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newUserActionRepository = UserActionRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newLyricsRepository = LyricsRepository(context, newApi, musicDao, newAuthManager)
@@ -265,8 +277,15 @@ class SubsonicRepository(
         return coverArtSyncManager.getCoverArtCacheKey(id)
     }
 
-    fun buildCoverArtRequest(id: String?, context: Context, preferLocal: Boolean = false, size: Int? = null, crossfade: Boolean = true): ImageRequest {
-        return coverArtSyncManager.buildCoverArtRequest(id, preferLocal, size, crossfade)
+    fun buildCoverArtRequest(
+        id: String?,
+        context: Context,
+        preferLocal: Boolean = false,
+        size: Int? = null,
+        crossfade: Boolean = true,
+        fallbackUri: android.net.Uri? = null
+    ): ImageRequest {
+        return coverArtSyncManager.buildCoverArtRequest(id, preferLocal, size, crossfade, fallbackUri)
     }
 
     suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null) {
@@ -301,6 +320,7 @@ class SubsonicRepository(
                 false
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
     }
@@ -401,6 +421,7 @@ class SubsonicRepository(
             val extensions = response.response.openSubsonicExtensions.map { it.name }.toList()
             serverCapabilities = serverCapabilities.copy(extensions = extensions)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("Failed to discover extensions", e)
         }
     }
@@ -432,6 +453,7 @@ class SubsonicRepository(
                 Result.failure(Exception("Failed to get song or song is null"))
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             Result.failure(e)
         }
     }
@@ -525,6 +547,7 @@ class SubsonicRepository(
                 ServerModifiedCheckResult(isModified = true, newLastModified = null)
             }
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.w("SubsonicRepository: checkServerModified check failed, assuming modified: ${e.message}")
             ServerModifiedCheckResult(isModified = true, newLastModified = null)
         }
@@ -549,6 +572,7 @@ class SubsonicRepository(
                                 try {
                                     mediaRepository.getAlbum(albumId, forceRefresh = true, skipInsert = false)
                                 } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
                                     LogManager.w("SubsonicRepository: Failed to prefetch songs for new album $albumId: ${e.message}")
                                 }
                             }

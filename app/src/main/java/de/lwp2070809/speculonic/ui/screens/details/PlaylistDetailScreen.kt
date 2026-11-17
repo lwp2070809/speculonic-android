@@ -3,6 +3,8 @@ package de.lwp2070809.speculonic.ui.screens.details
 import de.lwp2070809.speculonic.R
 
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -58,8 +60,8 @@ fun PlaylistDetailScreen(
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
     val playlistNotFoundMsg = stringResource(R.string.playlist_not_found)
-    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
+    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsStateWithLifecycle()
+    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsStateWithLifecycle()
     val isAnyDownloading = remember(activeDownloads, uiState.songs) {
         uiState.songs.any { activeDownloads.contains(it.id) }
     }
@@ -70,7 +72,7 @@ fun PlaylistDetailScreen(
     }
 
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
 
     val playableSongs = remember(uiState.songs, transcodeIncompatible) {
         uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
@@ -123,7 +125,10 @@ fun PlaylistDetailScreen(
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { if (isOnline) viewModel.loadPlaylistDetails(forceRefresh = true, isManualRefresh = true) },
+        onRefresh = {
+            if (isEffectivelyOnline) viewModel.loadPlaylistDetails(forceRefresh = true, isManualRefresh = true)
+            else context.showOfflineRefreshToast()
+        },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {

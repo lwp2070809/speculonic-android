@@ -10,27 +10,38 @@ import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.google.common.util.concurrent.MoreExecutors
 import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
 import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.toMediaItem
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.resume
-import de.lwp2070809.speculonic.data.db.AppDatabase
-import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.flatMapLatest
-import kotlinx.coroutines.flow.flowOf
-import kotlinx.coroutines.flow.map
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+interface PlaybackControllerEntryPoint {
+    fun subsonicRepository(): SubsonicRepository
+}
 
 enum class SleepTimerMode {
     OFF, TIME, SONG_COUNT, END_OF_PLAYLIST
@@ -43,6 +54,7 @@ data class PlaybackState(
     val artworkUri: Uri? = null,
     val artworkId: String? = null,
     val isPlaying: Boolean = false,
+    val playWhenReady: Boolean = false,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
@@ -61,7 +73,8 @@ private data class WidgetStateSnapshot(
     val title: String,
     val artist: String,
     val artworkUri: Uri?,
-    val isPlaying: Boolean
+    val isPlaying: Boolean,
+    val playWhenReady: Boolean
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -122,7 +135,8 @@ class PlaybackController private constructor(context: Context) {
                         title = state.currentSongTitle,
                         artist = state.currentArtist,
                         artworkUri = state.artworkUri,
-                        isPlaying = state.isPlaying
+                        isPlaying = state.isPlaying,
+                        playWhenReady = state.playWhenReady
                     )
                 }
                 .distinctUntilChanged()
@@ -247,7 +261,7 @@ class PlaybackController private constructor(context: Context) {
                 override fun onDisconnected(controller: MediaController) {
                     super.onDisconnected(controller)
                     _isSessionReady.value = false
-                    _playbackState.value = _playbackState.value.copy(isPlaying = false)
+                    _playbackState.value = _playbackState.value.copy(isPlaying = false, playWhenReady = false)
                     handleProgressTicker()
                     LogManager.w("PlaybackController: MediaController disconnected")
                 }
@@ -394,6 +408,7 @@ class PlaybackController private constructor(context: Context) {
             artworkUri = currentMediaItem?.mediaMetadata?.artworkUri,
             artworkId = artworkId,
             isPlaying = controller.isPlaying,
+            playWhenReady = controller.playWhenReady,
             currentPosition = pos,
             duration = getEffectiveDuration(controller, currentMediaItem),
             repeatMode = controller.repeatMode,
@@ -471,7 +486,7 @@ class PlaybackController private constructor(context: Context) {
 
     fun togglePlayPause() {
         executeWhenReady { controller ->
-            if (controller.isPlaying) {
+            if (controller.playWhenReady) {
                 controller.pause()
             } else {
                 if (controller.playbackState == Player.STATE_IDLE) {
@@ -481,6 +496,97 @@ class PlaybackController private constructor(context: Context) {
             }
         }
     }
+
+    /**
+     * 恢复完整持久化播放队列并开始播放，仅当队列历史为空时回退恢复最后一首单曲。
+     */
+    suspend fun restoreQueueAndPlay(playWhenReady: Boolean = true): Boolean {
+        return try {
+            val loadedData = withContext(Dispatchers.IO) {
+                val repo = EntryPointAccessors.fromApplication(
+                    appContext,
+                    PlaybackControllerEntryPoint::class.java
+                ).subsonicRepository()
+                repo.ensureConfigured()
+
+                val savedQueue = musicDao.getPlaybackQueue()
+                val lastSongId = preferencesManager.lastSongId.first() ?: ""
+                val savedIndex = preferencesManager.lastQueueIndex.first()
+                val lastPosition = preferencesManager.lastPosition.first()
+                val lastQueueTitle = preferencesManager.lastQueueTitle.first()
+                val repeatMode = preferencesManager.repeatMode.first()
+                val shuffleMode = preferencesManager.shuffleMode.first()
+                val effectiveRepeat = if (shuffleMode && repeatMode == Player.REPEAT_MODE_ONE) {
+                    Player.REPEAT_MODE_ALL
+                } else {
+                    repeatMode
+                }
+
+                val mediaItems = if (savedQueue.isNotEmpty()) {
+                    savedQueue.map { it.toMediaItem(repo) }
+                } else if (lastSongId.isNotEmpty()) {
+                    musicDao.getSongById(lastSongId)?.let { listOf(it.toMediaItem(repo)) } ?: emptyList()
+                } else {
+                    emptyList()
+                }
+                if (mediaItems.isEmpty()) return@withContext null
+
+                val effectiveIndex = if (savedIndex in mediaItems.indices && mediaItems[savedIndex].mediaId == lastSongId) {
+                    savedIndex
+                } else {
+                    val matchedIndex = mediaItems.indexOfFirst { it.mediaId == lastSongId }
+                    if (matchedIndex != -1) matchedIndex else savedIndex.coerceIn(0, mediaItems.size - 1)
+                }
+                val effectivePosition = if (mediaItems.getOrNull(effectiveIndex)?.mediaId == lastSongId) {
+                    lastPosition
+                } else {
+                    0L
+                }
+                RestorePayload(
+                    mediaItems = mediaItems,
+                    startIndex = effectiveIndex,
+                    startPosition = effectivePosition,
+                    queueTitle = lastQueueTitle,
+                    repeatMode = effectiveRepeat,
+                    shuffleMode = shuffleMode
+                )
+            } ?: return false
+
+            var restored = false
+            executeOnControllerAsync { ctrl ->
+                if (ctrl.mediaItemCount == 0) {
+                    val titleBundle = android.os.Bundle().apply { putString("queueTitle", loadedData.queueTitle) }
+                    ctrl.sendCustomCommand(
+                        androidx.media3.session.SessionCommand("SET_QUEUE_TITLE", android.os.Bundle.EMPTY),
+                        titleBundle
+                    )
+                    ctrl.repeatMode = loadedData.repeatMode
+                    ctrl.shuffleModeEnabled = loadedData.shuffleMode
+                    ctrl.setMediaItems(loadedData.mediaItems, loadedData.startIndex, loadedData.startPosition)
+                    ctrl.prepare()
+                }
+                if (playWhenReady) {
+                    ctrl.play()
+                }
+                restored = true
+            }
+            restored
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogManager.w("PlaybackController: restoreQueueAndPlay failed: ${e.message}")
+            false
+        }
+    }
+
+    private data class RestorePayload(
+        val mediaItems: List<MediaItem>,
+        val startIndex: Int,
+        val startPosition: Long,
+        val queueTitle: String?,
+        val repeatMode: Int,
+        val shuffleMode: Boolean
+    )
 
     fun skipToNext() {
         executeWhenReady { controller ->

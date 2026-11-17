@@ -22,12 +22,12 @@ class TopBarState {
     var actions by mutableStateOf<@Composable RowScope.() -> Unit>({})
     var onBackClickOverride by mutableStateOf<(() -> Unit)?>(null)
     var showSearch by mutableStateOf(true)
-    var showBack by mutableStateOf<Boolean?>(null) 
-    
+    var showBack by mutableStateOf<Boolean?>(null)
+
     var currentToken by mutableStateOf("")
 
     fun update(
-        title: String, 
+        title: String,
         actions: @Composable RowScope.() -> Unit = {},
         onBackClickOverride: (() -> Unit)? = null,
         showSearch: Boolean = true,
@@ -35,19 +35,32 @@ class TopBarState {
         token: String = ""
     ) {
         val newState = TopBarStateData(title, actions, onBackClickOverride, showSearch, showBack, token)
-        stateStack.removeAll { it.token == token && token.isNotEmpty() }
+        if (token.isNotEmpty()) {
+            val existingIndex = stateStack.indexOfFirst { it.token == token }
+            if (existingIndex != -1) {
+                stateStack[existingIndex] = newState
+                // 若非当前栈顶令牌（如旧页面仍在退场重组），仅原地更新历史记录，禁止覆盖新页面顶栏
+                if (existingIndex == stateStack.lastIndex) {
+                    applyState(newState)
+                }
+                return
+            }
+        }
         stateStack.add(newState)
         applyState(newState)
     }
 
     fun clear(token: String) {
         if (token.isNotEmpty()) {
+            val removedWasActive = token == currentToken
             stateStack.removeAll { it.token == token }
-            val nextState = stateStack.lastOrNull()
-            if (nextState != null) {
-                applyState(nextState)
-            } else {
-                applyState(TopBarStateData("", {}, null, true, null, ""))
+            if (removedWasActive) {
+                val nextState = stateStack.lastOrNull()
+                if (nextState != null) {
+                    applyState(nextState)
+                } else {
+                    applyState(TopBarStateData("", {}, null, true, null, ""))
+                }
             }
         }
     }

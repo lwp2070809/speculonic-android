@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.ui.screens.library
 
 import android.widget.Toast
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -108,8 +109,8 @@ fun LibraryScreen(
 
         PullToRefreshBox(
             isRefreshing = uiState.isRefreshing,
-            onRefresh = { 
-                if (isOnline) {
+            onRefresh = {
+                if (isEffectivelyOnline) {
                     when (selectedTabIndex) {
                         0 -> viewModel.refreshAlbums()
                         1 -> viewModel.refreshPlaylists()
@@ -117,6 +118,8 @@ fun LibraryScreen(
                         3 -> viewModel.refreshArtists()
                         else -> viewModel.refreshQuickly()
                     }
+                } else {
+                    context.showOfflineRefreshToast()
                 }
             },
             modifier = Modifier.fillMaxSize()

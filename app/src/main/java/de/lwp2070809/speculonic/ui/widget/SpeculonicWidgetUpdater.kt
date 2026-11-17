@@ -29,6 +29,17 @@ object SpeculonicWidgetUpdater {
     private val updateChannel = Channel<Context>(Channel.CONFLATED)
     private val updateMutex = Mutex()
 
+    data class ServiceTrackSnapshot(
+        val songId: String,
+        val title: String,
+        val artist: String,
+        val artworkUri: String,
+        val isPlaying: Boolean
+    )
+
+    @Volatile
+    private var serviceTrackOverride: ServiceTrackSnapshot? = null
+
     init {
         scope.launch {
             for (context in updateChannel) {
@@ -44,6 +55,28 @@ object SpeculonicWidgetUpdater {
         }
     }
 
+    fun updateFromService(
+        context: Context,
+        songId: String,
+        title: String,
+        artist: String,
+        artworkUri: String,
+        isPlaying: Boolean
+    ) {
+        serviceTrackOverride = ServiceTrackSnapshot(
+            songId = songId,
+            title = title,
+            artist = artist,
+            artworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(artworkUri),
+            isPlaying = isPlaying
+        )
+        enqueueUpdate(context)
+    }
+
+    fun clearServiceTrackOverride() {
+        serviceTrackOverride = null
+    }
+
     /**
      * 队列化异步更新（内置 300ms 并发安全防抖）
      */
@@ -57,12 +90,13 @@ object SpeculonicWidgetUpdater {
      */
     suspend fun resetPlayingStateImmediate(context: Context) = withContext(Dispatchers.IO) {
         val appContext = context.applicationContext
+        clearServiceTrackOverride()
         updateMutex.withLock {
             try {
                 while (updateChannel.tryReceive().isSuccess) {
                     // 清空排队中的旧触发，避免后续防抖刷新覆盖刚写入的暂停态
                 }
-                if (PlaybackService.isServiceActive && PlaybackService.isPlayerPlaying) {
+                if (PlaybackService.isServiceActive && (PlaybackService.isPlayerPlaying || PlaybackService.isPlaybackIntended)) {
                     return@withLock
                 }
                 clearStalePlayingFlagLocked(appContext)
@@ -81,10 +115,10 @@ object SpeculonicWidgetUpdater {
         val appContext = context.applicationContext
         updateMutex.withLock {
             try {
-                if (PlaybackService.isServiceActive && PlaybackService.isPlayerPlaying) {
+                if (PlaybackService.isServiceActive && (PlaybackService.isPlayerPlaying || PlaybackService.isPlaybackIntended)) {
                     return@withLock
                 }
-                if (PlaybackController.getInstance(appContext).playbackState.value.isPlaying) {
+                if (PlaybackController.getInstance(appContext).playbackState.value.playWhenReady) {
                     return@withLock
                 }
                 clearStalePlayingFlagLocked(appContext)
@@ -136,12 +170,16 @@ object SpeculonicWidgetUpdater {
                 )
                 val repo = entryPoint.subsonicRepository()
 
-                var songId = playbackState.currentSongId
-                var title = playbackState.currentSongTitle
-                var artist = playbackState.currentArtist
+                val override = if (PlaybackService.isServiceActive) serviceTrackOverride else null
+                var songId = override?.songId?.takeIf { it.isNotEmpty() } ?: playbackState.currentSongId
+                var title = if (override != null && override.songId.isNotEmpty()) override.title else playbackState.currentSongTitle
+                var artist = if (override != null && override.songId.isNotEmpty()) override.artist else playbackState.currentArtist
                 var album = ""
-                var artworkUri = playbackState.artworkUri?.toString() ?: ""
-                var isPlaying = PlaybackService.isServiceActive && PlaybackService.isPlayerPlaying
+                val rawArtworkUri = override?.artworkUri?.takeIf { it.isNotEmpty() }
+                    ?: playbackState.artworkUri?.toString()
+                    ?: ""
+                var artworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(rawArtworkUri)
+                val isPlaying = PlaybackService.isServiceActive && (override?.isPlaying ?: PlaybackService.isPlaybackIntended)
                 var hasTrack = songId.isNotEmpty()
 
                 // 冷启动或无当前播放曲目时，自愈尝试从持久化历史中加载最后播放的一首歌

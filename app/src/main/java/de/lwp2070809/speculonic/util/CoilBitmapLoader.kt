@@ -16,7 +16,6 @@ import com.google.common.util.concurrent.SettableFuture
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.flow.first
 
 @OptIn(UnstableApi::class)
 class CoilBitmapLoader(
@@ -84,7 +83,7 @@ class CoilBitmapLoader(
                     requestBuilder.memoryCacheKey(if (size != null) "${stableKey}_$size" else stableKey)
                     requestBuilder.diskCachePolicy(coil3.request.CachePolicy.ENABLED)
 
-                    val isOnline = networkMonitor.isOnline.first()
+                    val isOnline = networkMonitor.currentNetworkStatus.isOnline
 
                     if (isOnline) {
                         requestBuilder.networkCachePolicy(coil3.request.CachePolicy.ENABLED)

@@ -39,13 +39,13 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.draw.rotate
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -57,6 +57,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -64,6 +65,30 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.screens.settings.components.*
+
+@Composable
+private fun SpinningSyncIcon(
+    contentDescription: String? = null,
+    tint: Color = LocalContentColor.current,
+    modifier: Modifier = Modifier
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+    val rotation = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    Icon(
+        painter = rememberVectorPainter(Icons.Default.Refresh),
+        contentDescription = contentDescription,
+        tint = tint,
+        modifier = modifier.graphicsLayer { rotationZ = rotation.value }
+    )
+}
 
 @Composable
 fun ServerSettings(
@@ -77,17 +102,6 @@ fun ServerSettings(
     val title = stringResource(R.string.server)
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
-    val rotation by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1000, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rotation"
-    )
 
     LaunchedEffect(Unit) {
         topBarState.update(
@@ -289,11 +303,14 @@ fun ServerSettings(
                             onClick = { viewModel.requestForceSync() },
                             enabled = !uiState.isSyncing && isEffectivelyOnline
                         ) {
-                            Icon(
-                                painter = if (uiState.isSyncing) rememberVectorPainter(Icons.Default.Refresh) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
-                                contentDescription = stringResource(R.string.force_full_sync),
-                                modifier = if (uiState.isSyncing) Modifier.rotate(rotation) else Modifier
-                            )
+                            if (uiState.isSyncing) {
+                                SpinningSyncIcon(contentDescription = stringResource(R.string.force_full_sync))
+                            } else {
+                                Icon(
+                                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+                                    contentDescription = stringResource(R.string.force_full_sync)
+                                )
+                            }
                         }
                     },
                     modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
@@ -326,13 +343,9 @@ fun ServerSettings(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Refresh,
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(24.dp)
-                                    .rotate(rotation),
-                                tint = MaterialTheme.colorScheme.primary
+                            SpinningSyncIcon(
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
                             )
                             Text(
                                 text = uiState.syncProgress ?: "",

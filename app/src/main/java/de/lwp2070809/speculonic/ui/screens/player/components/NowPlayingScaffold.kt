@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -47,6 +48,7 @@ fun NowPlayingScaffold(
     playerBackgroundMode: PlayerBackgroundMode,
     onCollapse: () -> Unit,
     modifier: Modifier = Modifier,
+    isVisible: Boolean = true,
     content: @Composable (dragModifier: Modifier) -> Unit
 ) {
     val surfaceColor = MaterialTheme.colorScheme.surface
@@ -64,6 +66,14 @@ fun NowPlayingScaffold(
 
     var dragOffset by remember { mutableFloatStateOf(0f) }
     var isDragging by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isVisible) {
+        if (isVisible) {
+            // 仅在重新展开进入时归零，避免退场动画窗内重开残留此前下拉位移
+            isDragging = false
+            dragOffset = 0f
+        }
+    }
 
     val animatedOffset by animateFloatAsState(
         targetValue = dragOffset,
@@ -86,8 +96,8 @@ fun NowPlayingScaffold(
                 onDragEnd = {
                     isDragging = false
                     if (dragOffset > collapseThresholdPx) {
+                        // 保持拖拽末位位移至容器退场动画结束，避免提前清零引发顶部闪烁回跳
                         currentOnCollapse()
-                        dragOffset = 0f
                     } else {
                         dragOffset = 0f
                     }

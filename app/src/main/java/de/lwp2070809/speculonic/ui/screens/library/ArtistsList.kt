@@ -71,17 +71,12 @@ fun ArtistsList(
     val coverRequester = LocalCoverArtRequester.current
     val gridState = rememberLazyGridState()
     
-    val sortedArtists = remember(artists) {
-        artists.sortedBy { it.name.uppercase() }
-    }
+    val bucketResolver = remember { ArtistIndexHelper.createAndroidBucketResolver() }
 
     var collapsedGroups by remember { mutableStateOf(emptySet<String>()) }
-    
-    val groupedArtists = remember(sortedArtists) {
-        sortedArtists.groupBy { artist ->
-            val firstChar = artist.name.trim().take(1).uppercase()
-            if (firstChar.isEmpty()) "#" else firstChar
-        }
+
+    val groupedArtists = remember(artists) {
+        ArtistIndexHelper.groupAndSort(artists, bucketResolver)
     }
 
     val flatListItems = remember(groupedArtists, collapsedGroups) {
@@ -113,6 +108,12 @@ fun ArtistsList(
                     when (item) {
                         is ArtistListItem.Header -> "header_${item.char}"
                         is ArtistListItem.ArtistItem -> "artist_${item.artist.id}"
+                    }
+                },
+                contentType = { _, item ->
+                    when (item) {
+                        is ArtistListItem.Header -> "artist_header"
+                        is ArtistListItem.ArtistItem -> "artist_item"
                     }
                 },
                 span = { _, item ->

@@ -38,8 +38,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -479,13 +477,13 @@ private fun CloudSyncIcon(
     hasError: Boolean = false
 ) {
     val targetAlpha = if (isSyncing || showCloudDoneRecent) 1f else 0.4f
-    val alpha by animateFloatAsState(
+    val alphaState = animateFloatAsState(
         targetValue = targetAlpha,
         animationSpec = tween(durationMillis = 500),
         label = "alpha"
     )
 
-    val syncingAlpha by animateFloatAsState(
+    val syncingAlphaState = animateFloatAsState(
         targetValue = if (isSyncing) 1f else 0f,
         animationSpec = tween(
             durationMillis = 500,
@@ -493,7 +491,7 @@ private fun CloudSyncIcon(
         ),
         label = "syncingAlpha"
     )
-    val doneAlpha by animateFloatAsState(
+    val doneAlphaState = animateFloatAsState(
         targetValue = if (isSyncing || hasError) 0f else 1f,
         animationSpec = tween(
             durationMillis = 500,
@@ -502,7 +500,7 @@ private fun CloudSyncIcon(
         label = "doneAlpha"
     )
 
-    val errorAlpha by animateFloatAsState(
+    val errorAlphaState = animateFloatAsState(
         targetValue = if (!isSyncing && hasError) 1f else 0f,
         animationSpec = tween(
             durationMillis = 500,
@@ -512,10 +510,10 @@ private fun CloudSyncIcon(
     )
 
     Box(
-        modifier = modifier.alpha(alpha),
+        modifier = modifier.graphicsLayer { alpha = alphaState.value },
         contentAlignment = Alignment.Center
     ) {
-        Box(modifier = Modifier.alpha(doneAlpha)) {
+        Box(modifier = Modifier.graphicsLayer { alpha = doneAlphaState.value }) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_cloud_done),
                 contentDescription = null,
@@ -524,28 +522,13 @@ private fun CloudSyncIcon(
             )
         }
 
-        Box(modifier = Modifier.alpha(syncingAlpha)) {
+        Box(modifier = Modifier.graphicsLayer { alpha = syncingAlphaState.value }) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_cloud),
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(26.dp)
             )
-
-            val rotationState = if (isSyncing) {
-                val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
-                infiniteTransition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1500, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "rotation"
-                )
-            } else {
-                androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
-            }
 
             val syncIconOffsetX = 0.5.dp
             val syncIconOffsetY = 0.dp
@@ -558,18 +541,20 @@ private fun CloudSyncIcon(
                     .background(MaterialTheme.colorScheme.surface, shape = CircleShape)
                     .padding(1.dp)
             ) {
-                Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .size(syncIconSize)
-                        .rotate(rotationState.value)
-                )
+                if (isSyncing) {
+                    SpinningCloudSyncBadgeIcon(modifier = Modifier.size(syncIconSize))
+                } else {
+                    Icon(
+                        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(syncIconSize)
+                    )
+                }
             }
         }
 
-        Box(modifier = Modifier.alpha(errorAlpha)) {
+        Box(modifier = Modifier.graphicsLayer { alpha = errorAlphaState.value }) {
             Icon(
                 painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_cloud_alert),
                 contentDescription = null,
@@ -581,13 +566,33 @@ private fun CloudSyncIcon(
 }
 
 @Composable
+private fun SpinningCloudSyncBadgeIcon(modifier: Modifier = Modifier) {
+    val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
+    val rotationState = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1500, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    Icon(
+        painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = modifier.graphicsLayer { rotationZ = rotationState.value }
+    )
+}
+
+@Composable
 private fun WifiOfflineIcon(
     offlineMode: Boolean,
     isTriggeredRecent: Boolean,
     modifier: Modifier = Modifier
 ) {
     val targetAlpha = if (isTriggeredRecent) 1f else 0.4f
-    val alpha by animateFloatAsState(
+    val alphaState = animateFloatAsState(
         targetValue = targetAlpha,
         animationSpec = tween(durationMillis = 500),
         label = "alpha"
@@ -599,6 +604,6 @@ private fun WifiOfflineIcon(
         tint = MaterialTheme.colorScheme.primary,
         modifier = modifier
             .size(26.dp)
-            .alpha(alpha)
+            .graphicsLayer { alpha = alphaState.value }
     )
 }

@@ -6,17 +6,10 @@ import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import de.lwp2070809.speculonic.data.PreferencesManager
-import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.util.LogManager
-import de.lwp2070809.speculonic.util.toMediaItem
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withContext
 
 @EntryPoint
 @InstallIn(SingletonComponent::class)
@@ -32,7 +25,7 @@ object WidgetActionParams {
 }
 
 /**
- * 播放/暂停控制动作回调，支持在冷启动时唤醒就绪并自愈加载最后播放歌曲
+ * 播放/暂停控制动作回调，支持在冷启动时唤醒就绪并自愈加载完整持久化播放队列
  */
 class WidgetPlayPauseAction : ActionCallback {
     override suspend fun onAction(
@@ -44,7 +37,7 @@ class WidgetPlayPauseAction : ActionCallback {
         val controller = PlaybackController.getInstance(context)
         var needsAutoRestore = false
         controller.executeOnControllerAsync { ctrl ->
-            if (ctrl.isPlaying) {
+            if (ctrl.playWhenReady) {
                 ctrl.pause()
             } else if (ctrl.mediaItemCount > 0) {
                 if (ctrl.playbackState == androidx.media3.common.Player.STATE_IDLE) {
@@ -56,35 +49,8 @@ class WidgetPlayPauseAction : ActionCallback {
             }
         }
 
-        // 若冷启动恢复后队列为空，在结构化挂起流程内自愈从持久化历史恢复最后播放曲目（杜绝非结构化协程被系统斩杀）
         if (needsAutoRestore) {
-            withContext(Dispatchers.IO) {
-                try {
-                    val appContext = context.applicationContext
-                    val prefs = PreferencesManager.getInstance(appContext)
-                    val lastId = prefs.lastSongId.first() ?: ""
-                    if (lastId.isNotEmpty()) {
-                        val db = AppDatabase.getDatabase(appContext)
-                        val song = db.musicDao().getSongById(lastId)
-                        if (song != null) {
-                            val entryPoint = EntryPointAccessors.fromApplication(
-                                appContext,
-                                WidgetEntryPoint::class.java
-                            )
-                            val repo = entryPoint.subsonicRepository()
-                            repo.ensureConfigured()
-                            val mediaItem = song.toMediaItem(repo)
-                            controller.executeOnControllerAsync { ctrl ->
-                                ctrl.setMediaItem(mediaItem)
-                                ctrl.prepare()
-                                ctrl.play()
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    LogManager.w("WidgetPlayPauseAction: Auto-restoring last song failed: ${e.message}")
-                }
-            }
+            controller.restoreQueueAndPlay(playWhenReady = true)
         }
         SpeculonicWidgetUpdater.enqueueUpdate(context)
     }
@@ -104,7 +70,7 @@ class WidgetNextAction : ActionCallback {
         controller.executeOnControllerAsync { ctrl ->
             if (ctrl.mediaItemCount > 0) {
                 ctrl.seekToNext()
-                if (!ctrl.isPlaying) {
+                if (!ctrl.playWhenReady) {
                     ctrl.play()
                 }
             }
@@ -127,7 +93,7 @@ class WidgetPreviousAction : ActionCallback {
         controller.executeOnControllerAsync { ctrl ->
             if (ctrl.mediaItemCount > 0) {
                 ctrl.seekToPrevious()
-                if (!ctrl.isPlaying) {
+                if (!ctrl.playWhenReady) {
                     ctrl.play()
                 }
             }

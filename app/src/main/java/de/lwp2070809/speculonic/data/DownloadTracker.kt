@@ -9,11 +9,9 @@ import androidx.annotation.OptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.datasource.cache.CacheDataSource
-import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
-import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.domain.repository.AuthManager
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.LyricsRepository
@@ -25,10 +23,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
@@ -52,6 +53,15 @@ object DownloadTracker {
 
     private val _allDownloads = MutableStateFlow<List<DownloadTaskInfo>>(emptyList())
     val allDownloadsFlow = _allDownloads.asStateFlow()
+
+    // 仅向下游发布非静默活动下载数量，避免 1Hz 进度变化触发外层 Scaffold 整页重组
+    val activeNonSilentCountFlow: Flow<Int> = _allDownloads
+        .map { list ->
+            list.count { info ->
+                !info.isSilent && (info.state == Download.STATE_DOWNLOADING || info.state == Download.STATE_QUEUED)
+            }
+        }
+        .distinctUntilChanged()
 
     private val isInitialized = AtomicBoolean(false)
     
@@ -122,13 +132,15 @@ object DownloadTracker {
         db.musicDao().updateSongLocalUri(songId, null)
         db.musicDao().updateSongCacheStatus(songId, null, false)
         try {
-            CacheManager.getPlaybackCache(context).removeResource(songId)
+            CacheManager.acquirePlaybackCache(context).removeResource(songId)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
         }
         try {
-            CacheManager.getDownloadCache(context).removeResource(songId)
+            CacheManager.acquireDownloadCache(context).removeResource(songId)
         } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
         }
     }
@@ -163,6 +175,7 @@ object DownloadTracker {
             try {
                 downloadManager.currentDownloads.toList()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 emptyList()
             }
         }
@@ -192,20 +205,16 @@ object DownloadTracker {
             try {
                 downloadManager.currentDownloads.toList()
             } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 emptyList()
             }
         }
-        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
-        val hasStaleActive = _allDownloads.value.any { item ->
-            (item.state == Download.STATE_DOWNLOADING || item.state == Download.STATE_QUEUED) &&
-                !currentActiveMap.containsKey(item.task.request.id)
-        }
-
-        if (hasStaleActive || currentActiveDownloads.isEmpty()) {
-            refreshDownloads(downloadManager)
+        if (currentActiveDownloads.isEmpty()) {
+            pollJob.getAndSet(null)?.cancel()
             return
         }
 
+        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
         _allDownloads.update { list ->
             list.map { item ->
                 val active = currentActiveMap[item.task.request.id]
@@ -220,8 +229,9 @@ object DownloadTracker {
     }
 
     private fun checkAndStartPolling(downloadManager: DownloadManager) {
-        val hasActive = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING || it.state == Download.STATE_QUEUED }
-        if (hasActive) {
+        // 仅存在真正下载中的任务时以 1Hz 轮询进度；QUEUED 等待状态转换由 Listener 事件驱动唤醒
+        val hasDownloading = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING }
+        if (hasDownloading) {
             val currentJob = pollJob.get()
             if (currentJob == null || !currentJob.isActive) {
                 val newJob = scope.launch {
@@ -351,11 +361,9 @@ object DownloadTracker {
             val isSilent = isSilentDownload(download)
             LogManager.d("DownloadTracker: Preparing export for ${download.request.id}. Silent: $isSilent")
 
-            val cache = CacheManager.getDownloadCache(context)
-            val httpDataSourceFactory = OkHttpDataSource.Factory(NetworkModule.provideStreamOkHttpClient(context))
+            val cache = CacheManager.acquireDownloadCache(context)
             val cacheDataSourceFactory = CacheDataSource.Factory()
                 .setCache(cache)
-                .setUpstreamDataSourceFactory(httpDataSourceFactory)
 
             val db = AppDatabase.getDatabase(context)
             val songEntity = db.musicDao().getSongById(download.request.id) ?: return
@@ -423,8 +431,9 @@ object DownloadTracker {
                 LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
                 cache.removeResource(download.request.id)
                 try {
-                    CacheManager.getPlaybackCache(context).removeResource(download.request.id)
+                    CacheManager.acquirePlaybackCache(context).removeResource(download.request.id)
                 } catch (e: Exception) {
+                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
                 }
             }.onFailure {

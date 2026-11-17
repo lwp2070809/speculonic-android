@@ -25,21 +25,31 @@ class CoverArtSyncManager(
         return CoverArtKeyUtils.buildStableKey(baseUrl, id)
     }
 
-    fun buildCoverArtRequest(id: String?, preferLocal: Boolean = false, size: Int? = null, crossfade: Boolean = true): ImageRequest {
+    fun buildCoverArtRequest(
+        id: String?,
+        preferLocal: Boolean = false,
+        size: Int? = null,
+        crossfade: Boolean = true,
+        fallbackUri: android.net.Uri? = null
+    ): ImageRequest {
+        val cleanedFallback = fallbackUri?.toString()?.let { CoverArtKeyUtils.stripVolatileParams(it) }
+        val requestData: Any? = id?.let { urlBuilder.buildCoverArtUrl(it) } ?: cleanedFallback
+
         val requestBuilder = ImageRequest.Builder(context)
-            .data(id?.let { urlBuilder.buildCoverArtUrl(it) })
+            .data(requestData)
             .crossfade(crossfade)
-        
+
         if (size != null) {
-            
             requestBuilder.size(size)
         }
 
-        if (id != null) {
-            val stableKey = getCoverArtCacheKey(id)
-            
+        val stableKey = when {
+            id != null -> getCoverArtCacheKey(id)
+            cleanedFallback != null -> CoverArtKeyUtils.buildStableKey(cleanedFallback)
+            else -> null
+        }
+        if (stableKey != null) {
             requestBuilder.diskCacheKey(stableKey)
-            
             requestBuilder.memoryCacheKey(if (size != null) "${stableKey}_$size" else stableKey)
         }
 
@@ -97,6 +107,7 @@ class CoverArtSyncManager(
                                 failCount.incrementAndGet()
                                 LogManager.w("CoverArtSyncManager: Timeout while fetching cover art $id. Skipping.")
                             } catch (e: Exception) {
+                                if (e is kotlinx.coroutines.CancellationException) throw e
                                 failCount.incrementAndGet()
                                 LogManager.e("CoverArtSyncManager: Unexpected error while fetching cover art $id", e)
                             }

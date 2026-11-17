@@ -154,7 +154,7 @@ fun SongListItem(
     val coverRequester = LocalCoverArtRequester.current
     val context = LocalContext.current
 
-    var isStarred by remember(song.id, song.starred) { mutableStateOf(song.starred != null) }
+    val isStarred = song.starred != null
     val isDownloaded = song.isFullyCached
     
     val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(song, transcodeIncompatible)
@@ -271,9 +271,8 @@ fun SongListItem(
             } else {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(
-                        onClick = { 
-                            isStarred = !isStarred
-                            onStarClick(isStarred)
+                        onClick = {
+                            onStarClick(!isStarred)
                         },
                         enabled = isEffectivelyOnline,
                         modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)

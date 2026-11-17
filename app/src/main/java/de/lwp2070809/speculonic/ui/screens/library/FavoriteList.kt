@@ -1,6 +1,8 @@
 package de.lwp2070809.speculonic.ui.screens.library
 
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -15,7 +17,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -58,8 +59,8 @@ fun FavoriteList(
     val favoriteQueueTitle = stringResource(R.string.favorite)
 
     val context = LocalContext.current
-    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsState()
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsState()
+    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsStateWithLifecycle()
+    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsStateWithLifecycle()
     val isAnyDownloading = remember(activeDownloads, songs) {
         songs.any { activeDownloads.contains(it.id) }
     }
@@ -68,7 +69,7 @@ fun FavoriteList(
     }
 
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
 
     val playableSongs = remember(songs, transcodeIncompatible) {
         songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
@@ -78,14 +79,13 @@ fun FavoriteList(
         playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })
     }
 
-    var lastStarClickTime by remember { mutableLongStateOf(0L) }
     val isDualPane = de.lwp2070809.speculonic.ui.composition.LocalIsDualPane.current
     val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
     val songStrings = rememberSongListItemStrings()
 
     PullToRefreshBox(
         isRefreshing = isRefreshing,
-        onRefresh = onRefresh,
+        onRefresh = { if (isEffectivelyOnline) onRefresh() else context.showOfflineRefreshToast() },
         modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
     ) {
         LazyVerticalGrid(
@@ -175,14 +175,10 @@ fun FavoriteList(
                         }
                     },
                     onStarClick = { star ->
-                        val now = System.currentTimeMillis()
-                        if (now - lastStarClickTime >= 500) {
-                            lastStarClickTime = now
-                            onStarClick(song.id, star) { success ->
-                                if (!success) {
-                                    Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show()
-                                    onRefresh()
-                                }
+                        onStarClick(song.id, star) { success ->
+                            if (!success) {
+                                Toast.makeText(context, failedMessage, Toast.LENGTH_SHORT).show()
+                                onRefresh()
                             }
                         }
                     },

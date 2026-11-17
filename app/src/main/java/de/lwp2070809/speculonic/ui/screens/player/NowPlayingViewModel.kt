@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.async
 
@@ -53,15 +54,16 @@ class NowPlayingViewModel @Inject constructor(
             val initialSleepMinutesDeferred = async { preferencesManager.lastSleepTimerMinutes.first() }
             val initialSleepSongCountDeferred = async { preferencesManager.lastSleepTimerSongCount.first() }
             
-            _uiState.value = _uiState.value.copy(
-                playerBackgroundMode = initialModeDeferred.await(),
-                lastSleepTimerMinutes = initialSleepMinutesDeferred.await(),
-                lastSleepTimerSongCount = initialSleepSongCountDeferred.await()
-            )
+            _uiState.update {
+                it.copy(
+                    playerBackgroundMode = initialModeDeferred.await(),
+                    lastSleepTimerMinutes = initialSleepMinutesDeferred.await(),
+                    lastSleepTimerSongCount = initialSleepSongCountDeferred.await()
+                )
+            }
 
-            
             preferencesManager.playerBackgroundMode.collect { mode ->
-                _uiState.value = _uiState.value.copy(playerBackgroundMode = mode)
+                _uiState.update { it.copy(playerBackgroundMode = mode) }
             }
         }
     }
@@ -70,11 +72,11 @@ class NowPlayingViewModel @Inject constructor(
         viewModelScope.launch {
             minutes?.let {
                 preferencesManager.saveLastSleepTimerMinutes(it)
-                _uiState.value = _uiState.value.copy(lastSleepTimerMinutes = it)
+                _uiState.update { state -> state.copy(lastSleepTimerMinutes = it) }
             }
             songCount?.let {
                 preferencesManager.saveLastSleepTimerSongCount(it)
-                _uiState.value = _uiState.value.copy(lastSleepTimerSongCount = it)
+                _uiState.update { state -> state.copy(lastSleepTimerSongCount = it) }
             }
         }
     }
@@ -85,22 +87,26 @@ class NowPlayingViewModel @Inject constructor(
         
         starObservationJob?.cancel()
         starObservationJob = viewModelScope.launch {
+            var hasObservedInitial = false
             var previousLocalUri: String? = null
             repository.getSongByIdFlow(songId).collectLatest { song ->
-                _uiState.value = _uiState.value.copy(
-                    isStarred = song?.starred != null,
-                    currentSong = song
-                )
-                
-                
+                _uiState.update {
+                    it.copy(
+                        isStarred = song?.starred != null,
+                        currentSong = song
+                    )
+                }
+
                 val currentLocalUri = song?.localUri
-                if (previousLocalUri == null && currentLocalUri != null) {
-                    if (_uiState.value.lyricsLines.isEmpty() && _uiState.value.rawLyrics.isNullOrBlank()) {
+                if (hasObservedInitial && previousLocalUri == null && currentLocalUri != null) {
+                    val currentState = _uiState.value
+                    if (!currentState.isLoadingLyrics && currentState.lyricsLines.isEmpty() && currentState.rawLyrics.isNullOrBlank()) {
                         LogManager.d("NowPlayingViewModel: Song $songId finished caching, triggering lyrics reload")
-                        lyricsSongId = null 
+                        lyricsSongId = null
                         loadLyrics(song.artist ?: "", song.title, song.id)
                     }
                 }
+                hasObservedInitial = true
                 previousLocalUri = currentLocalUri
             }
         }

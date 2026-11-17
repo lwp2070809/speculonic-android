@@ -331,7 +331,10 @@ object NetworkModule {
     @Singleton
     fun provideNetworkMonitor(
         @ApplicationContext context: Context
-    ): NetworkMonitor = ConnectivityManagerNetworkMonitor(context)
+    ): NetworkMonitor = ConnectivityManagerNetworkMonitor(
+        context = context,
+        scope = de.lwp2070809.speculonic.SpeculonicApp.applicationScope
+    )
 
     @Provides
     @Singleton

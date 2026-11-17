@@ -19,7 +19,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
@@ -58,7 +60,9 @@ fun SongDetailDialog(
         }
     }
 
-    val songEntity by viewModel.getSongEntityByIdFlow(song.id).collectAsState(initial = null)
+    val songEntity by remember(song.id, viewModel) {
+        viewModel.getSongEntityByIdFlow(song.id)
+    }.collectAsStateWithLifecycle(initialValue = null)
     val uiState by viewModel.uiState.collectAsState()
 
     val pagerState = rememberPagerState(pageCount = { 3 })
@@ -68,9 +72,9 @@ fun SongDetailDialog(
         viewModel.prepareForSong(song.id)
     }
 
-    LaunchedEffect(song.id, pagerState.currentPage, songEntity?.localUri) {
+    LaunchedEffect(song.id, pagerState.currentPage, songEntity?.localUri, songEntity?.isFullyCached) {
         val uri = songEntity?.localUri
-        if (uri != null) {
+        if (songEntity?.isFullyCached == true && uri != null) {
             if (pagerState.currentPage == 0 && (uiState.songId != song.id || uiState.sha1 == null)) {
                 viewModel.loadSha1(song.id, uri)
             } else if (pagerState.currentPage == 1 && (uiState.songId != song.id || uiState.id3Metadata == null)) {

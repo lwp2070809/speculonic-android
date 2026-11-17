@@ -58,10 +58,13 @@ data class AlbumListItemEntity(
 @Entity(
     tableName = "songs",
     indices = [
-        Index(value = ["albumId", "track"]),
         Index(value = ["albumId", "discNumber", "track"]),
         Index(value = ["artistId", "title"]),
-        Index(value = ["starred"])
+        Index(value = ["starred"]),
+        Index(value = ["coverArt"]),
+        Index(value = ["parent"]),
+        Index(value = ["isFullyCached"]),
+        Index(value = ["title"])
     ]
 )
 data class SongEntity(
@@ -126,7 +129,7 @@ data class PlaylistEntity(
         )
     ],
     indices = [
-        Index(value = ["playlistId", "songId", "order"]),
+        Index(value = ["playlistId", "order"]),
         Index(value = ["songId"])
     ]
 )

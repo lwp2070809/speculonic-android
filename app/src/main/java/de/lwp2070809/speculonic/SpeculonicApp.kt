@@ -2,7 +2,6 @@ package de.lwp2070809.speculonic
 
 import android.app.Application
 import android.content.Context
-import android.os.storage.StorageManager
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import coil3.ImageLoader
@@ -27,8 +26,6 @@ import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 import javax.inject.Inject
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.flow.first
 
 @HiltAndroidApp
 class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration.Provider {
@@ -56,32 +53,27 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
         LogManager.setupCrashHandler(this)
         
         val prefsManager = PreferencesManager.getInstance(this)
+        // 必须在初次构造 OkHttpClient 与调度 Worker 前同步应用不安全连接设置，防止首帧请求错用默认 TLS 客户端
+        val trustAll = prefsManager.getAllowInsecureConnectionsSync()
+        LogManager.i(
+            LogTag.APP,
+            "SpeculonicApp: Security settings loaded (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
+        )
+        if (trustAll) {
+            NetworkModule.rebuildClientIfNeeded(true)
+        }
+
         applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            val trustAll = prefsManager.getAllowInsecureConnectionsSync()
-            LogManager.i(
-                LogTag.APP,
-                "SpeculonicApp: Async security settings loaded (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
-            )
-            if (trustAll) {
-                NetworkModule.rebuildClientIfNeeded(true)
-            }
             de.lwp2070809.speculonic.data.DownloadManagerHelper.initializeAsync(this@SpeculonicApp)
             de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater.reconcileStalePlayingState(this@SpeculonicApp)
         }
-        
-        
-        
-        
-        
+
         NetworkModule.provideOkHttpClient()
-        
-        
+
         DownloadTracker.init(this)
-        
-        
+
         CacheSyncWorker.schedule(this)
-        
-        
+
         MetadataSyncWorker.schedule(this)
     }
 

@@ -9,6 +9,20 @@ import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.map
+
+private val ALBUM_TRACK_COMPARATOR = compareBy<SongEntity>(
+    { it.discNumber ?: 1 },
+    { it.track ?: 0 },
+    { it.id }
+)
+
+private val PARENT_TRACK_COMPARATOR = compareBy<SongEntity>(
+    { it.discNumber ?: 1 },
+    { it.track ?: 0 },
+    { it.title },
+    { it.id }
+)
 
 @Dao
 interface SongDao {
@@ -78,14 +92,23 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE parent = :parentId")
     suspend fun deleteSongsByParent(parentId: String)
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, id ASC")
-    suspend fun getSongsByAlbum(albumId: String): List<SongEntity>
+    @Query("SELECT * FROM songs WHERE albumId = :albumId")
+    suspend fun getSongsByAlbumRaw(albumId: String): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, title ASC, id ASC")
-    suspend fun getSongsByParent(parentId: String): List<SongEntity>
+    suspend fun getSongsByAlbum(albumId: String): List<SongEntity> =
+        getSongsByAlbumRaw(albumId).sortedWith(ALBUM_TRACK_COMPARATOR)
 
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, title ASC, id ASC")
-    fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>>
+    @Query("SELECT * FROM songs WHERE parent = :parentId")
+    suspend fun getSongsByParentRaw(parentId: String): List<SongEntity>
+
+    suspend fun getSongsByParent(parentId: String): List<SongEntity> =
+        getSongsByParentRaw(parentId).sortedWith(PARENT_TRACK_COMPARATOR)
+
+    @Query("SELECT * FROM songs WHERE parent = :parentId")
+    fun getSongsByParentRawFlow(parentId: String): Flow<List<SongEntity>>
+
+    fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>> =
+        getSongsByParentRawFlow(parentId).map { it.sortedWith(PARENT_TRACK_COMPARATOR) }
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     suspend fun getStarredSongs(): List<SongEntity>
@@ -171,8 +194,11 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongByIdFlow(songId: String): Flow<SongEntity?>
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1) ASC, COALESCE(track, 0) ASC, id ASC")
-    fun getSongsByAlbumFlow(albumId: String): Flow<List<SongEntity>>
+    @Query("SELECT * FROM songs WHERE albumId = :albumId")
+    fun getSongsByAlbumRawFlow(albumId: String): Flow<List<SongEntity>>
+
+    fun getSongsByAlbumFlow(albumId: String): Flow<List<SongEntity>> =
+        getSongsByAlbumRawFlow(albumId).map { it.sortedWith(ALBUM_TRACK_COMPARATOR) }
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     fun getStarredSongsFlow(): Flow<List<SongEntity>>
@@ -196,10 +222,14 @@ interface SongDao {
     fun getAllCachedSongsFlow(): Flow<List<SongEntity>>
 
     @Query("""
-        SELECT localUri FROM songs 
-        WHERE (coverArt = :id OR albumId = :id OR id = :id) 
-        AND localUri IS NOT NULL 
-        ORDER BY (coverArt = :id) DESC, (albumId = :id) DESC
+        SELECT localUri FROM (
+            SELECT localUri, 1 AS priority FROM songs WHERE coverArt = :id AND localUri IS NOT NULL
+            UNION ALL
+            SELECT localUri, 2 AS priority FROM songs WHERE albumId = :id AND localUri IS NOT NULL
+            UNION ALL
+            SELECT localUri, 3 AS priority FROM songs WHERE id = :id AND localUri IS NOT NULL
+        )
+        ORDER BY priority ASC
         LIMIT 1
     """)
     suspend fun findLocalUriByCoverArtId(id: String): String?

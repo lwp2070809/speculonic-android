@@ -5,6 +5,10 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.FileProvider
 import de.lwp2070809.speculonic.util.LogTag
 import androidx.activity.compose.BackHandler
@@ -237,7 +241,7 @@ fun LogViewerPane(
     // 仅在全屏 Dialog 模式下避让系统栏；大屏三栏内嵌时顶部已有 MainTopBar，不应重复叠加状态栏边距
     applySystemBarInsets: Boolean = false
 ) {
-    val logs by LogManager.logs.collectAsState()
+    val logs by LogManager.logs.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     var filterLevel by remember { mutableStateOf<LogLevel?>(null) }
@@ -278,11 +282,14 @@ fun LogViewerPane(
         }
     }
 
-    LaunchedEffect(Unit) {
-        LogManager.flushIfDirty()
-        while (isActive) {
-            kotlinx.coroutines.delay(1000)
+    val lifecycleOwner = LocalLifecycleOwner.current
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
             LogManager.flushIfDirty()
+            while (isActive) {
+                kotlinx.coroutines.delay(1000)
+                LogManager.flushIfDirty()
+            }
         }
     }
 

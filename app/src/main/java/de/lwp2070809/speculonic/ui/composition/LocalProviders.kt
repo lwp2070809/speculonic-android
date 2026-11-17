@@ -17,7 +17,8 @@ interface CoverArtRequester {
         context: Context? = null,
         preferLocal: Boolean = true,
         size: Int? = null,
-        crossfade: Boolean = true
+        crossfade: Boolean = true,
+        fallbackUri: android.net.Uri? = null
     ): ImageRequest
 }
 
@@ -25,8 +26,9 @@ fun CoverArtRequester.buildRequest(
     id: String?,
     preferLocal: Boolean = true,
     size: Int? = null,
-    crossfade: Boolean = true
-): ImageRequest = buildCoverArtRequest(id, null, preferLocal, size, crossfade)
+    crossfade: Boolean = true,
+    fallbackUri: android.net.Uri? = null
+): ImageRequest = buildCoverArtRequest(id, null, preferLocal, size, crossfade, fallbackUri)
 
 fun interface MediaItemConverter {
     fun toMediaItem(song: Song): MediaItem

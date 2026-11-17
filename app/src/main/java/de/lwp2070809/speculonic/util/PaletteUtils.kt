@@ -35,7 +35,9 @@ object PaletteUtils {
         val cacheKey = "${stableKey ?: uri}_${isDark}_$fallbackBackgroundColor"
         
         
-        colorCache.get(cacheKey)?.let {
+        synchronized(colorCache) {
+            colorCache.get(cacheKey)
+        }?.let {
             return@withContext it
         }
 
@@ -43,7 +45,9 @@ object PaletteUtils {
         val lockIndex = (cacheKey.hashCode() and Int.MAX_VALUE) % lockPool.size
         lockPool[lockIndex].withLock {
             
-            colorCache.get(cacheKey)?.let {
+            synchronized(colorCache) {
+                colorCache.get(cacheKey)
+            }?.let {
                 return@withContext it
             }
 
@@ -68,7 +72,9 @@ object PaletteUtils {
                     val color = extractSeedColor(palette, isDark, fallbackBackgroundColor)
                     
                     if (color != null) {
-                        colorCache.put(cacheKey, color)
+                        synchronized(colorCache) {
+                            colorCache.put(cacheKey, color)
+                        }
                     }
                     color
                 } else {

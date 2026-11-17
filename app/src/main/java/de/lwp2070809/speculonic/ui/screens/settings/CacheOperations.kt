@@ -3,13 +3,13 @@ package de.lwp2070809.speculonic.ui.screens.settings
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
-import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.util.UnstableApi
 import de.lwp2070809.speculonic.data.CacheManager
-import de.lwp2070809.speculonic.data.DownloadManagerHelper
 import de.lwp2070809.speculonic.data.DownloadTracker
+import de.lwp2070809.speculonic.data.SafDirectoryHelper
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -21,107 +21,115 @@ import kotlin.math.pow
 class CacheOperations @javax.inject.Inject constructor(
     @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
 ) {
-    
-    suspend fun clearAllCache(preserveSaf: Boolean = true): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            try {
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend inline fun runCacheOp(
+        errorLog: String,
+        crossinline block: suspend () -> Unit
+    ): Result<Unit> = try {
+        block()
+        Result.success(Unit)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        LogManager.e(errorLog, e)
+        Result.failure(e)
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private inline fun <T> runBestEffort(
+        errorLog: String,
+        defaultValue: T,
+        warnOnly: Boolean = false,
+        block: () -> T
+    ): T = try {
+        block()
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        if (warnOnly) {
+            LogManager.w("$errorLog: ${e.message}")
+        } else {
+            LogManager.e(errorLog, e)
+        }
+        defaultValue
+    }
+
+    private suspend fun resetManagedCache(
+        operationName: String,
+        clearPlaybackBuffer: Boolean = false,
+        clearCoverArt: Boolean = false,
+        clearPersistent: Boolean = false,
+        resetDb: Boolean = false,
+        preserveSaf: Boolean = true
+    ): Result<Unit> = withContext(Dispatchers.IO) {
+        runCacheOp("CacheOperations: $operationName failed") {
+            runBestEffort("CacheOperations: Failed to stop DownloadServices", Unit) {
                 context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
+                context.stopService(
+                    android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java)
+                )
             }
 
             CacheManager.executeWithCacheReleaseLock {
-                File(context.cacheDir, "media_playback_buffer").deleteRecursively()
-                File(context.cacheDir, "image_cache").deleteRecursively()
-                val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
-                internalPersistentDir.deleteRecursively()
-                val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-                privateExportedDir.deleteRecursively()
-                try {
-                    context.deleteDatabase("exoplayer_internal.db")
-                } catch (e: Exception) {
-                    LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearAllCache", e)
+                if (clearPlaybackBuffer) {
+                    File(context.cacheDir, "media_playback_buffer").deleteRecursively()
+                }
+                if (clearCoverArt) {
+                    File(context.cacheDir, "image_cache").deleteRecursively()
+                }
+                if (clearPersistent) {
+                    val baseExternalDir = context.getExternalFilesDir(null) ?: context.filesDir
+                    File(baseExternalDir, "media_persistent_cache").deleteRecursively()
+                    File(baseExternalDir, "media_exported_private").deleteRecursively()
+                    runBestEffort("CacheOperations: Failed to delete exoplayer_internal.db on $operationName", Unit) {
+                        context.deleteDatabase("exoplayer_internal.db")
+                    }
                 }
             }
 
-            try {
-                val db = AppDatabase.getDatabase(context)
-                if (preserveSaf) {
-                    db.musicDao().resetNonSafCacheStatus()
-                } else {
-                    db.musicDao().resetAllCacheStatus()
+            if (resetDb) {
+                runBestEffort("CacheOperations: Failed to reset database cache status on $operationName", Unit) {
+                    val db = AppDatabase.getDatabase(context)
+                    if (preserveSaf) {
+                        db.musicDao().resetNonSafCacheStatus()
+                    } else {
+                        db.musicDao().resetAllCacheStatus()
+                    }
                 }
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to reset database cache status on clearAllCache", e)
             }
+
             DownloadTracker.clearAll()
             DownloadTracker.init(context)
-        }.onFailure { e ->
-            LogManager.e("CacheOperations: clearAllCache failed", e)
         }
     }
 
-    suspend fun clearPlaybackCache(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            try {
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-            }
-            
-            CacheManager.executeWithCacheReleaseLock {
-                File(context.cacheDir, "media_playback_buffer").deleteRecursively()
-            }
-            DownloadTracker.clearAll()
-            DownloadTracker.init(context)
-        }.onFailure { e ->
-            LogManager.e("CacheOperations: clearPlaybackCache failed", e)
-        }
-    }
+    suspend fun clearAllCache(preserveSaf: Boolean = true): Result<Unit> = resetManagedCache(
+        operationName = "clearAllCache",
+        clearPlaybackBuffer = true,
+        clearCoverArt = true,
+        clearPersistent = true,
+        resetDb = true,
+        preserveSaf = preserveSaf
+    )
+
+    suspend fun clearPlaybackCache(): Result<Unit> = resetManagedCache(
+        operationName = "clearPlaybackCache",
+        clearPlaybackBuffer = true
+    )
 
     suspend fun clearCoverArtCache(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
+        runCacheOp("CacheOperations: clearCoverArtCache failed") {
             File(context.cacheDir, "image_cache").deleteRecursively()
-            Unit
-        }.onFailure { e ->
-            LogManager.e("CacheOperations: clearCoverArtCache failed", e)
         }
     }
 
-    suspend fun clearSongDownloads(): Result<Unit> = withContext(Dispatchers.IO) {
-        runCatching {
-            try {
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
-                context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.SilentDownloadService::class.java))
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to stop DownloadServices", e)
-            }
-            CacheManager.executeWithCacheReleaseLock {
-                val internalPersistentDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_persistent_cache")
-                internalPersistentDir.deleteRecursively()
-                val privateExportedDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
-                privateExportedDir.deleteRecursively()
-                try {
-                    context.deleteDatabase("exoplayer_internal.db")
-                } catch (e: Exception) {
-                    LogManager.e("CacheOperations: Failed to delete exoplayer_internal.db on clearSongDownloads", e)
-                }
-            }
-
-            try {
-                val db = AppDatabase.getDatabase(context)
-                db.musicDao().resetNonSafCacheStatus()
-            } catch (e: Exception) {
-                LogManager.e("CacheOperations: Failed to reset database cache status on clearSongDownloads", e)
-            }
-            DownloadTracker.clearAll()
-            DownloadTracker.init(context)
-        }.onFailure { e ->
-            LogManager.e("CacheOperations: clearSongDownloads failed", e)
-        }
-    }
+    suspend fun clearSongDownloads(): Result<Unit> = resetManagedCache(
+        operationName = "clearSongDownloads",
+        clearPersistent = true,
+        resetDb = true,
+        preserveSaf = true
+    )
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {
         val isSafEnabled = cacheLocation.isNotBlank()
@@ -136,27 +144,26 @@ class CacheOperations @javax.inject.Inject constructor(
         val privateExportedBytes = getDirectorySize(privateExportedDir)
         val songBytes = if (isSafEnabled) 0L else persistentCacheBytes + privateExportedBytes
 
-        var externalBytes = 0L
-
         val totalCache = getDirectorySize(context.cacheDir)
         val totalFiles = getDirectorySize(context.filesDir)
         val totalExternalFiles = getDirectorySize(context.getExternalFilesDir(null))
         val totalPrivate = totalCache + totalFiles + totalExternalFiles
         val otherBytes = (totalPrivate - playbackBytes - coverArtBytes - songBytes).coerceAtLeast(0L)
 
-        if (isSafEnabled) {
-            try {
-                val rootDoc = DocumentFile.fromTreeUri(context, cacheLocation.toUri())
-                rootDoc?.listFiles()?.forEach { file ->
-                    if (de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(file.name ?: "")) {
-                        externalBytes += file.length()
+        val externalBytes = if (isSafEnabled) {
+            runBestEffort("CacheOperations: Failed to calculate external cache size", 0L, warnOnly = true) {
+                SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri()).sumOf { entry ->
+                    if (de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(entry.name)) {
+                        entry.size
+                    } else {
+                        0L
                     }
                 }
-            } catch (e: Exception) {
-                LogManager.w("CacheOperations: Failed to calculate external cache size")
             }
+        } else {
+            0L
         }
-        
+
         CacheBreakdown(playbackBytes, coverArtBytes, songBytes, otherBytes, externalBytes)
     }
 

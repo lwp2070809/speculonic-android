@@ -2,10 +2,12 @@ package de.lwp2070809.speculonic.playback
 
 import android.os.Bundle
 import android.os.SystemClock
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.session.MediaSession
 import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.LogTag
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -23,15 +25,18 @@ class PlaybackSleepTimerManager(
         private set
     private var sleepTimerDeadlineRealtime = 0L
     private var sleepTimerSongsRemaining = 0
+    // 使用队列窗口索引而非 mediaId 追踪前驱项，避免歌单中含重复 songId 时误判末曲回环或漏减计数
+    private var timerLastWindowIndex: Int = C.INDEX_UNSET
     private var timerLastMediaId: String? = null
 
     fun setSleepTimer(mode: String, minutes: Int = 0, songCount: Int = 0) {
         sleepTimerJob?.cancel()
         sleepTimerMode = mode
         val session = mediaSessionProvider()
+        timerLastWindowIndex = session?.player?.currentMediaItemIndex ?: C.INDEX_UNSET
         timerLastMediaId = session?.player?.currentMediaItem?.mediaId
-        de.lwp2070809.speculonic.util.LogManager.i(
-            de.lwp2070809.speculonic.util.LogTag.PLAYBACK,
+        LogManager.i(
+            LogTag.PLAYBACK,
             "Sleep timer configured -> mode=$mode, minutes=$minutes, songCount=$songCount"
         )
 
@@ -39,6 +44,8 @@ class PlaybackSleepTimerManager(
             "OFF" -> {
                 sleepTimerDeadlineRealtime = 0L
                 sleepTimerSongsRemaining = 0
+                timerLastWindowIndex = C.INDEX_UNSET
+                timerLastMediaId = null
                 broadcastSleepTimerState()
             }
             "TIME" -> {
@@ -51,7 +58,7 @@ class PlaybackSleepTimerManager(
                         if (remaining <= 0) {
                             LogManager.i("PlaybackSleepTimerManager: Sleep timer expired! Pausing player.")
                             withContext(Dispatchers.Main) {
-                                mediaSessionProvider()?.player?.pause()
+                                pausePlayerAndReset(mediaSessionProvider()?.player)
                                 cancelSleepTimer()
                             }
                             break
@@ -79,69 +86,88 @@ class PlaybackSleepTimerManager(
         sleepTimerMode = "OFF"
         sleepTimerDeadlineRealtime = 0L
         sleepTimerSongsRemaining = 0
+        timerLastWindowIndex = C.INDEX_UNSET
         timerLastMediaId = null
-        de.lwp2070809.speculonic.util.LogManager.i(de.lwp2070809.speculonic.util.LogTag.PLAYBACK, "Sleep timer cancelled")
+        LogManager.i(LogTag.PLAYBACK, "Sleep timer cancelled")
         broadcastSleepTimerState()
     }
 
     fun handlePlaybackEndedForTimer() {
         if (sleepTimerMode == "OFF") return
-        LogManager.i("PlaybackSleepTimerManager: Playback ended. Cancelling sleep timer.")
+        LogManager.i("PlaybackSleepTimerManager: Playback ended. Stopping player and cancelling sleep timer.")
+        pausePlayerAndReset(mediaSessionProvider()?.player)
         cancelSleepTimer()
     }
 
-    fun handleMediaItemTransitionForTimer(mediaItem: MediaItem?, reason: Int) {
+    fun handleTimelineChangedForTimer(player: Player) {
         if (sleepTimerMode == "OFF") return
-        val currentId = mediaItem?.mediaId ?: return
-        val isRepeat = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
-        val isAuto = reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO
-        val isItemChanged = currentId != timerLastMediaId
+        if (player.mediaItemCount == 0 || player.currentTimeline.isEmpty) {
+            LogManager.i("PlaybackSleepTimerManager: Playlist emptied while timer active, cancelling sleep timer.")
+            cancelSleepTimer()
+            return
+        }
+        val currentWindowIndex = player.currentMediaItemIndex
+        val currentMediaId = player.currentMediaItem?.mediaId
+        if (currentWindowIndex != C.INDEX_UNSET && currentMediaId != null && currentMediaId == timerLastMediaId) {
+            timerLastWindowIndex = currentWindowIndex
+        }
+    }
 
-        if (!isItemChanged && !isRepeat && !isAuto) return
-        val previousMediaId = timerLastMediaId
-        timerLastMediaId = currentId
+    fun handleMediaItemTransitionForTimer(mediaItem: MediaItem?, reason: Int) {
+        if (sleepTimerMode == "OFF" || mediaItem == null) return
+        val player = mediaSessionProvider()?.player ?: return
+        val currentWindowIndex = player.currentMediaItemIndex
+        val previousWindowIndex = timerLastWindowIndex
+        timerLastWindowIndex = currentWindowIndex
+        timerLastMediaId = mediaItem.mediaId
 
-        val isNaturalTransition = isAuto || isRepeat
+        val isNaturalTransition =
+            reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO ||
+                reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
         if (!isNaturalTransition) {
             return
         }
 
-        val session = mediaSessionProvider()
         if (sleepTimerMode == "SONG_COUNT") {
             sleepTimerSongsRemaining--
             if (sleepTimerSongsRemaining <= 0) {
                 LogManager.i("PlaybackSleepTimerManager: Sleep timer song count reached. Pausing player.")
-                session?.player?.pause()
+                pausePlayerAndReset(player)
                 cancelSleepTimer()
             } else {
                 broadcastSleepTimerState()
             }
         } else if (sleepTimerMode == "END_OF_PLAYLIST") {
-            val player = session?.player
-            val isRepeatOne = player?.repeatMode == Player.REPEAT_MODE_ONE
-            val isSingleItemRepeatAll = player?.repeatMode == Player.REPEAT_MODE_ALL && player.mediaItemCount == 1
-            if (isRepeatOne || (isSingleItemRepeatAll && isRepeat)) {
-                LogManager.i("PlaybackSleepTimerManager: Sleep timer end of playlist reached under single item repeat mode. Pausing player.")
-                player.pause()
+            val isRepeatOne = player.repeatMode == Player.REPEAT_MODE_ONE
+            val isSingleItemRepeatAll = player.repeatMode == Player.REPEAT_MODE_ALL && player.mediaItemCount == 1
+            if (isRepeatOne || (isSingleItemRepeatAll && reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT)) {
+                LogManager.i("PlaybackSleepTimerManager: Sleep timer end of playlist reached under repeat mode. Pausing player.")
+                pausePlayerAndReset(player)
                 cancelSleepTimer()
-            } else if (isAuto) {
-                val timeline = player?.currentTimeline
-                if (timeline != null && !timeline.isEmpty) {
+                return
+            }
+
+            if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                val timeline = player.currentTimeline
+                if (!timeline.isEmpty && player.mediaItemCount > 0) {
                     val lastWindowIndex = timeline.getLastWindowIndex(player.shuffleModeEnabled)
                     val firstWindowIndex = timeline.getFirstWindowIndex(player.shuffleModeEnabled)
-                    val lastMediaItem = if (lastWindowIndex in 0 until player.mediaItemCount) {
-                        player.getMediaItemAt(lastWindowIndex)
-                    } else null
-                    val isLoopBack = player.currentMediaItemIndex == firstWindowIndex && lastMediaItem?.mediaId == previousMediaId
-                    val isSingleItemAuto = player.mediaItemCount == 1 && lastMediaItem?.mediaId == previousMediaId
+                    val isLoopBack = currentWindowIndex == firstWindowIndex && previousWindowIndex == lastWindowIndex
+                    val isSingleItemAuto = player.mediaItemCount == 1 && previousWindowIndex == 0
                     if (isLoopBack || isSingleItemAuto) {
                         LogManager.i("PlaybackSleepTimerManager: Sleep timer end of playlist reached. Pausing player.")
-                        player.pause()
+                        pausePlayerAndReset(player)
                         cancelSleepTimer()
                     }
                 }
             }
         }
+    }
+
+    private fun pausePlayerAndReset(player: Player?) {
+        player ?: return
+        player.playWhenReady = false
+        player.pause()
     }
 
     fun broadcastSleepTimerState() {

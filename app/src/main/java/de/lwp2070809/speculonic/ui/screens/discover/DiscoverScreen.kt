@@ -1,6 +1,8 @@
 package de.lwp2070809.speculonic.ui.screens.discover
 
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
@@ -73,7 +75,7 @@ fun DiscoverScreen(
         }
     }
     val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsState(initial = false)
+    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
 
     val isEmpty = uiState.pinnedPlaylists.isEmpty() &&
             uiState.recentlyAdded.isEmpty() &&
@@ -98,7 +100,10 @@ fun DiscoverScreen(
 
     PullToRefreshBox(
         isRefreshing = uiState.isRefreshing,
-        onRefresh = { if (isEffectivelyOnline) viewModel.refreshData() },
+        onRefresh = {
+            if (isEffectivelyOnline) viewModel.refreshData()
+            else context.showOfflineRefreshToast()
+        },
         modifier = Modifier.fillMaxSize()
     ) {
         val showOffline = forceShowOfflineMessage || (!isOnline && showEmptyState && isEmpty)
@@ -190,7 +195,7 @@ fun DiscoverScreen(
             ) {
                 
                 if (uiState.pinnedPlaylists.isNotEmpty()) {
-                    item {
+                    item(key = "pinned_playlists", contentType = "playlist_row") {
                         SectionHeader(title = stringResource(R.string.pinned_playlists))
                         PlaylistRow(
                             playlists = uiState.pinnedPlaylists,
@@ -201,7 +206,7 @@ fun DiscoverScreen(
 
                 
                 if (uiState.favoriteSongs.isNotEmpty()) {
-                    item {
+                    item(key = "favorite_songs", contentType = "favorite_songs_section") {
                         SectionHeader(
                             title = stringResource(R.string.favorite_songs),
                             onViewAllClick = onViewAllFavoriteSongs
@@ -227,7 +232,7 @@ fun DiscoverScreen(
 
                 
                 if (uiState.favoriteAlbums.isNotEmpty()) {
-                    item {
+                    item(key = "favorite_albums", contentType = "album_row") {
                         SectionHeader(
                             title = stringResource(R.string.favorite_albums),
                             onViewAllClick = onViewAllFavoriteAlbums
@@ -240,7 +245,7 @@ fun DiscoverScreen(
                 }
 
                 if (uiState.recentlyAdded.isNotEmpty()) {
-                    item {
+                    item(key = "recently_added", contentType = "album_row") {
                         SectionHeader(title = stringResource(R.string.recently_added))
                         AlbumRow(
                             albums = uiState.recentlyAdded,
@@ -250,7 +255,7 @@ fun DiscoverScreen(
                 }
 
                 if (uiState.randomAlbums.isNotEmpty()) {
-                    item {
+                    item(key = "random_albums", contentType = "album_row") {
                         SectionHeader(title = stringResource(R.string.random_albums))
                         AlbumRow(
                             albums = uiState.randomAlbums,
@@ -260,7 +265,7 @@ fun DiscoverScreen(
                 }
 
                 if (uiState.mostPlayed.isNotEmpty()) {
-                    item {
+                    item(key = "most_played", contentType = "album_row") {
                         SectionHeader(title = stringResource(R.string.most_played))
                         AlbumRow(
                             albums = uiState.mostPlayed,

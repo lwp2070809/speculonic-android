@@ -137,7 +137,7 @@ class PlaybackErrorHandler(
                 try {
                     var nextCachedIndex = -1
                     val downloadCache = try {
-                        CacheManager.getDownloadCache(context)
+                        CacheManager.acquireDownloadCache(context)
                     } catch (e: Exception) { null }
 
                     val db = dbProvider()

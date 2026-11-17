@@ -18,6 +18,7 @@ class PlaybackServiceListener(
     private val audioFocusHelper: PlaybackAudioFocusHelper,
     private val onTriggerSilentCache: (MediaItem) -> Unit,
     private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
+    private val onTimelineChangedForTimer: (() -> Unit)? = null,
     private val onPlaybackEndedForTimer: (() -> Unit)? = null,
     private val context: Context? = null,
     private val isPauseOnVolumeZeroEnabled: () -> Boolean = { false }
@@ -25,6 +26,28 @@ class PlaybackServiceListener(
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
     private val volumeAutoPauseTracker = DeviceVolumeAutoPauseTracker()
+
+    private fun pushWidgetStateUpdate(player: Player) {
+        val isIntended = player.playWhenReady &&
+            player.playbackState != Player.STATE_ENDED &&
+            player.playbackState != Player.STATE_IDLE
+        PlaybackService.isPlaybackIntended = isIntended
+
+        val appContext = context ?: return
+        val mediaItem = player.currentMediaItem
+        val extras = mediaItem?.mediaMetadata?.extras
+        val title = extras?.getString("realTitle") ?: mediaItem?.mediaMetadata?.title?.toString() ?: ""
+        val artist = extras?.getString("realArtist") ?: mediaItem?.mediaMetadata?.artist?.toString() ?: ""
+        val artworkUri = mediaItem?.mediaMetadata?.artworkUri?.toString() ?: ""
+        SpeculonicWidgetUpdater.updateFromService(
+            context = appContext,
+            songId = mediaItem?.mediaId ?: "",
+            title = title,
+            artist = artist,
+            artworkUri = artworkUri,
+            isPlaying = isIntended
+        )
+    }
 
     override fun onPlayerError(error: PlaybackException) {
         errorHandler.handlePlayerError(player, error)
@@ -44,7 +67,9 @@ class PlaybackServiceListener(
         LogManager.i(LogTag.PLAYBACK, "MediaItem transition -> id=${mediaItem?.mediaId}, title='$title', artist='$artist', reason=$reasonStr")
 
         if (mediaItem == null) {
-            persistence.savePlaybackState(player)
+            currentActiveMediaId = null
+            pushWidgetStateUpdate(player)
+            persistence.savePlaybackState(player, immediate = true)
             return
         }
 
@@ -52,7 +77,8 @@ class PlaybackServiceListener(
         val isRepeat = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
 
         if (isSameAsPrevious && !isRepeat) {
-            persistence.savePlaybackState(player)
+            pushWidgetStateUpdate(player)
+            persistence.savePlaybackState(player, immediate = true)
             return
         }
 
@@ -62,13 +88,14 @@ class PlaybackServiceListener(
         if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled && carAudioManager.isCarBluetoothConnected()) {
             carAudioManager.loadLyricsForBluetooth(mediaItem)
         }
-        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
-        persistence.savePlaybackState(player)
+        pushWidgetStateUpdate(player)
+        persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
         if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
             LogManager.i(LogTag.PLAYBACK, "Timeline playlist changed (windowCount=${timeline.windowCount})")
+            onTimelineChangedForTimer?.invoke()
             persistence.savePlaybackQueue(player)
             persistence.savePlaybackState(player)
         }
@@ -105,6 +132,9 @@ class PlaybackServiceListener(
         }
         if (playbackState == Player.STATE_ENDED) {
             onPlaybackEndedForTimer?.invoke()
+            pushWidgetStateUpdate(player)
+        } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+            pushWidgetStateUpdate(player)
         }
         if (!audioFocusHelper.isDefaultFocusHandling) {
             if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
@@ -116,7 +146,7 @@ class PlaybackServiceListener(
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         PlaybackService.isPlayerPlaying = isPlaying
-        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
+        pushWidgetStateUpdate(player)
     }
 
     override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
@@ -148,7 +178,7 @@ class PlaybackServiceListener(
             else -> "REASON_$reason"
         }
         LogManager.i(LogTag.PLAYBACK, "playWhenReady changed -> $playWhenReady (reason=$reasonStr)")
-        context?.let { SpeculonicWidgetUpdater.enqueueUpdate(it) }
+        pushWidgetStateUpdate(player)
 
         if (!playWhenReady) {
             persistence.savePlaybackState(player, immediate = true)

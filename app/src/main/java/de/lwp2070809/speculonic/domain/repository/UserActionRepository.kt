@@ -9,6 +9,8 @@ import de.lwp2070809.speculonic.network.model.ensureOk
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class UserActionRepository(
     private val api: SubsonicService,
@@ -16,6 +18,13 @@ class UserActionRepository(
     private val authManager: AuthManager,
     private val entityMapper: EntityMapper
 ) {
+    // 对同曲目的收藏/取消收藏请求按 songId 分片串行化，防止快速双击时慢请求反向覆盖最新状态
+    private val songStarMutexes = Array(64) { Mutex() }
+
+    private fun songStarMutex(id: String): Mutex {
+        val index = (id.hashCode() and Int.MAX_VALUE) % songStarMutexes.size
+        return songStarMutexes[index]
+    }
     suspend fun getStarred(
         forceRefresh: Boolean = false, 
         skipInsert: Boolean = false
@@ -130,21 +139,22 @@ class UserActionRepository(
         return albumEntities to listItems
     }
 
-    suspend fun starSong(id: String, star: Boolean): Boolean {
+    suspend fun starSong(id: String, star: Boolean): Boolean = songStarMutex(id).withLock {
         val (u, t, s) = authManager.getAuthParams()
-        
+        val existingSong = musicDao.getSongById(id)
+        val rollbackStar = existingSong?.starred ?: !star
+
         musicDao.updateSongStarred(id, star, System.currentTimeMillis())
-        return try {
+        return@withLock try {
             val response = if (star) api.star(id, u, t, s) else api.unstar(id, u, t, s)
             val ok = response.response.status == "ok"
             if (!ok) {
-                
-                musicDao.updateSongStarred(id, !star, System.currentTimeMillis())
+                musicDao.updateSongStarred(id, rollbackStar, System.currentTimeMillis())
             }
             ok
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            musicDao.updateSongStarred(id, !star, System.currentTimeMillis())
+            musicDao.updateSongStarred(id, rollbackStar, System.currentTimeMillis())
             false
         }
     }

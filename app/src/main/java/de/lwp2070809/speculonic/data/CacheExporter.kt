@@ -137,13 +137,13 @@ object CacheExporter {
         context: Context,
         rootDoc: DocumentFile,
         finalAudioFileName: String,
-        lyrics: String
+        lyrics: String,
+        existingLrcUri: Uri? = null
     ) {
         val lrcFileName = FormatUtils.replaceExtensionWithLrc(finalAudioFileName)
-        val existingLrc = rootDoc.findFile(lrcFileName)
-        val lrcFile = existingLrc ?: rootDoc.createFile("application/octet-stream", lrcFileName)
-        lrcFile?.let { file ->
-            openTruncatedOutputStream(context, file.uri)?.use { out ->
+        val targetLrcUri = existingLrcUri ?: rootDoc.createFile("application/octet-stream", lrcFileName)?.uri
+        targetLrcUri?.let { uri ->
+            openTruncatedOutputStream(context, uri)?.use { out ->
                 out.write(lyrics.toByteArray())
             }
         }
@@ -167,28 +167,42 @@ object CacheExporter {
             return@withContext Result.failure(Exception("缓存文件不完整"))
         }
 
+        val targetSafUri = targetSafUriString.toUri()
         var cleanupDocFile: DocumentFile? = null
-        val (rootDoc, docFile, finalFileName) = try {
+        var existingLrcUri: Uri? = null
+        val (rootDoc, docUri, finalFileName) = try {
             val resolvedRootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
                 ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
 
             val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
             val resolvedFileName = buildExportFileName(song, suffix)
+            val lrcFileName = FormatUtils.replaceExtensionWithLrc(resolvedFileName)
+            val preScanned = SafDirectoryHelper.findChildrenByName(
+                context = context,
+                treeUri = targetSafUri,
+                targetNames = setOf(resolvedFileName, lrcFileName)
+            )
+            existingLrcUri = preScanned[lrcFileName]?.uri
 
-            val mimeType = FormatUtils.getMimeTypeFromExtension(suffix)
-            val targetDoc = resolvedRootDoc.findFile(resolvedFileName)
-                ?: resolvedRootDoc.createFile(mimeType, resolvedFileName)
-            if (targetDoc == null) {
-                LogManager.e("CacheExporter: Could not create file in SAF: $resolvedFileName")
-                return@withContext Result.failure(Exception("无法创建目标文件"))
+            val existingAudio = preScanned[resolvedFileName]
+            val targetDocUri = if (existingAudio != null) {
+                existingAudio.uri
+            } else {
+                val mimeType = FormatUtils.getMimeTypeFromExtension(suffix)
+                val createdDoc = resolvedRootDoc.createFile(mimeType, resolvedFileName)
+                    ?: run {
+                        LogManager.e("CacheExporter: Could not create file in SAF: $resolvedFileName")
+                        return@withContext Result.failure(Exception("无法创建目标文件"))
+                    }
+                cleanupDocFile = createdDoc
+                createdDoc.uri
             }
-            cleanupDocFile = targetDoc
 
-            LogManager.d("CacheExporter: Streaming ${song.id} directly to SAF: ${targetDoc.uri}")
-            openTruncatedOutputStream(context, targetDoc.uri)?.use { outputStream ->
+            LogManager.d("CacheExporter: Streaming ${song.id} directly to SAF: $targetDocUri")
+            openTruncatedOutputStream(context, targetDocUri)?.use { outputStream ->
                 streamCacheToOutput(cache, song.id, contentLength, outputStream)
             } ?: throw Exception("Failed to open SAF output stream")
-            Triple(resolvedRootDoc, targetDoc, resolvedFileName)
+            Triple(resolvedRootDoc, targetDocUri, resolvedFileName)
         } catch (e: Exception) {
             if (e !is CancellationException) {
                 LogManager.e("CacheExporter: Export failed for ${song.id}", e)
@@ -206,7 +220,7 @@ object CacheExporter {
 
         if (!lyrics.isNullOrBlank()) {
             try {
-                writeLyricsToSaf(context, rootDoc, finalFileName, lyrics)
+                writeLyricsToSaf(context, rootDoc, finalFileName, lyrics, existingLrcUri = existingLrcUri)
             } catch (lrcEx: Exception) {
                 if (lrcEx is CancellationException) throw lrcEx
                 LogManager.w(
@@ -216,7 +230,7 @@ object CacheExporter {
         }
 
         LogManager.i("CacheExporter: Bit-perfect export complete for ${song.id}")
-        Result.success(docFile.uri.toString())
+        Result.success(docUri.toString())
     }
 
     suspend fun exportToPrivate(
@@ -300,23 +314,34 @@ object CacheExporter {
             return@withContext Result.failure(Exception("私有源文件不存在"))
         }
 
+        val targetSafUri = targetSafUriString.toUri()
         var cleanupDocFile: DocumentFile? = null
-        val (rootDoc, docFile, finalFileName) = try {
+        var existingLrcUri: Uri? = null
+        val (rootDoc, docUri, finalFileName) = try {
             val resolvedRootDoc = getCachedOrCreateRootDoc(context, targetSafUriString)
                 ?: return@withContext Result.failure(Exception("无法访问目标文件夹"))
 
             val suffix = sourceFile.extension.takeIf { it.isNotBlank() }?.lowercase()
                 ?: resolveExtension(song, null, preferencesManager.targetTranscodeFormat.first())
             val resolvedFileName = buildExportFileName(song, suffix)
+            val lrcFileName = FormatUtils.replaceExtensionWithLrc(resolvedFileName)
+            val preScanned = SafDirectoryHelper.findChildrenByName(
+                context = context,
+                treeUri = targetSafUri,
+                targetNames = setOf(resolvedFileName, lrcFileName)
+            )
+            existingLrcUri = preScanned[lrcFileName]?.uri
 
-            val existingFile = resolvedRootDoc.findFile(resolvedFileName)?.takeIf { it.exists() }
-            val targetDoc = if (existingFile != null && existingFile.length() == sourceFile.length()) {
+            val existingAudio = preScanned[resolvedFileName]
+            val targetDocUri = if (existingAudio != null && existingAudio.size == sourceFile.length()) {
                 LogManager.i(
                     "CacheExporter: File already exists in SAF with matching size, skipping stream write: $resolvedFileName"
                 )
-                existingFile
+                existingAudio.uri
             } else {
-                existingFile?.delete()
+                if (existingAudio != null) {
+                    DocumentFile.fromSingleUri(context, existingAudio.uri)?.delete()
+                }
                 val mimeType = FormatUtils.getMimeTypeFromExtension(suffix)
                 val createdDoc = resolvedRootDoc.createFile(mimeType, resolvedFileName)
                     ?: return@withContext Result.failure(Exception("无法创建目标文件"))
@@ -324,9 +349,9 @@ object CacheExporter {
                 openTruncatedOutputStream(context, createdDoc.uri)?.use { outputStream ->
                     sourceFile.inputStream().use { inputStream -> inputStream.copyTo(outputStream) }
                 } ?: throw Exception("Failed to open SAF output stream")
-                createdDoc
+                createdDoc.uri
             }
-            Triple(resolvedRootDoc, targetDoc, resolvedFileName)
+            Triple(resolvedRootDoc, targetDocUri, resolvedFileName)
         } catch (e: Exception) {
             if (e !is CancellationException) {
                 LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
@@ -346,10 +371,9 @@ object CacheExporter {
         if (sourceLrcFile.exists()) {
             try {
                 val lrcFileName = FormatUtils.replaceExtensionWithLrc(finalFileName)
-                val lrcFile = rootDoc.findFile(lrcFileName)?.takeIf { it.exists() }
-                    ?: rootDoc.createFile("application/octet-stream", lrcFileName)
-                lrcFile?.let { file ->
-                    openTruncatedOutputStream(context, file.uri)?.use { out ->
+                val targetLrcUri = existingLrcUri ?: rootDoc.createFile("application/octet-stream", lrcFileName)?.uri
+                targetLrcUri?.let { uri ->
+                    openTruncatedOutputStream(context, uri)?.use { out ->
                         sourceLrcFile.inputStream().use { input -> input.copyTo(out) }
                     }
                 }
@@ -361,7 +385,7 @@ object CacheExporter {
             }
         }
 
-        LogManager.i("CacheExporter: Exported private file to SAF: ${docFile.uri}")
-        Result.success(docFile.uri.toString())
+        LogManager.i("CacheExporter: Exported private file to SAF: $docUri")
+        Result.success(docUri.toString())
     }
 }
