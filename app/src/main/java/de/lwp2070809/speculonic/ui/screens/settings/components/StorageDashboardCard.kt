@@ -101,7 +101,7 @@ fun StorageDashboardCard(
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Warning,
-                                contentDescription = stringResource(R.string.clear_cache_quota_warning),
+                                contentDescription = stringResource(R.string.clear_cover_art_cache_title),
                                 tint = MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(18.dp)
                             )

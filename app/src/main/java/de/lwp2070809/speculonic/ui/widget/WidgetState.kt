@@ -17,14 +17,3 @@ object WidgetStateKeys {
     val KEY_HAS_TRACK = booleanPreferencesKey("has_track")
     val KEY_BACKGROUND_ALPHA = floatPreferencesKey("background_alpha")
 }
-
-data class MusicWidgetData(
-    val songId: String = "",
-    val title: String = "",
-    val artist: String = "",
-    val album: String = "",
-    val artworkUri: String = "",
-    val isPlaying: Boolean = false,
-    val hasTrack: Boolean = false,
-    val backgroundAlpha: Float = 0.85f
-)

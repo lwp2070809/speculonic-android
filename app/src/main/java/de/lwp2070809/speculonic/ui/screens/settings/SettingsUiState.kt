@@ -12,6 +12,12 @@ enum class CacheClearTarget {
     SONGS
 }
 
+enum class LanguageOption(val tag: String) {
+    SYSTEM("system"),
+    EN("en"),
+    ZH("zh")
+}
+
 data class SettingsUiState(
     val serverUrl: String = "",
     val username: String = "",
@@ -63,7 +69,7 @@ data class SettingsUiState(
     val showSilentCacheConfirm: Boolean = false,
     val showBluetoothPermissionRequest: Boolean = false,
 
-    val language: String = "System",
+    val language: LanguageOption = LanguageOption.SYSTEM,
     val isTestingConnection: Boolean = false,
     val testConnectionResult: Pair<Boolean, String?>? = null,
     val urlError: String? = null,

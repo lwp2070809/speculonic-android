@@ -306,7 +306,6 @@
     <string name="offline_downloads">离线下载</string>
     <string name="silent_cache_tab">静默缓存</string>
     <string name="cover_quota_exceeded">专辑封面缓存已超过配额！</string>
-    <string name="clear_cache_quota_warning">一键清除内部缓存</string>
     <string name="clear_queue_keep_cache">清除队列</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部开始</string>
@@ -406,7 +405,6 @@
     <string name="disc_format">光盘 %1$d</string>
     <string name="disc_named_format">光盘 %1$d：%2$s</string>
     <string name="disc_summary_format">%1$d 首歌曲 • %2$s</string>
-    <string name="play_disc">播放本碟</string>
     <string name="cd_play_disc">播放此光盘</string>
 
     <!-- 微件文案 -->
@@ -417,11 +415,12 @@
     <string name="widget_action_pause">暂停</string>
     <string name="widget_action_previous">上一首</string>
     <string name="widget_action_next">下一首</string>
-    <string name="widget_open_app">打开 Speculonic</string>
     <string name="widget_settings_title">微件设置</string>
     <string name="widget_opacity">微件不透明度</string>
     <string name="widget_opacity_desc">调节桌面音乐微件的卡片背景透明度</string>
     <string name="widget_preview">效果预览</string>
+    <string name="widget_preview_title">Speculonic 音乐</string>
+    <string name="widget_preview_subtitle">正在播放</string>
     <string name="action_save">保存</string>
     <string name="clear_cover_art_cache_title">清除封面缓存</string>
     <string name="clear_cover_art_cache_confirm">确定要清除全部已缓存的专辑与艺术家封面图片吗？</string>
@@ -432,4 +431,10 @@
     <string name="credentials_reset_warning_title">服务器凭据需要重新验证</string>
     <string name="credentials_reset_warning_message">由于设备密钥变动或存储异常，原加密凭据无法解锁，系统已将其安全清除。请重新输入服务器地址与账号密码；本地曲库数据及离线歌曲缓存均完好保留。</string>
     <string name="refresh_offline_toast">当前处于离线或无网络状态，无法刷新</string>
+    <string name="refresh_failed">刷新失败</string>
+    <string name="cd_expand">展开</string>
+    <string name="cd_collapse">折叠</string>
+    <string name="yes">是</string>
+    <string name="no">否</string>
+    <string name="logs_copied_truncated_to_clipboard">日志过长，已复制最近部分内容；完整日志请使用分享功能导出</string>
 </resources>

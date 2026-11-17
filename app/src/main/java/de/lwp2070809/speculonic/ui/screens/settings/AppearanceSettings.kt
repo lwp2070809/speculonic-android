@@ -157,9 +157,9 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
         
         var expandedLanguage by remember { mutableStateOf(false) }
         val languages = listOf(
-            "system" to stringResource(R.string.system_default),
-            "en" to stringResource(R.string.english),
-            "zh" to stringResource(R.string.chinese)
+            LanguageOption.SYSTEM to stringResource(R.string.system_default),
+            LanguageOption.EN to stringResource(R.string.english),
+            LanguageOption.ZH to stringResource(R.string.chinese)
         )
 
         ExposedDropdownMenuBox(
@@ -168,7 +168,7 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             modifier = Modifier.fillMaxWidth()
         ) {
             OutlinedTextField(
-                value = uiState.language,
+                value = languages.find { it.first == uiState.language }?.second ?: stringResource(R.string.system_default),
                 onValueChange = {},
                 readOnly = true,
                 label = { Text(stringResource(R.string.language)) },
@@ -182,11 +182,11 @@ fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 expanded = expandedLanguage,
                 onDismissRequest = { expandedLanguage = false }
             ) {
-                languages.forEach { (code, label) ->
+                languages.forEach { (option, label) ->
                     DropdownMenuItem(
                         text = { Text(label) },
                         onClick = {
-                            viewModel.setLanguage(code)
+                            viewModel.setLanguage(option)
                             expandedLanguage = false
                         },
                         contentPadding = ExposedDropdownMenuDefaults.ItemContentPadding

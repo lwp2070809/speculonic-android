@@ -17,6 +17,9 @@ import java.io.FileInputStream
 import java.security.MessageDigest
 
 object SongAudioMetadataExtractor {
+    const val KEY_FORMAT_INFO = "__FORMAT_INFO__"
+    const val KEY_LYRICS_PARSED = "Lyrics (Parsed)"
+
     private val TEXT_CLEAN_REGEX = Regex("^Text=\"?|\"?$")
 
     suspend fun calculateSha1(uriString: String, context: Context): String? = withContext(Dispatchers.IO) {
@@ -105,7 +108,7 @@ object SongAudioMetadataExtractor {
                 }
             }
             if (formatStr.isNotEmpty()) {
-                metadataMap["__FORMAT_INFO__"] = formatStr
+                metadataMap[KEY_FORMAT_INFO] = formatStr
             }
 
             val tag = audioFile.tag
@@ -119,7 +122,7 @@ object SongAudioMetadataExtractor {
 
                 val lyrics = tag.getFirst(FieldKey.LYRICS)
                 if (!lyrics.isNullOrEmpty()) {
-                    metadataMap["Lyrics (Parsed)"] = lyrics
+                    metadataMap[KEY_LYRICS_PARSED] = lyrics
                 }
 
                 val fields = tag.fields

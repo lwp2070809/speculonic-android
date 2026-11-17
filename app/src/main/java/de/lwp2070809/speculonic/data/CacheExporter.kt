@@ -82,7 +82,20 @@ object CacheExporter {
     ): String {
         val safeTitle = sanitizeFileName(song.title)
         val safeArtist = sanitizeFileName(song.artist ?: "Unknown Artist")
-        return "$safeArtist - $safeTitle [${song.id}].$extension"
+        val suffix = "[${song.id}].$extension"
+        val lrcSuffix = "[${song.id}].lrc"
+        // 同步考虑同源 .lrc 歌词文件，确保音频和伴生歌词文件名均不超过 255 UTF-8 字节上限
+        val maxSuffixBytes = maxOf(
+            " $suffix".encodeToByteArray().size,
+            " $lrcSuffix".encodeToByteArray().size
+        )
+        val maxPrefixBytes = (255 - maxSuffixBytes).coerceAtLeast(0)
+        val prefix = FormatUtils.truncateUtf8("$safeArtist - $safeTitle", maxPrefixBytes).trimEnd()
+        return if (prefix.isEmpty()) {
+            FormatUtils.truncateUtf8(suffix, 255)
+        } else {
+            "$prefix $suffix"
+        }
     }
 
     private fun getCacheContentLength(

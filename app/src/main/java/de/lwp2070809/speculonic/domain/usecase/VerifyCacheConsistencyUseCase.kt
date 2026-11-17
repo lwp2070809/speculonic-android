@@ -1,12 +1,12 @@
 package de.lwp2070809.speculonic.domain.usecase
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.CacheValidator
-import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.model.InconsistentItem
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
@@ -43,58 +43,70 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
 
             val cachedSongs = musicDao.getAllCachedSongs()
             if (cachedSongs.isNotEmpty()) {
-                val groups = cachedSongs.groupBy { it.albumId ?: it.parent ?: "unknown" }
-                val totalGroups = groups.size
-                var processedGroups = 0
+                val totalFiles = cachedSongs.size
+                var processedFiles = 0
+                var lastEmittedProgress = -1
+                var lastEmitTimeMs = 0L
 
-                for ((groupId, groupSongs) in groups) {
-                    processedGroups++
-                    val progressValue = (processedGroups * 90 / totalGroups)
-                    emit(VerifyCacheState.Progress(progressValue, context.getString(R.string.verifying_binary_consistency, groupId)))
-
-                    for (song in groupSongs) {
-                        val physicalExists = if (isSafEnabled && song.localUri != null) {
-                            when {
-                                song.localUri in safUriSet -> true
-                                song.localUri.startsWith("file:") -> {
-                                    val path = song.localUri.toUri().path
-                                    path != null && java.io.File(path).exists()
-                                }
-                                else -> {
-                                    try {
-                                        androidx.documentfile.provider.DocumentFile.fromSingleUri(
-                                            context,
-                                            song.localUri.toUri()
-                                        )?.exists() == true
-                                    } catch (e: Exception) {
-                                        if (e is kotlinx.coroutines.CancellationException) throw e
-                                        false
-                                    }
-                                }
-                            }
-                        } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
-                            try {
+                for (song in cachedSongs) {
+                    processedFiles++
+                    val progressValue = (processedFiles * 90 / totalFiles)
+                    val nowMs = SystemClock.elapsedRealtime()
+                    val shouldEmit = processedFiles == 1 ||
+                        processedFiles == totalFiles ||
+                        (progressValue != lastEmittedProgress && nowMs - lastEmitTimeMs >= 50L) ||
+                        (nowMs - lastEmitTimeMs >= 250L)
+                    if (shouldEmit) {
+                        lastEmittedProgress = progressValue
+                        lastEmitTimeMs = nowMs
+                        emit(
+                            VerifyCacheState.Progress(
+                                progressValue,
+                                context.getString(R.string.verifying_binary_consistency, "$processedFiles/$totalFiles")
+                            )
+                        )
+                    }
+                    val physicalExists = if (isSafEnabled && song.localUri != null) {
+                        when {
+                            song.localUri in safUriSet -> true
+                            song.localUri.startsWith("file:") -> {
                                 val path = song.localUri.toUri().path
                                 path != null && java.io.File(path).exists()
-                            } catch (e: Exception) {
-                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                false
                             }
-                        } else {
-                            downloadCache.keys.contains(song.id)
-                        }
-
-                        if (!physicalExists) {
-                            inconsistentList.add(InconsistentItem(song.id, "${song.artist} - ${song.title}", InconsistentItem.Type.MISSING_FILE, song.localUri, song))
-                            continue
-                        }
-
-                        if (song.localUri != null) {
-                            val uri = song.localUri.toUri()
-                            val isConsistent = validator.checkBinaryConsistency(uri, song, deepCheck = true)
-                            if (!isConsistent) {
-                                inconsistentList.add(InconsistentItem(song.id, "${song.artist} - ${song.title}", InconsistentItem.Type.BINARY_MISMATCH, song.localUri, song))
+                            else -> {
+                                try {
+                                    androidx.documentfile.provider.DocumentFile.fromSingleUri(
+                                        context,
+                                        song.localUri.toUri()
+                                    )?.exists() == true
+                                } catch (e: Exception) {
+                                    if (e is kotlinx.coroutines.CancellationException) throw e
+                                    false
+                                }
                             }
+                        }
+                    } else if (!isSafEnabled && song.localUri != null && song.localUri.startsWith("file:")) {
+                        try {
+                            val path = song.localUri.toUri().path
+                            path != null && java.io.File(path).exists()
+                        } catch (e: Exception) {
+                            if (e is kotlinx.coroutines.CancellationException) throw e
+                            false
+                        }
+                    } else {
+                        downloadCache.keys.contains(song.id)
+                    }
+
+                    if (!physicalExists) {
+                        inconsistentList.add(InconsistentItem(song.id, "${song.artist} - ${song.title}", InconsistentItem.Type.MISSING_FILE, song.localUri, song))
+                        continue
+                    }
+
+                    if (song.localUri != null) {
+                        val uri = song.localUri.toUri()
+                        val isConsistent = validator.checkBinaryConsistency(uri, song, deepCheck = true)
+                        if (!isConsistent) {
+                            inconsistentList.add(InconsistentItem(song.id, "${song.artist} - ${song.title}", InconsistentItem.Type.BINARY_MISMATCH, song.localUri, song))
                         }
                     }
                 }

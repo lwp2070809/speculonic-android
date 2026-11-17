@@ -274,7 +274,7 @@ class SettingsViewModel @Inject constructor(
                         autoOfflineOnMetered = autoOffline,
                         offlineModeEnabled = offlineMode,
                         playerBackgroundMode = bgMode,
-                        language = getCurrentLanguageLabel()
+                        language = getCurrentLanguageOption()
                     )
                 }
             }.collect()
@@ -286,12 +286,6 @@ class SettingsViewModel @Inject constructor(
     fun updateAutoOfflineOnMetered(enabled: Boolean) {
         viewModelScope.launch {
             preferencesManager.saveAutoOfflineOnMetered(enabled)
-        }
-    }
-
-    fun updateOfflineModeEnabled(enabled: Boolean) {
-        viewModelScope.launch {
-            preferencesManager.saveOfflineModeEnabled(enabled)
         }
     }
 
@@ -420,12 +414,6 @@ class SettingsViewModel @Inject constructor(
     }
 
 
-    fun updateBluetoothCarDeviceNames(deviceNames: Set<String>) {
-        viewModelScope.launch {
-            preferencesManager.saveBluetoothCarDeviceNames(deviceNames)
-        }
-    }
-
     fun updateUpdateCheckInterval(interval: de.lwp2070809.speculonic.data.UpdateCheckInterval) {
         viewModelScope.launch {
             preferencesManager.saveUpdateCheckInterval(interval)
@@ -511,10 +499,6 @@ class SettingsViewModel @Inject constructor(
         if (granted) {
             viewModelScope.launch { preferencesManager.saveCarBluetoothEnabled(true) }
         }
-    }
-
-    fun dismissBluetoothPermissionRequest() {
-        _uiState.update { it.copy(showBluetoothPermissionRequest = false) }
     }
 
     fun saveSettings(
@@ -969,29 +953,25 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
-    fun setLanguage(languageCode: String) {
-        val appLocale = if (languageCode == "system") {
+    fun setLanguage(option: LanguageOption) {
+        val appLocale = if (option == LanguageOption.SYSTEM) {
             LocaleListCompat.getEmptyLocaleList()
         } else {
-            LocaleListCompat.forLanguageTags(languageCode)
+            LocaleListCompat.forLanguageTags(option.tag)
         }
         AppCompatDelegate.setApplicationLocales(appLocale)
-        _uiState.update { it.copy(language = getLanguageLabel(languageCode)) }
+        _uiState.update { it.copy(language = option) }
     }
 
-    private fun getCurrentLanguageLabel(): String {
+    private fun getCurrentLanguageOption(): LanguageOption {
         val currentLocales = AppCompatDelegate.getApplicationLocales()
-        return if (!currentLocales.isEmpty) {
-            getLanguageLabel(currentLocales.get(0)?.toLanguageTag() ?: "system")
-        } else {
-            context.getString(R.string.system)
+        if (currentLocales.isEmpty) return LanguageOption.SYSTEM
+        val tag = currentLocales.get(0)?.toLanguageTag().orEmpty()
+        return when {
+            tag.startsWith("en") -> LanguageOption.EN
+            tag.startsWith("zh") -> LanguageOption.ZH
+            else -> LanguageOption.SYSTEM
         }
-    }
-
-    private fun getLanguageLabel(code: String): String = when {
-        code.startsWith("en") -> "English"
-        code.startsWith("zh") -> "简体中文"
-        else -> context.getString(R.string.system)
     }
 
 

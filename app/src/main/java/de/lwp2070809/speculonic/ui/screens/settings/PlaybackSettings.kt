@@ -26,6 +26,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +42,7 @@ import java.util.UUID
 fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
     val uiState by viewModel.uiState.collectAsState()
     val title = stringResource(R.string.play)
+    var showFormatDialog by rememberSaveable { mutableStateOf(false) }
 
     val screenToken = remember { UUID.randomUUID().toString() }
 
@@ -65,7 +67,7 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+            .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
 
         ListItem(
@@ -145,13 +147,15 @@ fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             trailingContent = {
                 Switch(
                     checked = uiState.transcodeIncompatibleFormats,
-                    onCheckedChange = { viewModel.updateTranscodeIncompatibleFormats(it) }
+                    onCheckedChange = { enabled ->
+                        if (!enabled) showFormatDialog = false
+                        viewModel.updateTranscodeIncompatibleFormats(enabled)
+                    }
                 )
             }
         )
 
         if (uiState.transcodeIncompatibleFormats) {
-            var showFormatDialog by remember { mutableStateOf(false) }
             val currentFormatLabel = when (uiState.targetTranscodeFormat.lowercase()) {
                 "mp3" -> stringResource(R.string.format_mp3)
                 "flac" -> stringResource(R.string.format_flac)

@@ -22,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -300,8 +301,9 @@ fun AlbumHeader(album: Album?) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(4.dp))
+            val songCount = album?.songCount ?: 0
             Text(
-                text = "${album?.songCount ?: 0} ${stringResource(R.string.songs)} • ${FormatUtils.formatDuration(album?.duration ?: 0)}",
+                text = "${pluralStringResource(R.plurals.songs_count, songCount, songCount)} • ${FormatUtils.formatDuration(album?.duration ?: 0)}",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

@@ -27,7 +27,16 @@ import kotlinx.coroutines.withContext
  */
 object WidgetCoverLoader {
     private const val TAG = "WidgetCoverLoader"
-    private val coverBitmapCache = LruCache<String, Bitmap>(16)
+    private const val COVER_CACHE_MAX_SIZE_KB = 4 * 1024
+    private val coverBitmapCache = object : LruCache<String, Bitmap>(COVER_CACHE_MAX_SIZE_KB) {
+        override fun sizeOf(key: String, value: Bitmap): Int {
+            return (value.allocationByteCount / 1024).coerceAtLeast(1)
+        }
+    }
+
+    fun clearCache() {
+        coverBitmapCache.evictAll()
+    }
 
     /**
      * 纯内存极速获取封面位图（O(1) 复杂度，零 IO 与零阻塞）：

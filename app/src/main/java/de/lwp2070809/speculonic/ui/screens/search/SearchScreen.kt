@@ -270,7 +270,7 @@ fun ArtistSearchItem(artist: Artist, onClick: () -> Unit) {
     val coverRequester = LocalCoverArtRequester.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val model = androidx.compose.runtime.remember(artist.coverArt) {
-        coverRequester.buildCoverArtRequest(artist.coverArt, context, preferLocal = true)
+        coverRequester.buildCoverArtRequest(artist.coverArt, context, preferLocal = true, size = 200)
     }
     ListItem(
         headlineContent = { Text(artist.name) },
@@ -291,7 +291,7 @@ fun AlbumSearchItem(album: Album, onClick: () -> Unit) {
     val coverRequester = LocalCoverArtRequester.current
     val context = androidx.compose.ui.platform.LocalContext.current
     val model = androidx.compose.runtime.remember(album.coverArt) {
-        coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+        coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true, size = 200)
     }
     ListItem(
         headlineContent = { Text(album.name) },

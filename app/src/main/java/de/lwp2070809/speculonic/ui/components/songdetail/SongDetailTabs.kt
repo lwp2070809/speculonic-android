@@ -30,6 +30,7 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.util.FormatUtils
+import de.lwp2070809.speculonic.util.SongAudioMetadataExtractor
 
 @Composable
 fun LocalDbTab(
@@ -71,7 +72,10 @@ fun LocalDbTab(
         DetailItem(stringResource(R.string.file_size), FormatUtils.formatSize(songEntity.size ?: 0))
         DetailItem(stringResource(R.string.path), songEntity.path ?: "-")
         DetailItem(stringResource(R.string.content_type), songEntity.contentType ?: "-")
-        DetailItem(stringResource(R.string.starred_status), songEntity.starred.toString())
+        DetailItem(
+            stringResource(R.string.starred_status),
+            stringResource(if (songEntity.starred) R.string.yes else R.string.no)
+        )
 
         DetailItem(stringResource(R.string.id), songEntity.id)
         DetailItem(stringResource(R.string.artist_id), songEntity.artistId ?: "-")
@@ -108,8 +112,8 @@ fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean) {
             Text(stringResource(R.string.no_metadata_found))
             return@Column
         }
-        id3Metadata.filterKeys { it != "__FORMAT_INFO__" }.forEach { (key, value) ->
-            if (key.startsWith("Lyrics")) {
+        id3Metadata.filterKeys { it != SongAudioMetadataExtractor.KEY_FORMAT_INFO }.forEach { (key, value) ->
+            if (key == SongAudioMetadataExtractor.KEY_LYRICS_PARSED) {
                 Column {
                     Text(
                         text = key,
@@ -129,7 +133,7 @@ fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean) {
             }
         }
 
-        val formatInfo = id3Metadata["__FORMAT_INFO__"]
+        val formatInfo = id3Metadata[SongAudioMetadataExtractor.KEY_FORMAT_INFO]
         if (formatInfo != null) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             Text(

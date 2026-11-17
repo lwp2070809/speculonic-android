@@ -451,9 +451,8 @@ internal class ClickBlockerNavEntryDecorator<T : Any> : NavEntryDecorator<T>(
         val lifecycleOwner = LocalLifecycleOwner.current
         val lifecycleState by lifecycleOwner.lifecycle.currentStateFlow.collectAsState(initial = lifecycleOwner.lifecycle.currentState)
         val isTransitioning = lifecycleState < Lifecycle.State.RESUMED
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
+        val blockerModifier = if (isTransitioning) {
+            Modifier
                 .pointerInput(Unit) {
                     awaitPointerEventScope {
                         while (true) {
@@ -466,10 +465,15 @@ internal class ClickBlockerNavEntryDecorator<T : Any> : NavEntryDecorator<T>(
                     }
                 }
                 .semantics {
-                    if (isTransitioning) {
-                        onClick(action = { true })
-                    }
+                    onClick(action = { true })
                 }
+        } else {
+            Modifier
+        }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(blockerModifier)
         ) {
             entry.Content()
         }

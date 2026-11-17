@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.util
 
 import android.net.Uri
+import android.os.Environment
 import androidx.core.net.toUri
 import java.util.Locale
 import kotlin.math.log10
@@ -83,7 +84,10 @@ object FormatUtils {
             val decoded = Uri.decode(docId)
             
             if (decoded.startsWith("primary:")) {
-                return "/storage/emulated/0/" + decoded.substring(8)
+                // SAF primary: documentId 对应主外部共享存储根目录，此处无 Context 可用
+                @Suppress("DEPRECATION")
+                val primaryRoot = Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
+                return "$primaryRoot/" + decoded.substring(8)
             }
             return decoded
         } catch (e: Exception) {
@@ -110,5 +114,26 @@ object FormatUtils {
 
     fun getMimeTypeFromExtension(extension: String?): String {
         return MediaFormatUtils.getMimeTypeFromExtension(extension)
+    }
+
+    fun truncateUtf8(text: String, maxBytes: Int): String {
+        if (maxBytes <= 0 || text.isEmpty()) return ""
+        if (text.length * 3 <= maxBytes || text.encodeToByteArray().size <= maxBytes) return text
+        var endIndex = 0
+        var usedBytes = 0
+        while (endIndex < text.length) {
+            val codePoint = text.codePointAt(endIndex)
+            val charCount = Character.charCount(codePoint)
+            val cpBytes = when {
+                codePoint <= 0x7F -> 1
+                codePoint <= 0x7FF -> 2
+                codePoint <= 0xFFFF -> 3
+                else -> 4
+            }
+            if (usedBytes + cpBytes > maxBytes) break
+            usedBytes += cpBytes
+            endIndex += charCount
+        }
+        return text.substring(0, endIndex)
     }
 }

@@ -85,24 +85,17 @@ class MediaRepository(
         hasLocalData: Boolean,
         skipInsert: Boolean = false
     ): List<Album> {
-        if (!forceRefresh) {
-            val cached = musicDao.getAlbumsByListType(type)
-            if (cached.isNotEmpty()) {
-                if (cached.size > offset) {
-                    return cached.drop(offset).take(size).map { entityMapper.toAlbum(it) }
-                }
-            }
-            if (hasLocalData && type != "random") {
-                return emptyList()
-            }
-        }
-
-        
         if (forceRefresh) {
             return refreshAlbumList(type, size, offset, skipInsert = skipInsert)
         }
-        
-        return musicDao.getAlbumsByListType(type).drop(offset).take(size).map { entityMapper.toAlbum(it) }
+        val cached = musicDao.getAlbumsByListType(type)
+        if (cached.size > offset) {
+            return cached.drop(offset).take(size).map { entityMapper.toAlbum(it) }
+        }
+        if (offset > 0 || !hasLocalData || type == "random") {
+            return refreshAlbumList(type, size, offset, skipInsert = skipInsert)
+        }
+        return emptyList()
     }
 
     suspend fun refreshAlbumList(

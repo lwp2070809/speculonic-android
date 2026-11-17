@@ -12,6 +12,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 
 @Composable
@@ -27,7 +28,7 @@ fun ActionButtonsRow(
     isPlayAllEnabled: Boolean = true,
     isShuffleEnabled: Boolean = true
 ) {
-    var showDownloadAllDialog by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+    var showDownloadAllDialog by androidx.compose.runtime.saveable.rememberSaveable { androidx.compose.runtime.mutableStateOf(false) }
 
     if (showDownloadAllDialog) {
         AlertDialog(
@@ -64,7 +65,7 @@ fun ActionButtonsRow(
         ) {
             Icon(Icons.Default.PlayArrow, contentDescription = null)
             Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.play_all), maxLines = 1)
+            Text(stringResource(R.string.play_all), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
         
         OutlinedButton(
@@ -75,7 +76,7 @@ fun ActionButtonsRow(
         ) {
             Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_shuffle), contentDescription = null)
             Spacer(Modifier.width(4.dp))
-            Text(stringResource(R.string.shuffle), maxLines = 1)
+            Text(stringResource(R.string.shuffle), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
 
         if (isDownloading) {
@@ -90,7 +91,7 @@ fun ActionButtonsRow(
                 onClick = { showDownloadAllDialog = true },
                 enabled = isStreamingAllowed && isDownloadEnabled
             ) {
-                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download_filled), contentDescription = stringResource(R.string.download_all))
+                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = stringResource(R.string.download_all))
             }
         }
     }

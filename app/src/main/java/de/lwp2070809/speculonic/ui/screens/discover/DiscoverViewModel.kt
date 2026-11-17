@@ -40,7 +40,8 @@ data class DiscoverUiState(
     val recentlyAdded: List<Album> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
     val mostPlayed: List<Album> = emptyList(),
-    val error: String? = null
+    val errorMessage: String? = null,
+    @androidx.annotation.StringRes val errorResId: Int? = null
 )
 
 private data class DiscoverDataPackage(
@@ -211,13 +212,19 @@ class DiscoverViewModel @Inject constructor(
                 }
                 
                 _uiState.update { state ->
-                    state.copy(error = null)
+                    state.copy(errorMessage = null, errorResId = null)
                 }
                 LogManager.i("DiscoverViewModel: Targeted refresh completed successfully.")
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: refreshData failed", e)
-                _uiState.update { it.copy(error = e.localizedMessage ?: "刷新失败") }
+                val msg = e.localizedMessage?.takeIf { it.isNotBlank() }
+                _uiState.update {
+                    it.copy(
+                        errorMessage = msg,
+                        errorResId = if (msg == null) de.lwp2070809.speculonic.R.string.refresh_failed else null
+                    )
+                }
             } finally {
                 _uiState.update { it.copy(isRefreshing = false) }
             }
@@ -226,7 +233,7 @@ class DiscoverViewModel @Inject constructor(
 
     fun refreshFavoriteAlbums() {
         viewModelScope.launch {
-            _uiState.update { it.copy(isLoading = true, error = null) }
+            _uiState.update { it.copy(isLoading = true, errorMessage = null, errorResId = null) }
             try {
                 repository.refreshStarredData(forceRefresh = true)
                 _uiState.update { state ->
@@ -237,7 +244,14 @@ class DiscoverViewModel @Inject constructor(
             } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
                 LogManager.e("DiscoverViewModel: refreshFavoriteAlbums failed", e)
-                _uiState.update { it.copy(isLoading = false, error = e.localizedMessage ?: "刷新失败") }
+                val msg = e.localizedMessage?.takeIf { it.isNotBlank() }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        errorMessage = msg,
+                        errorResId = if (msg == null) de.lwp2070809.speculonic.R.string.refresh_failed else null
+                    )
+                }
             }
         }
     }
@@ -276,6 +290,6 @@ class DiscoverViewModel @Inject constructor(
     }
 
     fun clearError() {
-        _uiState.update { it.copy(error = null) }
+        _uiState.update { it.copy(errorMessage = null, errorResId = null) }
     }
 }

@@ -170,7 +170,7 @@ fun FavoriteList(
                         if (playIndex != -1) {
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
-                                playbackController.play(mediaItems, playIndex, queueTitle = "Favorite")
+                                playbackController.play(mediaItems, playIndex, queueTitle = favoriteQueueTitle)
                             }
                         }
                     },

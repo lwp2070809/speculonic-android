@@ -30,9 +30,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -41,6 +43,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
@@ -56,14 +59,15 @@ fun PlaylistList(
     onCreatePlaylist: (String) -> Unit,
     onDeletePlaylist: (String) -> Unit,
     isOnline: Boolean,
-    isEffectivelyOnline: Boolean
+    isEffectivelyOnline: Boolean,
+    isInitialLoadComplete: Boolean = true
 ) {
     val coverRequester = LocalCoverArtRequester.current
-    var showCreateDialog by remember { mutableStateOf(false) }
-    var playlistToDelete by remember { mutableStateOf<Playlist?>(null) }
+    var showCreateDialog by rememberSaveable { mutableStateOf(false) }
+    var playlistIdToDelete by rememberSaveable { mutableStateOf<String?>(null) }
 
     if (showCreateDialog) {
-        var playlistName by remember { mutableStateOf("") }
+        var playlistName by rememberSaveable { mutableStateOf("") }
         AlertDialog(
             onDismissRequest = { showCreateDialog = false },
             title = { Text(stringResource(R.string.create_playlist)) },
@@ -96,16 +100,24 @@ fun PlaylistList(
         )
     }
 
+    val playlistToDelete = remember(playlistIdToDelete, playlists) {
+        playlistIdToDelete?.let { id -> playlists.find { it.id == id } }
+    }
+    LaunchedEffect(isInitialLoadComplete, playlistIdToDelete, playlistToDelete) {
+        if (isInitialLoadComplete && playlistIdToDelete != null && playlistToDelete == null) {
+            playlistIdToDelete = null
+        }
+    }
     if (playlistToDelete != null) {
         AlertDialog(
-            onDismissRequest = { playlistToDelete = null },
+            onDismissRequest = { playlistIdToDelete = null },
             title = { Text(stringResource(R.string.delete_playlist)) },
             text = { Text(stringResource(R.string.confirm_delete_playlist)) },
             confirmButton = {
                 Button(
                     onClick = {
-                        playlistToDelete?.let { onDeletePlaylist(it.id) }
-                        playlistToDelete = null
+                        onDeletePlaylist(playlistToDelete.id)
+                        playlistIdToDelete = null
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -113,7 +125,7 @@ fun PlaylistList(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { playlistToDelete = null }) {
+                TextButton(onClick = { playlistIdToDelete = null }) {
                     Text(stringResource(R.string.cancel))
                 }
             }
@@ -154,7 +166,7 @@ fun PlaylistList(
         }
 
         items(playlists, key = { it.id }) { playlist ->
-            var showMenu by remember { mutableStateOf(false) }
+            var showMenu by rememberSaveable { mutableStateOf(false) }
             Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerLow,
@@ -163,14 +175,14 @@ fun PlaylistList(
                     .clickable { onPlaylistClick(playlist.id) }
             ) {
                 ListItem(
-                    headlineContent = { Text(playlist.name, maxLines = 1) },
+                    headlineContent = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     supportingContent = { 
                         val songCount = playlist.songCount ?: 0
-                        Text(pluralStringResource(R.plurals.songs_count, songCount, songCount), maxLines = 1)
+                        Text(pluralStringResource(R.plurals.songs_count, songCount, songCount), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     },
                     leadingContent = {
                         val model = remember(playlist.coverArt) {
-                            coverRequester.buildRequest(playlist.coverArt, preferLocal = true)
+                            coverRequester.buildRequest(playlist.coverArt, preferLocal = true, size = 200)
                         }
                         AsyncImage(
                             model = model,
@@ -197,7 +209,7 @@ fun PlaylistList(
                                     leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null) },
                                     onClick = {
                                         showMenu = false
-                                        playlistToDelete = playlist
+                                        playlistIdToDelete = playlist.id
                                     },
                                     enabled = isEffectivelyOnline
                                 )

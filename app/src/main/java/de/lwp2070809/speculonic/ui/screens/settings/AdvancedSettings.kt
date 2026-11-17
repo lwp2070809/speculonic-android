@@ -479,6 +479,7 @@ fun LogViewerPane(
 
                                 // 复制全部文本
                                 val logsCopiedMessage = stringResource(R.string.logs_copied_to_clipboard)
+                                val logsCopiedTruncatedMessage = stringResource(R.string.logs_copied_truncated_to_clipboard)
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.content_description_copy_all)) },
                                     leadingIcon = {
@@ -489,11 +490,15 @@ fun LogViewerPane(
                                     },
                                     onClick = {
                                         moreMenuExpanded = false
-                                        val text = LogManager.getAllLogsText()
+                                        val (text, isTruncated) = LogManager.getRecentLogsForClipboard()
                                         val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         val clip = ClipData.newPlainText("Speculonic Logs", text)
                                         clipboard.setPrimaryClip(clip)
-                                        Toast.makeText(context, logsCopiedMessage, Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(
+                                            context,
+                                            if (isTruncated) logsCopiedTruncatedMessage else logsCopiedMessage,
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 )
 

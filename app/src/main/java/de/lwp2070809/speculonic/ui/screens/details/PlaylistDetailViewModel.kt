@@ -214,8 +214,4 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
-    fun removeFromPlaylist(index: Int, onResult: (Boolean) -> Unit = {}) {
-        val songId = _uiState.value.songs.getOrNull(index)?.id ?: ""
-        removeFromPlaylist(songId = songId, fallbackIndex = index, onResult = onResult)
-    }
 }

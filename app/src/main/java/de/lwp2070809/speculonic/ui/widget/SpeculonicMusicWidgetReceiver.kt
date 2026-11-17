@@ -24,4 +24,9 @@ class SpeculonicMusicWidgetReceiver : GlanceAppWidgetReceiver() {
         super.onEnabled(context)
         SpeculonicWidgetUpdater.enqueueUpdate(context)
     }
+
+    override fun onDisabled(context: Context) {
+        super.onDisabled(context)
+        WidgetCoverLoader.clearCache()
+    }
 }

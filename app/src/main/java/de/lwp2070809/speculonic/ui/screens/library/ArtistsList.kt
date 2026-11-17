@@ -34,7 +34,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
@@ -144,7 +146,7 @@ fun ArtistsList(
                                     )
                                     Icon(
                                         imageVector = if (item.isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                        contentDescription = if (item.isCollapsed) "Expand" else "Collapse",
+                                        contentDescription = stringResource(if (item.isCollapsed) R.string.cd_expand else R.string.cd_collapse),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         modifier = Modifier.size(20.dp)
                                     )
@@ -171,17 +173,24 @@ fun ArtistsList(
                                 .clickable { onArtistClick(artist) }
                         ) {
                             ListItem(
-                                headlineContent = { Text(artist.name, maxLines = 1) },
+                                headlineContent = {
+                                    Text(
+                                        text = artist.name,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                },
                                 supportingContent = { 
                                     val albumCount = artist.albumCount ?: 0
                                     Text(
                                         text = pluralStringResource(R.plurals.albums_count, albumCount, albumCount),
-                                        maxLines = 1
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     ) 
                                 },
                                 leadingContent = {
                                     val model = remember(artist.coverArt) {
-                                        coverRequester.buildRequest(artist.coverArt, preferLocal = true)
+                                        coverRequester.buildRequest(artist.coverArt, preferLocal = true, size = 200)
                                     }
                                     AsyncImage(
                                         model = model,

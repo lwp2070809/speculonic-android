@@ -332,9 +332,52 @@ object LogManager {
         }
     }
 
-    fun getAllLogsText(): String {
+    private const val CLIPBOARD_MAX_BYTES = 200 * 1024
+    private const val CLIPBOARD_TRUNCATION_NOTICE = "--- [Truncated: showing newest logs within 200 KB clipboard limit] ---\n"
+
+    fun getRecentLogsForClipboard(maxBytes: Int = CLIPBOARD_MAX_BYTES): Pair<String, Boolean> {
         flushIfDirty()
-        return _logs.value.joinToString("\n") { formatLogEntry(it) }
+        val entries = _logs.value
+        if (entries.isEmpty() || maxBytes <= 0) return "" to entries.isNotEmpty()
+
+        val isKaguya = minLevel == LogLevel.KAGUYA
+        val selected = ArrayList<Pair<String, Int>>()
+        var usedBytes = 0
+        var truncated = false
+
+        for (i in entries.indices.reversed()) {
+            val line = formatLogEntry(entries[i], isKaguya)
+            val lineBytes = line.encodeToByteArray().size
+            val separatorBytes = if (selected.isEmpty()) 0 else 1
+            if (usedBytes + separatorBytes + lineBytes > maxBytes) {
+                truncated = true
+                if (selected.isEmpty()) {
+                    val noticeBytes = CLIPBOARD_TRUNCATION_NOTICE.encodeToByteArray().size
+                    val singleBudget = (maxBytes - noticeBytes).coerceAtLeast(0)
+                    return (CLIPBOARD_TRUNCATION_NOTICE + FormatUtils.truncateUtf8(line, singleBudget)) to true
+                }
+                break
+            }
+            selected.add(line to lineBytes)
+            usedBytes += separatorBytes + lineBytes
+        }
+
+        if (!truncated) {
+            return selected.asReversed().joinToString("\n") { it.first } to false
+        }
+
+        val noticeBytes = CLIPBOARD_TRUNCATION_NOTICE.encodeToByteArray().size
+        val budget = (maxBytes - noticeBytes).coerceAtLeast(0)
+        while (selected.isNotEmpty() && usedBytes > budget) {
+            val removed = selected.removeAt(selected.lastIndex)
+            usedBytes -= removed.second + if (selected.isEmpty()) 0 else 1
+        }
+        if (selected.isEmpty()) {
+            val newestLine = formatLogEntry(entries.last(), isKaguya)
+            return (CLIPBOARD_TRUNCATION_NOTICE + FormatUtils.truncateUtf8(newestLine, budget)) to true
+        }
+        val body = selected.asReversed().joinToString("\n") { it.first }
+        return (CLIPBOARD_TRUNCATION_NOTICE + body) to true
     }
 }
 

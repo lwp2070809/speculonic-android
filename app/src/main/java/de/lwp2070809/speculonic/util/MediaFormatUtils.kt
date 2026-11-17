@@ -57,7 +57,7 @@ object MediaFormatUtils {
      * 匹配格式: "Artist - Title [songId].ext"
      */
     val CACHE_FILE_ID_PATTERN: Pattern = Pattern.compile(
-        ".*\\[(.+)\\]\\.(${ALL_SUPPORTED_AUDIO_EXTENSIONS.joinToString("|")}|$EXTENSION_LRC)$",
+        ".*\\[([^\\[\\]]+)\\]\\.(${ALL_SUPPORTED_AUDIO_EXTENSIONS.joinToString("|")}|$EXTENSION_LRC)$",
         Pattern.CASE_INSENSITIVE
     )
 

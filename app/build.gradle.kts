@@ -100,6 +100,11 @@ android {
         buildConfig = true
     }
 
+    androidResources {
+        generateLocaleConfig = true
+        localeFilters += listOf("en", "zh", "zh-rCN")
+    }
+
     sourceSets {
         getByName("debug") {
             java.directories.add("build/generated/ksp/debug/java")
@@ -176,7 +181,6 @@ dependencies {
     implementation(libs.androidx.media3.exoplayer)
     implementation(libs.androidx.media3.common)
     implementation(libs.androidx.media3.session)
-    implementation(libs.androidx.media3.ui)
     implementation(libs.androidx.media3.datasource.okhttp)
     implementation(libs.androidx.palette)
     implementation(libs.androidx.appcompat)

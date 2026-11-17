@@ -20,7 +20,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.collectLatest
@@ -36,7 +35,6 @@ class SubsonicRepository(
     private val musicDao: MusicDao,
     private val preferencesManager: PreferencesManager
 ) {
-    private var repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entityMapper = EntityMapper
     
@@ -138,8 +136,6 @@ class SubsonicRepository(
     private fun reconfigure(url: String, user: String, pass: CharArray) {
         components?.authManager?.clearPassword()
         components?.lyricsRepository?.close()
-        repositoryScope.cancel()
-        repositoryScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
         val newAuthManager = AuthManager(user, pass)
         val newUrlBuilder = UrlBuilder(url, newAuthManager)

@@ -61,7 +61,7 @@
     <string name="download_channel_name">Download Service</string>
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
-    <string name="download_server_limit_toast">the currently playing song will download after skipping or finishing.</string>
+    <string name="download_server_limit_toast">The currently playing song will download after skipping or finishing.</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
     <string name="auto_offline_disabled_toast">Auto-offline mode has been automatically disabled.</string>
     <string name="offline_mode_enabled_toast">Offline mode enabled</string>
@@ -309,7 +309,6 @@
     <string name="offline_downloads">Downloads</string>
     <string name="silent_cache_tab">Cache</string>
     <string name="cover_quota_exceeded">Album cover cache has exceeded quota!</string>
-    <string name="clear_cache_quota_warning">Clear Playback Cache</string>
     <string name="clear_queue_keep_cache">Clear Queue</string>
     <string name="pause_all">Pause All</string>
     <string name="resume_all">Start All</string>
@@ -409,7 +408,6 @@
     <string name="disc_format">Disc %1$d</string>
     <string name="disc_named_format">Disc %1$d: %2$s</string>
     <string name="disc_summary_format">%1$d songs • %2$s</string>
-    <string name="play_disc">Play Disc</string>
     <string name="cd_play_disc">Play this disc</string>
 
     <!-- Widget Strings -->
@@ -420,11 +418,12 @@
     <string name="widget_action_pause">Pause</string>
     <string name="widget_action_previous">Previous</string>
     <string name="widget_action_next">Next</string>
-    <string name="widget_open_app">Open Speculonic</string>
     <string name="widget_settings_title">Widget Settings</string>
     <string name="widget_opacity">Widget Opacity</string>
     <string name="widget_opacity_desc">Adjust background transparency of the music widget</string>
     <string name="widget_preview">Preview</string>
+    <string name="widget_preview_title">Speculonic Music</string>
+    <string name="widget_preview_subtitle">Now Playing</string>
     <string name="action_save">Save</string>
     <string name="clear_cover_art_cache_title">Clear Cover Art Cache</string>
     <string name="clear_cover_art_cache_confirm">Are you sure you want to clear all cached album and artist cover images?</string>
@@ -435,4 +434,10 @@
     <string name="credentials_reset_warning_title">Server Credentials Need Re-verification</string>
     <string name="credentials_reset_warning_message">Encrypted credentials could not be unlocked due to key or storage changes and have been safely cleared. Please re-enter your server address and login details. Local library metadata and cached songs remain untouched.</string>
     <string name="refresh_offline_toast">Offline mode or no network, cannot refresh</string>
+    <string name="refresh_failed">Refresh failed</string>
+    <string name="cd_expand">Expand</string>
+    <string name="cd_collapse">Collapse</string>
+    <string name="yes">Yes</string>
+    <string name="no">No</string>
+    <string name="logs_copied_truncated_to_clipboard">Logs too long; recent entries copied. Use Share Logs for full export.</string>
 </resources>

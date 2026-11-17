@@ -113,6 +113,7 @@ fun MiniPlayer(
                         coverRequester.buildRequest(
                             id = artworkId,
                             preferLocal = true,
+                            size = 200,
                             fallbackUri = artworkUri
                         )
                     }

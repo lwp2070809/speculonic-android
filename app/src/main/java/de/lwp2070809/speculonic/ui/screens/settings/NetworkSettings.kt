@@ -50,7 +50,7 @@ fun NetworkSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+            .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
         ListItem(
             headlineContent = { Text(stringResource(R.string.mobile_play_allowed)) },

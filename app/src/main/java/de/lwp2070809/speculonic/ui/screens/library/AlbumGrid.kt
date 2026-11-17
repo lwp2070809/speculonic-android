@@ -21,6 +21,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.network.model.Album
@@ -65,7 +66,7 @@ fun AlbumGrid(
                             .clickable { onAlbumClick(album.id) }
                     ) {
                         val model = remember(album.coverArt) {
-                            coverRequester.buildRequest(album.coverArt, preferLocal = true, crossfade = false)
+                            coverRequester.buildRequest(album.coverArt, preferLocal = true, size = 400, crossfade = false)
                         }
                         AsyncImage(
                             model = model,
@@ -82,13 +83,15 @@ fun AlbumGrid(
                             text = album.name,
                             style = MaterialTheme.typography.bodyMedium,
                             fontWeight = FontWeight.Bold,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = album.artist ?: "",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }

@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -163,8 +164,8 @@ fun SongListItem(
     val alpha = if (isEnabled) 1.0f else 0.38f
 
     var showMenu by remember { mutableStateOf(false) }
-    var showDetailDialog by remember { mutableStateOf(false) }
-    var showAddToPlaylistDialog by remember { mutableStateOf(false) }
+    var showDetailDialog by rememberSaveable { mutableStateOf(false) }
+    var showAddToPlaylistDialog by rememberSaveable { mutableStateOf(false) }
 
     if (showDetailDialog) {
         SongDetailDialog(song = song, onDismiss = { showDetailDialog = false })
@@ -242,7 +243,7 @@ fun SongListItem(
                 }
             } else {
             val model = remember(song.coverArt) {
-                coverRequester.buildRequest(song.coverArt, preferLocal = true)
+                coverRequester.buildRequest(song.coverArt, preferLocal = true, size = 200)
             }
             AsyncImage(
                 model = model,

@@ -32,6 +32,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +47,7 @@ import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
     val uiState by viewModel.uiState.collectAsState()
     val title = stringResource(R.string.bluetooth_audio)
-    var showBluetoothNamesDialog by remember { mutableStateOf(false) }
+    var showBluetoothNamesDialog by rememberSaveable { mutableStateOf(false) }
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
 
@@ -68,8 +69,8 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
     
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? androidx.activity.ComponentActivity
-    var showBluetoothRationaleDialog by remember { mutableStateOf(false) }
-    var showBluetoothSettingsDialog by remember { mutableStateOf(false) }
+    var showBluetoothRationaleDialog by rememberSaveable { mutableStateOf(false) }
+    var showBluetoothSettingsDialog by rememberSaveable { mutableStateOf(false) }
 
     val bluetoothPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -96,7 +97,7 @@ fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState())
-            .padding(bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+            .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
         Text(
             text = stringResource(R.string.bluetooth_car_audio),
@@ -226,7 +227,7 @@ fun BluetoothNamesDialog(
     onAdd: (String) -> Unit,
     onRemove: (String) -> Unit
 ) {
-    var newName by remember { mutableStateOf("") }
+    var newName by rememberSaveable { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,

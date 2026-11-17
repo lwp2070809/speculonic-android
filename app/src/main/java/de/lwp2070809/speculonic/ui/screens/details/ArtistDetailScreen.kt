@@ -168,7 +168,7 @@ fun AlbumItem(album: Album, onClick: () -> Unit) {
             .clickable { onClick() }
     ) {
         val model = remember(album.coverArt) {
-            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true, size = 400)
         }
         AsyncImage(
             model = model,
@@ -193,7 +193,8 @@ fun AlbumItem(album: Album, onClick: () -> Unit) {
                 text = album.year.toString(),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
     }

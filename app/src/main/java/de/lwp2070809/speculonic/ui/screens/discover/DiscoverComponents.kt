@@ -33,6 +33,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
@@ -152,7 +153,7 @@ fun AlbumCard(
     ) {
         val context = LocalContext.current
         val model = remember(album.coverArt) {
-            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true, size = 400)
         }
 
         AsyncImage(
@@ -169,13 +170,15 @@ fun AlbumCard(
             text = album.name,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             fontWeight = FontWeight.Medium
         )
         Text(
             text = album.artist ?: unknownArtistText,
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
-            maxLines = 1
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -209,7 +212,7 @@ fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
     ) {
         val context = LocalContext.current
         val model = remember(playlist.coverArt) {
-            coverRequester.buildCoverArtRequest(playlist.coverArt, context, preferLocal = true)
+            coverRequester.buildCoverArtRequest(playlist.coverArt, context, preferLocal = true, size = 400)
         }
 
         AsyncImage(
@@ -226,16 +229,15 @@ fun PlaylistCard(playlist: Playlist, onClick: () -> Unit) {
             text = playlist.name,
             style = MaterialTheme.typography.bodyLarge,
             maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             fontWeight = FontWeight.Medium
         )
-        val subtitle = playlist.owner ?: ""
-        if (subtitle.isNotEmpty()) {
-            Text(
-                text = subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1
-            )
-        }
+        Text(
+            text = playlist.owner.orEmpty(),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }

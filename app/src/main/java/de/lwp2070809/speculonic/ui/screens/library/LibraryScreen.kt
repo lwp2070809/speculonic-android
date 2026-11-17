@@ -176,7 +176,8 @@ fun LibraryScreen(
                                         onCreatePlaylist = { viewModel.createPlaylist(it) },
                                         onDeletePlaylist = { viewModel.deletePlaylist(it) },
                                         isOnline = isOnline,
-                                        isEffectivelyOnline = isEffectivelyOnline
+                                        isEffectivelyOnline = isEffectivelyOnline,
+                                        isInitialLoadComplete = uiState.isInitialLoadComplete
                                     )
                                     2 -> {
                                         AllSongsList(

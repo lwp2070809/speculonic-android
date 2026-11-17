@@ -320,52 +320,49 @@ class MainActivity : AppCompatActivity() {
                 }
             }
 
-            val currentSurfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.toArgb()
-
-            
-            
-            LaunchedEffect(normalizedArtworkUri.value, colorMode, darkTheme) {
-                if (colorMode == ColorMode.SYSTEM_COLOR) {
-                    activeSeedColor = null
-                    hasEvaluatedColor = true
-                    scope.launch {
-                        preferencesManager.saveLastSeedColor(null, true)
-                        preferencesManager.saveLastSeedColor(null, false)
-                    }
-                    return@LaunchedEffect
-                }
-
-                val uri = normalizedArtworkUri.value
-                val isPlaybackReady = currentSongIdState.isNotEmpty()
-
-                if (uri != null) {
-                    val color = PaletteUtils.getSeedColorAsync(
-                        context = context,
-                        uri = uri.toString(),
-                        isDark = darkTheme,
-                        imageLoader = SingletonImageLoader.get(context),
-                        fallbackBackgroundColor = currentSurfaceColor
-                    )
-                    activeSeedColor = color
-                    hasEvaluatedColor = true
-                    if (color != null) {
-                        scope.launch { preferencesManager.saveLastSeedColor(color.toArgb(), darkTheme) }
-                    } else {
-                        scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
-                    }
-                } else {
-                    activeSeedColor = null
-                    if (isPlaybackReady) {
-                        hasEvaluatedColor = true
-                        scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
-                    }
-                }
-            }
-
             SpeculonicTheme(
                 darkTheme = darkTheme,
                 seedColor = seedColor
             ) {
+                val currentSurfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.toArgb()
+
+                LaunchedEffect(normalizedArtworkUri.value, colorMode, darkTheme) {
+                    if (colorMode == ColorMode.SYSTEM_COLOR) {
+                        activeSeedColor = null
+                        hasEvaluatedColor = true
+                        scope.launch {
+                            preferencesManager.saveLastSeedColor(null, true)
+                            preferencesManager.saveLastSeedColor(null, false)
+                        }
+                        return@LaunchedEffect
+                    }
+
+                    val uri = normalizedArtworkUri.value
+                    val isPlaybackReady = currentSongIdState.isNotEmpty()
+
+                    if (uri != null) {
+                        val color = PaletteUtils.getSeedColorAsync(
+                            context = context,
+                            uri = uri.toString(),
+                            isDark = darkTheme,
+                            imageLoader = SingletonImageLoader.get(context),
+                            fallbackBackgroundColor = currentSurfaceColor
+                        )
+                        activeSeedColor = color
+                        hasEvaluatedColor = true
+                        if (color != null) {
+                            scope.launch { preferencesManager.saveLastSeedColor(color.toArgb(), darkTheme) }
+                        } else {
+                            scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
+                        }
+                    } else {
+                        activeSeedColor = null
+                        if (isPlaybackReady) {
+                            hasEvaluatedColor = true
+                            scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
+                        }
+                    }
+                }
                 permissionRationaleDialog?.let { (title, message, onRetry) ->
                     androidx.compose.material3.AlertDialog(
                         onDismissRequest = { permissionRationaleDialog = null },

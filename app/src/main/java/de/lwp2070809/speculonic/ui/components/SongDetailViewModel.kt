@@ -40,9 +40,6 @@ class SongDetailViewModel @Inject constructor(
         return repository.getSongEntityByIdFlow(songId)
     }
 
-    suspend fun getSongRemote(songId: String): Result<Song> {
-        return repository.getSongRemote(songId)
-    }
 
     fun prepareForSong(songId: String) {
         _uiState.update { state ->

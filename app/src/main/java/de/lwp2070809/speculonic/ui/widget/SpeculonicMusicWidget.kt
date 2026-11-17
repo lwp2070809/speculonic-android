@@ -8,8 +8,10 @@ import android.content.Intent
 import android.graphics.Bitmap
 import android.os.Build
 import android.widget.RemoteViews
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.graphics.Color
+import androidx.compose.runtime.remember
 import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -106,10 +108,14 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
                 uriString = currentArtworkUri
             )
 
-            // 适配系统深浅色模式与用户设定透明度的微件卡片底色，对齐 MiniPlayer 的 surfaceContainerHighest 视觉层级
+            // 与配置预览页一致，使用系统动态 surfaceContainerHighest 并叠加用户设定的卡片透明度
+            val (daySurfaceHighest, nightSurfaceHighest) = remember(context) {
+                dynamicLightColorScheme(context).surfaceContainerHighest to
+                    dynamicDarkColorScheme(context).surfaceContainerHighest
+            }
             val containerColor = ColorProvider(
-                day = Color(0xFFEBE6EE).copy(alpha = backgroundAlpha),
-                night = Color(0xFF211E27).copy(alpha = backgroundAlpha)
+                day = daySurfaceHighest.copy(alpha = backgroundAlpha),
+                night = nightSurfaceHighest.copy(alpha = backgroundAlpha)
             )
 
             val widgetColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {

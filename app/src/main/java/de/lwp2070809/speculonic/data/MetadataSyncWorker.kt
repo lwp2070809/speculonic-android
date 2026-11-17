@@ -15,9 +15,10 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
-import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.domain.repository.SafetyGuardException
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
+import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -63,7 +64,6 @@ class MetadataSyncWorker @AssistedInject constructor(
 
         LogManager.i("MetadataSync: Starting synchronization (Full: $needsFullSync, QuickOnly: $isQuickOnly, Force: $forceRefresh)...")
         
-        val db = AppDatabase.getDatabase(context)
         val serverUrl = preferencesManager.serverUrl.first()
         
         if (serverUrl.isBlank()) return Result.success()
@@ -92,17 +92,27 @@ class MetadataSyncWorker @AssistedInject constructor(
             return Result.success()
         } catch (e: Exception) {
             if (e is CancellationException) throw e
-            LogManager.e("MetadataSync: Failed to synchronize", e)
-            return Result.retry()
+            val nonRetryable = when {
+                e is SafetyGuardException -> true
+                e is IllegalArgumentException -> true
+                e is SubsonicApiException && e.code in NON_RETRYABLE_SUBSONIC_CODES -> true
+                runAttemptCount >= MAX_RETRY_ATTEMPTS -> true
+                else -> false
+            }
+            LogManager.e("MetadataSync: Failed to synchronize (nonRetryable=$nonRetryable, attempt=$runAttemptCount)", e)
+            return if (nonRetryable) Result.failure() else Result.retry()
         }
     }
 
     companion object {
         private const val SYNC_WORK_NAME = "MetadataSyncWork"
+        private const val MAX_RETRY_ATTEMPTS = 5
+        private val NON_RETRYABLE_SUBSONIC_CODES = setOf(10, 20, 30, 40, 41, 50, 60)
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()
-                .setRequiredNetworkType(NetworkType.UNMETERED) 
+                .setRequiredNetworkType(NetworkType.UNMETERED)
+                .setRequiresCharging(true)
                 .build()
 
             val syncRequest = PeriodicWorkRequestBuilder<MetadataSyncWorker>(12, TimeUnit.HOURS)
@@ -113,10 +123,10 @@ class MetadataSyncWorker @AssistedInject constructor(
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 SYNC_WORK_NAME,
-                ExistingPeriodicWorkPolicy.KEEP,
+                ExistingPeriodicWorkPolicy.UPDATE,
                 syncRequest
             )
-            LogManager.i("MetadataSync: Scheduled periodic sync (12h, WiFi).")
+            LogManager.i("MetadataSync: Scheduled periodic sync (12h, Charging + WiFi).")
         }
 
         fun runOnce(context: Context, forceRefresh: Boolean = false, isQuickOnly: Boolean = false) {

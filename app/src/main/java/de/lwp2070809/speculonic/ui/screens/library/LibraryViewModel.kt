@@ -86,9 +86,6 @@ class LibraryViewModel @Inject constructor(
         _uiState.update { it.copy(selectedTabIndex = index) }
     }
 
-    fun resetNav() {
-        _uiState.update { it.copy(selectedTabIndex = 0) }
-    }
 
     
     fun loadData() {

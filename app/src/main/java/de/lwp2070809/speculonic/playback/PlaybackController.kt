@@ -25,7 +25,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -705,11 +704,4 @@ class PlaybackController private constructor(context: Context) {
         }
     }
 
-    fun release() {
-        scope.cancel()
-        controllerFuture?.let {
-            MediaController.releaseFuture(it)
-        }
-        controllerFuture = null
-    }
 }
