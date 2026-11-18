@@ -55,4 +55,17 @@ class SilentDownloadService : DownloadService(
             }
         }
     }
+
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    override fun onTimeout(startId: Int, fgsType: Int) {
+        LogManager.w(
+            "SilentDownloadService: Foreground service timed out (fgsType=$fgsType, startId=$startId). Stopping self."
+        )
+        try {
+            downloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.pauseDownloads()
+        } catch (e: Exception) {
+            LogManager.e("SilentDownloadService: Failed to pause downloads on timeout", e)
+        }
+        stopSelf(startId)
+    }
 }

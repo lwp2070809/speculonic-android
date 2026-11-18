@@ -641,6 +641,8 @@ class SubsonicRepository(
 
     suspend fun search(query: String): SearchResult3 = mediaRepository.search(query)
 
+    suspend fun searchLocal(query: String): SearchResult3 = mediaRepository.searchLocal(query)
+
     companion object {
         private const val PING_CACHE_TTL_HOURS = 12L
     }

@@ -4,13 +4,16 @@ import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.network.api.SubsonicService
+import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
+import retrofit2.HttpException
 
 enum class SyncOutcome {
     SYNCED_FULL,
@@ -166,7 +169,7 @@ class SyncManager(
                 onSyncComplete = onSyncComplete
             )
             if (serverCapabilities.isOpenSubsonic) {
-                search3Executor.execute(authParams, executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+                executeSearch3WithLegacyFallback(authParams, executionParams)
             } else {
                 legacyExecutor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
             }
@@ -189,6 +192,33 @@ class SyncManager(
                     pref.saveSyncProgress(null)
                 }
             }
+        }
+    }
+
+    private suspend fun executeSearch3WithLegacyFallback(
+        authParams: Triple<String, String, String>,
+        executionParams: SyncExecutionParams
+    ) {
+        try {
+            search3Executor.execute(authParams, executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+        } catch (e: Exception) {
+            if (!shouldFallbackFromSearch3(e)) throw e
+            LogManager.w("SyncManager: search3Stream failed (${e.message}), falling back to legacy sync.")
+            runCatching { musicDao.clearSyncTempIds() }
+                .onFailure { LogManager.w("SyncManager: clearSyncTempIds failed before legacy fallback: ${it.message}") }
+            legacyExecutor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+        }
+    }
+
+    private fun shouldFallbackFromSearch3(e: Exception): Boolean {
+        return when (e) {
+            is CancellationException,
+            is SafetyGuardException -> false
+            is HttpException -> e.code() !in AUTH_HTTP_CODES
+            is SubsonicApiException -> e.code !in AUTH_SUBSONIC_ERROR_CODES
+            is SerializationException,
+            is IllegalStateException -> true
+            else -> false
         }
     }
 
@@ -292,5 +322,7 @@ class SyncManager(
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
         private const val MIN_ENTITIES_FOR_SAFETY = 10
+        private val AUTH_HTTP_CODES = setOf(401)
+        private val AUTH_SUBSONIC_ERROR_CODES = setOf(40, 41, 50)
     }
 }

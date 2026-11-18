@@ -12,8 +12,12 @@ import android.content.ContextWrapper
 import android.annotation.SuppressLint
 import androidx.core.graphics.drawable.toDrawable
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
@@ -34,6 +38,40 @@ internal val LightColorScheme = lightColorScheme(
     secondary = PurpleGrey40,
     tertiary = Pink40
 )
+
+@Immutable
+data class SpeculonicExtendedColors(
+    val success: Color,
+    val storageCoverArt: Color,
+    val storagePlaybackCache: Color,
+    val storageSongCache: Color,
+    val storageOtherCache: Color
+)
+
+private val LightExtendedColors = SpeculonicExtendedColors(
+    success = SuccessLight,
+    storageCoverArt = StorageCoverArtLight,
+    storagePlaybackCache = StoragePlaybackCacheLight,
+    storageSongCache = StorageSongCacheLight,
+    storageOtherCache = StorageOtherCacheLight
+)
+
+private val DarkExtendedColors = SpeculonicExtendedColors(
+    success = SuccessDark,
+    storageCoverArt = StorageCoverArtDark,
+    storagePlaybackCache = StoragePlaybackCacheDark,
+    storageSongCache = StorageSongCacheDark,
+    storageOtherCache = StorageOtherCacheDark
+)
+
+val LocalExtendedColors = staticCompositionLocalOf { LightExtendedColors }
+
+object SpeculonicTheme {
+    val extendedColors: SpeculonicExtendedColors
+        @Composable
+        @ReadOnlyComposable
+        get() = LocalExtendedColors.current
+}
 
 @Composable
 fun SpeculonicTheme(
@@ -82,11 +120,14 @@ fun SpeculonicTheme(
         }
     }
 
-    MaterialTheme(
-        colorScheme = colorScheme,
-        typography = Typography,
-        content = content
-    )
+    val extendedColors = if (darkTheme) DarkExtendedColors else LightExtendedColors
+    CompositionLocalProvider(LocalExtendedColors provides extendedColors) {
+        MaterialTheme(
+            colorScheme = colorScheme,
+            typography = Typography,
+            content = content
+        )
+    }
 }
 
 

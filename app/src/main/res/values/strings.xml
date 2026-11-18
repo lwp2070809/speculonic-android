@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">Speculonic</string>
+    <string name="app_bar_brand_name" translatable="false">Speculo</string>
     <string name="discover">Discover</string>
     <string name="library">Library</string>
     <string name="settings">Settings</string>
@@ -296,7 +297,6 @@
     <string name="sync_metadata_data_warning">Syncing metadata may consume tens of MB of data.</string>
     <string name="sync_cover_art_option_title">And sync cover art</string>
     <string name="sync_cover_art_option_desc">May consume hundreds of MB of data, WiFi recommended.</string>
-    <string name="search_offline_warning">Search is disabled in offline mode.</string>
     <string name="sync_detail_title">Sync Details</string>
     <string name="metadata_stats">Local Metadata Stats</string>
     <string name="last_sync_time_label">Last synced: %1$s</string>
@@ -440,4 +440,8 @@
     <string name="yes">Yes</string>
     <string name="no">No</string>
     <string name="logs_copied_truncated_to_clipboard">Logs too long; recent entries copied. Use Share Logs for full export.</string>
+    <string name="search_offline_hint">Search local library (offline)…</string>
+    <string name="search_offline_local_tip">Offline mode: searching local synced library</string>
+    <string name="search_online_failed_fallback_local">Remote search unavailable; showing local library results</string>
+    <string name="search_no_results">No matching results found</string>
 </resources>

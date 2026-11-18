@@ -46,4 +46,14 @@ interface ArtistDao {
         SET albumCount = (SELECT COUNT(*) FROM albums WHERE artistId = artists.id)
     """)
     suspend fun updateArtistAlbumCounts()
+
+    @Query("""
+        SELECT id, name, coverArt, lastUpdated,
+        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount
+        FROM artists
+        WHERE name LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+        ORDER BY name ASC
+        LIMIT :limit
+    """)
+    suspend fun searchArtistsLocal(escapedQuery: String, limit: Int): List<ArtistEntity>
 }

@@ -39,7 +39,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
@@ -47,6 +46,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsConstants
+import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -285,7 +285,11 @@ fun ServerConfigDialog(
                                     )
                                 },
                                 contentDescription = null,
-                                tint = if (result.first) Color.Green else MaterialTheme.colorScheme.error,
+                                tint = if (result.first) {
+                                    SpeculonicTheme.extendedColors.success
+                                } else {
+                                    MaterialTheme.colorScheme.error
+                                },
                                 modifier = Modifier.padding(start = 8.dp)
                             )
                         }

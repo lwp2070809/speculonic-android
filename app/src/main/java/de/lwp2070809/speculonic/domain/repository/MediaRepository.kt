@@ -13,9 +13,14 @@ import de.lwp2070809.speculonic.network.model.SearchResult3
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
 
 class MediaRepository(
     private val api: SubsonicService,
@@ -319,6 +324,7 @@ class MediaRepository(
         val (u, t, s) = authManager.getAuthParams()
         return try {
             val response = api.search3(query, u = u, t = t, s = s)
+            response.response.ensureOk()
             val results = response.response.searchResult3 ?: SearchResult3()
             val songIds = results.song.map { it.id }
             val existingMap = songIds.chunked(500)
@@ -329,9 +335,48 @@ class MediaRepository(
                 song.copy(localUri = local?.localUri, isFullyCached = local?.isFullyCached ?: false)
             })
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
-            de.lwp2070809.speculonic.util.LogManager.e("MediaRepository: search failed for query '$query'", e)
-            SearchResult3()
+            if (e is CancellationException) throw e
+            LogManager.e("MediaRepository: search failed for query '$query'", e)
+            throw e
         }
+    }
+
+    suspend fun searchLocal(query: String): SearchResult3 {
+        val normalized = query.trim()
+        if (normalized.isEmpty()) return SearchResult3()
+        val escaped = escapeSqlLike(normalized)
+        return withContext(Dispatchers.IO) {
+            coroutineScope {
+                val artistsDeferred = async {
+                    musicDao.searchArtistsLocal(escaped, SEARCH_ARTIST_LIMIT).map {
+                        Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount)
+                    }
+                }
+                val albumsDeferred = async {
+                    musicDao.searchAlbumsLocal(escaped, SEARCH_ALBUM_LIMIT).map { entityMapper.toAlbum(it) }
+                }
+                val songsDeferred = async {
+                    musicDao.searchSongsLocal(escaped, SEARCH_SONG_LIMIT).map { entityMapper.toSong(it) }
+                }
+                SearchResult3(
+                    artist = artistsDeferred.await(),
+                    album = albumsDeferred.await(),
+                    song = songsDeferred.await()
+                )
+            }
+        }
+    }
+
+    private fun escapeSqlLike(query: String): String {
+        return query
+            .replace("\\", "\\\\")
+            .replace("%", "\\%")
+            .replace("_", "\\_")
+    }
+
+    private companion object {
+        const val SEARCH_ARTIST_LIMIT = 20
+        const val SEARCH_ALBUM_LIMIT = 20
+        const val SEARCH_SONG_LIMIT = 100
     }
 }

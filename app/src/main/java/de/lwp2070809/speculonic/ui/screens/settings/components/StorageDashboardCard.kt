@@ -35,6 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
 import de.lwp2070809.speculonic.util.FormatUtils
 
 @Composable
@@ -110,6 +111,7 @@ fun StorageDashboardCard(
             }
 
             // 1. 专辑封面
+            val extendedColors = SpeculonicTheme.extendedColors
             val coverLimitLabel = if (isUnlimited) {
                 coverArtSizeLabel
             } else {
@@ -119,7 +121,7 @@ fun StorageDashboardCard(
                 label = stringResource(R.string.cover_art_cache_color_label),
                 sizeLabel = coverLimitLabel,
                 progress = coverProgress,
-                color = if (isCoverOverQuota) MaterialTheme.colorScheme.error else Color(0xFF4CAF50),
+                color = if (isCoverOverQuota) MaterialTheme.colorScheme.error else extendedColors.storageCoverArt,
                 trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
                 onClearClick = onClearCoverArtClick
             )
@@ -131,7 +133,7 @@ fun StorageDashboardCard(
                 label = stringResource(R.string.playback_cache_color_label),
                 sizeLabel = "$playbackSizeLabel / 1 GB",
                 progress = playbackProgress,
-                color = Color(0xFFFF9800),
+                color = extendedColors.storagePlaybackCache,
                 trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
                 onClearClick = onClearPlaybackClick
             )
@@ -144,7 +146,7 @@ fun StorageDashboardCard(
                     label = stringResource(R.string.song_cache_color_label),
                     sizeLabel = "$songSizeLabel / ${FormatUtils.formatSize(totalSpaceBytes)}",
                     progress = songProgress,
-                    color = Color(0xFF2196F3),
+                    color = extendedColors.storageSongCache,
                     trackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.1f),
                     onClearClick = onClearSongsClick
                 )
@@ -155,7 +157,7 @@ fun StorageDashboardCard(
                 label = stringResource(R.string.other_cache_color_label),
                 sizeLabel = otherSizeLabel,
                 progress = null,
-                color = Color(0xFF9C27B0),
+                color = extendedColors.storageOtherCache,
                 trackColor = Color.Transparent,
                 onClearClick = null
             )

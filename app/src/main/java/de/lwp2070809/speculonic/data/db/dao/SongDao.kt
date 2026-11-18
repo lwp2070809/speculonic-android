@@ -246,4 +246,14 @@ interface SongDao {
         )
     """)
     suspend fun getAllUniqueCoverArtIds(): List<String>
+
+    @Query("""
+        SELECT * FROM songs
+        WHERE title LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+           OR artist LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+           OR album LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+        ORDER BY isFullyCached DESC, title ASC
+        LIMIT :limit
+    """)
+    suspend fun searchSongsLocal(escapedQuery: String, limit: Int): List<SongEntity>
 }

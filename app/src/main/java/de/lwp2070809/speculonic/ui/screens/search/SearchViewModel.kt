@@ -8,20 +8,27 @@ import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.SearchResult3
 import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.NetworkMonitor
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 private const val OPTIMISTIC_STAR_MARKER = "starred"
+private const val SEARCH_DEBOUNCE_MS = 500L
 
 data class SearchUiState(
     val query: String = "",
     val isLoading: Boolean = false,
+    val isLocalFallback: Boolean = false,
     val results: SearchResult3 = SearchResult3(),
     val transcodeIncompatible: Boolean = false,
     val error: String? = null
@@ -31,7 +38,8 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     private val repository: SubsonicRepository,
     private val preferencesManager: PreferencesManager,
-    private val downloadTracker: DownloadTracker
+    private val downloadTracker: DownloadTracker,
+    private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(
@@ -104,42 +112,94 @@ class SearchViewModel @Inject constructor(
             }
         }
 
-        @OptIn(kotlinx.coroutines.FlowPreview::class, kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+        observeSearchExecution()
+    }
+
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private fun observeSearchExecution() {
+        val isEffectivelyOnlineFlow = combine(
+            networkMonitor.networkStatus,
+            preferencesManager.offlineModeEnabled
+        ) { status, offline ->
+            status.isOnline && !offline
+        }.distinctUntilChanged()
+
         viewModelScope.launch {
-            searchQuery
-                .debounce(500)
-                .collectLatest { query ->
-                    if (query.isBlank()) {
-                        _uiState.update { it.copy(results = SearchResult3(), isLoading = false, error = null) }
-                    } else {
-                        _uiState.update { it.copy(isLoading = true, error = null) }
-                        try {
-                            val rawResults = repository.search(query)
-                            val updatedSongs = if (inFlightStarOverrides.isEmpty()) {
-                                rawResults.song
-                            } else {
-                                rawResults.song.map { song ->
-                                    val pending = inFlightStarOverrides[song.id]
-                                    if (pending != null) {
-                                        song.copy(starred = if (pending) (song.starred ?: OPTIMISTIC_STAR_MARKER) else null)
-                                    } else {
-                                        song
-                                    }
-                                }
-                            }
-                            val results = if (updatedSongs === rawResults.song) {
-                                rawResults
-                            } else {
-                                rawResults.copy(song = updatedSongs)
-                            }
-                            _uiState.update { it.copy(results = results, isLoading = false, error = null) }
-                        } catch (e: Exception) {
-                            if (e is CancellationException) throw e
-                            _uiState.update { it.copy(results = SearchResult3(), isLoading = false, error = e.message) }
-                        }
-                    }
+            combine(
+                searchQuery.debounce(SEARCH_DEBOUNCE_MS),
+                isEffectivelyOnlineFlow,
+                ::Pair
+            )
+                .distinctUntilChanged()
+                .collectLatest { (query, isOnline) ->
+                    executeSearch(query, isOnline)
                 }
         }
+    }
+
+    private suspend fun executeSearch(query: String, isOnline: Boolean) {
+        if (query.isBlank()) {
+            _uiState.update {
+                it.copy(results = SearchResult3(), isLoading = false, isLocalFallback = false, error = null)
+            }
+            return
+        }
+
+        _uiState.update { it.copy(isLoading = true, isLocalFallback = false, error = null) }
+        if (!isOnline) {
+            runLocalSearch(query = query, isFallback = false)
+            return
+        }
+
+        try {
+            val rawResults = repository.search(query)
+            val resolvedResults = applyInFlightStarOverrides(rawResults)
+            _uiState.update {
+                it.copy(results = resolvedResults, isLoading = false, isLocalFallback = false, error = null)
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            LogManager.w("SearchViewModel: remote search failed, falling back to local search: ${e.message}")
+            runLocalSearch(query = query, isFallback = true)
+        }
+    }
+
+    private suspend fun runLocalSearch(query: String, isFallback: Boolean) {
+        try {
+            val localResults = repository.searchLocal(query)
+            val resolvedResults = applyInFlightStarOverrides(localResults)
+            _uiState.update {
+                it.copy(
+                    results = resolvedResults,
+                    isLoading = false,
+                    isLocalFallback = isFallback,
+                    error = null
+                )
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            _uiState.update {
+                it.copy(
+                    results = SearchResult3(),
+                    isLoading = false,
+                    isLocalFallback = isFallback,
+                    error = e.message
+                )
+            }
+        }
+    }
+
+    private fun applyInFlightStarOverrides(rawResults: SearchResult3): SearchResult3 {
+        if (inFlightStarOverrides.isEmpty()) return rawResults
+        val updatedSongs = rawResults.song.map { song ->
+            val pending = inFlightStarOverrides[song.id]
+            if (pending != null) {
+                song.copy(starred = if (pending) (song.starred ?: OPTIMISTIC_STAR_MARKER) else null)
+            } else {
+                song
+            }
+        }
+        return rawResults.copy(song = updatedSongs)
     }
 
     fun onQueryChange(query: String) {

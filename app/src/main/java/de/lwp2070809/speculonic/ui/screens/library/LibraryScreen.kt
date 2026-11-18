@@ -168,7 +168,7 @@ fun LibraryScreen(
                             HorizontalPager(
                                 state = pagerState,
                                 modifier = Modifier.fillMaxSize(),
-                                beyondViewportPageCount = 3
+                                beyondViewportPageCount = 1
                             ) { page ->
                                 when (page) {
                                     0 -> AlbumGrid(

@@ -81,7 +81,8 @@
 
         <service
             android:name=".playback.SilentDownloadService"
-            android:exported="false" />
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <receiver
             android:name=".ui.widget.SpeculonicMusicWidgetReceiver"

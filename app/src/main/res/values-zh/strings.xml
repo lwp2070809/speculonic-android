@@ -293,7 +293,6 @@
     <string name="sync_metadata_data_warning">同步元数据可能消耗数十MB流量</string>
     <string name="sync_cover_art_option_title">并同步专辑封面</string>
     <string name="sync_cover_art_option_desc">可能消耗数百MB流量，建议在WiFi下进行</string>
-    <string name="search_offline_warning">由于您处于离线模式，无法发起远程搜索</string>
     <string name="sync_detail_title">同步详情</string>
     <string name="metadata_stats">本地元数据统计</string>
     <string name="last_sync_time_label">上次同步时间：%1$s</string>
@@ -437,4 +436,8 @@
     <string name="yes">是</string>
     <string name="no">否</string>
     <string name="logs_copied_truncated_to_clipboard">日志过长，已复制最近部分内容；完整日志请使用分享功能导出</string>
+    <string name="search_offline_hint">搜索本地曲库（离线）…</string>
+    <string name="search_offline_local_tip">离线模式：正在搜索本地已同步曲库</string>
+    <string name="search_online_failed_fallback_local">远程搜索失败，已回退显示本地曲库匹配结果</string>
+    <string name="search_no_results">未找到匹配结果</string>
 </resources>

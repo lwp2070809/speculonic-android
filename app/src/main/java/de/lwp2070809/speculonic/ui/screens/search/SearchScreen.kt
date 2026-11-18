@@ -34,6 +34,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -126,12 +127,16 @@ fun SearchScreen(
             OutlinedTextField(
                 value = uiState.query,
                 onValueChange = { viewModel.onQueryChange(it) },
-                placeholder = { 
-                    Text(text = stringResource(R.string.search_hint)) 
+                placeholder = {
+                    val hintRes = if (isEffectivelyOnline) {
+                        R.string.search_hint
+                    } else {
+                        R.string.search_offline_hint
+                    }
+                    Text(text = stringResource(hintRes))
                 },
                 modifier = Modifier.weight(1f),
                 singleLine = true,
-                enabled = isEffectivelyOnline,
                 trailingIcon = {
                     if (uiState.query.isNotEmpty()) {
                         IconButton(onClick = { viewModel.onQueryChange("") }) {
@@ -146,101 +151,158 @@ fun SearchScreen(
             val hasNoResults = uiState.results.song.isEmpty() &&
                 uiState.results.album.isEmpty() &&
                 uiState.results.artist.isEmpty()
-            if (!isEffectivelyOnline && hasNoResults) {
-                Column(
-                    modifier = Modifier.align(Alignment.Center),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi_off),
-                        contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = stringResource(R.string.search_offline_warning),
-                        style = MaterialTheme.typography.titleMedium,
-                        color = MaterialTheme.colorScheme.error,
-                        modifier = Modifier.padding(horizontal = 24.dp)
-                    )
+            val showOfflineEmptyGuide = !isEffectivelyOnline && uiState.query.isBlank()
+            val showNoMatchEmpty = uiState.query.isNotBlank() && !uiState.isLoading && hasNoResults
+
+            when {
+                showOfflineEmptyGuide -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            painter = androidx.compose.ui.res.painterResource(id = R.drawable.ic_symbol_wifi_off),
+                            contentDescription = null,
+                            modifier = Modifier.size(64.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = stringResource(R.string.search_offline_local_tip),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                    }
                 }
-            } else {
-                val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
-                val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
-                val bottomInset = maxOf(navigationBarsPadding + 80.dp, imePadding + 16.dp)
-
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(
-                        bottom = bottomInset
-                    )
-                ) {
-                    if (uiState.results.artist.isNotEmpty()) {
-                        item(key = "header_artists", contentType = "section_header") {
-                            SectionHeader(stringResource(R.string.artists))
-                        }
-                        items(
-                            items = uiState.results.artist,
-                            key = { "artist_${it.id}" },
-                            contentType = { "artist_item" }
-                        ) { artist ->
-                            ArtistSearchItem(artist) {
-                                onArtistClick(artist.id)
+                showNoMatchEmpty -> {
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (!isEffectivelyOnline || uiState.isLocalFallback) {
+                            val bannerRes = if (!isEffectivelyOnline) {
+                                R.string.search_offline_local_tip
+                            } else {
+                                R.string.search_online_failed_fallback_local
                             }
-                        }
-                    }
-
-                    if (uiState.results.album.isNotEmpty()) {
-                        item(key = "header_albums", contentType = "section_header") {
-                            SectionHeader(stringResource(R.string.albums))
-                        }
-                        items(
-                            items = uiState.results.album,
-                            key = { "album_${it.id}" },
-                            contentType = { "album_item" }
-                        ) { album ->
-                            AlbumSearchItem(album) {
-                                onAlbumClick(album.id)
-                            }
-                        }
-                    }
-
-                    if (uiState.results.song.isNotEmpty()) {
-                        item(key = "header_songs", contentType = "section_header") {
-                            SectionHeader(stringResource(R.string.songs))
-                        }
-                        items(
-                            items = uiState.results.song,
-                            key = { "song_${it.id}" },
-                            contentType = { "song_item" }
-                        ) { song ->
-                            SongListItem(
-                                song = song,
-                                isCurrent = song.id == currentSongId,
-                                isEffectivelyOnline = isEffectivelyOnline,
-                                isStreamingAllowed = isStreamingAllowed,
-                                transcodeIncompatible = transcodeIncompatible,
-                                onClick = {
-                                    val playableSongs = uiState.results.song.filter {
-                                        de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
-                                            it,
-                                            transcodeIncompatible
-                                        )
-                                    }
-                                    val targetIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-
-                                    val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
-                                    if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, targetIndex)
-                                    }
-                                },
-                                onStarClick = { star ->
-                                    viewModel.toggleStarSong(song.id, star)
-                                },
-                                onDownloadClick = { downloadController.downloadSong(song) },
-                                onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
+                            Text(
+                                text = stringResource(bannerRes),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 24.dp)
                             )
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+                        Text(
+                            text = stringResource(R.string.search_no_results),
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 24.dp)
+                        )
+                    }
+                }
+                else -> {
+                    val navigationBarsPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+                    val imePadding = WindowInsets.ime.asPaddingValues().calculateBottomPadding()
+                    val bottomInset = maxOf(navigationBarsPadding + 80.dp, imePadding + 16.dp)
+
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(
+                            bottom = bottomInset
+                        )
+                    ) {
+                        if ((!isEffectivelyOnline || uiState.isLocalFallback) && uiState.query.isNotBlank()) {
+                            item(key = "local_search_notice", contentType = "search_notice") {
+                                val noticeRes = if (!isEffectivelyOnline) {
+                                    R.string.search_offline_local_tip
+                                } else {
+                                    R.string.search_online_failed_fallback_local
+                                }
+                                Surface(
+                                    color = MaterialTheme.colorScheme.surfaceVariant,
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = stringResource(noticeRes),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+
+                        if (uiState.results.artist.isNotEmpty()) {
+                            item(key = "header_artists", contentType = "section_header") {
+                                SectionHeader(stringResource(R.string.artists))
+                            }
+                            items(
+                                items = uiState.results.artist,
+                                key = { "artist_${it.id}" },
+                                contentType = { "artist_item" }
+                            ) { artist ->
+                                ArtistSearchItem(artist) {
+                                    onArtistClick(artist.id)
+                                }
+                            }
+                        }
+
+                        if (uiState.results.album.isNotEmpty()) {
+                            item(key = "header_albums", contentType = "section_header") {
+                                SectionHeader(stringResource(R.string.albums))
+                            }
+                            items(
+                                items = uiState.results.album,
+                                key = { "album_${it.id}" },
+                                contentType = { "album_item" }
+                            ) { album ->
+                                AlbumSearchItem(album) {
+                                    onAlbumClick(album.id)
+                                }
+                            }
+                        }
+
+                        if (uiState.results.song.isNotEmpty()) {
+                            item(key = "header_songs", contentType = "section_header") {
+                                SectionHeader(stringResource(R.string.songs))
+                            }
+                            items(
+                                items = uiState.results.song,
+                                key = { "song_${it.id}" },
+                                contentType = { "song_item" }
+                            ) { song ->
+                                SongListItem(
+                                    song = song,
+                                    isCurrent = song.id == currentSongId,
+                                    isEffectivelyOnline = isEffectivelyOnline,
+                                    isStreamingAllowed = isStreamingAllowed,
+                                    transcodeIncompatible = transcodeIncompatible,
+                                    onClick = {
+                                        val playableSongs = uiState.results.song.filter {
+                                            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                                                it,
+                                                transcodeIncompatible
+                                            )
+                                        }
+                                        val targetIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
+
+                                        val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
+                                        if (mediaItems.isNotEmpty()) {
+                                            playbackController.play(mediaItems, targetIndex)
+                                        }
+                                    },
+                                    onStarClick = { star ->
+                                        viewModel.toggleStarSong(song.id, star)
+                                    },
+                                    onDownloadClick = { downloadController.downloadSong(song) },
+                                    onRemoveDownloadClick = { downloadController.removeDownload(song.id) }
+                                )
+                            }
                         }
                     }
                 }

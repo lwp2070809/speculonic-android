@@ -62,7 +62,6 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private const val APP_BAR_BRAND_NAME = "Speculo"
 private const val CLOUD_DONE_HIGHLIGHT_MS = 5000L
 private const val WIFI_HIGHLIGHT_MS = 3000L
 
@@ -246,11 +245,12 @@ private fun DualPaneTopBar(
         .filterIsInstance<AppRoute>()
         .lastOrNull { it.isDetailPane }
 
+    val brandName = stringResource(R.string.app_bar_brand_name)
     val showLeftBack = !activeListRoute.isTopLevel
     val leftTitle = if (showLeftBack) {
-        activeListRoute.defaultTitleRes?.let { stringResource(it) } ?: APP_BAR_BRAND_NAME
+        activeListRoute.defaultTitleRes?.let { stringResource(it) } ?: brandName
     } else {
-        APP_BAR_BRAND_NAME
+        brandName
     }
 
     Surface(
@@ -375,11 +375,12 @@ private fun SinglePaneTopBar(
     showWifiHighlightRecent: Boolean,
     onToggleOfflineClick: () -> Unit
 ) {
+    val brandName = stringResource(R.string.app_bar_brand_name)
     val appRoute = currentRoute as? AppRoute
     val isTopLevel = appRoute?.isTopLevel ?: false
     val isDefaultTopBarRoute = appRoute?.isDefaultTopBar ?: false
     val titleText = when {
-        isTopLevel -> APP_BAR_BRAND_NAME
+        isTopLevel -> brandName
         isDefaultTopBarRoute -> appRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
         topBarState.title.isNotEmpty() -> topBarState.title
         else -> ""
@@ -396,7 +397,7 @@ private fun SinglePaneTopBar(
                         horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 24.dp else 8.dp)
                     ) {
                         Text(
-                            text = APP_BAR_BRAND_NAME,
+                            text = brandName,
                             fontSize = 30.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.primary,

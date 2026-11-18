@@ -166,4 +166,13 @@ interface AlbumDao {
         WHERE (artistId IS NULL OR artistId = '')
     """)
     suspend fun repairAlbumArtistIds()
+
+    @Query("""
+        SELECT * FROM albums
+        WHERE name LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+           OR artist LIKE '%' || :escapedQuery || '%' ESCAPE '\' COLLATE NOCASE
+        ORDER BY name ASC
+        LIMIT :limit
+    """)
+    suspend fun searchAlbumsLocal(escapedQuery: String, limit: Int): List<AlbumEntity>
 }
