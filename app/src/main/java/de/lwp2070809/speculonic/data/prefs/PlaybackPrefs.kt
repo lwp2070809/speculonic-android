@@ -19,6 +19,7 @@ interface PlaybackPrefs {
     val syncPlaybackState: Flow<Boolean>
     val transcodeIncompatibleFormats: Flow<Boolean>
     val targetTranscodeFormat: Flow<String>
+    fun getCachedTranscodeIncompatibleFormats(): Boolean
 
     suspend fun saveMobilePlayAllowed(allowed: Boolean)
     suspend fun savePlaybackState(

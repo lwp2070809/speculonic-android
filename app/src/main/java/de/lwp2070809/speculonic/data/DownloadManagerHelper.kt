@@ -10,6 +10,7 @@ import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.scheduler.Requirements
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
@@ -26,9 +27,16 @@ import kotlinx.coroutines.withContext
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicLong
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @AndroidxOptIn(UnstableApi::class)
-object DownloadManagerHelper {
+@Singleton
+class DownloadManagerHelper @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val preferencesManager: PreferencesManager,
+    private val cacheManager: CacheManager
+) {
     private data class BuiltDownloadManager(
         val manager: DownloadManager,
         val executor: ExecutorService
@@ -40,7 +48,7 @@ object DownloadManagerHelper {
     private val initGeneration = AtomicLong(0L)
 
     @Suppress("TooGenericExceptionCaught")
-    fun initializeAsync(context: Context) {
+    fun initializeAsync() {
         synchronized(this) {
             val current = deferredHolder
             if (current.isCompleted && !current.isCancelled) return
@@ -54,7 +62,7 @@ object DownloadManagerHelper {
             initJob = CoroutineScope(Dispatchers.IO).launch {
                 var built: BuiltDownloadManager? = null
                 try {
-                    built = buildDownloadManager(context, generation)
+                    built = buildDownloadManager(generation)
                     val accepted = synchronized(this@DownloadManagerHelper) {
                         if (generation == initGeneration.get() &&
                             deferredHolder === targetDeferred &&
@@ -92,36 +100,36 @@ object DownloadManagerHelper {
     }
 
     @Suppress("TooGenericExceptionCaught")
-    fun getDownloadManager(context: Context): DownloadManager {
+    fun getDownloadManager(): DownloadManager {
         val current = deferredHolder
         if (current.isCompleted && !current.isCancelled) {
-            return current.completedManagerOrNull() ?: fallbackInit(context)
+            return current.completedManagerOrNull() ?: fallbackInit()
         }
-        initializeAsync(context)
+        initializeAsync()
         return try {
             runBlocking(Dispatchers.IO) {
                 deferredHolder.await()
             }
         } catch (e: Exception) {
             LogManager.e("DownloadManagerHelper: Error awaiting DownloadManager in getDownloadManager", e)
-            fallbackInit(context)
+            fallbackInit()
         }
     }
 
-    suspend fun getDownloadManagerSuspend(context: Context): DownloadManager {
+    suspend fun getDownloadManagerSuspend(): DownloadManager {
         val current = deferredHolder
         if (current.isCompleted && !current.isCancelled) {
             current.completedManagerOrNull()?.let { return it }
             val completionError = current.getCompletionExceptionOrNull()
             if (completionError is CancellationException) throw completionError
-            return withContext(Dispatchers.IO) { fallbackInit(context) }
+            return withContext(Dispatchers.IO) { fallbackInit() }
         }
-        initializeAsync(context)
+        initializeAsync()
         return try {
             deferredHolder.await()
         } catch (e: CancellationException) {
             if (currentCoroutineContext().isActive) {
-                initializeAsync(context)
+                initializeAsync()
                 deferredHolder.await()
             } else {
                 throw e
@@ -139,7 +147,7 @@ object DownloadManagerHelper {
             null
         }
 
-    private fun fallbackInit(context: Context): DownloadManager {
+    private fun fallbackInit(): DownloadManager {
         val (generation, fresh) = synchronized(this) {
             val cur = deferredHolder
             if (cur.isCompleted && !cur.isCancelled) {
@@ -150,7 +158,7 @@ object DownloadManagerHelper {
                 CompletableDeferred<DownloadManager>().also { deferredHolder = it }
             )
         }
-        val built = executeFallbackBuild(context, generation, fresh)
+        val built = executeFallbackBuild(generation, fresh)
         val accepted = synchronized(this) {
             if (generation == initGeneration.get() && deferredHolder === fresh && !fresh.isCompleted) {
                 downloadExecutor = built.executor
@@ -170,11 +178,10 @@ object DownloadManagerHelper {
 
     @Suppress("TooGenericExceptionCaught")
     private fun executeFallbackBuild(
-        context: Context,
         generation: Long,
         fresh: CompletableDeferred<DownloadManager>
     ): BuiltDownloadManager = try {
-        runBlocking(Dispatchers.IO) { buildDownloadManager(context, generation) }
+        runBlocking(Dispatchers.IO) { buildDownloadManager(generation) }
     } catch (e: CancellationException) {
         fresh.cancel(e)
         throw e
@@ -183,12 +190,11 @@ object DownloadManagerHelper {
         throw e
     }
 
-    private suspend fun buildDownloadManager(context: Context, generation: Long): BuiltDownloadManager =
+    private suspend fun buildDownloadManager(generation: Long): BuiltDownloadManager =
         withContext(Dispatchers.IO) {
-            val preferencesManager = PreferencesManager.getInstance(context)
             val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
 
-            val downloadCache = CacheManager.acquireDownloadCache(context)
+            val downloadCache = cacheManager.acquireDownloadCache()
             if (generation != initGeneration.get()) {
                 throw CancellationException("DownloadManagerHelper released before acquiring databaseProvider")
             }
@@ -197,7 +203,7 @@ object DownloadManagerHelper {
             val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
             val upstreamDataSourceFactory = httpDataSourceFactory
 
-            val databaseProvider = CacheManager.acquireDatabaseProvider(context)
+            val databaseProvider = cacheManager.acquireDatabaseProvider()
             if (generation != initGeneration.get()) {
                 throw CancellationException("DownloadManagerHelper released before constructing DownloadManager")
             }

@@ -2,13 +2,38 @@ package de.lwp2070809.speculonic.ui
 
 import de.lwp2070809.speculonic.R
 import androidx.annotation.StringRes
-import androidx.compose.animation.*
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.detectTapGestures
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteItem
@@ -16,8 +41,16 @@ import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffo
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.material3.NavigationItemColors
-import androidx.compose.material3.windowsizeclass.WindowSizeClass
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -28,13 +61,10 @@ import android.content.Context
 import androidx.compose.ui.platform.LocalContext
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.window.core.layout.WindowSizeClass.Companion.WIDTH_DP_EXPANDED_LOWER_BOUND
-import de.lwp2070809.speculonic.data.PreferencesManager
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.playback.DownloadController
-import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.ui.components.navigation.MainTopBar
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.ui.components.MiniPlayer
+import de.lwp2070809.speculonic.ui.components.SyncDetailDialog
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.CoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
@@ -51,34 +81,32 @@ import de.lwp2070809.speculonic.ui.navigation.rememberNavigationState
 import de.lwp2070809.speculonic.ui.screens.player.NowPlayingViewModel
 import de.lwp2070809.speculonic.ui.screens.search.SearchScreen
 import de.lwp2070809.speculonic.ui.screens.search.SearchViewModel
+import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncUiState
+import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.components.ServerConfigDialog
-import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
 import de.lwp2070809.speculonic.util.toMediaItem
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
-    windowSizeClass: WindowSizeClass,
-    preferencesManager: PreferencesManager,
-    playbackController: PlaybackController,
+    mainViewModel: MainViewModel,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
-    repository: SubsonicRepository,
     initialShowNowPlaying: Boolean = false,
     onNowPlayingShown: () -> Unit = {},
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit
 ) {
-    val serverUrl by preferencesManager.serverUrl.collectAsStateWithLifecycle(initialValue = null)
+    val serverUrl by mainViewModel.serverUrl.collectAsStateWithLifecycle()
 
-    val settingsViewModel: SettingsViewModel = hiltViewModel()
-    val settingsUiState by settingsViewModel.uiState.collectAsState()
-    val isSyncing by settingsViewModel.isSyncing.collectAsState()
+    val serverSyncViewModel: ServerSyncViewModel = hiltViewModel()
+    val serverSyncUiState by serverSyncViewModel.uiState.collectAsStateWithLifecycle()
+    val isSyncing by serverSyncViewModel.isSyncing.collectAsStateWithLifecycle()
 
     val currentContext = LocalContext.current
-    val stableRepository = remember(repository) { repository }
-    val stablePlaybackController = remember(playbackController) { playbackController }
+    val repository = mainViewModel.repository
+    val stablePlaybackController = remember(mainViewModel) { mainViewModel.playbackController }
     val coverArtRequester = remember(repository, currentContext) {
         object : CoverArtRequester {
             override fun buildCoverArtRequest(
@@ -89,32 +117,30 @@ fun MainScreen(
                 crossfade: Boolean,
                 fallbackUri: android.net.Uri?
             ): coil3.request.ImageRequest {
-                return repository.buildCoverArtRequest(id, context ?: currentContext, preferLocal, size, crossfade, fallbackUri)
+                return repository.buildCoverArtRequest(id, size, crossfade, fallbackUri)
             }
         }
     }
     val mediaItemConverter = remember(repository) {
         MediaItemConverter { song -> song.toMediaItem(repository) }
     }
-    val downloadController = remember(repository, currentContext) { DownloadController(currentContext, repository) }
-
     CompositionLocalProvider(
         LocalCoverArtRequester provides coverArtRequester,
         LocalMediaItemConverter provides mediaItemConverter,
-        LocalDownloadController provides downloadController,
+        LocalDownloadController provides mainViewModel.downloadController,
         LocalPlaybackController provides stablePlaybackController
     ) {
         MainContent(
-            preferencesManager = preferencesManager,
+            downloadTracker = mainViewModel.downloadTracker,
             isOnline = isOnline,
             isEffectivelyOnline = isEffectivelyOnline,
             isStreamingAllowed = isStreamingAllowed,
             serverUrl = serverUrl,
             initialShowNowPlaying = initialShowNowPlaying,
             onNowPlayingShown = onNowPlayingShown,
-            settingsViewModel = settingsViewModel,
+            serverSyncViewModel = serverSyncViewModel,
             isSyncing = isSyncing,
-            settingsUiState = settingsUiState,
+            serverSyncUiState = serverSyncUiState,
             offlineMode = offlineMode,
             onToggleOfflineMode = onToggleOfflineMode
         )
@@ -125,16 +151,16 @@ fun MainScreen(
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @Composable
 private fun MainContent(
-    preferencesManager: PreferencesManager,
+    downloadTracker: DownloadTracker,
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     serverUrl: String?,
     initialShowNowPlaying: Boolean,
     onNowPlayingShown: () -> Unit,
-    settingsViewModel: SettingsViewModel,
+    serverSyncViewModel: ServerSyncViewModel,
     isSyncing: Boolean,
-    settingsUiState: de.lwp2070809.speculonic.ui.screens.settings.SettingsUiState,
+    serverSyncUiState: ServerSyncUiState,
     offlineMode: Boolean,
     onToggleOfflineMode: () -> Unit
 ) {
@@ -173,7 +199,11 @@ private fun MainContent(
     data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: @Composable () -> Unit)
     val navItems = listOf(
         NavItem(AppRoute.Discover, R.string.discover, { Icon(Icons.Default.Home, contentDescription = null) }),
-        NavItem(AppRoute.Library, R.string.library, { Icon(androidx.compose.ui.res.painterResource(R.drawable.ic_symbol_library_music), contentDescription = null) }),
+        NavItem(
+            route = AppRoute.Library,
+            title = R.string.library,
+            icon = { Icon(painterResource(R.drawable.ic_symbol_library_music), contentDescription = null) }
+        ),
         NavItem(AppRoute.Settings, R.string.settings, { Icon(Icons.Default.Settings, contentDescription = null) })
     )
     val currentRoute = navigationState.getRetainedKeys().lastOrNull()
@@ -246,7 +276,7 @@ private fun MainContent(
                         modifier = Modifier.fillMaxSize(),
                         contentWindowInsets = WindowInsets(0, 0, 0, 0),
                         topBar = {
-                            val activeDownloadsCount by DownloadTracker.activeNonSilentCountFlow
+                            val activeDownloadsCount by downloadTracker.activeNonSilentCountFlow
                                 .collectAsStateWithLifecycle(initialValue = 0)
                             MainTopBar(
                                 currentRoute = currentRoute,
@@ -257,8 +287,7 @@ private fun MainContent(
                                 onLeftBackClick = { navigator.goBackList() },
                                 onSearchClick = { showSearch = true },
                                 isSyncing = isSyncing,
-                                syncProgress = settingsUiState.syncProgress,
-                                syncError = settingsUiState.syncError,
+                                syncError = serverSyncUiState.syncError,
                                 onSyncStatusClick = { showSyncDetailDialog = true },
                                 activeDownloadsCount = activeDownloadsCount,
                                 onDownloadManagerClick = { navigator.navigate(AppRoute.DownloadManager) },
@@ -281,8 +310,7 @@ private fun MainContent(
                                     isOnline = isOnline,
                                     isEffectivelyOnline = isEffectivelyOnline,
                                     isStreamingAllowed = isStreamingAllowed,
-                                    onShowSearch = { showSearch = true },
-                                    settingsViewModel = settingsViewModel,
+                                    serverSyncViewModel = serverSyncViewModel,
                                     directive = directive,
                                     modifier = Modifier.fillMaxSize()
                                 )
@@ -319,8 +347,7 @@ private fun MainContent(
                                     isOnline = isOnline,
                                     isEffectivelyOnline = isEffectivelyOnline,
                                     isStreamingAllowed = isStreamingAllowed,
-                                    onShowSearch = { showSearch = true },
-                                    settingsViewModel = settingsViewModel,
+                                    serverSyncViewModel = serverSyncViewModel,
                                     directive = directive,
                                     modifier = Modifier.weight(1f)
                                 )
@@ -361,10 +388,11 @@ private fun MainContent(
                                 },
                                 color = MaterialTheme.colorScheme.background
                             ) {
-                                val hasActiveDetailInDualPane = isDualPane && navigationState.getCurrentBackStack().lastOrNull()?.let { (it as? AppRoute)?.isDetailPane == true } == true
+                                val lastBackStackEntry = navigationState.getCurrentBackStack().lastOrNull()
+                                val hasActiveDetailInDualPane = isDualPane &&
+                                    (lastBackStackEntry as? AppRoute)?.isDetailPane == true
                                 SearchScreen(
                                     viewModel = searchViewModel,
-                                    isOnline = isOnline,
                                     isEffectivelyOnline = isEffectivelyOnline,
                                     isStreamingAllowed = isStreamingAllowed,
                                     onAlbumClick = { albumId ->
@@ -422,42 +450,47 @@ private fun MainContent(
             }
 
             if (showSyncDetailDialog) {
-                de.lwp2070809.speculonic.ui.components.SyncDetailDialog(
+                SyncDetailDialog(
                     onDismiss = { showSyncDetailDialog = false },
-                    viewModel = settingsViewModel
+                    viewModel = serverSyncViewModel
                 )
             }
 
-            if (settingsUiState.showFirstSyncConfirm) {
+            if (serverSyncUiState.showFirstSyncConfirm) {
                 AlertDialog(
-                    onDismissRequest = { settingsViewModel.cancelFirstSync() },
+                    onDismissRequest = { serverSyncViewModel.cancelFirstSync() },
                     title = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_title)) },
                     text = { Text(androidx.compose.ui.res.stringResource(R.string.first_sync_message)) },
                     confirmButton = {
-                        TextButton(onClick = { settingsViewModel.performFullSync() }) {
+                        TextButton(onClick = { serverSyncViewModel.performFullSync() }) {
                             Text(androidx.compose.ui.res.stringResource(R.string.sync_now))
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { settingsViewModel.cancelFirstSync() }) {
+                        TextButton(onClick = { serverSyncViewModel.cancelFirstSync() }) {
                             Text(androidx.compose.ui.res.stringResource(R.string.sync_later))
                         }
                     }
                 )
             }
 
-            if (settingsUiState.showSafetyGuardConfirm) {
+            if (serverSyncUiState.showSafetyGuardConfirm) {
                 AlertDialog(
-                    onDismissRequest = { settingsViewModel.cancelSafetyGuard() },
+                    onDismissRequest = { serverSyncViewModel.cancelSafetyGuard() },
                     title = { Text(androidx.compose.ui.res.stringResource(R.string.safety_guard_title)) },
-                    text = { Text(settingsUiState.safetyGuardMessage ?: androidx.compose.ui.res.stringResource(R.string.safety_guard_message)) },
+                    text = {
+                        Text(
+                            serverSyncUiState.safetyGuardMessage
+                                ?: stringResource(R.string.safety_guard_message)
+                        )
+                    },
                     confirmButton = {
-                        TextButton(onClick = { settingsViewModel.confirmSafetyGuard() }) {
+                        TextButton(onClick = { serverSyncViewModel.confirmSafetyGuard() }) {
                             Text(androidx.compose.ui.res.stringResource(R.string.force_sync), color = MaterialTheme.colorScheme.error)
                         }
                     },
                     dismissButton = {
-                        TextButton(onClick = { settingsViewModel.cancelSafetyGuard() }) {
+                        TextButton(onClick = { serverSyncViewModel.cancelSafetyGuard() }) {
                             Text(androidx.compose.ui.res.stringResource(R.string.cancel))
                         }
                     }
@@ -469,12 +502,12 @@ private fun MainContent(
                     initialUrl = serverUrl ?: "",
                     initialUser = "",
                     initialPass = "",
-                    initialAllowInsecure = settingsUiState.allowInsecureConnections,
-                    viewModel = settingsViewModel,
+                    initialAllowInsecure = serverSyncUiState.allowInsecureConnections,
+                    viewModel = serverSyncViewModel,
                     showCancelButton = false,
                     onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
                     onSave = { url, user, pass, syncCoverArt, allowInsecure ->
-                        if (settingsViewModel.saveSettings(
+                        if (serverSyncViewModel.saveSettings(
                                 rawUrl = url,
                                 rawUser = user,
                                 pass = pass,

@@ -18,12 +18,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import de.lwp2070809.speculonic.R
@@ -32,30 +31,15 @@ import de.lwp2070809.speculonic.data.PlayerBackgroundMode
 import de.lwp2070809.speculonic.data.ThemeMode
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppearanceSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
-    val uiState by viewModel.uiState.collectAsState()
+fun AppearanceSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarState) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.appearance)
 
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
     
     Column(
         modifier = Modifier

@@ -20,6 +20,9 @@ private data class ProbeLock(
 
 object ServerReachableManager {
     private const val PROBE_LOCK_TIMEOUT_NS = 35_000_000_000L
+    private const val FAILURE_WAVE_DEBOUNCE_MS = 2000L
+    private const val FAILURE_COUNT_RESET_WINDOW_MS = 60_000L
+    private const val MAX_FAILURE_THRESHOLD = 3
 
     @Volatile
     var isManualOffline: Boolean = false
@@ -91,7 +94,7 @@ object ServerReachableManager {
         if (!isServerReachable) {
             // 当前处于熔断离线状态，半开探测再次失败：立即刷新冷却时间戳，保持熔断状态，重置探测标记
             lastFailureTimestamp = now
-            failureCount.set(3)
+            failureCount.set(MAX_FAILURE_THRESHOLD)
             probeLock.set(null)
             LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE, updated lastFailureTimestamp")
             return
@@ -99,14 +102,14 @@ object ServerReachableManager {
 
         probeLock.set(null)
         // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
-        if (now - lastFailureLogTime > 2000L) {
+        if (now - lastFailureLogTime > FAILURE_WAVE_DEBOUNCE_MS) {
             // 若距离上次故障波次已超过 60 秒，重置陈旧的历史故障计数，防止跨长时间偶发错误累积误判
-            if (now - lastFailureLogTime > 60_000L) {
+            if (now - lastFailureLogTime > FAILURE_COUNT_RESET_WINDOW_MS) {
                 failureCount.set(0)
             }
             lastFailureLogTime = now
             val current = failureCount.incrementAndGet()
-            if (current >= 3) {
+            if (current >= MAX_FAILURE_THRESHOLD) {
                 val wasReachable = isServerReachable
                 isServerReachable = false
                 lastFailureTimestamp = now

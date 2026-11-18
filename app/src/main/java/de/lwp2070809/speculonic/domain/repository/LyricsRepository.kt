@@ -16,10 +16,10 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
 class LyricsRepository(
-    private val context: Context,
     private val api: SubsonicService,
     private val musicDao: MusicDao,
-    private val authManager: AuthManager
+    private val authManager: AuthManager,
+    private val localLyricsProvider: LocalLyricsProvider
 ) {
     private val repositoryScope = CoroutineScope(Dispatchers.IO + kotlinx.coroutines.SupervisorJob())
 
@@ -29,7 +29,8 @@ class LyricsRepository(
 
     private val negativeCache = LruCache<String, Boolean>(200)
     private val positiveCache = LruCache<String, Pair<String?, List<LyricLine>>>(50)
-    private val activeFetches = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Pair<String?, List<LyricLine>>>>()
+    private val activeFetches =
+        java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Pair<String?, List<LyricLine>>>>()
 
     suspend fun getLyricsData(
         songId: String, 
@@ -80,23 +81,14 @@ class LyricsRepository(
     }
 
     private suspend fun fetchLyricsDataInternal(
-        songId: String, 
-        artist: String?, 
+        songId: String,
+        artist: String?,
         title: String?,
         hasSongLyricsExtension: Boolean
     ): Pair<String?, List<LyricLine>> {
-        
         val song = musicDao.getSongById(songId)
-        if (song?.localUri != null) {
-            val lrc = LocalLyricsProvider.getLyricsFromLrcFile(context, song.localUri)
-            if (!lrc.isNullOrBlank()) {
-                val lines = LyricsParser.parse(lrc)
-                if (lines.isNotEmpty()) {
-                    LogManager.d("LyricsRepository: Using local LRC file for $songId")
-                    return Pair(lrc, lines)
-                }
-            }
-        }
+        val localResult = readLocalLyricsOrNull(songId, song?.localUri)
+        if (localResult != null) return localResult
 
         if (synchronized(negativeCache) { negativeCache.get(songId) } == true) {
             LogManager.d("LyricsRepository: $songId is in negative cache, skipping network request")
@@ -104,50 +96,76 @@ class LyricsRepository(
         }
 
         if (NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
-            LogManager.d("LyricsRepository: Device is offline or server is unreachable. Blocking network lyrics request for $songId")
+            LogManager.d(
+                "LyricsRepository: Device is offline or server is unreachable. " +
+                    "Blocking network lyrics request for $songId"
+            )
             return Pair(null, emptyList())
         }
 
         val (u, t, s) = authManager.getAuthParams()
-        
         if (hasSongLyricsExtension) {
-            try {
+            fetchOpenSubsonicLyrics(songId, song?.localUri, u, t, s)?.let { return it }
+        }
+        return fetchLegacyLyrics(songId, artist, title, song?.localUri, Triple(u, t, s))
+    }
+
+    private suspend fun readLocalLyricsOrNull(
+        songId: String,
+        localUri: String?
+    ): Pair<String?, List<LyricLine>>? {
+        if (localUri == null) return null
+        val lrc = localLyricsProvider.getLyricsFromLrcFile(localUri)
+        if (lrc.isNullOrBlank()) return null
+        val lines = LyricsParser.parse(lrc)
+        if (lines.isEmpty()) return null
+        LogManager.d("LyricsRepository: Using local LRC file for $songId")
+        return Pair(lrc, lines)
+    }
+
+    private suspend fun fetchOpenSubsonicLyrics(
+        songId: String,
+        localUri: String?,
+        u: String,
+        t: String,
+        s: String
+    ): Pair<String?, List<LyricLine>>? {
+        return try {
             val response = api.getLyricsBySongId(songId, u, t, s)
             val lyricsList = response.response.lyricsList
             val structured = lyricsList?.structuredLyrics?.firstOrNull()
             if (structured != null) {
                 val lines = LyricsParser.fromStructured(structured.line)
                 val raw = LyricsParser.toLrcString(lines)
-                
                 if (lines.isNotEmpty()) {
-                    if (song?.localUri != null && raw.isNotBlank()) {
-                        repositoryScope.launch {
-                            LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, raw)
-                        }
-                    }
+                    persistLrcAsync(localUri, raw)
                     return Pair(raw, lines)
                 }
             }
-            
+
             val unstructured = lyricsList?.lyrics?.firstOrNull()?.content
             if (!unstructured.isNullOrBlank()) {
                 val lines = LyricsParser.parse(unstructured)
-                
-                if (song?.localUri != null) {
-                    repositoryScope.launch {
-                        LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, unstructured)
-                    }
-                }
-                
+                persistLrcAsync(localUri, unstructured)
                 return Pair(unstructured, lines)
             }
+            null
         } catch (e: kotlinx.coroutines.CancellationException) {
             throw e
         } catch (e: Exception) {
             LogManager.e("Failed to get lyrics via getLyricsBySongId, falling back to legacy API", e)
-            }
+            null
         }
-        
+    }
+
+    private suspend fun fetchLegacyLyrics(
+        songId: String,
+        artist: String?,
+        title: String?,
+        localUri: String?,
+        authParams: Triple<String, String, String>
+    ): Pair<String?, List<LyricLine>> {
+        val (u, t, s) = authParams
         return try {
             val raw = api.getLyrics(artist, title, u, t, s).response.lyrics?.content
             val lines = LyricsParser.parse(raw)
@@ -155,10 +173,8 @@ class LyricsRepository(
                 synchronized(negativeCache) {
                     negativeCache.put(songId, true)
                 }
-            } else if (song?.localUri != null && !raw.isNullOrBlank()) {
-                repositoryScope.launch {
-                    LocalLyricsProvider.saveLyricsToLrcFile(context, song.localUri, raw)
-                }
+            } else if (!raw.isNullOrBlank()) {
+                persistLrcAsync(localUri, raw)
             }
             Pair(raw, lines)
         } catch (e: kotlinx.coroutines.CancellationException) {
@@ -166,6 +182,13 @@ class LyricsRepository(
         } catch (e: Exception) {
             LogManager.w("LyricsRepository: Failed to get lyrics from network for $songId: ${e.message}")
             Pair(null, emptyList())
+        }
+    }
+
+    private fun persistLrcAsync(localUri: String?, rawLyrics: String) {
+        if (localUri == null || rawLyrics.isBlank()) return
+        repositoryScope.launch {
+            localLyricsProvider.saveLyricsToLrcFile(localUri, rawLyrics)
         }
     }
 }

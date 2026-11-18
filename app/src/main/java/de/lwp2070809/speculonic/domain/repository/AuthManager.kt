@@ -11,19 +11,18 @@ class AuthManager(
     
     private var cachedParams: Triple<String, String, String>? = null
     private var lastParamsTime: Long = 0
-    private val CACHE_DURATION = 30_000L 
 
-    
     @Synchronized
     fun getAuthParams(forceRefresh: Boolean = false, isForImageContent: Boolean = false): Triple<String, String, String> {
         val currentTime = System.currentTimeMillis()
         val currentCache = cachedParams
-        
-        if (!forceRefresh && isForImageContent && currentCache != null && (currentTime - lastParamsTime) < CACHE_DURATION) {
+        val canUseCache = !forceRefresh && isForImageContent && currentCache != null &&
+            (currentTime - lastParamsTime) < CACHE_DURATION_MS
+        if (canUseCache) {
             return currentCache
         }
 
-        val s = UUID.randomUUID().toString().take(8)
+        val s = UUID.randomUUID().toString().take(SALT_LENGTH)
         val t = md5WithSalt(pass, s)
         val newParams = Triple(user, t, s)
         
@@ -53,5 +52,10 @@ class AuthManager(
             }
         }
         return md.digest().joinToString("") { "%02x".format(it) }
+    }
+
+    private companion object {
+        const val CACHE_DURATION_MS = 30_000L
+        const val SALT_LENGTH = 8
     }
 }

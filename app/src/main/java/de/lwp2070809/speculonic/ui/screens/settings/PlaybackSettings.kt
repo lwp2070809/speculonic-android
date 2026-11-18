@@ -20,14 +20,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -35,32 +32,16 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 import de.lwp2070809.speculonic.util.MediaFormatUtils
-import java.util.UUID
 
 @Composable
-fun PlaybackSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
-    val uiState by viewModel.uiState.collectAsState()
+fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarState) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.play)
     var showFormatDialog by rememberSaveable { mutableStateOf(false) }
 
-    val screenToken = remember { UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
     
     Column(
         modifier = Modifier

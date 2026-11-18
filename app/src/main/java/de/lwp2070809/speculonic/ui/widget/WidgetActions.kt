@@ -4,9 +4,13 @@ import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
+import androidx.media3.common.Player
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
+import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.util.LogManager
@@ -15,6 +19,9 @@ import de.lwp2070809.speculonic.util.LogManager
 @InstallIn(SingletonComponent::class)
 interface WidgetEntryPoint {
     fun subsonicRepository(): SubsonicRepository
+    fun playbackController(): PlaybackController
+    fun appDatabase(): AppDatabase
+    fun preferencesManager(): PreferencesManager
 }
 
 /**
@@ -23,6 +30,9 @@ interface WidgetEntryPoint {
 object WidgetActionParams {
     val PARAM_ACTION_NAME = ActionParameters.Key<String>("widget_action_name")
 }
+
+private fun widgetEntryPoint(context: Context): WidgetEntryPoint =
+    EntryPointAccessors.fromApplication(context.applicationContext, WidgetEntryPoint::class.java)
 
 /**
  * 播放/暂停控制动作回调，支持在冷启动时唤醒就绪并自愈加载完整持久化播放队列
@@ -34,13 +44,13 @@ class WidgetPlayPauseAction : ActionCallback {
         parameters: ActionParameters
     ) {
         LogManager.i("SpeculonicWidgetAction: WidgetPlayPauseAction triggered")
-        val controller = PlaybackController.getInstance(context)
+        val controller = widgetEntryPoint(context).playbackController()
         var needsAutoRestore = false
         controller.executeOnControllerAsync { ctrl ->
             if (ctrl.playWhenReady) {
                 ctrl.pause()
             } else if (ctrl.mediaItemCount > 0) {
-                if (ctrl.playbackState == androidx.media3.common.Player.STATE_IDLE) {
+                if (ctrl.playbackState == Player.STATE_IDLE) {
                     ctrl.prepare()
                 }
                 ctrl.play()
@@ -66,7 +76,7 @@ class WidgetNextAction : ActionCallback {
         parameters: ActionParameters
     ) {
         LogManager.i("SpeculonicWidgetAction: WidgetNextAction triggered")
-        val controller = PlaybackController.getInstance(context)
+        val controller = widgetEntryPoint(context).playbackController()
         controller.executeOnControllerAsync { ctrl ->
             if (ctrl.mediaItemCount > 0) {
                 ctrl.seekToNext()
@@ -89,7 +99,7 @@ class WidgetPreviousAction : ActionCallback {
         parameters: ActionParameters
     ) {
         LogManager.i("SpeculonicWidgetAction: WidgetPreviousAction triggered")
-        val controller = PlaybackController.getInstance(context)
+        val controller = widgetEntryPoint(context).playbackController()
         controller.executeOnControllerAsync { ctrl ->
             if (ctrl.mediaItemCount > 0) {
                 ctrl.seekToPrevious()

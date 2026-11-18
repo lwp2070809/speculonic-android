@@ -4,9 +4,6 @@ import android.content.Context
 import androidx.glance.appwidget.GlanceAppWidgetManager
 import androidx.glance.appwidget.state.updateAppWidgetState
 import dagger.hilt.android.EntryPointAccessors
-import de.lwp2070809.speculonic.data.PreferencesManager
-import de.lwp2070809.speculonic.data.db.AppDatabase
-import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.playback.PlaybackService
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
@@ -25,6 +22,10 @@ import kotlinx.coroutines.withContext
  * 桌面微件更新同步器，采用并发安全 Channel.CONFLATED 队列实现 300ms 防抖与冷启动状态自愈
  */
 object SpeculonicWidgetUpdater {
+    private const val UPDATE_DEBOUNCE_MS = 300L
+    private const val COVER_PRELOAD_TARGET_DP = 120
+    private const val DEFAULT_WIDGET_ALPHA = 0.85f
+
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val updateChannel = Channel<Context>(Channel.CONFLATED)
     private val updateMutex = Mutex()
@@ -37,13 +38,23 @@ object SpeculonicWidgetUpdater {
         val isPlaying: Boolean
     )
 
+    private data class WidgetTrackPayload(
+        val songId: String,
+        val title: String,
+        val artist: String,
+        val album: String,
+        val artworkUri: String,
+        val isPlaying: Boolean,
+        val hasTrack: Boolean
+    )
+
     @Volatile
     private var serviceTrackOverride: ServiceTrackSnapshot? = null
 
     init {
         scope.launch {
             for (context in updateChannel) {
-                delay(300)
+                delay(UPDATE_DEBOUNCE_MS)
                 // 消化在 300ms 延时期间可能流入的新触发，直接保留最新上下文
                 var latestContext = context
                 while (true) {
@@ -118,7 +129,11 @@ object SpeculonicWidgetUpdater {
                 if (PlaybackService.isServiceActive && (PlaybackService.isPlayerPlaying || PlaybackService.isPlaybackIntended)) {
                     return@withLock
                 }
-                if (PlaybackController.getInstance(appContext).playbackState.value.playWhenReady) {
+                val entryPoint = EntryPointAccessors.fromApplication(
+                    appContext,
+                    WidgetEntryPoint::class.java
+                )
+                if (entryPoint.playbackController().playbackState.value.playWhenReady) {
                     return@withLock
                 }
                 clearStalePlayingFlagLocked(appContext)
@@ -160,82 +175,112 @@ object SpeculonicWidgetUpdater {
                 val glanceIds = glanceAppWidgetManager.getGlanceIds(SpeculonicMusicWidget::class.java)
                 if (glanceIds.isEmpty()) return@withLock
 
-                val controller = PlaybackController.getInstance(context)
-                val playbackState = controller.playbackState.value
-                val db = AppDatabase.getDatabase(context)
-
                 val entryPoint = EntryPointAccessors.fromApplication(
                     context.applicationContext,
                     WidgetEntryPoint::class.java
                 )
-                val repo = entryPoint.subsonicRepository()
-
-                val override = if (PlaybackService.isServiceActive) serviceTrackOverride else null
-                var songId = override?.songId?.takeIf { it.isNotEmpty() } ?: playbackState.currentSongId
-                var title = if (override != null && override.songId.isNotEmpty()) override.title else playbackState.currentSongTitle
-                var artist = if (override != null && override.songId.isNotEmpty()) override.artist else playbackState.currentArtist
-                var album = ""
-                val rawArtworkUri = override?.artworkUri?.takeIf { it.isNotEmpty() }
-                    ?: playbackState.artworkUri?.toString()
-                    ?: ""
-                var artworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(rawArtworkUri)
-                val isPlaying = PlaybackService.isServiceActive && (override?.isPlaying ?: PlaybackService.isPlaybackIntended)
-                var hasTrack = songId.isNotEmpty()
-
-                // 冷启动或无当前播放曲目时，自愈尝试从持久化历史中加载最后播放的一首歌
-                if (!hasTrack) {
-                    val prefs = PreferencesManager.getInstance(context)
-                    val lastId = prefs.lastSongId.first() ?: ""
-                    if (lastId.isNotEmpty()) {
-                        val lastSong = db.musicDao().getSongById(lastId)
-                        if (lastSong != null) {
-                            songId = lastSong.id
-                            title = lastSong.title
-                            artist = lastSong.artist ?: ""
-                            album = lastSong.album ?: ""
-                            artworkUri = lastSong.coverArt?.let { repo.buildCoverArtUrl(it) } ?: ""
-                            hasTrack = true
-                        }
-                    }
-                } else {
-                    val currentSong = db.musicDao().getSongById(songId)
-                    if (currentSong != null) {
-                        album = currentSong.album ?: ""
-                        if (artworkUri.isEmpty()) {
-                            artworkUri = currentSong.coverArt?.let { repo.buildCoverArtUrl(it) } ?: ""
-                        }
-                    }
-                }
-
-                if (hasTrack && (artworkUri.isNotEmpty() || songId.isNotEmpty())) {
-                    try {
-                        WidgetCoverLoader.loadCover(context, artworkUri, songId, targetDp = 120)
-                    } catch (coverEx: Exception) {
-                        LogManager.w("SpeculonicWidgetUpdater: Pre-caching cover failed: ${coverEx.message}")
-                    }
-                }
-
-                val widget = SpeculonicMusicWidget()
-                for (glanceId in glanceIds) {
-                    updateAppWidgetState(context, glanceId) { prefs ->
-                        prefs[WidgetStateKeys.KEY_SONG_ID] = songId
-                        prefs[WidgetStateKeys.KEY_TITLE] = title
-                        prefs[WidgetStateKeys.KEY_ARTIST] = artist
-                        prefs[WidgetStateKeys.KEY_ALBUM] = album
-                        prefs[WidgetStateKeys.KEY_ARTWORK_URI] = artworkUri
-                        prefs[WidgetStateKeys.KEY_IS_PLAYING] = isPlaying
-                        prefs[WidgetStateKeys.KEY_HAS_TRACK] = hasTrack
-                        if (!prefs.contains(WidgetStateKeys.KEY_BACKGROUND_ALPHA)) {
-                            prefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] = 0.85f
-                        }
-                    }
-                    widget.update(context, glanceId)
-                }
+                val payload = resolveWidgetTrackPayload(entryPoint)
+                preloadWidgetCoverArt(context, payload)
+                writePayloadToWidgets(context, glanceIds, payload)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 LogManager.w("SpeculonicWidgetUpdater: Failed to update widgets: ${e.message}")
             }
+        }
+    }
+
+    private suspend fun resolveWidgetTrackPayload(entryPoint: WidgetEntryPoint): WidgetTrackPayload {
+        val playbackState = entryPoint.playbackController().playbackState.value
+        val db = entryPoint.appDatabase()
+        val repo = entryPoint.subsonicRepository()
+        val prefs = entryPoint.preferencesManager()
+
+        val activeOverride = if (PlaybackService.isServiceActive) {
+            serviceTrackOverride?.takeIf { it.songId.isNotEmpty() }
+        } else {
+            null
+        }
+        val initialSongId = activeOverride?.songId ?: playbackState.currentSongId
+        val rawArtworkUri = activeOverride?.artworkUri?.takeIf { it.isNotEmpty() }
+            ?: playbackState.artworkUri?.toString()
+            ?: ""
+        val cleanedArtworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(rawArtworkUri)
+        val isPlaying = PlaybackService.isServiceActive &&
+            (activeOverride?.isPlaying ?: PlaybackService.isPlaybackIntended)
+
+        // 冷启动或无当前播放曲目时，自愈尝试从持久化历史中加载最后播放的一首歌
+        if (initialSongId.isEmpty()) {
+            return resolveLastPlayedWidgetPayload(db, repo, prefs, isPlaying)
+        }
+
+        val currentSong = db.musicDao().getSongById(initialSongId)
+        val resolvedArtwork = cleanedArtworkUri.ifEmpty {
+            currentSong?.coverArt?.let { repo.buildCoverArtUrl(it) } ?: ""
+        }
+        return WidgetTrackPayload(
+            songId = initialSongId,
+            title = activeOverride?.title ?: playbackState.currentSongTitle,
+            artist = activeOverride?.artist ?: playbackState.currentArtist,
+            album = currentSong?.album ?: "",
+            artworkUri = resolvedArtwork,
+            isPlaying = isPlaying,
+            hasTrack = true
+        )
+    }
+
+    private suspend fun resolveLastPlayedWidgetPayload(
+        db: de.lwp2070809.speculonic.data.db.AppDatabase,
+        repo: de.lwp2070809.speculonic.domain.repository.SubsonicRepository,
+        prefs: de.lwp2070809.speculonic.data.PreferencesManager,
+        isPlaying: Boolean
+    ): WidgetTrackPayload {
+        val lastId = prefs.lastSongId.first() ?: ""
+        val lastSong = if (lastId.isNotEmpty()) db.musicDao().getSongById(lastId) else null
+        if (lastSong == null) {
+            return WidgetTrackPayload("", "", "", "", "", isPlaying, hasTrack = false)
+        }
+        return WidgetTrackPayload(
+            songId = lastSong.id,
+            title = lastSong.title,
+            artist = lastSong.artist ?: "",
+            album = lastSong.album ?: "",
+            artworkUri = lastSong.coverArt?.let { repo.buildCoverArtUrl(it) } ?: "",
+            isPlaying = isPlaying,
+            hasTrack = true
+        )
+    }
+
+    private suspend fun preloadWidgetCoverArt(context: Context, payload: WidgetTrackPayload) {
+        if (!payload.hasTrack) return
+        if (payload.artworkUri.isEmpty() && payload.songId.isEmpty()) return
+        try {
+            WidgetCoverLoader.loadCover(context, payload.artworkUri, payload.songId, targetDp = COVER_PRELOAD_TARGET_DP)
+        } catch (coverEx: Exception) {
+            LogManager.w("SpeculonicWidgetUpdater: Pre-caching cover failed: ${coverEx.message}")
+        }
+    }
+
+    private suspend fun writePayloadToWidgets(
+        context: Context,
+        glanceIds: List<androidx.glance.GlanceId>,
+        payload: WidgetTrackPayload
+    ) {
+        val widget = SpeculonicMusicWidget()
+        for (glanceId in glanceIds) {
+            updateAppWidgetState(context, glanceId) { prefs ->
+                prefs[WidgetStateKeys.KEY_SONG_ID] = payload.songId
+                prefs[WidgetStateKeys.KEY_TITLE] = payload.title
+                prefs[WidgetStateKeys.KEY_ARTIST] = payload.artist
+                prefs[WidgetStateKeys.KEY_ALBUM] = payload.album
+                prefs[WidgetStateKeys.KEY_ARTWORK_URI] = payload.artworkUri
+                prefs[WidgetStateKeys.KEY_IS_PLAYING] = payload.isPlaying
+                prefs[WidgetStateKeys.KEY_HAS_TRACK] = payload.hasTrack
+                if (!prefs.contains(WidgetStateKeys.KEY_BACKGROUND_ALPHA)) {
+                    prefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] = DEFAULT_WIDGET_ALPHA
+                }
+            }
+            widget.update(context, glanceId)
         }
     }
 }

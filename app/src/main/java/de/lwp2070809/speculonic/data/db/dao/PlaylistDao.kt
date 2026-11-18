@@ -27,17 +27,17 @@ interface PlaylistDao {
     suspend fun getAllPlaylistIds(): List<String>
 
     @Query("DELETE FROM playlists WHERE id IN (:ids)")
-    suspend fun _deletePlaylistsByIds(ids: List<String>)
+    suspend fun deletePlaylistsByIdsBatch(ids: List<String>)
 
     @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId IN (:playlistIds)")
-    suspend fun _deletePlaylistSongsByPlaylistIds(playlistIds: List<String>)
+    suspend fun deletePlaylistSongsByPlaylistIdsBatch(playlistIds: List<String>)
 
     @Transaction
     suspend fun deletePlaylistsByIds(ids: List<String>) {
         if (ids.isEmpty()) return
-        ids.chunked(900).forEach {
-            _deletePlaylistSongsByPlaylistIds(it)
-            _deletePlaylistsByIds(it)
+        ids.chunked(SQLITE_IN_CHUNK_SIZE).forEach {
+            deletePlaylistSongsByPlaylistIdsBatch(it)
+            deletePlaylistsByIdsBatch(it)
         }
     }
 
@@ -58,12 +58,12 @@ interface PlaylistDao {
     suspend fun clearAllPlaylistSongCrossRefs()
 
     @Query("DELETE FROM playlists")
-    suspend fun _clearAllPlaylists()
+    suspend fun clearAllPlaylistsTable()
 
     @Transaction
     suspend fun clearAllPlaylists() {
         clearAllPlaylistSongCrossRefs()
-        _clearAllPlaylists()
+        clearAllPlaylistsTable()
     }
 
     @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId NOT IN (SELECT id FROM playlists)")

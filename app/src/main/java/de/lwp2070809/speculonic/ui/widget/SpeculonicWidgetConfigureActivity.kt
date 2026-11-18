@@ -87,143 +87,150 @@ class SpeculonicWidgetConfigureActivity : ComponentActivity() {
 
         setContent {
             SpeculonicTheme {
-                var alpha by remember { mutableFloatStateOf(0.85f) }
-                val scope = rememberCoroutineScope()
+                WidgetConfigureScreen()
+            }
+        }
+    }
 
-                LaunchedEffect(appWidgetId) {
-                    if (appWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
-                        try {
-                            val manager = GlanceAppWidgetManager(this@SpeculonicWidgetConfigureActivity)
-                            val glanceId = manager.getGlanceIdBy(appWidgetId)
-                            val prefs = withContext(Dispatchers.IO) {
-                                getAppWidgetState(
-                                    this@SpeculonicWidgetConfigureActivity,
-                                    PreferencesGlanceStateDefinition,
-                                    glanceId
+    @OptIn(ExperimentalMaterial3Api::class)
+    @Composable
+    private fun WidgetConfigureScreen() {
+        var alpha by remember { mutableFloatStateOf(DEFAULT_WIDGET_ALPHA) }
+        val scope = rememberCoroutineScope()
+
+        LaunchedEffect(appWidgetId) {
+            alpha = loadInitialWidgetAlpha()
+        }
+
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        Text(
+                            text = stringResource(R.string.widget_settings_title),
+                            fontWeight = FontWeight.Bold
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = { finish() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = stringResource(R.string.cd_back)
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            },
+            containerColor = MaterialTheme.colorScheme.surface
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(horizontal = 20.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(24.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.widget_preview),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                WidgetPreviewBox(alpha = alpha)
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(20.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = stringResource(R.string.widget_opacity),
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = stringResource(R.string.widget_opacity_desc),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
-                            alpha = prefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] ?: 0.85f
-                        } catch (e: Exception) {
-                            LogManager.w("Failed to read initial widget alpha: ${e.message}")
+                            Text(
+                                text = "${(alpha * 100).roundToInt()}%",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
                         }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Slider(
+                            value = alpha,
+                            onValueChange = { alpha = it },
+                            valueRange = 0.10f..1.0f,
+                            modifier = Modifier.fillMaxWidth()
+                        )
                     }
                 }
 
-                Scaffold(
-                    topBar = {
-                        TopAppBar(
-                            title = {
-                                Text(
-                                    text = stringResource(R.string.widget_settings_title),
-                                    fontWeight = FontWeight.Bold
-                                )
-                            },
-                            navigationIcon = {
-                                IconButton(onClick = { finish() }) {
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                        contentDescription = stringResource(R.string.cd_back)
-                                    )
-                                }
-                            },
-                            colors = TopAppBarDefaults.topAppBarColors(
-                                containerColor = MaterialTheme.colorScheme.surface
-                            )
-                        )
-                    },
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .padding(horizontal = 20.dp, vertical = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(24.dp)
-                    ) {
-                        // 1. 效果预览区
-                        Text(
-                            text = stringResource(R.string.widget_preview),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
+                Spacer(modifier = Modifier.weight(1f))
 
-                        WidgetPreviewBox(alpha = alpha)
-
-                        // 2. 透明度控制卡片
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(20.dp),
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                            )
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(20.dp)
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column {
-                                        Text(
-                                            text = stringResource(R.string.widget_opacity),
-                                            style = MaterialTheme.typography.bodyLarge,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = stringResource(R.string.widget_opacity_desc),
-                                            style = MaterialTheme.typography.bodySmall,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                                        )
-                                    }
-                                    Text(
-                                        text = "${(alpha * 100).roundToInt()}%",
-                                        style = MaterialTheme.typography.titleMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.primary
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                Slider(
-                                    value = alpha,
-                                    onValueChange = { alpha = it },
-                                    valueRange = 0.10f..1.0f,
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.weight(1f))
-
-                        // 3. 保存并应用按钮
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    saveWidgetConfig(alpha)
-                                }
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp),
-                            shape = RoundedCornerShape(26.dp)
-                        ) {
-                            Text(
-                                text = stringResource(R.string.action_save),
-                                fontSize = 16.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                Button(
+                    onClick = { scope.launch { saveWidgetConfig(alpha) } },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(52.dp),
+                    shape = RoundedCornerShape(26.dp)
+                ) {
+                    Text(
+                        text = stringResource(R.string.action_save),
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
+    }
+
+    private suspend fun loadInitialWidgetAlpha(): Float {
+        if (appWidgetId == AppWidgetManager.INVALID_APPWIDGET_ID) return DEFAULT_WIDGET_ALPHA
+        return try {
+            val manager = GlanceAppWidgetManager(this@SpeculonicWidgetConfigureActivity)
+            val glanceId = manager.getGlanceIdBy(appWidgetId)
+            val prefs = withContext(Dispatchers.IO) {
+                getAppWidgetState(
+                    this@SpeculonicWidgetConfigureActivity,
+                    PreferencesGlanceStateDefinition,
+                    glanceId
+                )
+            }
+            prefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] ?: DEFAULT_WIDGET_ALPHA
+        } catch (e: Exception) {
+            LogManager.w("Failed to read initial widget alpha: ${e.message}")
+            DEFAULT_WIDGET_ALPHA
+        }
+    }
+
+    private companion object {
+        const val DEFAULT_WIDGET_ALPHA = 0.85f
     }
 
     @Composable

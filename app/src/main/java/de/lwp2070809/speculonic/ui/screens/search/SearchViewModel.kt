@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.data.DownloadTracker
+import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.SearchResult3
 import de.lwp2070809.speculonic.util.LogManager
@@ -22,15 +23,20 @@ data class SearchUiState(
     val query: String = "",
     val isLoading: Boolean = false,
     val results: SearchResult3 = SearchResult3(),
+    val transcodeIncompatible: Boolean = false,
     val error: String? = null
 )
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repository: SubsonicRepository
+    private val repository: SubsonicRepository,
+    private val preferencesManager: PreferencesManager,
+    private val downloadTracker: DownloadTracker
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(SearchUiState())
+    private val _uiState = MutableStateFlow(
+        SearchUiState(transcodeIncompatible = preferencesManager.getCachedTranscodeIncompatibleFormats())
+    )
     val uiState = _uiState.asStateFlow()
 
     private val searchQuery = MutableStateFlow("")
@@ -40,6 +46,12 @@ class SearchViewModel @Inject constructor(
     private val starGenById = HashMap<String, Long>()
 
     init {
+        viewModelScope.launch {
+            preferencesManager.transcodeIncompatibleFormats.collectLatest { enabled ->
+                _uiState.update { it.copy(transcodeIncompatible = enabled) }
+            }
+        }
+
         viewModelScope.launch {
             repository.getStarredFlow().collectLatest { starredSongs ->
                 val newIds = starredSongs.mapTo(HashSet()) { it.id }
@@ -73,7 +85,7 @@ class SearchViewModel @Inject constructor(
         }
 
         viewModelScope.launch {
-            DownloadTracker.downloadedSongIds.collectLatest { downloadedIds ->
+            downloadTracker.downloadedSongIds.collectLatest { downloadedIds ->
                 _uiState.update { state ->
                     val currentResults = state.results
                     if (currentResults.song.isNotEmpty()) {

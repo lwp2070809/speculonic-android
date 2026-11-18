@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.util
 import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.util.UnstableApi
@@ -10,40 +11,46 @@ import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Song
 
+private const val DURATION_MILLIS_FACTOR = 1000L
+
+private data class MediaItemMetadataSpec(
+    val id: String,
+    val title: String,
+    val artist: String?,
+    val album: String?,
+    val duration: Int?,
+    val coverArt: String?,
+    val suffix: String?
+)
+
 @OptIn(UnstableApi::class)
 private fun buildMediaItemInternal(
-    id: String,
-    title: String,
-    artist: String?,
-    album: String?,
-    duration: Int?,
-    coverArt: String?,
-    suffix: String?,
+    spec: MediaItemMetadataSpec,
     repository: SubsonicRepository
 ): MediaItem {
-    val playbackUri = repository.buildStreamUrl(id, suffix).toUri()
-    val coverArtUrl = coverArt?.let { repository.buildCoverArtUrl(it) }
+    val playbackUri = repository.buildStreamUrl(spec.id, spec.suffix).toUri()
+    val coverArtUrl = spec.coverArt?.let { repository.buildCoverArtUrl(it) }
 
-    val rawDuration = duration?.toLong() ?: 0L
+    val rawDuration = spec.duration?.toLong() ?: 0L
     val durationMs = if (rawDuration <= 0L) {
-        androidx.media3.common.C.TIME_UNSET
+        C.TIME_UNSET
     } else {
-        rawDuration * 1000L
+        rawDuration * DURATION_MILLIS_FACTOR
     }
 
     val extras = Bundle().apply {
-        putString("coverArtId", coverArt)
-        putString("realTitle", title)
-        putString("realArtist", artist)
-        if (durationMs > 0L && durationMs != androidx.media3.common.C.TIME_UNSET) {
+        putString("coverArtId", spec.coverArt)
+        putString("realTitle", spec.title)
+        putString("realArtist", spec.artist)
+        if (durationMs > 0L && durationMs != C.TIME_UNSET) {
             putLong("durationMs", durationMs)
         }
     }
 
     val metadata = MediaMetadata.Builder()
-        .setTitle(title)
-        .setArtist(artist)
-        .setAlbumTitle(album)
+        .setTitle(spec.title)
+        .setArtist(spec.artist)
+        .setAlbumTitle(spec.album)
         .setDurationMs(durationMs)
         .setArtworkUri(coverArtUrl?.toUri())
         .setExtras(extras)
@@ -52,9 +59,9 @@ private fun buildMediaItemInternal(
         .build()
 
     return MediaItem.Builder()
-        .setMediaId(id)
+        .setMediaId(spec.id)
         .setUri(playbackUri)
-        .setCustomCacheKey(id)
+        .setCustomCacheKey(spec.id)
         .setMediaMetadata(metadata)
         .build()
 }
@@ -62,13 +69,15 @@ private fun buildMediaItemInternal(
 @OptIn(UnstableApi::class)
 fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
     return buildMediaItemInternal(
-        id = this.id,
-        title = this.title,
-        artist = this.artist,
-        album = this.album,
-        duration = this.duration,
-        coverArt = this.coverArt,
-        suffix = this.suffix,
+        MediaItemMetadataSpec(
+            id = id,
+            title = title,
+            artist = artist,
+            album = album,
+            duration = duration,
+            coverArt = coverArt,
+            suffix = suffix
+        ),
         repository = repository
     )
 }
@@ -76,13 +85,15 @@ fun Song.toMediaItem(repository: SubsonicRepository): MediaItem {
 @OptIn(UnstableApi::class)
 fun SongEntity.toMediaItem(repository: SubsonicRepository): MediaItem {
     return buildMediaItemInternal(
-        id = this.id,
-        title = this.title,
-        artist = this.artist,
-        album = this.album,
-        duration = this.duration,
-        coverArt = this.coverArt,
-        suffix = this.suffix,
+        MediaItemMetadataSpec(
+            id = id,
+            title = title,
+            artist = artist,
+            album = album,
+            duration = duration,
+            coverArt = coverArt,
+            suffix = suffix
+        ),
         repository = repository
     )
 }

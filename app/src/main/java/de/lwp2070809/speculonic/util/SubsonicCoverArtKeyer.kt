@@ -32,6 +32,7 @@ object CoverArtKeyUtils {
             val baseUrl = uriString.substringBefore("/rest/getCoverArt")
             buildStableKey(baseUrl, id)
         } catch (e: Exception) {
+            LogManager.w("CoverArtKeyUtils: Failed to parse URI key", e)
             null
         }
     }
@@ -41,6 +42,7 @@ object CoverArtKeyUtils {
         return try {
             buildStableKey(uriString.toUri())
         } catch (e: Exception) {
+            LogManager.w("CoverArtKeyUtils: Failed to parse URI string key", e)
             null
         }
     }

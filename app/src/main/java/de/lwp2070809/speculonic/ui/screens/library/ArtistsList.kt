@@ -46,25 +46,6 @@ import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.buildRequest
 
-sealed class ArtistListItem {
-    abstract val groupChar: String
-
-    data class Header(
-        val char: String,
-        val count: Int,
-        val isCollapsed: Boolean
-    ) : ArtistListItem() {
-        override val groupChar: String get() = char
-    }
-
-    data class ArtistItem(
-        val artist: Artist,
-        val char: String
-    ) : ArtistListItem() {
-        override val groupChar: String get() = char
-    }
-}
-
 @Composable
 fun ArtistsList(
     artists: List<Artist>, 
@@ -145,8 +126,14 @@ fun ArtistsList(
                                         modifier = Modifier.padding(end = 4.dp)
                                     )
                                     Icon(
-                                        imageVector = if (item.isCollapsed) Icons.Default.KeyboardArrowDown else Icons.Default.KeyboardArrowUp,
-                                        contentDescription = stringResource(if (item.isCollapsed) R.string.cd_expand else R.string.cd_collapse),
+                                        imageVector = if (item.isCollapsed) {
+                                            Icons.Default.KeyboardArrowDown
+                                        } else {
+                                            Icons.Default.KeyboardArrowUp
+                                        },
+                                        contentDescription = stringResource(
+                                            if (item.isCollapsed) R.string.cd_expand else R.string.cd_collapse
+                                        ),
                                         tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                                         modifier = Modifier.size(20.dp)
                                     )

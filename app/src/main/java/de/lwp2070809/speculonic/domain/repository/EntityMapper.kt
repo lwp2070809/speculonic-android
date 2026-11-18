@@ -7,10 +7,24 @@ import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.DiscTitle
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
+import java.time.Instant
 import java.time.OffsetDateTime
+import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
+
+data class SongEntityOverrides(
+    val albumId: String? = null,
+    val artistId: String? = null,
+    val parentId: String? = null,
+    val localUri: String? = null,
+    val isCached: Boolean = false,
+    val isTranscoded: Boolean? = null,
+    val isStarred: Boolean? = null,
+    val lastUpdated: Long? = null
+)
 
 object EntityMapper {
     private val isoFormatter = DateTimeFormatter.ISO_OFFSET_DATE_TIME
@@ -22,24 +36,17 @@ object EntityMapper {
 
     fun songToEntity(
         song: Song,
-        albumId: String? = null,
-        artistId: String? = null,
-        localUri: String? = null,
-        isCached: Boolean = false,
-        isTranscoded: Boolean? = null,
-        parentId: String? = null,
-        isStarred: Boolean? = null,
-        lastUpdated: Long? = null
+        overrides: SongEntityOverrides = SongEntityOverrides()
     ): SongEntity {
         require(song.id.isNotBlank()) { "Song ID cannot be blank" }
         val serverStarredTime = song.starred?.let { parseIsoTime(it) }
-        val finalStarred = isStarred ?: (song.starred != null)
-        
+        val finalStarred = overrides.isStarred ?: (song.starred != null)
+
         return SongEntity(
             id = song.id,
-            parent = parentId ?: song.parent,
-            albumId = albumId ?: song.albumId ?: parentId ?: song.parent,
-            artistId = artistId ?: song.artistId,
+            parent = overrides.parentId ?: song.parent,
+            albumId = overrides.albumId ?: song.albumId ?: overrides.parentId ?: song.parent,
+            artistId = overrides.artistId ?: song.artistId,
             title = song.title,
             album = song.album,
             artist = song.artist,
@@ -58,10 +65,10 @@ object EntityMapper {
             isDir = song.isDir,
             isVideo = song.isVideo ?: false,
             starred = finalStarred,
-            localUri = localUri,
-            isFullyCached = isCached,
-            isTranscoded = isTranscoded ?: song.isTranscoded,
-            lastUpdated = lastUpdated ?: serverStarredTime ?: System.currentTimeMillis()
+            localUri = overrides.localUri,
+            isFullyCached = overrides.isCached,
+            isTranscoded = overrides.isTranscoded ?: song.isTranscoded,
+            lastUpdated = overrides.lastUpdated ?: serverStarredTime ?: System.currentTimeMillis()
         )
     }
 
@@ -103,12 +110,13 @@ object EntityMapper {
             try {
                 json.encodeToString(album.discTitles)
             } catch (e: Exception) {
+                LogManager.w("EntityMapper: Failed to encode discTitles for album ${album.id}", e)
                 existing?.discTitlesJson
             }
         } else {
             existing?.discTitlesJson
         }
-        
+
         return AlbumEntity(
             id = album.id,
             name = album.name,
@@ -131,6 +139,7 @@ object EntityMapper {
             try {
                 json.decodeFromString<List<DiscTitle>>(it)
             } catch (e: Exception) {
+                LogManager.w("EntityMapper: Failed to decode discTitles for album ${entity.id}", e)
                 emptyList()
             }
         } ?: emptyList()
@@ -156,16 +165,17 @@ object EntityMapper {
         return try {
             OffsetDateTime.parse(isoString, isoFormatter).toInstant().toEpochMilli()
         } catch (e: Exception) {
-            
+            LogManager.w("EntityMapper: Failed to parse ISO timestamp: $isoString", e)
             null
         }
     }
 
     private fun formatIsoTime(millis: Long): String {
         return try {
-            val odt = OffsetDateTime.ofInstant(java.time.Instant.ofEpochMilli(millis), java.time.ZoneOffset.UTC)
+            val odt = OffsetDateTime.ofInstant(Instant.ofEpochMilli(millis), ZoneOffset.UTC)
             odt.format(isoFormatter)
         } catch (e: Exception) {
+            LogManager.w("EntityMapper: Failed to format timestamp: $millis", e)
             "true"
         }
     }

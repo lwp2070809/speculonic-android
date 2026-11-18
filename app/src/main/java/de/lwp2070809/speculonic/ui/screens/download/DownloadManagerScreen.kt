@@ -32,8 +32,6 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -43,7 +41,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -54,43 +51,24 @@ import androidx.media3.common.util.Util
 import androidx.media3.exoplayer.offline.Download
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.DownloadTaskInfo
-import de.lwp2070809.speculonic.data.DownloadTracker
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
-import org.json.JSONObject
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @androidx.annotation.OptIn(UnstableApi::class)
 @Composable
 fun DownloadManagerScreen(
     topBarState: TopBarState,
-    onBackClick: () -> Unit
+    viewModel: DownloadManagerViewModel
 ) {
     val title = stringResource(R.string.download_manager)
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
 
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
-
-    val context = LocalContext.current
     val downloadController = LocalDownloadController.current
 
-    val allDownloads by DownloadTracker.allDownloadsFlow.collectAsStateWithLifecycle()
+    val allDownloads by viewModel.allDownloadsFlow.collectAsStateWithLifecycle()
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 
@@ -233,7 +211,12 @@ fun DownloadManagerScreen(
                         .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current)
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 16.dp,
+                        bottom = 16.dp + LocalMiniPlayerBottomInset.current
+                    )
                 ) {
                     items(currentTasks, key = { it.task.request.id }) { info ->
                         DownloadTaskItem(
@@ -251,13 +234,19 @@ fun DownloadManagerScreen(
     }
 }
 
+private const val DOWNLOAD_PRIORITY_ACTIVE = 0
+private const val DOWNLOAD_PRIORITY_QUEUED = 1
+private const val DOWNLOAD_PRIORITY_INACTIVE = 2
+private const val DOWNLOAD_PRIORITY_COMPLETED = 3
+private const val DOWNLOAD_PRIORITY_OTHER = 4
+
 @androidx.annotation.OptIn(UnstableApi::class)
 internal fun downloadStatePriority(state: Int): Int = when (state) {
-    Download.STATE_DOWNLOADING, Download.STATE_RESTARTING -> 0
-    Download.STATE_QUEUED -> 1
-    Download.STATE_STOPPED, Download.STATE_FAILED, Download.STATE_REMOVING -> 2
-    Download.STATE_COMPLETED -> 3
-    else -> 4
+    Download.STATE_DOWNLOADING, Download.STATE_RESTARTING -> DOWNLOAD_PRIORITY_ACTIVE
+    Download.STATE_QUEUED -> DOWNLOAD_PRIORITY_QUEUED
+    Download.STATE_STOPPED, Download.STATE_FAILED, Download.STATE_REMOVING -> DOWNLOAD_PRIORITY_INACTIVE
+    Download.STATE_COMPLETED -> DOWNLOAD_PRIORITY_COMPLETED
+    else -> DOWNLOAD_PRIORITY_OTHER
 }
 
 @androidx.annotation.OptIn(UnstableApi::class)

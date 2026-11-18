@@ -90,7 +90,13 @@ fun QueueView(
                     },
                     leadingContent = {
                         if (isCurrent) {
-                            Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_volume_up), null, tint = MaterialTheme.colorScheme.primary)
+                            Icon(
+                                androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_volume_up
+                                ),
+                                null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
                         } else {
                             Text("${index + 1}", modifier = Modifier.width(24.dp), textAlign = TextAlign.Center)
                         }

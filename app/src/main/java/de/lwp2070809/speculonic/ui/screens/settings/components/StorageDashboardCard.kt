@@ -42,7 +42,6 @@ fun StorageDashboardCard(
     playbackBytes: Long,
     coverArtBytes: Long,
     songBytes: Long,
-    otherBytes: Long,
     totalSpaceBytes: Long,
     maxCoverBytes: Long,
     isCoverOverQuota: Boolean,

@@ -12,6 +12,7 @@ import de.lwp2070809.speculonic.data.ThemeMode
 import de.lwp2070809.speculonic.data.UpdateCheckInterval
 import de.lwp2070809.speculonic.data.dataStore
 import de.lwp2070809.speculonic.util.LogLevel
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -30,44 +31,33 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         private val LAST_UPDATE_CHECK_TIME = longPreferencesKey("last_update_check_time")
     }
 
-    override val logLevel: Flow<LogLevel> = context.dataStore.data.map { preferences ->
-        val levelName = preferences[LOG_LEVEL] ?: LogLevel.INFO.name
-        try {
-            LogLevel.valueOf(levelName)
+    private inline fun <reified T : Enum<T>> parseEnumOrDefault(
+        rawValue: String?,
+        defaultValue: T
+    ): T {
+        if (rawValue == null) return defaultValue
+        return try {
+            enumValueOf<T>(rawValue)
         } catch (e: Exception) {
-            LogLevel.INFO
+            LogManager.w("GeneralSystemPrefs: Invalid ${T::class.simpleName} value '$rawValue', using default.", e)
+            defaultValue
         }
+    }
+
+    override val logLevel: Flow<LogLevel> = context.dataStore.data.map { preferences ->
+        parseEnumOrDefault(preferences[LOG_LEVEL], LogLevel.INFO)
     }.distinctUntilChanged()
 
     override val themeMode: Flow<ThemeMode> = context.dataStore.data.map { preferences ->
-        val modeName = preferences[THEME_MODE] ?: ThemeMode.SYSTEM.name
-        try {
-            ThemeMode.valueOf(modeName)
-        } catch (e: Exception) {
-            ThemeMode.SYSTEM
-        }
+        parseEnumOrDefault(preferences[THEME_MODE], ThemeMode.SYSTEM)
     }.distinctUntilChanged()
 
     override val colorMode: Flow<ColorMode> = context.dataStore.data.map { preferences ->
-        val modeName = preferences[COLOR_MODE] ?: ColorMode.ALBUM_COVER.name
-        try {
-            ColorMode.valueOf(modeName)
-        } catch (e: Exception) {
-            ColorMode.ALBUM_COVER
-        }
+        parseEnumOrDefault(preferences[COLOR_MODE], ColorMode.ALBUM_COVER)
     }.distinctUntilChanged()
 
     override val playerBackgroundMode: Flow<PlayerBackgroundMode> = context.dataStore.data.map { preferences ->
-        val modeName = preferences[PLAYER_BACKGROUND_MODE]
-        if (modeName != null) {
-            try {
-                PlayerBackgroundMode.valueOf(modeName)
-            } catch (e: Exception) {
-                PlayerBackgroundMode.GAUSSIAN_BLUR
-            }
-        } else {
-            PlayerBackgroundMode.GAUSSIAN_BLUR
-        }
+        parseEnumOrDefault(preferences[PLAYER_BACKGROUND_MODE], PlayerBackgroundMode.GAUSSIAN_BLUR)
     }.distinctUntilChanged()
 
     override val lastSeedColorLight: Flow<Int?> = context.dataStore.data.map { it[LAST_SEED_COLOR_LIGHT] }.distinctUntilChanged()
@@ -80,12 +70,7 @@ class GeneralSystemPrefsImpl(private val context: Context) : GeneralSystemPrefs 
         } else {
             UpdateCheckInterval.DISABLED
         }
-        val intervalName = preferences[UPDATE_CHECK_INTERVAL] ?: defaultInterval.name
-        try {
-            UpdateCheckInterval.valueOf(intervalName)
-        } catch (e: Exception) {
-            defaultInterval
-        }
+        parseEnumOrDefault(preferences[UPDATE_CHECK_INTERVAL], defaultInterval)
     }.distinctUntilChanged()
 
     override val lastUpdateCheckTime: Flow<Long> = context.dataStore.data.map { it[LAST_UPDATE_CHECK_TIME] ?: 0L }.distinctUntilChanged()

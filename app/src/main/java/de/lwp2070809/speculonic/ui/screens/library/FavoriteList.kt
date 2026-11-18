@@ -4,7 +4,13 @@ import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -27,7 +33,6 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
-import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.SongListItem
@@ -40,13 +45,14 @@ import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FavoriteList(
-    songs: List<Song>, 
-    isOnline: Boolean,
+    songs: List<Song>,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
+    transcodeIncompatible: Boolean,
+    activeDownloads: Set<String>,
+    downloadedIds: Set<String>,
     onRefresh: () -> Unit,
     isRefreshing: Boolean,
-    onDownloadClick: (Song) -> Unit,
     onDownloadAllClick: () -> Unit,
     onStarClick: (String, Boolean, (Boolean) -> Unit) -> Unit = { _, _, _ -> }
 ) {
@@ -59,17 +65,12 @@ fun FavoriteList(
     val favoriteQueueTitle = stringResource(R.string.favorite)
 
     val context = LocalContext.current
-    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsStateWithLifecycle()
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsStateWithLifecycle()
     val isAnyDownloading = remember(activeDownloads, songs) {
         songs.any { activeDownloads.contains(it.id) }
     }
     val isAllDownloaded = remember(downloadedIds, songs) {
         songs.isNotEmpty() && songs.all { it.isFullyCached }
     }
-
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
 
     val playableSongs = remember(songs, transcodeIncompatible) {
         songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
@@ -139,12 +140,15 @@ fun FavoriteList(
                             }
                             val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                             if (mediaItems.isNotEmpty()) {
-                                playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = favoriteQueueTitle)
+                                playbackController.play(
+                                    mediaItems,
+                                    mediaItems.indices.random(),
+                                    shuffle = true,
+                                    queueTitle = favoriteQueueTitle
+                                )
                             }
                         },
                         onDownloadAll = onDownloadAllClick,
-                        isOnline = isOnline,
-                        isEffectivelyOnline = isEffectivelyOnline,
                         isStreamingAllowed = isStreamingAllowed,
                         isDownloading = isAnyDownloading,
                         isDownloadEnabled = !isAllDownloaded,
@@ -158,7 +162,6 @@ fun FavoriteList(
                 SongListItem(
                     song = song,
                     isCurrent = song.id == currentSongId,
-                    isOnline = isOnline,
                     isEffectivelyOnline = isEffectivelyOnline,
                     isStreamingAllowed = isStreamingAllowed,
                     transcodeIncompatible = transcodeIncompatible,

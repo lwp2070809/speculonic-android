@@ -6,15 +6,24 @@ import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.offline.DownloadService
 import androidx.media3.exoplayer.scheduler.Scheduler
 import dagger.hilt.android.AndroidEntryPoint
+import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.DownloadManagerHelper
+import de.lwp2070809.speculonic.util.LogManager
+import javax.inject.Inject
 
 @UnstableApi
 @AndroidEntryPoint
 class SilentDownloadService : DownloadService(
     FOREGROUND_NOTIFICATION_ID_NONE
 ) {
+    @Inject
+    lateinit var downloadManagerHelper: DownloadManagerHelper
+
+    @Inject
+    lateinit var cacheManager: CacheManager
+
     override fun getDownloadManager(): DownloadManager {
-        return DownloadManagerHelper.getDownloadManager(this)
+        return downloadManagerHelper.getDownloadManager()
     }
 
     override fun getScheduler(): Scheduler? {
@@ -26,16 +35,19 @@ class SilentDownloadService : DownloadService(
     }
 
     override fun onStartCommand(intent: android.content.Intent?, flags: Int, startId: Int): Int {
-        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
-            de.lwp2070809.speculonic.util.LogManager.w("SilentDownloadService: Cache is being released, stopping self.")
+        if (cacheManager.isReleasing) {
+            LogManager.w("SilentDownloadService: Cache is being released, stopping self.")
             stopSelf()
             return START_NOT_STICKY
         }
         return try {
             super.onStartCommand(intent, flags, startId)
         } catch (e: IllegalStateException) {
-            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true || e.message?.contains("while cache is being released") == true) {
-                de.lwp2070809.speculonic.util.LogManager.e("SilentDownloadService: Caught IllegalStateException (${e.message}), stopping self.")
+            val isExpectedShutdownError = e.message.isNullOrBlank() ||
+                e.message?.contains("dead thread") == true ||
+                e.message?.contains("while cache is being released") == true
+            if (isExpectedShutdownError) {
+                LogManager.e("SilentDownloadService: Caught IllegalStateException (${e.message}), stopping self.")
                 stopSelf()
                 START_NOT_STICKY
             } else {

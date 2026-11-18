@@ -94,24 +94,31 @@ class ConnectionPrefsImpl(
         val encUrl = currentPrefs[SEC_SERVER_URL]
         val encUser = currentPrefs[SEC_USERNAME]
         val encPass = currentPrefs[SEC_PASSWORD]
-        val hasCipherEntries = encUrl != null || encUser != null || encPass != null
-
-        if (hasCipherEntries) {
-            return try {
-                val url = encUrl?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
-                val user = encUser?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
-                val pass = encPass?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
-                // 清理历史可能残留的明文或旧 SharedPreferences 文件
-                cleanupAnyLeftoverLegacyStorage()
-                DecryptedCredentials(url, user, pass)
-            } catch (e: Exception) {
-                LogManager.e("ConnectionPrefs: Failed to decrypt Keystore DataStore credentials; wiping corrupted state", e)
-                wipeCorruptedCredentials()
-                DecryptedCredentials()
-            }
+        if (encUrl != null || encUser != null || encPass != null) {
+            return decryptStoredCredentials(encUrl, encUser, encPass)
         }
+        return migrateFromLegacySources()
+    }
 
-        // 若加密库为空，尝试从历史 EncryptedSharedPreferences / 旧版 DataStore / fallback 一次性迁移
+    private suspend fun decryptStoredCredentials(
+        encUrl: String?,
+        encUser: String?,
+        encPass: String?
+    ): DecryptedCredentials {
+        return try {
+            val url = encUrl?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+            val user = encUser?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+            val pass = encPass?.let { KeystoreAesGcmCipher.decrypt(it) } ?: ""
+            cleanupAnyLeftoverLegacyStorage()
+            DecryptedCredentials(url, user, pass)
+        } catch (e: Exception) {
+            LogManager.e("ConnectionPrefs: Failed to decrypt Keystore DataStore credentials; wiping corrupted state", e)
+            wipeCorruptedCredentials()
+            DecryptedCredentials()
+        }
+    }
+
+    private suspend fun migrateFromLegacySources(): DecryptedCredentials {
         val legacyMainPrefs = runCatching { appContext.dataStore.data.first() }.getOrElse { emptyPreferences() }
         val plainDsUrl = legacyMainPrefs[SERVER_URL] ?: ""
         val plainDsUser = legacyMainPrefs[USERNAME] ?: ""
@@ -120,12 +127,11 @@ class ConnectionPrefsImpl(
 
         return when (val legacyResult = LegacyEncryptedPrefsMigrator.readLegacyCredentials(appContext)) {
             is LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Migrated -> {
-                val migrated = persistAndCleanupLegacy(
+                persistAndCleanupLegacy(
                     url = legacyResult.serverUrl,
                     user = legacyResult.username,
                     pass = legacyResult.password
                 )
-                migrated
             }
             LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted -> {
                 if (hasPlainDs) {
@@ -243,13 +249,18 @@ class ConnectionPrefsImpl(
             .edit().putBoolean("trust_all_certificates", allow).apply()
     }
 
-    override val serverCapabilities: Flow<ServerCapabilities?> = appContext.dataStore.data.map { preferences ->
-        val jsonString = preferences[SERVER_CAPABILITIES_JSON]
-        try {
-            jsonString?.let { Json.decodeFromString(ServerCapabilities.serializer(), it) }
+    private fun decodeCapabilitiesOrNull(jsonString: String?): ServerCapabilities? {
+        if (jsonString == null) return null
+        return try {
+            Json.decodeFromString(ServerCapabilities.serializer(), jsonString)
         } catch (e: Exception) {
+            LogManager.w("ConnectionPrefs: Failed to decode cached ServerCapabilities", e)
             null
         }
+    }
+
+    override val serverCapabilities: Flow<ServerCapabilities?> = appContext.dataStore.data.map { preferences ->
+        decodeCapabilitiesOrNull(preferences[SERVER_CAPABILITIES_JSON])
     }.distinctUntilChanged()
 
     override suspend fun saveServerCapabilities(caps: ServerCapabilities?) {
@@ -267,11 +278,7 @@ class ConnectionPrefsImpl(
     override fun getServerCapabilitiesSync(): ServerCapabilities? {
         val jsonString = appContext.getSharedPreferences(NETWORK_PREFS_NAME, Context.MODE_PRIVATE)
             .getString("server_capabilities_json", null)
-        return try {
-            jsonString?.let { Json.decodeFromString(ServerCapabilities.serializer(), it) }
-        } catch (e: Exception) {
-            null
-        }
+        return decodeCapabilitiesOrNull(jsonString)
     }
 
     override fun setServerCapabilitiesSync(caps: ServerCapabilities?) {

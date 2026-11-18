@@ -17,34 +17,46 @@ object LyricsParser {
         val lines = lrcContent.split(Regex("\\r?\\n"))
         val parsedLines = mutableListOf<LyricLine>()
 
-
         for (line in lines) {
-            val matches = timeRegex.findAll(line)
-            if (matches.none()) continue
-            
-            val content = line.replace(timeRegex, "").trim()
-            if (content.isEmpty()) continue
-
-            for (match in matches) {
-                val min = match.groupValues[1].toLongOrNull() ?: 0L
-                val sec = match.groupValues[2].toLongOrNull() ?: 0L
-                val fractionStr = match.groupValues[3]
-                val fraction = fractionStr.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
-                
-                val fractionMs = when (fractionStr.length) {
-                    1 -> fraction * 100
-                    2 -> fraction * 10
-                    3 -> fraction
-                    else -> if (fractionStr.length > 3) fractionStr.substring(0, 3).toLong() else 0L
-                }
-                
-                val timeMs = (min * 60 * 1000) + (sec * 1000) + fractionMs
-                parsedLines.add(LyricLine(timeMs, content))
-            }
+            parseLineInto(line, parsedLines)
         }
 
         return parsedLines.sortedBy { it.timeMs }
     }
+
+    private fun parseLineInto(line: String, out: MutableList<LyricLine>) {
+        val matches = timeRegex.findAll(line)
+        val content = line.replace(timeRegex, "").trim()
+        if (matches.none() || content.isEmpty()) return
+
+        for (match in matches) {
+            val min = match.groupValues[1].toLongOrNull() ?: 0L
+            val sec = match.groupValues[2].toLongOrNull() ?: 0L
+            val fractionMs = parseFractionMs(match.groupValues[3])
+            val timeMs = (min * SECONDS_PER_MINUTE * MILLIS_PER_SECOND) + (sec * MILLIS_PER_SECOND) + fractionMs
+            out.add(LyricLine(timeMs, content))
+        }
+    }
+
+    private fun parseFractionMs(fractionStr: String): Long {
+        val fraction = fractionStr.takeIf { it.isNotEmpty() }?.toLongOrNull() ?: 0L
+        return when (fractionStr.length) {
+            1 -> fraction * HUNDRED_MS
+            2 -> fraction * TEN_MS
+            FRACTION_MAX_DIGITS -> fraction
+            else -> if (fractionStr.length > FRACTION_MAX_DIGITS) {
+                fractionStr.substring(0, FRACTION_MAX_DIGITS).toLong()
+            } else {
+                0L
+            }
+        }
+    }
+
+    private const val SECONDS_PER_MINUTE = 60L
+    private const val MILLIS_PER_SECOND = 1000L
+    private const val HUNDRED_MS = 100L
+    private const val TEN_MS = 10L
+    private const val FRACTION_MAX_DIGITS = 3
 
     
     fun fromStructured(lines: List<LyricsLine>): List<LyricLine> {

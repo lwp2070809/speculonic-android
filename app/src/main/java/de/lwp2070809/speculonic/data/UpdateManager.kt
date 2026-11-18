@@ -23,62 +23,71 @@ class UpdateManager(
         if (!BuildConfig.UPDATE_CHECK_ENABLED || BuildConfig.GITHUB_REPO.isBlank()) {
             return@withContext UpdateResult.NotConfigured
         }
-        
+
         LogManager.i("UpdateCheck: Starting check for updates from ${BuildConfig.GITHUB_REPO} (manual=$manual)")
+        val gateResult = evaluateScheduleGate(manual)
+        if (gateResult != null) return@withContext gateResult
 
-        if (!manual) {
-            val interval = preferencesManager.updateCheckInterval.first()
-            if (interval == UpdateCheckInterval.DISABLED) {
-                return@withContext UpdateResult.NotConfigured
-            }
+        fetchLatestReleaseUpdate()
+    }
 
-            val lastCheckTime = preferencesManager.lastUpdateCheckTime.first()
-            val currentTime = System.currentTimeMillis()
-            val intervalMs = when (interval) {
-                UpdateCheckInterval.DAILY -> 24 * 60 * 60 * 1000L
-                UpdateCheckInterval.WEEKLY -> 7 * 24 * 60 * 60 * 1000L
-                UpdateCheckInterval.STARTUP -> 0L
-                UpdateCheckInterval.DISABLED -> 0L
-            }
-
-            if (intervalMs > 0 && currentTime - lastCheckTime < intervalMs) {
-                LogManager.i("UpdateCheck: Skipped, within interval ($interval)")
-                return@withContext UpdateResult.NoUpdate
-            }
+    private suspend fun evaluateScheduleGate(manual: Boolean): UpdateResult? {
+        if (manual) return null
+        val interval = preferencesManager.updateCheckInterval.first()
+        if (interval == UpdateCheckInterval.DISABLED) {
+            return UpdateResult.NotConfigured
         }
+        val intervalMs = when (interval) {
+            UpdateCheckInterval.DAILY -> DAILY_CHECK_INTERVAL_MS
+            UpdateCheckInterval.WEEKLY -> WEEKLY_CHECK_INTERVAL_MS
+            UpdateCheckInterval.STARTUP, UpdateCheckInterval.DISABLED -> 0L
+        }
+        val elapsedMs = System.currentTimeMillis() - preferencesManager.lastUpdateCheckTime.first()
+        if (intervalMs > 0L && elapsedMs < intervalMs) {
+            LogManager.i("UpdateCheck: Skipped, within interval ($interval)")
+            return UpdateResult.NoUpdate
+        }
+        return null
+    }
 
-        try {
+    private suspend fun fetchLatestReleaseUpdate(): UpdateResult {
+        return try {
             val request = Request.Builder()
                 .url("https://api.github.com/repos/${BuildConfig.GITHUB_REPO}/releases/latest")
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
 
             val response = httpClient.newCall(request).execute()
-            if (response.isSuccessful) {
-                val responseBody = response.body.string()
-                val json = Json { ignoreUnknownKeys = true }
-                val release = json.parseToJsonElement(responseBody).jsonObject
-                val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
-                val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
-                val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""
-                
-                preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
-                
-                val currentVersion = BuildConfig.VERSION_NAME
-                if (isNewerVersion(currentVersion, tagName)) {
-                    LogManager.i("UpdateCheck: Found new version $tagName (current: $currentVersion)")
-                    return@withContext UpdateResult.UpdateAvailable(tagName, releaseUrl, releaseNotes)
-                } else {
-                    LogManager.i("UpdateCheck: Already up to date (current: $currentVersion, latest: $tagName)")
-                    return@withContext UpdateResult.NoUpdate
-                }
+            if (!response.isSuccessful) {
+                return UpdateResult.Error("Failed to fetch latest release")
             }
-            return@withContext UpdateResult.Error("Failed to fetch latest release")
+
+            val release = UPDATE_JSON.parseToJsonElement(response.body.string()).jsonObject
+            val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
+            val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
+            val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""
+
+            preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
+
+            val currentVersion = BuildConfig.VERSION_NAME
+            if (isNewerVersion(currentVersion, tagName)) {
+                LogManager.i("UpdateCheck: Found new version $tagName (current: $currentVersion)")
+                UpdateResult.UpdateAvailable(tagName, releaseUrl, releaseNotes)
+            } else {
+                LogManager.i("UpdateCheck: Already up to date (current: $currentVersion, latest: $tagName)")
+                UpdateResult.NoUpdate
+            }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("UpdateCheck: Failed", e)
-            return@withContext UpdateResult.Error(e.message ?: "Unknown error")
+            UpdateResult.Error(e.message ?: "Unknown error")
         }
+    }
+
+    private companion object {
+        const val DAILY_CHECK_INTERVAL_MS = 24 * 60 * 60 * 1000L
+        const val WEEKLY_CHECK_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000L
+        val UPDATE_JSON = Json { ignoreUnknownKeys = true }
     }
 
     private fun isNewerVersion(current: String, latest: String): Boolean {

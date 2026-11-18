@@ -43,9 +43,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsConstants
-import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +55,7 @@ fun ServerConfigDialog(
     initialUser: String,
     initialPass: String,
     initialAllowInsecure: Boolean,
-    viewModel: SettingsViewModel,
+    viewModel: ServerSyncViewModel,
     showCancelButton: Boolean = true,
     onDismiss: () -> Unit,
     onSave: (String, String, String, Boolean, Boolean) -> Unit
@@ -62,7 +63,7 @@ fun ServerConfigDialog(
     var url by rememberSaveable { mutableStateOf(initialUrl) }
     var user by rememberSaveable { mutableStateOf(initialUser) }
     var pass by rememberSaveable { mutableStateOf(initialPass) }
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var allowInsecureConnections by rememberSaveable { mutableStateOf(initialAllowInsecure) }
     var showInsecureWarning by rememberSaveable { mutableStateOf(false) }
     var syncCoverArt by rememberSaveable { mutableStateOf(false) }
@@ -94,10 +95,12 @@ fun ServerConfigDialog(
     }
 
     val executeWithLocalNetworkCheck: (() -> Unit) -> Unit = { action ->
-        if (android.os.Build.VERSION.SDK_INT >= 37 &&
+        val needsLocalNetworkPermission = android.os.Build.VERSION.SDK_INT >= 37 &&
             de.lwp2070809.speculonic.util.NetworkUtils.isLocalNetworkAddress(url) &&
-            context.checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) != android.content.pm.PackageManager.PERMISSION_GRANTED
-        ) {
+            context.checkSelfPermission(
+                android.Manifest.permission.ACCESS_LOCAL_NETWORK
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (needsLocalNetworkPermission) {
             pendingLocalNetworkAction = action
             localNetworkPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
         } else {
@@ -274,7 +277,13 @@ fun ServerConfigDialog(
                         val result = uiState.testConnectionResult
                         if (result != null) {
                             Icon(
-                                painter = if (result.first) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.CheckCircle) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_error),
+                                painter = if (result.first) {
+                                    androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.CheckCircle)
+                                } else {
+                                    androidx.compose.ui.res.painterResource(
+                                        id = de.lwp2070809.speculonic.R.drawable.ic_symbol_error
+                                    )
+                                },
                                 contentDescription = null,
                                 tint = if (result.first) Color.Green else MaterialTheme.colorScheme.error,
                                 modifier = Modifier.padding(start = 8.dp)

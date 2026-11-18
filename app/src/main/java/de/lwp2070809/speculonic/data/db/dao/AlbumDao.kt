@@ -26,11 +26,11 @@ interface AlbumDao {
     fun getAllAlbumsFlow(): Flow<List<AlbumEntity>>
 
     @Query("SELECT * FROM albums WHERE id IN (:ids)")
-    suspend fun _getAlbumsByIds(ids: List<String>): List<AlbumEntity>
+    suspend fun getAlbumsByIdsBatch(ids: List<String>): List<AlbumEntity>
 
     suspend fun getAlbumsByIds(ids: List<String>): List<AlbumEntity> {
         if (ids.isEmpty()) return emptyList()
-        return ids.chunked(900).flatMap { _getAlbumsByIds(it) }
+        return ids.chunked(SQLITE_IN_CHUNK_SIZE).flatMap { getAlbumsByIdsBatch(it) }
     }
 
     @Upsert
@@ -79,23 +79,23 @@ interface AlbumDao {
     fun getStarredAlbumsFlow(): Flow<List<AlbumEntity>>
 
     @Query("SELECT id FROM albums WHERE id IN (:ids) AND NOT EXISTS (SELECT 1 FROM songs WHERE songs.albumId = albums.id)")
-    suspend fun _getAlbumsWithoutSongs(ids: List<String>): List<String>
+    suspend fun getAlbumsWithoutSongsBatch(ids: List<String>): List<String>
 
     suspend fun getAlbumsWithoutSongs(ids: List<String>): List<String> {
         if (ids.isEmpty()) return emptyList()
-        return ids.chunked(900).flatMap { _getAlbumsWithoutSongs(it) }
+        return ids.chunked(SQLITE_IN_CHUNK_SIZE).flatMap { getAlbumsWithoutSongsBatch(it) }
     }
 
     @Query("SELECT id FROM albums WHERE starred = 1")
     suspend fun getStarredAlbumIds(): List<String>
 
     @Query("UPDATE albums SET starred = 0 WHERE id IN (:ids)")
-    suspend fun _unstarAlbumsByIds(ids: List<String>)
+    suspend fun unstarAlbumsByIdsBatch(ids: List<String>)
 
     @Transaction
     suspend fun unstarAlbumsByIds(ids: List<String>) {
         if (ids.isEmpty()) return
-        ids.chunked(900).forEach { _unstarAlbumsByIds(it) }
+        ids.chunked(SQLITE_IN_CHUNK_SIZE).forEach { unstarAlbumsByIdsBatch(it) }
     }
 
     @Transaction

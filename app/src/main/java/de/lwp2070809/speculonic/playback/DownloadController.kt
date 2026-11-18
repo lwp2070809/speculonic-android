@@ -20,16 +20,21 @@ import org.json.JSONObject
 
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import javax.inject.Singleton
 
 @OptIn(UnstableApi::class)
+@Singleton
 class DownloadController @Inject constructor(
     @ApplicationContext private val context: Context,
-    private val repository: SubsonicRepository
+    private val repository: dagger.Lazy<SubsonicRepository>,
+    private val downloadTracker: DownloadTracker,
+    private val playbackController: dagger.Lazy<PlaybackController>
 ) {
     private val scope = CoroutineScope(kotlinx.coroutines.SupervisorJob() + Dispatchers.IO)
     private val recentlyRequested = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
 
     companion object {
+        private const val RECENT_REQUEST_DEBOUNCE_MS = 2000L
         private val _permissionRequests = kotlinx.coroutines.flow.MutableSharedFlow<Unit>(extraBufferCapacity = 1)
         val permissionRequests = _permissionRequests
 
@@ -47,31 +52,33 @@ class DownloadController @Inject constructor(
                 requestNotificationPermission()
             }
         }
-            val activeIds = DownloadTracker.activeDownloadIds.value
-            val downloadedIds = DownloadTracker.downloadedSongIds.value
+            val activeIds = downloadTracker.activeDownloadIds.value
+            val downloadedIds = downloadTracker.downloadedSongIds.value
             if (activeIds.contains(song.id) || downloadedIds.contains(song.id) || !recentlyRequested.add(song.id)) {
                 LogManager.d("DownloadController: Song ${song.title} is already active or downloaded. Skipping AddRequest.")
                 return
             }
             scope.launch {
-                kotlinx.coroutines.delay(2000)
+                kotlinx.coroutines.delay(RECENT_REQUEST_DEBOUNCE_MS)
                 recentlyRequested.remove(song.id)
             }
-        val playbackState = de.lwp2070809.speculonic.playback.PlaybackController.getInstance(context).playbackState.value
+        val playbackState = playbackController.get().playbackState.value
         if (!isSilent && playbackState.currentSongId == song.id) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {
-                android.widget.Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.download_server_limit_toast), android.widget.Toast.LENGTH_LONG).show()
+                val toastMsg = context.getString(de.lwp2070809.speculonic.R.string.download_server_limit_toast)
+                android.widget.Toast.makeText(context, toastMsg, android.widget.Toast.LENGTH_LONG).show()
             }
         }
 
-        val streamUrl = repository.buildDownloadUrl(song.id, song.suffix)
+        val streamUrl = repository.get().buildDownloadUrl(song.id, song.suffix)
         val isTranscodedDownload = streamUrl.contains("format=") && !streamUrl.contains("format=raw")
         val targetFormat = if (isTranscodedDownload) {
             streamUrl.toUri().getQueryParameter("format")?.lowercase()
         } else null
-        de.lwp2070809.speculonic.util.LogManager.i(
+        LogManager.i(
             de.lwp2070809.speculonic.util.LogTag.CACHE,
-            "DownloadController: Enqueued download for '${song.title}' (id=${song.id}, silent=$isSilent, transcoded=$isTranscodedDownload, format=$targetFormat)"
+            "DownloadController: Enqueued download for '${song.title}' " +
+                "(id=${song.id}, silent=$isSilent, transcoded=$isTranscodedDownload, format=$targetFormat)"
         )
         
         val dataJson = JSONObject().apply {
@@ -147,8 +154,8 @@ class DownloadController @Inject constructor(
     
     fun removeDownload(songId: String) {
         LogManager.i("DownloadController: Requesting removal of download for $songId")
-        if (DownloadTracker.hasDownload(songId)) {
-            DownloadTracker.markForFileDeletion(songId)
+        if (downloadTracker.hasDownload(songId)) {
+            downloadTracker.markForFileDeletion(songId)
             try {
                 DownloadService.sendRemoveDownload(
                     context,
@@ -162,7 +169,7 @@ class DownloadController @Inject constructor(
         } else {
             scope.launch {
                 LogManager.i("DownloadController: Standalone file cleanup for $songId (task was not in Media3)")
-                DownloadTracker.deleteExportedSongAndCache(context, songId)
+                downloadTracker.deleteExportedSongAndCache(songId)
             }
         }
     }

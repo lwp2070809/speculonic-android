@@ -54,11 +54,10 @@ import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
 import androidx.navigation3.ui.NavDisplay
 import de.lwp2070809.speculonic.R
-import de.lwp2070809.speculonic.data.DownloadTracker
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
+import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailScreen
 import de.lwp2070809.speculonic.ui.screens.details.AlbumDetailViewModel
 import de.lwp2070809.speculonic.ui.screens.details.ArtistDetailScreen
@@ -68,6 +67,7 @@ import de.lwp2070809.speculonic.ui.screens.details.PlaylistDetailViewModel
 import de.lwp2070809.speculonic.ui.screens.discover.DiscoverScreen
 import de.lwp2070809.speculonic.ui.screens.discover.DiscoverViewModel
 import de.lwp2070809.speculonic.ui.screens.download.DownloadManagerScreen
+import de.lwp2070809.speculonic.ui.screens.download.DownloadManagerViewModel
 import de.lwp2070809.speculonic.ui.screens.library.AlbumGrid
 import de.lwp2070809.speculonic.ui.screens.library.FavoriteList
 import de.lwp2070809.speculonic.ui.screens.library.LibraryScreen
@@ -76,12 +76,15 @@ import de.lwp2070809.speculonic.ui.screens.settings.AboutSettings
 import de.lwp2070809.speculonic.ui.screens.settings.AdvancedSettings
 import de.lwp2070809.speculonic.ui.screens.settings.AppearanceSettings
 import de.lwp2070809.speculonic.ui.screens.settings.BluetoothSettings
+import de.lwp2070809.speculonic.ui.screens.settings.GeneralSettingsViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.NetworkSettings
+import de.lwp2070809.speculonic.ui.screens.settings.PlaybackBluetoothViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.PlaybackSettings
 import de.lwp2070809.speculonic.ui.screens.settings.ServerSettings
+import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsScreen
-import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.StorageCacheSettings
+import de.lwp2070809.speculonic.ui.screens.settings.StorageCacheViewModel
 
 @OptIn(ExperimentalMaterial3AdaptiveApi::class)
 @Composable
@@ -92,8 +95,7 @@ fun AppNavDisplay(
     isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
-    onShowSearch: () -> Unit,
-    settingsViewModel: SettingsViewModel,
+    serverSyncViewModel: ServerSyncViewModel,
     directive: androidx.compose.material3.adaptive.layout.PaneScaffoldDirective,
     modifier: Modifier = Modifier
 ) {
@@ -123,7 +125,8 @@ fun AppNavDisplay(
         ) + fadeOut(animationSpec = tween(300))
     }
 
-    val myPredictivePopTransitionSpec: AnimatedContentTransitionScope<androidx.navigation3.scene.Scene<NavKey>>.(Int) -> ContentTransform = {
+    val myPredictivePopTransitionSpec:
+        AnimatedContentTransitionScope<androidx.navigation3.scene.Scene<NavKey>>.(Int) -> ContentTransform = {
         slideIntoContainer(
             towards = AnimatedContentTransitionScope.SlideDirection.End,
             animationSpec = tween(300)
@@ -138,7 +141,14 @@ fun AppNavDisplay(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
                     PanePlaceholder(
-                        icon = { Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         title = stringResource(R.string.placeholder_detail_title),
                         subtitle = stringResource(R.string.placeholder_detail_subtitle)
                     )
@@ -162,7 +172,14 @@ fun AppNavDisplay(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
                     PanePlaceholder(
-                        icon = { Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         title = stringResource(R.string.placeholder_detail_title),
                         subtitle = stringResource(R.string.placeholder_detail_subtitle)
                     )
@@ -173,12 +190,13 @@ fun AppNavDisplay(
             val downloadController = LocalDownloadController.current
             FavoriteList(
                 songs = uiState.favorites,
-                isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
+                transcodeIncompatible = uiState.transcodeIncompatible,
+                activeDownloads = uiState.activeDownloads,
+                downloadedIds = uiState.downloadedIds,
                 onRefresh = { libraryViewModel.refreshFavorites() },
                 isRefreshing = uiState.isRefreshing,
-                onDownloadClick = { downloadController.downloadSong(it) },
                 onDownloadAllClick = {
                     uiState.favorites.forEach { song ->
                         if (!song.isFullyCached) {
@@ -196,7 +214,14 @@ fun AppNavDisplay(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
                     PanePlaceholder(
-                        icon = { Icon(Icons.Default.Home, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         title = stringResource(R.string.placeholder_detail_title),
                         subtitle = stringResource(R.string.placeholder_detail_subtitle)
                     )
@@ -219,7 +244,14 @@ fun AppNavDisplay(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
                     PanePlaceholder(
-                        icon = { Icon(painterResource(R.drawable.ic_symbol_library_music), contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+                        icon = {
+                            Icon(
+                                painterResource(R.drawable.ic_symbol_library_music),
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         title = stringResource(R.string.placeholder_detail_title),
                         subtitle = stringResource(R.string.placeholder_detail_subtitle)
                     )
@@ -228,7 +260,6 @@ fun AppNavDisplay(
         ) {
             LibraryScreen(
                 viewModel = libraryViewModel,
-                isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
                 onAlbumClick = { navigator.navigate(AppRoute.AlbumDetail(it)) },
@@ -241,7 +272,14 @@ fun AppNavDisplay(
             metadata = ListDetailSceneStrategy.listPane(
                 detailPlaceholder = {
                     PanePlaceholder(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp)) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         title = stringResource(R.string.placeholder_settings_title),
                         subtitle = stringResource(R.string.placeholder_settings_subtitle)
                     )
@@ -255,68 +293,75 @@ fun AppNavDisplay(
 
         entry<AppRoute.SettingsServer>(metadata = ListDetailSceneStrategy.detailPane()) {
             ServerSettings(
-                viewModel = settingsViewModel,
+                viewModel = serverSyncViewModel,
                 topBarState = topBarState,
                 isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
         entry<AppRoute.SettingsPlayback>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: PlaybackBluetoothViewModel = hiltViewModel()
             PlaybackSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState
             )
         }
 
         entry<AppRoute.SettingsAppearance>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: GeneralSettingsViewModel = hiltViewModel()
             AppearanceSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState
             )
         }
 
         entry<AppRoute.StorageCacheSettings>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: StorageCacheViewModel = hiltViewModel()
             StorageCacheSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState,
                 isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
         entry<AppRoute.DownloadManager>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: DownloadManagerViewModel = hiltViewModel()
             DownloadManagerScreen(
                 topBarState = topBarState,
-                onBackClick = { navigator.goBack() }
+                viewModel = viewModel
             )
         }
 
         entry<AppRoute.SettingsNetwork>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: GeneralSettingsViewModel = hiltViewModel()
             NetworkSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState
             )
         }
 
         entry<AppRoute.SettingsAdvanced>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: GeneralSettingsViewModel = hiltViewModel()
             AdvancedSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState
             )
         }
 
         entry<AppRoute.SettingsBluetooth>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: PlaybackBluetoothViewModel = hiltViewModel()
             BluetoothSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState
             )
         }
 
         entry<AppRoute.SettingsAbout>(metadata = ListDetailSceneStrategy.detailPane()) {
+            val viewModel: GeneralSettingsViewModel = hiltViewModel()
             AboutSettings(
-                viewModel = settingsViewModel,
+                viewModel = viewModel,
                 topBarState = topBarState,
-                isEffectivelyOnline = isEffectivelyOnline,
-                onBackClick = { navigator.goBack() }
+                isEffectivelyOnline = isEffectivelyOnline
             )
         }
 
@@ -328,11 +373,9 @@ fun AppNavDisplay(
             AlbumDetailScreen(
                 viewModel = viewModel,
                 topBarState = topBarState,
-                isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
-                onBackClick = { navigator.goBack() },
-                onSearchClick = onShowSearch
+                onBackClick = { navigator.goBack() }
             )
         }
 
@@ -344,11 +387,9 @@ fun AppNavDisplay(
             ArtistDetailScreen(
                 viewModel = viewModel,
                 topBarState = topBarState,
-                isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 onAlbumClick = { navigator.navigate(AppRoute.AlbumDetail(it)) },
-                onBackClick = { navigator.goBack() },
-                onSearchClick = onShowSearch
+                onBackClick = { navigator.goBack() }
             )
         }
 
@@ -360,7 +401,6 @@ fun AppNavDisplay(
             PlaylistDetailScreen(
                 viewModel = viewModel,
                 topBarState = topBarState,
-                isOnline = isOnline,
                 isEffectivelyOnline = isEffectivelyOnline,
                 isStreamingAllowed = isStreamingAllowed,
                 onBackClick = { navigator.goBack() }
@@ -370,8 +410,7 @@ fun AppNavDisplay(
         entry<AppRoute.PlaybackQueue>(metadata = ListDetailSceneStrategy.detailPane()) {
             val playbackController = de.lwp2070809.speculonic.ui.composition.LocalPlaybackController.current
             de.lwp2070809.speculonic.ui.screens.player.PlaybackQueuePane(
-                playbackController = playbackController,
-                onBackClick = { navigator.goBack() }
+                playbackController = playbackController
             )
         }
     }
@@ -380,6 +419,7 @@ fun AppNavDisplay(
         try {
             entryProvider(key)
         } catch (e: Exception) {
+            LogManager.w("AppNavDisplay: Route entry resolution failed for key=$key", e)
             androidx.navigation3.runtime.NavEntry(key) { _ ->
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(stringResource(R.string.route_not_found, key))

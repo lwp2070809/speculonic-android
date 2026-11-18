@@ -87,7 +87,7 @@ import de.lwp2070809.speculonic.ui.navigation.AppRoute
 import de.lwp2070809.speculonic.util.FormatUtils
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
-import de.lwp2070809.speculonic.ui.screens.player.components.*
+import de.lwp2070809.speculonic.ui.screens.player.components.NowPlayingScaffold
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -107,7 +107,6 @@ fun NowPlayingScreen(
     var showQueue by rememberSaveable { mutableStateOf(false) }
     var showSleepTimerSheet by rememberSaveable { mutableStateOf(false) }
 
-    val context = LocalContext.current
     val queueSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val sleepTimerSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 

@@ -4,12 +4,16 @@ import android.content.Context
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
+import javax.inject.Inject
+import javax.inject.Singleton
 
 /**
  * 同步删歌或局部刷新移除曲目后的物理缓存联动清理助手。
@@ -17,19 +21,25 @@ import java.io.File
  * 绝不在服务端元数据同步时删除用户外部 SAF 目录中的文件。
  */
 @OptIn(UnstableApi::class)
-object CacheCleanupHelper {
+@Singleton
+class CacheCleanupHelper @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val cacheManager: CacheManager,
+    private val downloadManagerHelper: DownloadManagerHelper,
+    private val downloadTracker: DownloadTracker
+) {
 
-    suspend fun purgeRemovedSongs(context: Context, targets: List<SongCleanupTarget>) {
+    suspend fun purgeRemovedSongs(targets: List<SongCleanupTarget>) {
         if (targets.isEmpty()) return
 
         val managerRemovalIds = withContext(Dispatchers.IO) {
             val privateDir = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
             val privateCanonicalPath = runCatching { privateDir.canonicalPath }.getOrNull()
-            val downloadCache = runCatching { CacheManager.acquireDownloadCache(context) }
-                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            val downloadCache = runCatching { cacheManager.acquireDownloadCache() }
+                .onFailure { if (it is CancellationException) throw it }
                 .getOrNull()
-            val playbackCache = runCatching { CacheManager.acquirePlaybackCache(context) }
-                .onFailure { if (it is kotlinx.coroutines.CancellationException) throw it }
+            val playbackCache = runCatching { cacheManager.acquirePlaybackCache() }
+                .onFailure { if (it is CancellationException) throw it }
                 .getOrNull()
 
             var removedPrivateFiles = 0
@@ -39,8 +49,8 @@ object CacheCleanupHelper {
                 if (deletePrivateSongFile(target.localUri, privateCanonicalPath)) {
                     removedPrivateFiles++
                 }
-                if (!CacheManager.isReleasing) {
-                    if (DownloadTracker.hasDownload(target.id)) {
+                if (!cacheManager.isReleasing) {
+                    if (downloadTracker.hasDownload(target.id)) {
                         activeIds.add(target.id)
                     }
                     runCatching { downloadCache?.removeResource(target.id) }
@@ -56,8 +66,8 @@ object CacheCleanupHelper {
             activeIds
         }
 
-        if (managerRemovalIds.isNotEmpty() && !CacheManager.isReleasing) {
-            val downloadManager = runCatching { DownloadManagerHelper.getDownloadManagerSuspend(context) }.getOrNull()
+        if (managerRemovalIds.isNotEmpty() && !cacheManager.isReleasing) {
+            val downloadManager = runCatching { downloadManagerHelper.getDownloadManagerSuspend() }.getOrNull()
             if (downloadManager != null) {
                 withContext(Dispatchers.Main.immediate) {
                     managerRemovalIds.forEach { songId ->

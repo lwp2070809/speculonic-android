@@ -10,18 +10,26 @@ import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 
+data class PlaybackServiceDependencies(
+    val errorHandler: PlaybackErrorHandler,
+    val persistence: PlaybackStatePersistence,
+    val carAudioManager: BluetoothCarManager,
+    val audioFocusHelper: PlaybackAudioFocusHelper
+)
+
+data class PlaybackServiceCallbacks(
+    val onTriggerSilentCache: (MediaItem) -> Unit,
+    val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
+    val onTimelineChangedForTimer: (() -> Unit)? = null,
+    val onPlaybackEndedForTimer: (() -> Unit)? = null,
+    val isPauseOnVolumeZeroEnabled: () -> Boolean = { false }
+)
+
 class PlaybackServiceListener(
     private val player: Player,
-    private val errorHandler: PlaybackErrorHandler,
-    private val persistence: PlaybackStatePersistence,
-    private val carAudioManager: BluetoothCarManager,
-    private val audioFocusHelper: PlaybackAudioFocusHelper,
-    private val onTriggerSilentCache: (MediaItem) -> Unit,
-    private val onMediaItemTransitionForTimer: ((MediaItem?, Int) -> Unit)? = null,
-    private val onTimelineChangedForTimer: (() -> Unit)? = null,
-    private val onPlaybackEndedForTimer: (() -> Unit)? = null,
-    private val context: Context? = null,
-    private val isPauseOnVolumeZeroEnabled: () -> Boolean = { false }
+    private val deps: PlaybackServiceDependencies,
+    private val callbacks: PlaybackServiceCallbacks,
+    private val context: Context? = null
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
@@ -36,8 +44,12 @@ class PlaybackServiceListener(
         val appContext = context ?: return
         val mediaItem = player.currentMediaItem
         val extras = mediaItem?.mediaMetadata?.extras
-        val title = extras?.getString("realTitle") ?: mediaItem?.mediaMetadata?.title?.toString() ?: ""
-        val artist = extras?.getString("realArtist") ?: mediaItem?.mediaMetadata?.artist?.toString() ?: ""
+        val title = extras?.getString("realTitle")
+            ?: mediaItem?.mediaMetadata?.title?.toString()
+            ?: ""
+        val artist = extras?.getString("realArtist")
+            ?: mediaItem?.mediaMetadata?.artist?.toString()
+            ?: ""
         val artworkUri = mediaItem?.mediaMetadata?.artworkUri?.toString() ?: ""
         SpeculonicWidgetUpdater.updateFromService(
             context = appContext,
@@ -50,11 +62,11 @@ class PlaybackServiceListener(
     }
 
     override fun onPlayerError(error: PlaybackException) {
-        errorHandler.handlePlayerError(player, error)
+        deps.errorHandler.handlePlayerError(player, error)
     }
 
     override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
-        onMediaItemTransitionForTimer?.invoke(mediaItem, reason)
+        callbacks.onMediaItemTransitionForTimer?.invoke(mediaItem, reason)
         val reasonStr = when (reason) {
             Player.MEDIA_ITEM_TRANSITION_REASON_AUTO -> "AUTO"
             Player.MEDIA_ITEM_TRANSITION_REASON_SEEK -> "SEEK"
@@ -64,12 +76,15 @@ class PlaybackServiceListener(
         }
         val title = mediaItem?.mediaMetadata?.title ?: "Unknown"
         val artist = mediaItem?.mediaMetadata?.artist ?: "Unknown"
-        LogManager.i(LogTag.PLAYBACK, "MediaItem transition -> id=${mediaItem?.mediaId}, title='$title', artist='$artist', reason=$reasonStr")
+        LogManager.i(
+            LogTag.PLAYBACK,
+            "MediaItem transition -> id=${mediaItem?.mediaId}, title='$title', artist='$artist', reason=$reasonStr"
+        )
 
         if (mediaItem == null) {
             currentActiveMediaId = null
             pushWidgetStateUpdate(player)
-            persistence.savePlaybackState(player, immediate = true)
+            deps.persistence.savePlaybackState(player, immediate = true)
             return
         }
 
@@ -78,26 +93,30 @@ class PlaybackServiceListener(
 
         if (isSameAsPrevious && !isRepeat) {
             pushWidgetStateUpdate(player)
-            persistence.savePlaybackState(player, immediate = true)
+            deps.persistence.savePlaybackState(player, immediate = true)
             return
         }
 
         currentActiveMediaId = mediaItem.mediaId
 
-        onTriggerSilentCache(mediaItem)
-        if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled && carAudioManager.isCarBluetoothConnected()) {
-            carAudioManager.loadLyricsForBluetooth(mediaItem)
+        callbacks.onTriggerSilentCache(mediaItem)
+        val carManager = deps.carAudioManager
+        if (carManager.carBluetoothEnabled &&
+            carManager.bluetoothLyricsEnabled &&
+            carManager.isCarBluetoothConnected()
+        ) {
+            carManager.loadLyricsForBluetooth(mediaItem)
         }
         pushWidgetStateUpdate(player)
-        persistence.savePlaybackState(player, immediate = true)
+        deps.persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) {
         if (reason == Player.TIMELINE_CHANGE_REASON_PLAYLIST_CHANGED) {
             LogManager.i(LogTag.PLAYBACK, "Timeline playlist changed (windowCount=${timeline.windowCount})")
-            onTimelineChangedForTimer?.invoke()
-            persistence.savePlaybackQueue(player)
-            persistence.savePlaybackState(player)
+            callbacks.onTimelineChangedForTimer?.invoke()
+            deps.persistence.savePlaybackQueue(player)
+            deps.persistence.savePlaybackState(player)
         }
     }
 
@@ -109,12 +128,12 @@ class PlaybackServiceListener(
             else -> "$repeatMode"
         }
         LogManager.i(LogTag.PLAYBACK, "Repeat mode changed -> $modeStr")
-        persistence.savePlaybackState(player, immediate = true)
+        deps.persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
         LogManager.i(LogTag.PLAYBACK, "Shuffle mode changed -> $shuffleModeEnabled")
-        persistence.savePlaybackState(player, immediate = true)
+        deps.persistence.savePlaybackState(player, immediate = true)
     }
 
     override fun onPlaybackStateChanged(playbackState: Int) {
@@ -128,19 +147,22 @@ class PlaybackServiceListener(
         LogManager.i(LogTag.PLAYBACK, "Playback state changed -> $stateName (playWhenReady=${player.playWhenReady})")
 
         if (playbackState == Player.STATE_READY) {
-            errorHandler.resetErrorCount()
+            deps.errorHandler.resetErrorCount()
         }
         if (playbackState == Player.STATE_ENDED) {
-            onPlaybackEndedForTimer?.invoke()
+            callbacks.onPlaybackEndedForTimer?.invoke()
             pushWidgetStateUpdate(player)
-        } else if (playbackState == Player.STATE_IDLE || playbackState == Player.STATE_READY || playbackState == Player.STATE_BUFFERING) {
+        } else if (playbackState == Player.STATE_IDLE ||
+            playbackState == Player.STATE_READY ||
+            playbackState == Player.STATE_BUFFERING
+        ) {
             pushWidgetStateUpdate(player)
         }
-        if (!audioFocusHelper.isDefaultFocusHandling) {
-            if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
-                audioFocusHelper.abandonAudioFocus()
-                audioFocusHelper.resetLossState()
-            }
+        if (!deps.audioFocusHelper.isDefaultFocusHandling &&
+            (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE)
+        ) {
+            deps.audioFocusHelper.abandonAudioFocus()
+            deps.audioFocusHelper.resetLossState()
         }
     }
 
@@ -156,7 +178,7 @@ class PlaybackServiceListener(
         if (volumeAutoPauseTracker.onDeviceVolumeChanged(
                 volume = volume,
                 muted = muted,
-                enabled = isPauseOnVolumeZeroEnabled(),
+                enabled = callbacks.isPauseOnVolumeZeroEnabled(),
                 isActivelyPlaying = isActivelyPlaying
             )
         ) {
@@ -180,32 +202,47 @@ class PlaybackServiceListener(
         LogManager.i(LogTag.PLAYBACK, "playWhenReady changed -> $playWhenReady (reason=$reasonStr)")
         pushWidgetStateUpdate(player)
 
-        if (!playWhenReady) {
-            persistence.savePlaybackState(player, immediate = true)
-            persistence.stopPositionPersistence()
-            carAudioManager.stopBluetoothLyricsUpdate()
-            if (!audioFocusHelper.isDefaultFocusHandling) {
-                if (!audioFocusHelper.isTransientLossActive && !audioFocusHelper.isDelayedFocusPending) {
-                    audioFocusHelper.abandonAudioFocus()
-                }
-            }
+        if (playWhenReady) {
+            handlePlayWhenReadyResumed()
         } else {
-            persistence.startPositionPersistence(player)
-            if (carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled) {
-                carAudioManager.startBluetoothLyricsUpdate()
+            handlePlayWhenReadyPaused()
+        }
+    }
+
+    private fun handlePlayWhenReadyPaused() {
+        deps.persistence.savePlaybackState(player, immediate = true)
+        deps.persistence.stopPositionPersistence()
+        deps.carAudioManager.stopBluetoothLyricsUpdate()
+        val focusHelper = deps.audioFocusHelper
+        if (!focusHelper.isDefaultFocusHandling &&
+            !focusHelper.isTransientLossActive &&
+            !focusHelper.isDelayedFocusPending
+        ) {
+            focusHelper.abandonAudioFocus()
+        }
+    }
+
+    private fun handlePlayWhenReadyResumed() {
+        deps.persistence.startPositionPersistence(player)
+        val carManager = deps.carAudioManager
+        if (carManager.carBluetoothEnabled && carManager.bluetoothLyricsEnabled) {
+            carManager.startBluetoothLyricsUpdate()
+        }
+        val focusHelper = deps.audioFocusHelper
+        if (focusHelper.isDefaultFocusHandling) return
+
+        when (focusHelper.requestAudioFocus()) {
+            AudioManager.AUDIOFOCUS_REQUEST_DELAYED -> {
+                focusHelper.setDelayedFocusPending(true)
+                player.playWhenReady = false
             }
-            if (!audioFocusHelper.isDefaultFocusHandling) {
-                val result = audioFocusHelper.requestAudioFocus()
-                if (result == AudioManager.AUDIOFOCUS_REQUEST_DELAYED) {
-                    audioFocusHelper.setDelayedFocusPending(true)
-                    player.playWhenReady = false
-                } else if (result != AudioManager.AUDIOFOCUS_REQUEST_GRANTED) {
-                    audioFocusHelper.setDelayedFocusPending(false)
-                    player.playWhenReady = false
-                } else {
-                    audioFocusHelper.setDelayedFocusPending(false)
-                    audioFocusHelper.resetLossState()
-                }
+            AudioManager.AUDIOFOCUS_REQUEST_GRANTED -> {
+                focusHelper.setDelayedFocusPending(false)
+                focusHelper.resetLossState()
+            }
+            else -> {
+                focusHelper.setDelayedFocusPending(false)
+                player.playWhenReady = false
             }
         }
     }

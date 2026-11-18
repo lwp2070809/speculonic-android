@@ -82,7 +82,6 @@ fun SectionHeader(
 @Composable
 fun FavoriteSongsRow(
     songs: List<Song>,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     transcodeIncompatible: Boolean,
@@ -101,7 +100,6 @@ fun FavoriteSongsRow(
                 SongListItem(
                     song = song,
                     isCurrent = song.id == currentSongId,
-                    isOnline = isOnline,
                     isEffectivelyOnline = isEffectivelyOnline,
                     isStreamingAllowed = isStreamingAllowed,
                     transcodeIncompatible = transcodeIncompatible,

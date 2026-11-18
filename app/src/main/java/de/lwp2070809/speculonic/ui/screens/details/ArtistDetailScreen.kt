@@ -1,20 +1,37 @@
 package de.lwp2070809.speculonic.ui.screens.details
 
 import android.widget.Toast
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import de.lwp2070809.speculonic.ui.components.MediaDetailHeader
 import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,13 +53,11 @@ import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 fun ArtistDetailScreen(
     viewModel: ArtistDetailViewModel,
     topBarState: TopBarState,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     onAlbumClick: (String) -> Unit,
-    onBackClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
 
@@ -88,7 +103,12 @@ fun ArtistDetailScreen(
             } else if (uiState.artist != null) {
                 LazyVerticalGrid(
                     columns = GridCells.Adaptive(minSize = 140.dp),
-                    contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current),
+                    contentPadding = PaddingValues(
+                        start = 16.dp,
+                        end = 16.dp,
+                        top = 0.dp,
+                        bottom = 16.dp + LocalMiniPlayerBottomInset.current
+                    ),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)
@@ -117,45 +137,13 @@ fun ArtistDetailScreen(
 
 @Composable
 fun ArtistHeader(artist: Artist?) {
-    val coverRequester = LocalCoverArtRequester.current
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val model = remember(artist?.coverArt) {
-            coverRequester.buildCoverArtRequest(artist?.coverArt, context, preferLocal = true)
-        }
-        AsyncImage(
-            model = model,
-            contentDescription = artist?.name,
-            modifier = Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = artist?.name ?: "",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            val albumCount = artist?.albumCount ?: 0
-            Text(
-                text = pluralStringResource(R.plurals.albums_count, albumCount, albumCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    val albumCount = artist?.albumCount ?: 0
+    MediaDetailHeader(
+        coverArtId = artist?.coverArt,
+        title = artist?.name ?: "",
+        metaText = pluralStringResource(R.plurals.albums_count, albumCount, albumCount),
+        contentPadding = PaddingValues(vertical = 16.dp)
+    )
 }
 
 @Composable

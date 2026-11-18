@@ -51,7 +51,7 @@ internal object KeystoreAesGcmCipher {
         val iv = payload.copyOfRange(1, HEADER_BYTES)
         val ciphertext = payload.copyOfRange(HEADER_BYTES, payload.size)
         val key = getExistingSecretKey()
-            ?: throw IllegalStateException("AndroidKeyStore master key missing for existing ciphertext")
+            ?: error("AndroidKeyStore master key missing for existing ciphertext")
 
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))

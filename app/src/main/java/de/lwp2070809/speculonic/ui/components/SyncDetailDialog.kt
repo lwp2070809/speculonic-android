@@ -27,17 +27,18 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
-import de.lwp2070809.speculonic.ui.screens.settings.SettingsViewModel
+import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
 
 @Composable
 fun SyncDetailDialog(
     onDismiss: () -> Unit,
-    viewModel: SettingsViewModel
+    viewModel: ServerSyncViewModel
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -143,13 +144,17 @@ fun SyncDetailDialog(
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
-                                icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note),
+                                icon = androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note
+                                ),
                                 label = stringResource(R.string.songs),
                                 value = uiState.songsCount.toString(),
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
-                                icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play),
+                                icon = androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play
+                                ),
                                 label = stringResource(R.string.playlists),
                                 value = uiState.playlistsCount.toString(),
                                 modifier = Modifier.weight(1f)

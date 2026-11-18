@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.di
 
 import android.content.Context
+import androidx.room.Room
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,7 +18,15 @@ object DatabaseModule {
     @Provides
     @Singleton
     fun provideDatabase(@ApplicationContext context: Context): AppDatabase {
-        return AppDatabase.getDatabase(context)
+        val builder = Room.databaseBuilder(
+            context.applicationContext,
+            AppDatabase::class.java,
+            "speculonic_database"
+        )
+        AppDatabase.ALL_MIGRATIONS.forEach { builder.addMigrations(it) }
+        return builder
+            .fallbackToDestructiveMigration(dropAllTables = true)
+            .build()
     }
 
     @Provides

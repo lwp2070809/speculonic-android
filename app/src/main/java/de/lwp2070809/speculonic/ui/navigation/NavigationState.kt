@@ -16,6 +16,7 @@ import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.runtime.NavKey
 import androidx.navigation3.runtime.rememberDecoratedNavEntries
 import androidx.navigation3.runtime.rememberSaveableStateHolderNavEntryDecorator
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
 
@@ -74,17 +75,28 @@ class NavigationState(
 
     fun addRoute(route: NavKey, inclusive: Boolean = false) {
         val stack = backStacks[topLevelRoute] ?: emptyList()
-        
         if (stack.isNotEmpty() && stack.last() == route) {
             return
         }
-        val lastRoute = stack.lastOrNull() as? AppRoute
-        val shouldReplaceDetail = isDualPane && !inclusive && 
-            route is AppRoute && route.isDetailPane && 
-            lastRoute != null && lastRoute.isDetailPane && !isDetailDrillDown(lastRoute, route)
+        val baseStack = computeBaseStack(stack, route, inclusive)
+        backStacks = backStacks + (topLevelRoute to (baseStack + route))
+    }
 
-        val baseStack = when {
-            shouldReplaceDetail -> {
+    private fun computeBaseStack(
+        stack: List<NavKey>,
+        route: NavKey,
+        inclusive: Boolean
+    ): List<NavKey> {
+        val lastRoute = stack.lastOrNull() as? AppRoute
+        val canReplaceDetailPane = isDualPane &&
+            !inclusive &&
+            route is AppRoute &&
+            route.isDetailPane &&
+            lastRoute != null &&
+            lastRoute.isDetailPane &&
+            !isDetailDrillDown(lastRoute, route)
+        return when {
+            canReplaceDetailPane -> {
                 var trimmed = stack
                 while (trimmed.size > 1 && (trimmed.last() as? AppRoute)?.isDetailPane == true) {
                     trimmed = trimmed.dropLast(1)
@@ -94,7 +106,6 @@ class NavigationState(
             inclusive && stack.isNotEmpty() -> stack.dropLast(1)
             else -> stack
         }
-        backStacks = backStacks + (topLevelRoute to (baseStack + route))
     }
 
     fun popRoute() {
@@ -194,6 +205,7 @@ class NavigationState(
                         initialBackStacks = restoredBackStacks
                     )
                 } catch (e: Exception) {
+                    LogManager.w("NavigationState: Failed to restore navigation back stack", e)
                     NavigationState(startRoute, topLevelRoutes)
                 }
             }

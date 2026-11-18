@@ -103,7 +103,7 @@ fun NowPlayingExpanded(
             ) {
                 SongInfo(playbackState)
                 PlaybackSeekBar(playbackState, playbackController)
-                MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
+                MainControls(playbackState, playbackController, onShowSongInfo)
                 ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
             }
         }
@@ -121,7 +121,6 @@ fun NowPlayingExpanded(
                 lyricsLines = uiState.lyricsLines,
                 rawLyrics = uiState.rawLyrics,
                 currentPositionFlow = playbackController.currentPosition,
-                isPlaying = playbackState.isPlaying,
                 isLoading = uiState.isLoadingLyrics,
                 onSeek = { playbackController.seekTo(it) },
                 modifier = Modifier.fillMaxSize()

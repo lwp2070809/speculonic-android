@@ -10,30 +10,39 @@ import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.gif.AnimatedImageDecoder
 import coil3.memory.MemoryCache
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import coil3.svg.SvgDecoder
 import dagger.hilt.android.HiltAndroidApp
+import de.lwp2070809.speculonic.data.AppRuntimeCoordinator
 import de.lwp2070809.speculonic.data.CacheSyncWorker
+import de.lwp2070809.speculonic.data.DownloadManagerHelper
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.data.MetadataSyncWorker
 import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
+import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
+import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.LogTag
 import de.lwp2070809.speculonic.util.SubsonicCoverArtFetcher
 import de.lwp2070809.speculonic.util.SubsonicCoverArtKeyer
 import de.lwp2070809.speculonic.util.SubsonicCoverArtStringKeyer
-import de.lwp2070809.speculonic.data.db.dao.MusicDao
-import de.lwp2070809.speculonic.util.LogManager
-import de.lwp2070809.speculonic.util.LogTag
-import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import javax.inject.Inject
 
 @HiltAndroidApp
 class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration.Provider {
     companion object {
         lateinit var instance: SpeculonicApp
             private set
-        
-        val applicationScope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Default)
+
+        val applicationScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+        private const val MEMORY_CACHE_PERCENT = 0.25
     }
 
     @Inject
@@ -41,6 +50,18 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
 
     @Inject
     lateinit var musicDao: MusicDao
+
+    @Inject
+    lateinit var preferencesManager: PreferencesManager
+
+    @Inject
+    lateinit var downloadTracker: DownloadTracker
+
+    @Inject
+    lateinit var downloadManagerHelper: DownloadManagerHelper
+
+    @Inject
+    lateinit var appRuntimeCoordinator: AppRuntimeCoordinator
 
     override val workManagerConfiguration: Configuration
         get() = Configuration.Builder()
@@ -51,60 +72,52 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
         super.onCreate()
         instance = this
         LogManager.setupCrashHandler(this)
-        
-        val prefsManager = PreferencesManager.getInstance(this)
+
         // 必须在初次构造 OkHttpClient 与调度 Worker 前同步应用不安全连接设置，防止首帧请求错用默认 TLS 客户端
-        val trustAll = prefsManager.getAllowInsecureConnectionsSync()
+        val trustAll = preferencesManager.getAllowInsecureConnectionsSync()
         LogManager.i(
             LogTag.APP,
-            "SpeculonicApp: Security settings loaded (Version: ${BuildConfig.VERSION_NAME}, Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
+            "SpeculonicApp: Security settings loaded (Version: ${BuildConfig.VERSION_NAME}, " +
+                "Code: ${BuildConfig.VERSION_CODE}, TrustAll: $trustAll)"
         )
         if (trustAll) {
             NetworkModule.rebuildClientIfNeeded(true)
         }
 
-        applicationScope.launch(kotlinx.coroutines.Dispatchers.IO) {
-            de.lwp2070809.speculonic.data.DownloadManagerHelper.initializeAsync(this@SpeculonicApp)
-            de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater.reconcileStalePlayingState(this@SpeculonicApp)
+        applicationScope.launch(Dispatchers.IO) {
+            downloadManagerHelper.initializeAsync()
+            SpeculonicWidgetUpdater.reconcileStalePlayingState(this@SpeculonicApp)
         }
 
         NetworkModule.provideOkHttpClient()
-
-        DownloadTracker.init(this)
-
+        downloadTracker.init()
+        appRuntimeCoordinator.start()
         CacheSyncWorker.schedule(this)
-
         MetadataSyncWorker.schedule(this)
     }
 
-    
     override fun newImageLoader(context: Context): ImageLoader {
-        val prefsManager = PreferencesManager.getInstance(context)
-        val maxCoverLimit = prefsManager.getCachedMaxCoverCacheSize()
+        val maxCoverLimit = preferencesManager.getCachedMaxCoverCacheSize()
 
         return ImageLoader.Builder(context)
             .components {
-                
-                add(coil3.network.okhttp.OkHttpNetworkFetcherFactory(callFactory = { NetworkModule.provideOkHttpClient() }))
+                add(OkHttpNetworkFetcherFactory(callFactory = { NetworkModule.provideOkHttpClient() }))
                 add(SubsonicCoverArtKeyer())
                 add(SubsonicCoverArtStringKeyer())
-                
                 add(SubsonicCoverArtFetcher.Factory(context, musicDao))
-                
                 add(SvgDecoder.Factory())
-                
                 add(AnimatedImageDecoder.Factory())
             }
             .memoryCache {
                 MemoryCache.Builder()
-                    .maxSizePercent(context, 0.25)
+                    .maxSizePercent(context, MEMORY_CACHE_PERCENT)
                     .strongReferencesEnabled(true)
                     .build()
             }
             .diskCache {
                 DiskCache.Builder()
                     .directory(context.cacheDir.resolve("image_cache"))
-                    .maxSizeBytes(maxCoverLimit) 
+                    .maxSizeBytes(maxCoverLimit)
                     .build()
             }
             .crossfade(true)

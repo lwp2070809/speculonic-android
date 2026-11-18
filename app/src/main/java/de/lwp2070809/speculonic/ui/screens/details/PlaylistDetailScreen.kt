@@ -6,33 +6,47 @@ import android.widget.Toast
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
+import de.lwp2070809.speculonic.ui.components.MediaDetailHeader
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
@@ -45,7 +59,6 @@ import kotlinx.coroutines.launch
 fun PlaylistDetailScreen(
     viewModel: PlaylistDetailViewModel,
     topBarState: TopBarState,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     onBackClick: () -> Unit
@@ -53,15 +66,15 @@ fun PlaylistDetailScreen(
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
-    val playbackStateState = playbackController.playbackState.collectAsState()
+    val playbackStateState = playbackController.playbackState.collectAsStateWithLifecycle()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
     val playlistNotFoundMsg = stringResource(R.string.playlist_not_found)
-    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsStateWithLifecycle()
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsStateWithLifecycle()
+    val activeDownloads = uiState.activeDownloads
+    val downloadedIds = uiState.downloadedIds
     val isAnyDownloading = remember(activeDownloads, uiState.songs) {
         uiState.songs.any { activeDownloads.contains(it.id) }
     }
@@ -71,8 +84,7 @@ fun PlaylistDetailScreen(
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
 
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
+    val transcodeIncompatible = uiState.transcodeIncompatible
 
     val playableSongs = remember(uiState.songs, transcodeIncompatible) {
         uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
@@ -201,7 +213,12 @@ fun PlaylistDetailScreen(
                                 onShuffle = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = uiState.playlist?.name)
+                                        playbackController.play(
+                                            mediaItems,
+                                            mediaItems.indices.random(),
+                                            shuffle = true,
+                                            queueTitle = uiState.playlist?.name
+                                        )
                                     }
                                 },
                                 onDownloadAll = {
@@ -212,8 +229,6 @@ fun PlaylistDetailScreen(
                                         }
                                     }
                                 },
-                                isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
                                 isDownloadEnabled = !isAllDownloaded,
@@ -248,7 +263,6 @@ fun PlaylistDetailScreen(
                         SongListItem(
                             song = song,
                             isCurrent = song.id == currentSongId,
-                            isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
                             isStreamingAllowed = isStreamingAllowed,
                             transcodeIncompatible = transcodeIncompatible,
@@ -291,72 +305,32 @@ fun PlaylistHeader(
     songCountOverride: Int = 0,
     onTogglePinned: () -> Unit = {}
 ) {
-    val coverRequester = LocalCoverArtRequester.current
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val model = remember(playlist?.coverArt) {
-            coverRequester.buildCoverArtRequest(playlist?.coverArt, context, preferLocal = true)
-        }
-
-        AsyncImage(
-            model = model,
-            contentDescription = playlist?.name,
-            modifier = Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = playlist?.name ?: "",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = playlist?.owner ?: "",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            val songCount = if ((playlist?.songCount ?: 0) == 0 && songCountOverride > 0) {
-                songCountOverride
-            } else {
-                playlist?.songCount ?: 0
-            }
-            Text(
-                text = pluralStringResource(R.plurals.songs_count, songCount, songCount),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-        
-        Spacer(modifier = Modifier.width(8.dp))
-        
-        IconButton(onClick = onTogglePinned) {
-            if (playlist?.pinned == true) {
-                Icon(
-                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_push_pin_filled),
-                    contentDescription = stringResource(R.string.content_description_unpin_playlist),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            } else {
-                Icon(
-                    androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_push_pin),
-                    contentDescription = stringResource(R.string.content_description_pin_playlist),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
+    val songCount = if ((playlist?.songCount ?: 0) == 0 && songCountOverride > 0) {
+        songCountOverride
+    } else {
+        playlist?.songCount ?: 0
     }
+    MediaDetailHeader(
+        coverArtId = playlist?.coverArt,
+        title = playlist?.name ?: "",
+        subtitle = playlist?.owner ?: "",
+        metaText = pluralStringResource(R.plurals.songs_count, songCount, songCount),
+        trailingContent = {
+            IconButton(onClick = onTogglePinned) {
+                if (playlist?.pinned == true) {
+                    Icon(
+                        androidx.compose.ui.res.painterResource(id = R.drawable.ic_symbol_push_pin_filled),
+                        contentDescription = stringResource(R.string.content_description_unpin_playlist),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                } else {
+                    Icon(
+                        androidx.compose.ui.res.painterResource(id = R.drawable.ic_symbol_push_pin),
+                        contentDescription = stringResource(R.string.content_description_pin_playlist),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
+    )
 }

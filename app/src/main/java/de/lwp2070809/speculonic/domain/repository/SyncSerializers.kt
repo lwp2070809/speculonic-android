@@ -1,6 +1,8 @@
 package de.lwp2070809.speculonic.domain.repository
 
+import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
+import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.model.Album
@@ -56,18 +58,33 @@ class StreamingListSerializer<T>(
     }
 }
 
+data class Search3Channels(
+    val artist: Channel<List<ArtistEntity>> = Channel(capacity = Channel.BUFFERED),
+    val album: Channel<List<AlbumEntity>> = Channel(capacity = Channel.BUFFERED),
+    val song: Channel<List<SongEntity>> = Channel(capacity = Channel.BUFFERED),
+    val tempId: Channel<List<SyncTempIdEntity>> = Channel(capacity = Channel.BUFFERED)
+) {
+    fun closeAll(cause: Throwable? = null) {
+        artist.close(cause)
+        album.close(cause)
+        song.close(cause)
+        tempId.close(cause)
+    }
+}
+
+class Search3StreamState(
+    val existingAlbumsMap: Map<String, AlbumEntity>,
+    val existingSongsMetadata: Map<String, SongMetadata>,
+    val entityMapper: EntityMapper,
+    val seenArtistIds: MutableSet<String> = mutableSetOf(),
+    val seenAlbumIds: MutableSet<String> = mutableSetOf(),
+    val seenSongIds: MutableSet<String> = mutableSetOf()
+)
+
 @OptIn(ExperimentalSerializationApi::class)
 class SearchResult3StreamingSerializer(
-    private val artistChannel: Channel<List<ArtistEntity>>,
-    private val albumChannel: Channel<List<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>>,
-    private val songChannel: Channel<List<de.lwp2070809.speculonic.data.db.entities.SongEntity>>,
-    private val tempIdChannel: Channel<List<SyncTempIdEntity>>,
-    private val existingAlbumsMap: Map<String, de.lwp2070809.speculonic.data.db.entities.AlbumEntity>,
-    private val existingSongsMetadata: Map<String, SongMetadata>,
-    private val entityMapper: EntityMapper,
-    private val seenArtistIds: MutableSet<String> = mutableSetOf(),
-    private val seenAlbumIds: MutableSet<String> = mutableSetOf(),
-    private val seenSongIds: MutableSet<String> = mutableSetOf(),
+    private val channels: Search3Channels,
+    private val state: Search3StreamState,
     private val onPageStats: (Search3PageStats) -> Unit = {},
     private val batchSize: Int = 500
 ) : KSerializer<Unit> {
@@ -94,51 +111,15 @@ class SearchResult3StreamingSerializer(
                 when (index) {
                     0 -> decodeArray(this, 0, Artist.serializer()) { artists ->
                         artistReceived += artists.size
-                        val newArtists = artists.filter { seenArtistIds.add(it.id) }
-                        if (newArtists.isNotEmpty()) {
-                            artistAdded += newArtists.size
-                            val entities = newArtists.map { artist ->
-                                val count = artist.albumCount ?: artist.album.size
-                                ArtistEntity(artist.id, artist.name, artist.coverArt, count)
-                            }
-                            artistChannel.sendSafe(entities)
-                            tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "artist") })
-                        }
+                        artistAdded += processArtistsChunk(artists)
                     }
                     1 -> decodeArray(this, 1, Album.serializer()) { albums ->
                         albumReceived += albums.size
-                        val newAlbums = albums.filter { seenAlbumIds.add(it.id) }
-                        if (newAlbums.isNotEmpty()) {
-                            albumAdded += newAlbums.size
-                            val entities = newAlbums.map {
-                                entityMapper.albumToEntity(it, existing = existingAlbumsMap[it.id], isStarred = it.starred != null)
-                            }
-                            albumChannel.sendSafe(entities)
-                            tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "album") })
-                        }
+                        albumAdded += processAlbumsChunk(albums)
                     }
                     2 -> decodeArray(this, 2, Song.serializer()) { songs ->
                         songReceived += songs.size
-                        val newSongs = songs.filter { seenSongIds.add(it.id) }
-                        if (newSongs.isNotEmpty()) {
-                            songAdded += newSongs.size
-                            val entities = newSongs.map { song ->
-                                val meta = existingSongsMetadata[song.id]
-                                val isStarred = song.starred != null
-                                val lastUpdated = if (isStarred && meta?.starred != true) null else meta?.lastUpdated
-                                entityMapper.songToEntity(
-                                    song,
-                                    albumId = song.albumId ?: song.parent,
-                                    localUri = meta?.localUri,
-                                    isCached = meta?.isFullyCached ?: false,
-                                    isTranscoded = meta?.isTranscoded ?: false,
-                                    isStarred = isStarred,
-                                    lastUpdated = lastUpdated
-                                )
-                            }
-                            songChannel.sendSafe(entities)
-                            tempIdChannel.sendSafe(entities.map { SyncTempIdEntity(it.id, "song") })
-                        }
+                        songAdded += processSongsChunk(songs)
                     }
                     else -> skipUnknownField(index)
                 }
@@ -155,6 +136,57 @@ class SearchResult3StreamingSerializer(
                 songAdded = songAdded
             )
         )
+    }
+
+    private fun processArtistsChunk(artists: List<Artist>): Int {
+        val newArtists = artists.filter { state.seenArtistIds.add(it.id) }
+        if (newArtists.isEmpty()) return 0
+        val entities = newArtists.map { artist ->
+            val count = artist.albumCount ?: artist.album.size
+            ArtistEntity(artist.id, artist.name, artist.coverArt, count)
+        }
+        channels.artist.sendSafe(entities)
+        channels.tempId.sendSafe(entities.map { SyncTempIdEntity(it.id, "artist") })
+        return newArtists.size
+    }
+
+    private fun processAlbumsChunk(albums: List<Album>): Int {
+        val newAlbums = albums.filter { state.seenAlbumIds.add(it.id) }
+        if (newAlbums.isEmpty()) return 0
+        val entities = newAlbums.map { album ->
+            state.entityMapper.albumToEntity(
+                album = album,
+                existing = state.existingAlbumsMap[album.id],
+                isStarred = album.starred != null
+            )
+        }
+        channels.album.sendSafe(entities)
+        channels.tempId.sendSafe(entities.map { SyncTempIdEntity(it.id, "album") })
+        return newAlbums.size
+    }
+
+    private fun processSongsChunk(songs: List<Song>): Int {
+        val newSongs = songs.filter { state.seenSongIds.add(it.id) }
+        if (newSongs.isEmpty()) return 0
+        val entities = newSongs.map { song ->
+            val meta = state.existingSongsMetadata[song.id]
+            val isStarred = song.starred != null
+            val lastUpdated = if (isStarred && meta?.starred != true) null else meta?.lastUpdated
+            state.entityMapper.songToEntity(
+                song = song,
+                overrides = SongEntityOverrides(
+                    albumId = song.albumId ?: song.parent,
+                    localUri = meta?.localUri,
+                    isCached = meta?.isFullyCached ?: false,
+                    isTranscoded = meta?.isTranscoded ?: false,
+                    isStarred = isStarred,
+                    lastUpdated = lastUpdated
+                )
+            )
+        }
+        channels.song.sendSafe(entities)
+        channels.tempId.sendSafe(entities.map { SyncTempIdEntity(it.id, "song") })
+        return newSongs.size
     }
 
     private fun CompositeDecoder.skipUnknownField(index: Int) {

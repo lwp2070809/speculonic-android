@@ -74,21 +74,15 @@ class BluetoothCarDeviceDetector(
             audioDeviceCallback = object : AudioDeviceCallback() {
                 override fun onAudioDevicesAdded(addedDevices: Array<out android.media.AudioDeviceInfo>?) {
                     checkConnectionState()
-                    addedDevices?.forEach { device ->
-                        if (device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-                            device.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || 
-                            device.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
-                        ) {
-                            serviceScope.launch {
-                                delay(1500)
-                                val connected = probeCarBluetoothConnected()
-                                _carConnectionState.value = connected
-                                if (carBluetoothEnabled && connected) {
-                                    LogManager.i("BluetoothCarDeviceDetector: Car Bluetooth audio device mounted.")
-                                    onCarConnected()
-                                }
-                            }
-                            return
+                    val hasBluetoothAdded = addedDevices?.any(::isSupportedBluetoothOutput) == true
+                    if (!hasBluetoothAdded) return
+                    serviceScope.launch {
+                        delay(AUDIO_DEVICE_SETTLE_DELAY_MS)
+                        val connected = probeCarBluetoothConnected()
+                        _carConnectionState.value = connected
+                        if (carBluetoothEnabled && connected) {
+                            LogManager.i("BluetoothCarDeviceDetector: Car Bluetooth audio device mounted.")
+                            onCarConnected()
                         }
                     }
                 }
@@ -152,52 +146,51 @@ class BluetoothCarDeviceDetector(
 
     private fun probeCarBluetoothConnected(): Boolean {
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-        val devices = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
-        val hasBluetoothOutput = devices.any { 
-            it.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
-            it.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET || 
-            it.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
-        }
-        
+        val hasBluetoothOutput = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
+            .any(::isSupportedBluetoothOutput)
         if (!hasBluetoothOutput) return false
-        
-        return try {
-            val connectedDevices = bluetoothA2dp?.connectedDevices ?: emptyList()
-            if (connectedDevices.isEmpty()) {
-                false
-            } else {
-                var foundCar = false
-                connectedDevices.forEach { device ->
-                    if (device == null) return@forEach
-                    val name = try { device.name ?: "" } catch (_: Exception) { "" }
-                    
-                    if (bluetoothCarDeviceNames.contains(name)) {
-                        foundCar = true
-                        return@forEach
-                    }
 
-                    val deviceClass = device.bluetoothClass
-                    val classInt = deviceClass?.deviceClass ?: -1
-                    val majorClassInt = deviceClass?.majorDeviceClass ?: -1
-                    
-                    if (classInt == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO) {
-                        foundCar = true
-                    } else if (majorClassInt == BluetoothClass.Device.Major.AUDIO_VIDEO && 
-                        (classInt == 1052 || classInt == 1032)) {
-                        val lowerName = name.lowercase()
-                        if (BluetoothConstants.matchesCarKeyword(lowerName)) {
-                            foundCar = true
-                        }
-                    }
-                }
-                foundCar
-            }
+        return try {
+            val connectedDevices = bluetoothA2dp?.connectedDevices.orEmpty()
+            connectedDevices.any { device -> device != null && isCarAudioDevice(device) }
         } catch (_: SecurityException) {
-            LogManager.w("BluetoothCarDeviceDetector: SecurityException - Missing android.Manifest.permission.BLUETOOTH_CONNECT permission, car Bluetooth features will be disabled.")
+            LogManager.w(
+                "BluetoothCarDeviceDetector: SecurityException - Missing " +
+                    "android.Manifest.permission.BLUETOOTH_CONNECT permission, car Bluetooth features will be disabled."
+            )
             false
         } catch (e: Exception) {
             LogManager.e("BluetoothCarDeviceDetector: Error identifying bluetooth device", e)
             false
         }
+    }
+
+    private fun isSupportedBluetoothOutput(device: android.media.AudioDeviceInfo): Boolean {
+        return device.type == android.media.AudioDeviceInfo.TYPE_BLUETOOTH_A2DP ||
+            device.type == android.media.AudioDeviceInfo.TYPE_BLE_HEADSET ||
+            device.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
+    }
+
+    private fun isCarAudioDevice(device: android.bluetooth.BluetoothDevice): Boolean {
+        val name = try {
+            device.name ?: ""
+        } catch (_: Exception) {
+            ""
+        }
+        if (bluetoothCarDeviceNames.contains(name)) return true
+
+        val deviceClass = device.bluetoothClass
+        val classInt = deviceClass?.deviceClass ?: -1
+        if (classInt == BluetoothClass.Device.AUDIO_VIDEO_CAR_AUDIO) return true
+
+        val majorClassInt = deviceClass?.majorDeviceClass ?: -1
+        return majorClassInt == BluetoothClass.Device.Major.AUDIO_VIDEO &&
+            classInt in AMBIGUOUS_AUDIO_DEVICE_CLASSES &&
+            BluetoothConstants.matchesCarKeyword(name.lowercase())
+    }
+
+    private companion object {
+        const val AUDIO_DEVICE_SETTLE_DELAY_MS = 1500L
+        val AMBIGUOUS_AUDIO_DEVICE_CLASSES = setOf(1052, 1032)
     }
 }

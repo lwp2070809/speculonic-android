@@ -2,10 +2,26 @@ package de.lwp2070809.speculonic.ui.components
 
 import de.lwp2070809.speculonic.R
 
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.painterResource
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -20,8 +36,6 @@ fun ActionButtonsRow(
     onPlayAll: () -> Unit,
     onShuffle: () -> Unit,
     onDownloadAll: () -> Unit,
-    isOnline: Boolean,
-    isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     isDownloading: Boolean,
     isDownloadEnabled: Boolean = true,
@@ -74,7 +88,10 @@ fun ActionButtonsRow(
             modifier = Modifier.weight(1f),
             contentPadding = PaddingValues(horizontal = 8.dp)
         ) {
-            Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_shuffle), contentDescription = null)
+            Icon(
+                painterResource(id = R.drawable.ic_symbol_shuffle),
+                contentDescription = null
+            )
             Spacer(Modifier.width(4.dp))
             Text(stringResource(R.string.shuffle), maxLines = 1, overflow = TextOverflow.Ellipsis)
         }
@@ -91,7 +108,10 @@ fun ActionButtonsRow(
                 onClick = { showDownloadAllDialog = true },
                 enabled = isStreamingAllowed && isDownloadEnabled
             ) {
-                Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = stringResource(R.string.download_all))
+                Icon(
+                    painterResource(id = R.drawable.ic_symbol_download),
+                    contentDescription = stringResource(R.string.download_all)
+                )
             }
         }
     }

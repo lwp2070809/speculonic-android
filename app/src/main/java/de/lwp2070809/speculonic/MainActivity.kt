@@ -1,463 +1,349 @@
 package de.lwp2070809.speculonic
 
-import android.content.Intent
+import android.Manifest
 import android.annotation.SuppressLint
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.appcompat.app.AppCompatActivity
-import androidx.core.net.toUri
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.windowsizeclass.ExperimentalMaterial3WindowSizeClassApi
-import androidx.compose.material3.windowsizeclass.calculateWindowSizeClass
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.SingletonImageLoader
 import dagger.hilt.android.AndroidEntryPoint
-import de.lwp2070809.speculonic.data.ColorMode
-import de.lwp2070809.speculonic.data.DownloadTracker
-import de.lwp2070809.speculonic.data.MetadataSyncWorker
-import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.ThemeMode
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.playback.PlaybackController
+import de.lwp2070809.speculonic.playback.DownloadController
+import de.lwp2070809.speculonic.playback.DownloadService
 import de.lwp2070809.speculonic.playback.PlaybackService
 import de.lwp2070809.speculonic.ui.MainScreen
+import de.lwp2070809.speculonic.ui.MainViewModel
+import de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog
 import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
+import de.lwp2070809.speculonic.util.CoverArtKeyUtils
 import de.lwp2070809.speculonic.util.LogManager
-import de.lwp2070809.speculonic.util.PaletteUtils
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.distinctUntilChanged
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import javax.inject.Inject
+import de.lwp2070809.speculonic.util.LogTag
+import de.lwp2070809.speculonic.util.NetworkUtils
 
 @AndroidEntryPoint
 class MainActivity : AppCompatActivity() {
-    @Inject
-    lateinit var repository: SubsonicRepository
 
-    @Inject
-    lateinit var updateManager: de.lwp2070809.speculonic.data.UpdateManager
-
-    @Inject
-    lateinit var networkMonitor: de.lwp2070809.speculonic.util.NetworkMonitor
+    private val mainViewModel: MainViewModel by viewModels()
 
     private var showNowPlayingTrigger by mutableStateOf(false)
     private var showCancelDownloadsDialogTrigger by mutableStateOf(false)
 
     @SuppressLint("UnsafeOptInUsageError")
-    @OptIn(ExperimentalMaterial3WindowSizeClassApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         handleIntent(intent)
         enableEdgeToEdge()
         setContent {
-            val windowSizeClass = calculateWindowSizeClass(this)
-            val context = LocalContext.current
-            val lifecycleOwner = LocalLifecycleOwner.current
-            val playbackController = remember { PlaybackController.getInstance(context) }
-            val playbackStateState = playbackController.playbackState.collectAsState()
-            val currentSongIdState by remember { derivedStateOf { playbackStateState.value.currentSongId } }
-            val artworkUriState by remember { derivedStateOf { playbackStateState.value.artworkUri } }
-            val scope = rememberCoroutineScope()
+            SpeculonicRootContent()
+        }
+    }
 
-            var permissionRationaleDialog by remember { mutableStateOf<Triple<String, String, () -> Unit>?>(null) }
-            var permissionSettingsDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+    @Composable
+    private fun SpeculonicRootContent() {
+        val context = LocalContext.current
+        val lifecycleOwner = LocalLifecycleOwner.current
 
-            var notificationLauncherRef: androidx.activity.result.ActivityResultLauncher<String>? = null
-            val notificationPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-            ) { isGranted ->
-                if (!isGranted && android.os.Build.VERSION.SDK_INT >= 33) {
-                    if (shouldShowRequestPermissionRationale(android.Manifest.permission.POST_NOTIFICATIONS)) {
-                        permissionRationaleDialog = Triple(
-                            getString(R.string.permission_notification_title),
-                            getString(R.string.permission_notification_rationale)
-                        ) {
-                            notificationLauncherRef?.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                        }
-                    } else {
-                        permissionSettingsDialog = Pair(
-                            getString(R.string.permission_notification_title),
-                            getString(R.string.permission_notification_settings_guide)
-                        )
+        val playbackState by mainViewModel.playbackState.collectAsStateWithLifecycle()
+        val networkStatus by mainViewModel.networkStatus.collectAsStateWithLifecycle()
+        val serverUrlState by mainViewModel.serverUrl.collectAsStateWithLifecycle()
+        val themeMode by mainViewModel.themeMode.collectAsStateWithLifecycle()
+        val colorMode by mainViewModel.colorMode.collectAsStateWithLifecycle()
+        val offlineMode by mainViewModel.offlineMode.collectAsStateWithLifecycle()
+        val isEffectivelyOnline by mainViewModel.isEffectivelyOnline.collectAsStateWithLifecycle()
+        val isStreamingAllowed by mainViewModel.isStreamingAllowed.collectAsStateWithLifecycle()
+        val savedSeedColorLight by mainViewModel.savedSeedColorLight.collectAsStateWithLifecycle()
+        val savedSeedColorDark by mainViewModel.savedSeedColorDark.collectAsStateWithLifecycle()
+        val activeSeedColor by mainViewModel.activeSeedColor.collectAsStateWithLifecycle()
+        val hasEvaluatedColor by mainViewModel.hasEvaluatedColor.collectAsStateWithLifecycle()
+        val updateResult by mainViewModel.updateAvailableResult.collectAsStateWithLifecycle()
+
+        var permissionRationaleDialog by remember { mutableStateOf<Triple<String, String, () -> Unit>?>(null) }
+        var permissionSettingsDialog by remember { mutableStateOf<Pair<String, String>?>(null) }
+        var showCancelDownloadsDialog by remember { mutableStateOf(false) }
+
+        PermissionLaunchers(
+            serverUrlState = serverUrlState.orEmpty(),
+            onShowRationale = { title, msg, onRetry -> permissionRationaleDialog = Triple(title, msg, onRetry) },
+            onShowSettings = { title, msg -> permissionSettingsDialog = title to msg }
+        )
+
+        LaunchedEffect(showCancelDownloadsDialogTrigger) {
+            if (showCancelDownloadsDialogTrigger) {
+                showCancelDownloadsDialog = true
+                showCancelDownloadsDialogTrigger = false
+            }
+        }
+
+        LaunchedEffect(mainViewModel) {
+            mainViewModel.toastMessageRes.collect { resId ->
+                Toast.makeText(context.applicationContext, resId, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        DisposableEffect(lifecycleOwner) {
+            val observer = LifecycleEventObserver { _, event ->
+                when (event) {
+                    Lifecycle.Event.ON_RESUME -> mainViewModel.onAppVisibilityChanged(true)
+                    Lifecycle.Event.ON_PAUSE -> mainViewModel.onAppVisibilityChanged(false)
+                    else -> Unit
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
+
+        val normalizedArtworkUri by remember {
+            derivedStateOf {
+                val uri = playbackState.artworkUri ?: return@derivedStateOf null
+                val uriStr = uri.toString()
+                val cleaned = CoverArtKeyUtils.stripVolatileParams(uriStr)
+                if (cleaned != uriStr) cleaned.toUri() else uri
+            }
+        }
+        val hasCurrentSong by remember { derivedStateOf { playbackState.currentSongId.isNotEmpty() } }
+
+        val darkTheme = when (themeMode) {
+            ThemeMode.LIGHT -> false
+            ThemeMode.DARK -> true
+            ThemeMode.SYSTEM -> isSystemInDarkTheme()
+        }
+        val seedColor = if (hasEvaluatedColor) {
+            activeSeedColor
+        } else {
+            val cached = if (darkTheme) savedSeedColorDark else savedSeedColorLight
+            cached?.let { Color(it) }
+        }
+
+        SpeculonicTheme(darkTheme = darkTheme, seedColor = seedColor) {
+            val currentSurfaceColor = MaterialTheme.colorScheme.surface.toArgb()
+
+            LaunchedEffect(normalizedArtworkUri, hasCurrentSong, colorMode, darkTheme) {
+                mainViewModel.evaluateSeedColor(
+                    artworkUri = normalizedArtworkUri,
+                    hasCurrentSong = hasCurrentSong,
+                    colorMode = colorMode,
+                    darkTheme = darkTheme,
+                    fallbackSurfaceColor = currentSurfaceColor,
+                    imageLoader = SingletonImageLoader.get(context)
+                )
+            }
+
+            PermissionAndDownloadDialogs(
+                permissionRationaleDialog = permissionRationaleDialog,
+                onDismissRationale = { permissionRationaleDialog = null },
+                permissionSettingsDialog = permissionSettingsDialog,
+                onDismissSettings = { permissionSettingsDialog = null },
+                onOpenAppSettings = {
+                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                        data = Uri.fromParts("package", packageName, null)
                     }
+                    startActivity(intent)
+                },
+                showCancelDownloadsDialog = showCancelDownloadsDialog,
+                onDismissCancelDownloads = { showCancelDownloadsDialog = false },
+                onConfirmCancelDownloads = {
+                    showCancelDownloadsDialog = false
+                    context.sendBroadcast(
+                        Intent(DownloadService.ACTION_CANCEL_ALL_DOWNLOADS).setPackage(context.packageName)
+                    )
                 }
-            }
-            notificationLauncherRef = notificationPermissionLauncher
-            LaunchedEffect(Unit) {
-                de.lwp2070809.speculonic.playback.DownloadController.permissionRequests.collect {
-                    notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-                }
-            }
-            
-            val networkMonitor = remember { this@MainActivity.networkMonitor }
-            val networkStatus by networkMonitor.networkStatus.collectAsStateWithLifecycle()
-            val isOnlineReal = networkStatus.isOnline
-            val isMetered = networkStatus.isMetered
-
-            val preferencesManager = remember { PreferencesManager.getInstance(context) }
-            val serverUrlState by preferencesManager.serverUrl.collectAsStateWithLifecycle(initialValue = "")
-            if (android.os.Build.VERSION.SDK_INT >= 37) {
-                var localNetworkLauncherRef: androidx.activity.result.ActivityResultLauncher<String>? = null
-                val localNetworkPermissionLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
-                    androidx.activity.result.contract.ActivityResultContracts.RequestPermission()
-                ) { isGranted ->
-                    LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Local network permission granted = $isGranted")
-                    if (!isGranted) {
-                        if (shouldShowRequestPermissionRationale(android.Manifest.permission.ACCESS_LOCAL_NETWORK)) {
-                            permissionRationaleDialog = Triple(
-                                getString(R.string.permission_local_network_title),
-                                getString(R.string.permission_local_network_rationale)
-                            ) {
-                                localNetworkLauncherRef?.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
-                            }
-                        } else {
-                            permissionSettingsDialog = Pair(
-                                getString(R.string.permission_local_network_title),
-                                getString(R.string.permission_local_network_settings_guide)
-                            )
-                        }
-                    }
-                }
-                localNetworkLauncherRef = localNetworkPermissionLauncher
-                LaunchedEffect(serverUrlState) {
-                    if (serverUrlState.isNotBlank() && de.lwp2070809.speculonic.util.NetworkUtils.isLocalNetworkAddress(serverUrlState)) {
-                        if (context.checkSelfPermission(android.Manifest.permission.ACCESS_LOCAL_NETWORK) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                            localNetworkPermissionLauncher.launch(android.Manifest.permission.ACCESS_LOCAL_NETWORK)
-                        }
-                    }
-                }
-            }
-            val themeMode by preferencesManager.themeMode.collectAsStateWithLifecycle(initialValue = ThemeMode.SYSTEM)
-            val colorMode by preferencesManager.colorMode.collectAsStateWithLifecycle(initialValue = ColorMode.ALBUM_COVER)
-            val offlineModePref by preferencesManager.offlineModeEnabled.collectAsStateWithLifecycle(initialValue = null)
-            val offlineMode = offlineModePref ?: false
-            val autoOfflinePref by preferencesManager.autoOfflineOnMetered.collectAsStateWithLifecycle(initialValue = null)
-
-            LaunchedEffect(offlineModePref) {
-                val offline = offlineModePref ?: return@LaunchedEffect
-                de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.isManualOffline = offline
-                LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Offline mode state updated -> $offline")
-            }
-
-            LaunchedEffect(isMetered, autoOfflinePref) {
-                if (autoOfflinePref == true) {
-                    val targetOffline = isMetered
-                    LogManager.i(de.lwp2070809.speculonic.util.LogTag.APP, "MainActivity: Auto-offline triggered (isMetered=$isMetered) -> offlineMode=$targetOffline")
-                    preferencesManager.saveOfflineModeEnabled(targetOffline)
-                }
-            }
-
-            val toggleOfflineMode: () -> Unit = {
-                scope.launch {
-                    val (newOffline, wasAutoOffline) = preferencesManager.toggleManualOfflineMode()
-                    if (wasAutoOffline) {
-                        android.widget.Toast.makeText(
-                            context.applicationContext,
-                            R.string.auto_offline_disabled_toast,
-                            android.widget.Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                    val toastMsg = if (newOffline) {
-                        R.string.offline_mode_enabled_toast
-                    } else {
-                        R.string.offline_mode_disabled_toast
-                    }
-                    android.widget.Toast.makeText(
-                        context.applicationContext,
-                        toastMsg,
-                        android.widget.Toast.LENGTH_SHORT
-                    ).show()
-                }
-            }
-
-            val isEffectivelyOnline by remember(networkMonitor, preferencesManager) {
-                combine(
-                    networkMonitor.networkStatus,
-                    preferencesManager.offlineModeEnabled
-                ) { status, offline ->
-                    status.isOnline && !offline
-                }.distinctUntilChanged()
-            }.collectAsStateWithLifecycle(initialValue = networkMonitor.currentNetworkStatus.isOnline)
-
-            val isStreamingAllowed by remember(networkMonitor, preferencesManager) {
-                combine(
-                    networkMonitor.networkStatus,
-                    preferencesManager.mobilePlayAllowed,
-                    preferencesManager.offlineModeEnabled
-                ) { status, allowed, offline ->
-                    status.isOnline && (!status.isMetered || allowed) && !offline
-                }.distinctUntilChanged()
-            }.collectAsStateWithLifecycle(
-                initialValue = networkMonitor.currentNetworkStatus.let { it.isOnline && !it.isMetered }
             )
 
-            var showCancelDownloadsDialog by remember { mutableStateOf(false) }
+            MainScreen(
+                mainViewModel = mainViewModel,
+                isOnline = networkStatus.isOnline,
+                isEffectivelyOnline = isEffectivelyOnline,
+                isStreamingAllowed = isStreamingAllowed,
+                initialShowNowPlaying = showNowPlayingTrigger,
+                onNowPlayingShown = { showNowPlayingTrigger = false },
+                offlineMode = offlineMode,
+                onToggleOfflineMode = { mainViewModel.toggleOfflineMode() }
+            )
 
-            LaunchedEffect(showCancelDownloadsDialogTrigger) {
-                if (showCancelDownloadsDialogTrigger) {
-                    showCancelDownloadsDialog = true
-                    showCancelDownloadsDialogTrigger = false
-                }
-            }
-
-            var updateResult by remember { mutableStateOf<de.lwp2070809.speculonic.data.UpdateManager.UpdateResult?>(null) }
-
-            LaunchedEffect(Unit) {
-                launch {
-                    de.lwp2070809.speculonic.network.ServerReachableManager.networkEventFlow.collect { event ->
-                        val showToast = if (event == de.lwp2070809.speculonic.network.NetworkEvent.ServerOffline) {
-                            preferencesManager.showOfflineToast.first()
-                        } else {
-                            true
-                        }
-                        if (showToast) {
-                            val messageResId = when (event) {
-                                de.lwp2070809.speculonic.network.NetworkEvent.ServerOffline -> R.string.server_offline_toast
-                                de.lwp2070809.speculonic.network.NetworkEvent.NetworkRestricted -> R.string.network_restricted_error
-                            }
-                            android.widget.Toast.makeText(context.applicationContext, messageResId, android.widget.Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                }
-                
-                launch {
-                    playbackController.ensureController()
-                }
-
-                DownloadTracker.init(context)
-                
-                launch {
-                    val result = updateManager.checkForUpdates(manual = false)
-                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
-                        updateResult = result
-                    }
-                }
-                
-                val wasSyncing = preferencesManager.isSyncing.first()
-                if (wasSyncing) {
-                    val lastSyncTime = preferencesManager.lastSyncTime.first()
-                    if (System.currentTimeMillis() - lastSyncTime > 30 * 60 * 1000) {
-                        LogManager.w("MainActivity: Detected stuck isSyncing state (>30m). Resetting to false.")
-                        preferencesManager.saveIsSyncing(false)
-                        MetadataSyncWorker.runOnce(context, forceRefresh = false)
-                    } else {
-                        LogManager.w("MainActivity: Detected interrupted sync. Triggering re-sync...")
-                        MetadataSyncWorker.runOnce(context, forceRefresh = true)
-                    }
-                }
-                
-                preferencesManager.logLevel.collectLatest { level ->
-                    LogManager.setMinLevel(level)
-                }
-            }
-
-
-            
-            
-
-            
-            
-            DisposableEffect(lifecycleOwner) {
-                val observer = LifecycleEventObserver { _, event ->
-                    when (event) {
-                        Lifecycle.Event.ON_RESUME -> playbackController.onAppVisibilityChanged(true)
-                        Lifecycle.Event.ON_PAUSE -> playbackController.onAppVisibilityChanged(false)
-                        else -> {}
-                    }
-                }
-                lifecycleOwner.lifecycle.addObserver(observer)
-                onDispose {
-                    lifecycleOwner.lifecycle.removeObserver(observer)
-                }
-            }
-            
-            
-            val normalizedArtworkUri = remember {
-                derivedStateOf {
-                    val uri = artworkUriState ?: return@derivedStateOf null
-                    val uriStr = uri.toString()
-                    val cleaned = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(uriStr)
-                    if (cleaned != uriStr) cleaned.toUri() else uri
-                }
-            }
-            val savedSeedColorLight by preferencesManager.lastSeedColorLight.collectAsStateWithLifecycle(initialValue = null)
-            val savedSeedColorDark by preferencesManager.lastSeedColorDark.collectAsStateWithLifecycle(initialValue = null)
-            var activeSeedColor by remember { mutableStateOf<Color?>(null) }
-            var hasEvaluatedColor by remember { mutableStateOf(false) }
-            
-            val darkTheme = when (themeMode) {
-                ThemeMode.LIGHT -> false
-                ThemeMode.DARK -> true
-                ThemeMode.SYSTEM -> isSystemInDarkTheme()
-            }
-            
-            val seedColor = if (hasEvaluatedColor) {
-                activeSeedColor
-            } else {
-                if (darkTheme) {
-                    savedSeedColorDark?.let { Color(it) }
-                } else {
-                    savedSeedColorLight?.let { Color(it) }
-                }
-            }
-
-            SpeculonicTheme(
-                darkTheme = darkTheme,
-                seedColor = seedColor
-            ) {
-                val currentSurfaceColor = androidx.compose.material3.MaterialTheme.colorScheme.surface.toArgb()
-
-                LaunchedEffect(normalizedArtworkUri.value, colorMode, darkTheme) {
-                    if (colorMode == ColorMode.SYSTEM_COLOR) {
-                        activeSeedColor = null
-                        hasEvaluatedColor = true
-                        scope.launch {
-                            preferencesManager.saveLastSeedColor(null, true)
-                            preferencesManager.saveLastSeedColor(null, false)
-                        }
-                        return@LaunchedEffect
-                    }
-
-                    val uri = normalizedArtworkUri.value
-                    val isPlaybackReady = currentSongIdState.isNotEmpty()
-
-                    if (uri != null) {
-                        val color = PaletteUtils.getSeedColorAsync(
-                            context = context,
-                            uri = uri.toString(),
-                            isDark = darkTheme,
-                            imageLoader = SingletonImageLoader.get(context),
-                            fallbackBackgroundColor = currentSurfaceColor
-                        )
-                        activeSeedColor = color
-                        hasEvaluatedColor = true
-                        if (color != null) {
-                            scope.launch { preferencesManager.saveLastSeedColor(color.toArgb(), darkTheme) }
-                        } else {
-                            scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
-                        }
-                    } else {
-                        activeSeedColor = null
-                        if (isPlaybackReady) {
-                            hasEvaluatedColor = true
-                            scope.launch { preferencesManager.saveLastSeedColor(null, darkTheme) }
-                        }
-                    }
-                }
-                permissionRationaleDialog?.let { (title, message, onRetry) ->
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { permissionRationaleDialog = null },
-                        title = { androidx.compose.material3.Text(title) },
-                        text = { androidx.compose.material3.Text(message) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                permissionRationaleDialog = null
-                                onRetry()
-                            }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.action_grant))
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { permissionRationaleDialog = null }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.cancel))
-                            }
-                        }
-                    )
-                }
-
-                permissionSettingsDialog?.let { (title, message) ->
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { permissionSettingsDialog = null },
-                        title = { androidx.compose.material3.Text(title) },
-                        text = { androidx.compose.material3.Text(message) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                permissionSettingsDialog = null
-                                val intent = Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                                    data = android.net.Uri.fromParts("package", packageName, null)
-                                }
-                                startActivity(intent)
-                            }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.action_go_to_settings))
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { permissionSettingsDialog = null }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.cancel))
-                            }
-                        }
-                    )
-                }
-
-                if (showCancelDownloadsDialog) {
-                    androidx.compose.material3.AlertDialog(
-                        onDismissRequest = { showCancelDownloadsDialog = false },
-                        title = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.confirm_cancel_all_downloads_title)) },
-                        text = { androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.confirm_cancel_all_downloads_message)) },
-                        confirmButton = {
-                            androidx.compose.material3.TextButton(onClick = {
-                                showCancelDownloadsDialog = false
-                                context.sendBroadcast(Intent(de.lwp2070809.speculonic.playback.DownloadService.ACTION_CANCEL_ALL_DOWNLOADS).setPackage(context.packageName))
-                            }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.confirm))
-                            }
-                        },
-                        dismissButton = {
-                            androidx.compose.material3.TextButton(onClick = { showCancelDownloadsDialog = false }) {
-                                androidx.compose.material3.Text(androidx.compose.ui.res.stringResource(R.string.cancel))
-                            }
-                        }
-                    )
-                }
-
-
-                MainScreen(
-                    windowSizeClass = windowSizeClass,
-                    preferencesManager = preferencesManager,
-                    playbackController = playbackController,
-                    isOnline = isOnlineReal,
-                    isEffectivelyOnline = isEffectivelyOnline,
-                    isStreamingAllowed = isStreamingAllowed,
-                    repository = repository,
-                    initialShowNowPlaying = showNowPlayingTrigger,
-                    onNowPlayingShown = { showNowPlayingTrigger = false },
-                    offlineMode = offlineMode,
-                    onToggleOfflineMode = toggleOfflineMode
+            updateResult?.let { result ->
+                UpdateChangelogDialog(
+                    version = result.version,
+                    releaseNotes = result.releaseNotes,
+                    onUpdateNow = { mainViewModel.openUpdateBrowser(result.url) },
+                    onDismiss = { mainViewModel.dismissUpdateDialog() }
                 )
+            }
+        }
+    }
 
-                updateResult?.let { result ->
-                    if (result is de.lwp2070809.speculonic.data.UpdateManager.UpdateResult.UpdateAvailable) {
-                        de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog(
-                            version = result.version,
-                            releaseNotes = result.releaseNotes,
-                            onUpdateNow = {
-                                updateManager.openBrowser(result.url)
-                                updateResult = null
-                            },
-                            onDismiss = { updateResult = null }
+    @Composable
+    private fun PermissionLaunchers(
+        serverUrlState: String,
+        onShowRationale: (String, String, () -> Unit) -> Unit,
+        onShowSettings: (String, String) -> Unit
+    ) {
+        val context = LocalContext.current
+        var notificationLauncherRef: ActivityResultLauncher<String>? = null
+        val notificationPermissionLauncher = rememberLauncherForActivityResult(
+            ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            if (!isGranted) {
+                if (shouldShowRequestPermissionRationale(Manifest.permission.POST_NOTIFICATIONS)) {
+                    onShowRationale(
+                        getString(R.string.permission_notification_title),
+                        getString(R.string.permission_notification_rationale)
+                    ) {
+                        notificationLauncherRef?.launch(Manifest.permission.POST_NOTIFICATIONS)
+                    }
+                } else {
+                    onShowSettings(
+                        getString(R.string.permission_notification_title),
+                        getString(R.string.permission_notification_settings_guide)
+                    )
+                }
+            }
+        }
+        notificationLauncherRef = notificationPermissionLauncher
+
+        LaunchedEffect(Unit) {
+            DownloadController.permissionRequests.collect {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+
+        if (Build.VERSION.SDK_INT >= LOCAL_NETWORK_MIN_SDK) {
+            var localNetworkLauncherRef: ActivityResultLauncher<String>? = null
+            val localNetworkPermissionLauncher = rememberLauncherForActivityResult(
+                ActivityResultContracts.RequestPermission()
+            ) { isGranted ->
+                LogManager.i(LogTag.APP, "MainActivity: Local network permission granted = $isGranted")
+                if (!isGranted) {
+                    if (shouldShowRequestPermissionRationale(Manifest.permission.ACCESS_LOCAL_NETWORK)) {
+                        onShowRationale(
+                            getString(R.string.permission_local_network_title),
+                            getString(R.string.permission_local_network_rationale)
+                        ) {
+                            localNetworkLauncherRef?.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                        }
+                    } else {
+                        onShowSettings(
+                            getString(R.string.permission_local_network_title),
+                            getString(R.string.permission_local_network_settings_guide)
                         )
                     }
                 }
             }
+            localNetworkLauncherRef = localNetworkPermissionLauncher
+
+            LaunchedEffect(serverUrlState) {
+                if (serverUrlState.isNotBlank() && NetworkUtils.isLocalNetworkAddress(serverUrlState)) {
+                    val granted = context.checkSelfPermission(Manifest.permission.ACCESS_LOCAL_NETWORK) ==
+                        PackageManager.PERMISSION_GRANTED
+                    if (!granted) {
+                        localNetworkPermissionLauncher.launch(Manifest.permission.ACCESS_LOCAL_NETWORK)
+                    }
+                }
+            }
+        }
+    }
+
+    @Composable
+    private fun PermissionAndDownloadDialogs(
+        permissionRationaleDialog: Triple<String, String, () -> Unit>?,
+        onDismissRationale: () -> Unit,
+        permissionSettingsDialog: Pair<String, String>?,
+        onDismissSettings: () -> Unit,
+        onOpenAppSettings: () -> Unit,
+        showCancelDownloadsDialog: Boolean,
+        onDismissCancelDownloads: () -> Unit,
+        onConfirmCancelDownloads: () -> Unit
+    ) {
+        permissionRationaleDialog?.let { (title, message, onRetry) ->
+            AlertDialog(
+                onDismissRequest = onDismissRationale,
+                title = { Text(title) },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onDismissRationale()
+                        onRetry()
+                    }) {
+                        Text(stringResource(R.string.action_grant))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissRationale) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        permissionSettingsDialog?.let { (title, message) ->
+            AlertDialog(
+                onDismissRequest = onDismissSettings,
+                title = { Text(title) },
+                text = { Text(message) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        onDismissSettings()
+                        onOpenAppSettings()
+                    }) {
+                        Text(stringResource(R.string.action_go_to_settings))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissSettings) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
+        }
+
+        if (showCancelDownloadsDialog) {
+            AlertDialog(
+                onDismissRequest = onDismissCancelDownloads,
+                title = { Text(stringResource(R.string.confirm_cancel_all_downloads_title)) },
+                text = { Text(stringResource(R.string.confirm_cancel_all_downloads_message)) },
+                confirmButton = {
+                    TextButton(onClick = onConfirmCancelDownloads) {
+                        Text(stringResource(R.string.confirm))
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = onDismissCancelDownloads) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            )
         }
     }
 
@@ -467,10 +353,14 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun handleIntent(intent: Intent?) {
-        if (intent?.action == PlaybackService.ACTION_SHOW_PLAYER) {
-            showNowPlayingTrigger = true
-        } else if (intent?.action == "de.lwp2070809.speculonic.ACTION_ASK_CANCEL_DOWNLOADS") {
-            showCancelDownloadsDialogTrigger = true
+        when (intent?.action) {
+            PlaybackService.ACTION_SHOW_PLAYER -> showNowPlayingTrigger = true
+            ACTION_ASK_CANCEL_DOWNLOADS -> showCancelDownloadsDialogTrigger = true
         }
+    }
+
+    private companion object {
+        const val LOCAL_NETWORK_MIN_SDK = 37
+        const val ACTION_ASK_CANCEL_DOWNLOADS = "de.lwp2070809.speculonic.ACTION_ASK_CANCEL_DOWNLOADS"
     }
 }

@@ -6,67 +6,79 @@ import de.lwp2070809.speculonic.ui.components.showOfflineRefreshToast
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.*
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
-import androidx.compose.runtime.*
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.vector.rememberVectorPainter
+import androidx.compose.ui.res.painterResource
+import de.lwp2070809.speculonic.util.MediaFormatUtils
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.alpha
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import coil3.compose.AsyncImage
-import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
+import de.lwp2070809.speculonic.ui.components.MediaDetailHeader
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.components.rememberSongListItemStrings
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.composition.LocalMediaItemConverter
 import de.lwp2070809.speculonic.ui.composition.LocalPlaybackController
 import de.lwp2070809.speculonic.util.FormatUtils
-import kotlinx.coroutines.flow.map
-import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AlbumDetailScreen(
     viewModel: AlbumDetailViewModel,
     topBarState: TopBarState,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
-    onBackClick: () -> Unit,
-    onSearchClick: () -> Unit
+    onBackClick: () -> Unit
 ) {
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
-    val playbackStateState = playbackController.playbackState.collectAsState()
+    val playbackStateState = playbackController.playbackState.collectAsStateWithLifecycle()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val songStrings = rememberSongListItemStrings()
-    val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    val activeDownloads by DownloadTracker.activeDownloadIds.collectAsStateWithLifecycle()
-    val downloadedIds by DownloadTracker.downloadedSongIds.collectAsStateWithLifecycle()
+    val activeDownloads = uiState.activeDownloads
+    val downloadedIds = uiState.downloadedIds
+    val transcodeIncompatible = uiState.transcodeIncompatible
     
     val screenToken = remember { java.util.UUID.randomUUID().toString() }
     
@@ -82,7 +94,11 @@ fun AlbumDetailScreen(
                 ) {
                     val isStarred = uiState.album?.starred != null
                     Icon(
-                        painter = if (isStarred) androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.Star) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_star_border),
+                        painter = if (isStarred) {
+                            rememberVectorPainter(Icons.Default.Star)
+                        } else {
+                            painterResource(id = R.drawable.ic_symbol_star_border)
+                        },
                         contentDescription = stringResource(R.string.cd_star),
                         tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -117,9 +133,6 @@ fun AlbumDetailScreen(
     val isAllDownloaded = remember(downloadedIds, uiState.songs) {
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
-
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
 
     val playableSongs = remember(uiState.songs, transcodeIncompatible) {
         uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
@@ -168,7 +181,12 @@ fun AlbumDetailScreen(
                                 onShuffle = {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
                                     if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, mediaItems.indices.random(), shuffle = true, queueTitle = uiState.album?.name)
+                                        playbackController.play(
+                                            mediaItems,
+                                            mediaItems.indices.random(),
+                                            shuffle = true,
+                                            queueTitle = uiState.album?.name
+                                        )
                                     }
                                 },
                                 onDownloadAll = {
@@ -179,8 +197,6 @@ fun AlbumDetailScreen(
                                         }
                                     }
                                 },
-                                isOnline = isOnline,
-                                isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 isDownloading = isAnyDownloading,
                                 isDownloadEnabled = !isAllDownloaded,
@@ -200,7 +216,9 @@ fun AlbumDetailScreen(
                                     isStreamingAllowed = isStreamingAllowed,
                                     transcodeIncompatible = transcodeIncompatible,
                                     onPlayDisc = {
-                                        val discPlayable = songsInDisc.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                        val discPlayable = songsInDisc.filter {
+                                            MediaFormatUtils.isSongPlayable(it, transcodeIncompatible)
+                                        }
                                         val mediaItems = discPlayable.map { mediaItemConverter.toMediaItem(it) }
                                         if (mediaItems.isNotEmpty()) {
                                             val queueTitle = uiState.album?.let { album ->
@@ -227,7 +245,6 @@ fun AlbumDetailScreen(
                             SongListItem(
                                 song = song,
                                 isCurrent = song.id == currentSongId,
-                                isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 transcodeIncompatible = transcodeIncompatible,
@@ -263,52 +280,14 @@ fun AlbumDetailScreen(
 
 @Composable
 fun AlbumHeader(album: Album?) {
-    val coverRequester = LocalCoverArtRequester.current
-    val context = LocalContext.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        val model = remember(album?.coverArt) {
-            coverRequester.buildCoverArtRequest(album?.coverArt, context, preferLocal = true)
-        }
-
-        AsyncImage(
-            model = model,
-            contentDescription = album?.name,
-            modifier = Modifier
-                .size(120.dp)
-                .clip(RoundedCornerShape(12.dp))
-                .background(MaterialTheme.colorScheme.surfaceVariant),
-            contentScale = ContentScale.Crop
-        )
-        
-        Spacer(modifier = Modifier.width(16.dp))
-        
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = album?.name ?: "",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = album?.artist ?: stringResource(R.string.unknown_artist),
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(4.dp))
-            val songCount = album?.songCount ?: 0
-            Text(
-                text = "${pluralStringResource(R.plurals.songs_count, songCount, songCount)} • ${FormatUtils.formatDuration(album?.duration ?: 0)}",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
+    val songCount = album?.songCount ?: 0
+    MediaDetailHeader(
+        coverArtId = album?.coverArt,
+        title = album?.name ?: "",
+        subtitle = album?.artist ?: stringResource(R.string.unknown_artist),
+        metaText = "${pluralStringResource(R.plurals.songs_count, songCount, songCount)} • " +
+            FormatUtils.formatDuration(album?.duration ?: 0)
+    )
 }
 
 @Composable

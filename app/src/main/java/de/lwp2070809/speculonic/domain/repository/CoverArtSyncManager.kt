@@ -27,7 +27,6 @@ class CoverArtSyncManager(
 
     fun buildCoverArtRequest(
         id: String?,
-        preferLocal: Boolean = false,
         size: Int? = null,
         crossfade: Boolean = true,
         fallbackUri: android.net.Uri? = null
@@ -68,7 +67,7 @@ class CoverArtSyncManager(
         val failCount = java.util.concurrent.atomic.AtomicInteger(0)
         val total = ids.size
 
-        ids.chunked(20).forEach { chunk ->
+        ids.chunked(COVER_PREFETCH_BATCH_SIZE).forEach { chunk ->
             kotlinx.coroutines.coroutineScope {
                 chunk.map { id ->
                     async {
@@ -88,24 +87,24 @@ class CoverArtSyncManager(
                                 .build()
 
                             try {
-                                
-                                
-                                val result = kotlinx.coroutines.withTimeout(30_000L) {
+                                val result = kotlinx.coroutines.withTimeout(COVER_PREFETCH_TIMEOUT_MS) {
                                     imageLoader.execute(request)
                                 }
                                 if (result is ErrorResult) {
                                     failCount.incrementAndGet()
                                     val errorMessage = result.throwable.message ?: "Unknown error"
                                     if (errorMessage.contains("unimplemented") || errorMessage.contains("Input contained an error")) {
-                                        LogManager.w("CoverArtSyncManager: Cover art $id could not be decoded (likely malformed or unsupported format): $errorMessage")
+                                        LogManager.w(
+                                            "CoverArtSyncManager: Cover art $id could not be decoded " +
+                                                "(likely malformed or unsupported format): $errorMessage"
+                                        )
                                     } else {
                                         LogManager.w("CoverArtSyncManager: Failed to pre-fetch cover art $id: $errorMessage")
                                     }
                                 }
                             } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                                
                                 failCount.incrementAndGet()
-                                LogManager.w("CoverArtSyncManager: Timeout while fetching cover art $id. Skipping.")
+                                LogManager.w("CoverArtSyncManager: Timeout while fetching cover art $id. Skipping.", e)
                             } catch (e: Exception) {
                                 if (e is kotlinx.coroutines.CancellationException) throw e
                                 failCount.incrementAndGet()
@@ -113,14 +112,20 @@ class CoverArtSyncManager(
                             }
                         }
 
-                        
-                        
                         val current = count.incrementAndGet()
                         onProgress?.invoke("正在同步专辑封面 ($current/$total)")
                     }
                 }.awaitAll()
             }
         }
-        LogManager.i("CoverArtSyncManager: Cover art pre-fetch completed (${count.get()}/$total, skipped ${skipCount.get()}, failed ${failCount.get()})")
+        LogManager.i(
+            "CoverArtSyncManager: Cover art pre-fetch completed " +
+                "(${count.get()}/$total, skipped ${skipCount.get()}, failed ${failCount.get()})"
+        )
+    }
+
+    private companion object {
+        const val COVER_PREFETCH_BATCH_SIZE = 20
+        const val COVER_PREFETCH_TIMEOUT_MS = 30_000L
     }
 }

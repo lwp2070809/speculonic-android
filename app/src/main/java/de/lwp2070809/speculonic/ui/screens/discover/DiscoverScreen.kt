@@ -7,14 +7,28 @@ import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
-import androidx.compose.material3.*
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Text
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -61,8 +75,7 @@ fun DiscoverScreen(
     onPlaylistClick: (String) -> Unit = {},
     onConfigureServerClick: () -> Unit = {}
 ) {
-    val uiState by viewModel.uiState.collectAsState()
-    val playbackController = LocalPlaybackController.current
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val isDualPane = LocalIsDualPane.current
     val navigator = LocalNavigator.current
     val context = LocalContext.current
@@ -74,8 +87,7 @@ fun DiscoverScreen(
             viewModel.clearError()
         }
     }
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
+    val transcodeIncompatible = uiState.transcodeIncompatible
 
     val isEmpty = uiState.pinnedPlaylists.isEmpty() &&
             uiState.recentlyAdded.isEmpty() &&
@@ -213,7 +225,6 @@ fun DiscoverScreen(
                         )
                         FavoriteSongsRow(
                             songs = uiState.favoriteSongs,
-                            isOnline = isOnline,
                             isEffectivelyOnline = isEffectivelyOnline,
                             isStreamingAllowed = isStreamingAllowed,
                             transcodeIncompatible = transcodeIncompatible,

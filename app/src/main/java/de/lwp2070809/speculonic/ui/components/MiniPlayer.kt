@@ -135,7 +135,9 @@ fun MiniPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note),
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note
+                            ),
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
@@ -169,7 +171,9 @@ fun MiniPlayer(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     IconButton(onClick = onSkipPrevious) {
                         Icon(
-                            painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous),
+                            painter = androidx.compose.ui.res.painterResource(
+                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_skip_previous
+                            ),
                             contentDescription = stringResource(R.string.cd_previous),
                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                             modifier = Modifier.size(24.dp)
@@ -177,7 +181,13 @@ fun MiniPlayer(
                     }
                     IconButton(onClick = onPlayPause) {
                         Icon(
-                            painter = if (isPlaying) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause) else rememberVectorPainter(Icons.Default.PlayArrow),
+                            painter = if (isPlaying) {
+                                androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause
+                                )
+                            } else {
+                                rememberVectorPainter(Icons.Default.PlayArrow)
+                            },
                             contentDescription = stringResource(if (isPlaying) R.string.content_description_pause else R.string.play),
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp)

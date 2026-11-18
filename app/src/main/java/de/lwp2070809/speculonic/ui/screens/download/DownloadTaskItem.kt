@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
+import de.lwp2070809.speculonic.util.LogManager
 import androidx.media3.exoplayer.offline.Download
 import de.lwp2070809.speculonic.R
 import org.json.JSONObject
@@ -62,6 +63,7 @@ fun DownloadTaskItem(
                 Pair(unknownSong, unknownArtist)
             }
         } catch (e: Exception) {
+            LogManager.w("DownloadTaskItem: Failed to parse download metadata", e)
             Pair(unknownSong, unknownArtist)
         }
     }
@@ -103,13 +105,15 @@ fun DownloadTaskItem(
                 Spacer(modifier = Modifier.height(4.dp))
 
                 val isSilent = isSilentDownload(task)
-                val isSilentBufferingOrQueuing = isSilent && progress == 0f && (state == Download.STATE_DOWNLOADING || state == Download.STATE_QUEUED)
+                val isSilentBufferingOrQueuing = isSilent &&
+                    progress == 0f &&
+                    (state == Download.STATE_DOWNLOADING || state == Download.STATE_QUEUED)
 
                 val statusLabel = if (isSilentBufferingOrQueuing) {
                     if (state == Download.STATE_QUEUED) stringResource(R.string.silent_queued_status)
                     else stringResource(R.string.silent_downloading_status)
                 } else {
-                    getDownloadStatusLabel(state, progress)
+                    getDownloadStatusLabel(state)
                 }
 
                 Row(
@@ -150,7 +154,11 @@ fun DownloadTaskItem(
                             .fillMaxWidth()
                             .height(4.dp)
                             .clip(RoundedCornerShape(2.dp)),
-                        color = if (state == Download.STATE_STOPPED) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary,
+                        color = if (state == Download.STATE_STOPPED) {
+                            MaterialTheme.colorScheme.outline
+                        } else {
+                            MaterialTheme.colorScheme.primary
+                        },
                         trackColor = MaterialTheme.colorScheme.surfaceVariant
                     )
                 }
@@ -195,7 +203,7 @@ fun DownloadTaskItem(
 
 @OptIn(UnstableApi::class)
 @Composable
-fun getDownloadStatusLabel(state: Int, progress: Float): String {
+fun getDownloadStatusLabel(state: Int): String {
     return when (state) {
         Download.STATE_QUEUED -> stringResource(R.string.download_state_queued)
         Download.STATE_DOWNLOADING -> stringResource(R.string.download_state_downloading)
@@ -228,6 +236,7 @@ fun isSilentDownload(download: Download): Boolean {
             json.optBoolean("isSilent", false)
         } else false
     } catch (e: Exception) {
+        LogManager.w("DownloadTaskItem: Failed to parse silent download flag", e)
         false
     }
 }

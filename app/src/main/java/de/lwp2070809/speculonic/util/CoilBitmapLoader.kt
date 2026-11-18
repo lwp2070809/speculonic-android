@@ -69,7 +69,6 @@ class CoilBitmapLoader(
         scope.launch(Dispatchers.IO) {
             try {
                 val imageLoader = SingletonImageLoader.get(context)
-                val id = uri.getQueryParameter("id")
 
                 val requestBuilder = coil3.request.ImageRequest.Builder(context)
                     .data(uri)

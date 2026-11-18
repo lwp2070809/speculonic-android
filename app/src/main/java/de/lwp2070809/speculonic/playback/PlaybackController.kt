@@ -8,17 +8,13 @@ import androidx.media3.common.Player
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
-import com.google.common.util.concurrent.MoreExecutors
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.toMediaItem
-import dagger.hilt.EntryPoint
-import dagger.hilt.InstallIn
-import dagger.hilt.android.EntryPointAccessors
-import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -34,17 +30,9 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import javax.inject.Inject
+import javax.inject.Singleton
 import kotlin.coroutines.resume
-
-@EntryPoint
-@InstallIn(SingletonComponent::class)
-interface PlaybackControllerEntryPoint {
-    fun subsonicRepository(): SubsonicRepository
-}
-
-enum class SleepTimerMode {
-    OFF, TIME, SONG_COUNT, END_OF_PLAYLIST
-}
 
 data class PlaybackState(
     val currentSongId: String = "",
@@ -77,23 +65,16 @@ private data class WidgetStateSnapshot(
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
-class PlaybackController private constructor(context: Context) {
-    companion object {
-        @Volatile
-        private var instance: PlaybackController? = null
-
-        fun getInstance(context: Context): PlaybackController {
-            return instance ?: synchronized(this) {
-                instance ?: PlaybackController(context.applicationContext).also { instance = it }
-            }
-        }
-    }
-
+@Singleton
+class PlaybackController @Inject constructor(
+    @ApplicationContext context: Context,
+    private val preferencesManager: PreferencesManager,
+    private val database: AppDatabase,
+    private val repository: dagger.Lazy<SubsonicRepository>
+) {
     private val appContext = context.applicationContext
     private var controllerFuture: ListenableFuture<MediaController>? = null
-    private val preferencesManager = PreferencesManager.getInstance(appContext)
-    private val db = de.lwp2070809.speculonic.data.db.AppDatabase.getDatabase(appContext)
-    private val musicDao = db.musicDao()
+    private val musicDao = database.musicDao()
     
     private val controller: MediaController? get() {
         val future = controllerFuture ?: return null
@@ -181,35 +162,18 @@ class PlaybackController private constructor(context: Context) {
             }
 
             val readyCtrl = try {
-                kotlinx.coroutines.withTimeoutOrNull(5000L) {
-                    val c = ctrl ?: run {
-                        val future = controllerFuture ?: return@run null
-                        if (future.isDone) {
-                            try { future.get() } catch (_: Exception) { null }
-                        } else {
-                                kotlinx.coroutines.suspendCancellableCoroutine<MediaController?> { continuation ->
-                                    future.addListener({
-                                        try {
-                                            val resolved = if (future.isDone) future.get() else null
-                                            if (continuation.isActive) {
-                                                continuation.resume(resolved)
-                                            }
-                                        } catch (_: Exception) {
-                                            if (continuation.isActive) {
-                                                continuation.resume(null)
-                                            }
-                                        }
-                                    }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
-                                }
-                        }
-                    } ?: return@withTimeoutOrNull null
-
-                    if (_isSessionReady.value || c.sessionExtras.getBoolean(PlaybackService.EXTRA_KEY_SESSION_READY, false)) {
+                kotlinx.coroutines.withTimeoutOrNull(CONTROLLER_READY_TIMEOUT_MS) {
+                    val resolvedController = ctrl ?: awaitControllerInstance() ?: return@withTimeoutOrNull null
+                    val readyFromExtras = resolvedController.sessionExtras.getBoolean(
+                        PlaybackService.EXTRA_KEY_SESSION_READY,
+                        false
+                    )
+                    if (_isSessionReady.value || readyFromExtras) {
                         _isSessionReady.value = true
-                        c
+                        resolvedController
                     } else {
                         _isSessionReady.first { it }
-                        c
+                        resolvedController
                     }
                 }
             } catch (e: Exception) {
@@ -225,15 +189,42 @@ class PlaybackController private constructor(context: Context) {
         }
     }
 
+    private suspend fun awaitControllerInstance(): MediaController? {
+        val future = controllerFuture ?: return null
+        if (future.isDone) {
+            return try {
+                future.get()
+            } catch (e: Exception) {
+                LogManager.w("PlaybackController: Controller future completed with error", e)
+                null
+            }
+        }
+        return kotlinx.coroutines.suspendCancellableCoroutine { continuation ->
+            future.addListener({
+                try {
+                    val resolved = if (future.isDone) future.get() else null
+                    if (continuation.isActive) {
+                        continuation.resume(resolved)
+                    }
+                } catch (e: Exception) {
+                    LogManager.w("PlaybackController: Controller future listener failed", e)
+                    if (continuation.isActive) {
+                        continuation.resume(null)
+                    }
+                }
+            }, androidx.core.content.ContextCompat.getMainExecutor(appContext))
+        }
+    }
+
     fun ensureController() {
         val currentFuture = controllerFuture
         if (currentFuture != null) {
             if (!currentFuture.isDone) return
             try {
                 currentFuture.get()
-                return 
+                return
             } catch (e: Exception) {
-                LogManager.w("PlaybackController: Current controller future is in error state, re-initializing...")
+                LogManager.w("PlaybackController: Current controller future is in error state, re-initializing...", e)
                 val failedFuture = controllerFuture
                 controllerFuture = null
                 failedFuture?.let { MediaController.releaseFuture(it) }
@@ -310,7 +301,7 @@ class PlaybackController private constructor(context: Context) {
             progressJob = scope.launch {
                 while (isActive) {
                     updatePosition()
-                    delay(250)
+                    delay(PROGRESS_TICK_INTERVAL_MS)
                 }
             }
         }
@@ -338,7 +329,10 @@ class PlaybackController private constructor(context: Context) {
         _currentPosition.value = pos
 
         val currentState = _playbackState.value
-        val remainingMillis = if (currentState.isSleepTimerRunning && currentState.sleepTimerMode == SleepTimerMode.TIME && sleepTimerDeadlineRealtime > 0L) {
+        val isTimerRunning = currentState.isSleepTimerRunning &&
+            currentState.sleepTimerMode == SleepTimerMode.TIME &&
+            sleepTimerDeadlineRealtime > 0L
+        val remainingMillis = if (isTimerRunning) {
             (sleepTimerDeadlineRealtime - android.os.SystemClock.elapsedRealtime()).coerceAtLeast(0L)
         } else {
             currentState.sleepTimerRemainingMillis
@@ -381,11 +375,7 @@ class PlaybackController private constructor(context: Context) {
         val isTimerRunning = sessionExtras.getBoolean("isSleepTimerRunning", false)
         val deadlineRealtime = sessionExtras.getLong("sleepTimerDeadlineRealtime", 0L)
         val songsRemaining = sessionExtras.getInt("sleepTimerSongsRemaining", 0)
-        val timerMode = try {
-            SleepTimerMode.valueOf(timerModeStr)
-        } catch (e: Exception) {
-            SleepTimerMode.OFF
-        }
+        val timerMode = SleepTimerMode.fromName(timerModeStr)
         if (timerMode == SleepTimerMode.TIME && deadlineRealtime > 0L) {
             sleepTimerDeadlineRealtime = deadlineRealtime
         } else {
@@ -501,56 +491,7 @@ class PlaybackController private constructor(context: Context) {
      */
     suspend fun restoreQueueAndPlay(playWhenReady: Boolean = true): Boolean {
         return try {
-            val loadedData = withContext(Dispatchers.IO) {
-                val repo = EntryPointAccessors.fromApplication(
-                    appContext,
-                    PlaybackControllerEntryPoint::class.java
-                ).subsonicRepository()
-                repo.ensureConfigured()
-
-                val savedQueue = musicDao.getPlaybackQueue()
-                val lastSongId = preferencesManager.lastSongId.first() ?: ""
-                val savedIndex = preferencesManager.lastQueueIndex.first()
-                val lastPosition = preferencesManager.lastPosition.first()
-                val lastQueueTitle = preferencesManager.lastQueueTitle.first()
-                val repeatMode = preferencesManager.repeatMode.first()
-                val shuffleMode = preferencesManager.shuffleMode.first()
-                val effectiveRepeat = if (shuffleMode && repeatMode == Player.REPEAT_MODE_ONE) {
-                    Player.REPEAT_MODE_ALL
-                } else {
-                    repeatMode
-                }
-
-                val mediaItems = if (savedQueue.isNotEmpty()) {
-                    savedQueue.map { it.toMediaItem(repo) }
-                } else if (lastSongId.isNotEmpty()) {
-                    musicDao.getSongById(lastSongId)?.let { listOf(it.toMediaItem(repo)) } ?: emptyList()
-                } else {
-                    emptyList()
-                }
-                if (mediaItems.isEmpty()) return@withContext null
-
-                val effectiveIndex = if (savedIndex in mediaItems.indices && mediaItems[savedIndex].mediaId == lastSongId) {
-                    savedIndex
-                } else {
-                    val matchedIndex = mediaItems.indexOfFirst { it.mediaId == lastSongId }
-                    if (matchedIndex != -1) matchedIndex else savedIndex.coerceIn(0, mediaItems.size - 1)
-                }
-                val effectivePosition = if (mediaItems.getOrNull(effectiveIndex)?.mediaId == lastSongId) {
-                    lastPosition
-                } else {
-                    0L
-                }
-                RestorePayload(
-                    mediaItems = mediaItems,
-                    startIndex = effectiveIndex,
-                    startPosition = effectivePosition,
-                    queueTitle = lastQueueTitle,
-                    repeatMode = effectiveRepeat,
-                    shuffleMode = shuffleMode
-                )
-            } ?: return false
-
+            val loadedData = loadRestorePayload() ?: return false
             var restored = false
             executeOnControllerAsync { ctrl ->
                 if (ctrl.mediaItemCount == 0) {
@@ -573,9 +514,71 @@ class PlaybackController private constructor(context: Context) {
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
-            LogManager.w("PlaybackController: restoreQueueAndPlay failed: ${e.message}")
+            LogManager.w("PlaybackController: restoreQueueAndPlay failed: ${e.message}", e)
             false
         }
+    }
+
+    private suspend fun loadRestorePayload(): RestorePayload? = withContext(Dispatchers.IO) {
+        val repo = repository.get()
+        repo.ensureConfigured()
+
+        val savedQueue = musicDao.getPlaybackQueue()
+        val lastSongId = preferencesManager.lastSongId.first() ?: ""
+        val mediaItems = resolveRestoredMediaItems(repo, savedQueue, lastSongId)
+        if (mediaItems.isEmpty()) return@withContext null
+
+        val savedIndex = preferencesManager.lastQueueIndex.first()
+        val lastPosition = preferencesManager.lastPosition.first()
+        val lastQueueTitle = preferencesManager.lastQueueTitle.first()
+        val repeatMode = preferencesManager.repeatMode.first()
+        val shuffleMode = preferencesManager.shuffleMode.first()
+        val effectiveRepeat = if (shuffleMode && repeatMode == Player.REPEAT_MODE_ONE) {
+            Player.REPEAT_MODE_ALL
+        } else {
+            repeatMode
+        }
+
+        val effectiveIndex = resolveEffectiveIndex(mediaItems, savedIndex, lastSongId)
+        val effectivePosition = if (mediaItems.getOrNull(effectiveIndex)?.mediaId == lastSongId) {
+            lastPosition
+        } else {
+            0L
+        }
+        RestorePayload(
+            mediaItems = mediaItems,
+            startIndex = effectiveIndex,
+            startPosition = effectivePosition,
+            queueTitle = lastQueueTitle,
+            repeatMode = effectiveRepeat,
+            shuffleMode = shuffleMode
+        )
+    }
+
+    private suspend fun resolveRestoredMediaItems(
+        repo: SubsonicRepository,
+        savedQueue: List<de.lwp2070809.speculonic.data.db.entities.SongEntity>,
+        lastSongId: String
+    ): List<MediaItem> {
+        if (savedQueue.isNotEmpty()) {
+            return savedQueue.map { it.toMediaItem(repo) }
+        }
+        if (lastSongId.isNotEmpty()) {
+            return musicDao.getSongById(lastSongId)?.let { listOf(it.toMediaItem(repo)) } ?: emptyList()
+        }
+        return emptyList()
+    }
+
+    private fun resolveEffectiveIndex(
+        mediaItems: List<MediaItem>,
+        savedIndex: Int,
+        lastSongId: String
+    ): Int {
+        if (savedIndex in mediaItems.indices && mediaItems[savedIndex].mediaId == lastSongId) {
+            return savedIndex
+        }
+        val matchedIndex = mediaItems.indexOfFirst { it.mediaId == lastSongId }
+        return if (matchedIndex != -1) matchedIndex else savedIndex.coerceIn(0, mediaItems.size - 1)
     }
 
     private data class RestorePayload(
@@ -617,7 +620,8 @@ class PlaybackController private constructor(context: Context) {
     fun togglePlaybackMode() {
         executeWhenReady { controller ->
             when {
-                !controller.shuffleModeEnabled && (controller.repeatMode == Player.REPEAT_MODE_ALL || controller.repeatMode == Player.REPEAT_MODE_OFF) -> {
+                !controller.shuffleModeEnabled &&
+                    (controller.repeatMode == Player.REPEAT_MODE_ALL || controller.repeatMode == Player.REPEAT_MODE_OFF) -> {
                     controller.repeatMode = Player.REPEAT_MODE_ONE
                     controller.shuffleModeEnabled = false
                 }
@@ -704,4 +708,8 @@ class PlaybackController private constructor(context: Context) {
         }
     }
 
+    private companion object {
+        const val CONTROLLER_READY_TIMEOUT_MS = 5000L
+        const val PROGRESS_TICK_INTERVAL_MS = 250L
+    }
 }

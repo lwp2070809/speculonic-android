@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.ui.components.navigation
 
+import android.content.res.Configuration
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -28,20 +29,28 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import kotlinx.coroutines.launch
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
@@ -49,18 +58,24 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.navigation.AdaptiveNavigationDefaults
 import de.lwp2070809.speculonic.ui.navigation.AppRoute
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+
+private const val APP_BAR_BRAND_NAME = "Speculo"
+private const val CLOUD_DONE_HIGHLIGHT_MS = 5000L
+private const val WIFI_HIGHLIGHT_MS = 3000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainTopBar(
     currentRoute: NavKey?,
     currentBackStack: List<NavKey> = emptyList(),
-    listPaneWidth: androidx.compose.ui.unit.Dp = AdaptiveNavigationDefaults.ListPanePreferredWidth,
+    listPaneWidth: Dp = AdaptiveNavigationDefaults.ListPanePreferredWidth,
     topBarState: TopBarState,
     onBackClick: () -> Unit,
     onSearchClick: () -> Unit,
     isSyncing: Boolean = false,
-    syncProgress: String? = null,
     syncError: String? = null,
     onSyncStatusClick: () -> Unit = {},
     activeDownloadsCount: Int = 0,
@@ -70,181 +85,213 @@ fun MainTopBar(
     isDualPane: Boolean = false,
     onLeftBackClick: (() -> Unit)? = null
 ) {
-    val appRoute = currentRoute as? AppRoute
-    val isTopLevel = appRoute?.isTopLevel ?: false
-    val isDefaultTopBarRoute = appRoute?.isDefaultTopBar ?: false
-    
     val scope = rememberCoroutineScope()
-    var showWifiHighlightRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-    var wifiHighlightJob by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf<kotlinx.coroutines.Job?>(null) }
-    
-    val appName = "Speculo"
-    val titleText = when {
-        isTopLevel -> appName
-        isDefaultTopBarRoute -> {
-            val titleRes = appRoute.defaultTitleRes
-            titleRes?.let { stringResource(it) } ?: ""
+    var showWifiHighlightRecent by remember { mutableStateOf(false) }
+    var wifiHighlightJob by remember { mutableStateOf<Job?>(null) }
+    val showCloudDoneRecent = rememberCloudDoneRecent(isSyncing)
+
+    val triggerOfflineToggle = remember(onToggleOfflineMode) {
+        {
+            wifiHighlightJob?.cancel()
+            wifiHighlightJob = scope.launch {
+                showWifiHighlightRecent = true
+                onToggleOfflineMode()
+                delay(WIFI_HIGHLIGHT_MS)
+                showWifiHighlightRecent = false
+            }
+            Unit
         }
-        topBarState.title.isNotEmpty() -> topBarState.title
-        else -> ""
     }
 
     if (isDualPane) {
-        val activeListRoute = currentBackStack
-            .filterIsInstance<AppRoute>()
-            .lastOrNull { it.isListPane }
-            ?: (currentRoute as? AppRoute)?.takeIf { it.isListPane }
-            ?: AppRoute.Discover
+        DualPaneTopBar(
+            currentRoute = currentRoute,
+            currentBackStack = currentBackStack,
+            listPaneWidth = listPaneWidth,
+            topBarState = topBarState,
+            onBackClick = onBackClick,
+            onLeftBackClick = onLeftBackClick,
+            onSearchClick = onSearchClick,
+            isSyncing = isSyncing,
+            showCloudDoneRecent = showCloudDoneRecent,
+            syncError = syncError,
+            onSyncStatusClick = onSyncStatusClick,
+            activeDownloadsCount = activeDownloadsCount,
+            onDownloadManagerClick = onDownloadManagerClick,
+            offlineMode = offlineMode,
+            showWifiHighlightRecent = showWifiHighlightRecent,
+            onToggleOfflineClick = triggerOfflineToggle
+        )
+    } else {
+        SinglePaneTopBar(
+            currentRoute = currentRoute,
+            topBarState = topBarState,
+            onBackClick = onBackClick,
+            onSearchClick = onSearchClick,
+            isSyncing = isSyncing,
+            showCloudDoneRecent = showCloudDoneRecent,
+            syncError = syncError,
+            onSyncStatusClick = onSyncStatusClick,
+            activeDownloadsCount = activeDownloadsCount,
+            onDownloadManagerClick = onDownloadManagerClick,
+            offlineMode = offlineMode,
+            showWifiHighlightRecent = showWifiHighlightRecent,
+            onToggleOfflineClick = triggerOfflineToggle
+        )
+    }
+}
 
-        val activeDetailRoute = currentBackStack
-            .filterIsInstance<AppRoute>()
-            .lastOrNull { it.isDetailPane }
+@Composable
+private fun rememberCloudDoneRecent(isSyncing: Boolean): Boolean {
+    var showCloudDoneRecent by remember { mutableStateOf(false) }
+    var lastSyncingState by remember { mutableStateOf(false) }
+    LaunchedEffect(isSyncing) {
+        if (lastSyncingState && !isSyncing) {
+            showCloudDoneRecent = true
+            delay(CLOUD_DONE_HIGHLIGHT_MS)
+            showCloudDoneRecent = false
+        }
+        lastSyncingState = isSyncing
+    }
+    return showCloudDoneRecent
+}
 
-        val showLeftBack = !activeListRoute.isTopLevel
-        val leftTitle = if (showLeftBack) {
-            activeListRoute.defaultTitleRes?.let { stringResource(it) } ?: appName
+@Composable
+private fun TopBarActionControls(
+    isSyncing: Boolean,
+    showCloudDoneRecent: Boolean,
+    syncError: String?,
+    onSyncStatusClick: () -> Unit,
+    offlineMode: Boolean,
+    showWifiHighlightRecent: Boolean,
+    onToggleOfflineClick: () -> Unit,
+    activeDownloadsCount: Int,
+    onDownloadManagerClick: () -> Unit
+) {
+    IconButton(
+        onClick = onSyncStatusClick,
+        modifier = Modifier.size(34.dp)
+    ) {
+        CloudSyncIcon(
+            isSyncing = isSyncing,
+            showCloudDoneRecent = showCloudDoneRecent,
+            hasError = syncError != null
+        )
+    }
+    IconButton(
+        onClick = onToggleOfflineClick,
+        modifier = Modifier.size(34.dp)
+    ) {
+        WifiOfflineIcon(
+            offlineMode = offlineMode,
+            isTriggeredRecent = showWifiHighlightRecent
+        )
+    }
+    DownloadBounceIconButton(
+        activeDownloadsCount = activeDownloadsCount,
+        onClick = onDownloadManagerClick,
+        modifier = Modifier.offset(y = (-1).dp)
+    )
+}
+
+@Composable
+private fun TopBarSearchButton(
+    onSearchClick: () -> Unit,
+    compact: Boolean
+) {
+    IconButton(
+        onClick = onSearchClick,
+        modifier = if (compact) {
+            Modifier
+                .size(34.dp)
+                .offset(y = 2.dp)
         } else {
-            appName
+            Modifier
         }
+    ) {
+        Icon(
+            imageVector = Icons.Default.Search,
+            contentDescription = stringResource(R.string.search),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
-        var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-        var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+@Composable
+private fun DualPaneTopBar(
+    currentRoute: NavKey?,
+    currentBackStack: List<NavKey>,
+    listPaneWidth: Dp,
+    topBarState: TopBarState,
+    onBackClick: () -> Unit,
+    onLeftBackClick: (() -> Unit)?,
+    onSearchClick: () -> Unit,
+    isSyncing: Boolean,
+    showCloudDoneRecent: Boolean,
+    syncError: String?,
+    onSyncStatusClick: () -> Unit,
+    activeDownloadsCount: Int,
+    onDownloadManagerClick: () -> Unit,
+    offlineMode: Boolean,
+    showWifiHighlightRecent: Boolean,
+    onToggleOfflineClick: () -> Unit
+) {
+    val activeListRoute = currentBackStack
+        .filterIsInstance<AppRoute>()
+        .lastOrNull { it.isListPane }
+        ?: (currentRoute as? AppRoute)?.takeIf { it.isListPane }
+        ?: AppRoute.Discover
 
-        androidx.compose.runtime.LaunchedEffect(isSyncing) {
-            if (lastSyncingState && !isSyncing) {
-                showCloudDoneRecent = true
-                kotlinx.coroutines.delay(5000)
-                showCloudDoneRecent = false
-            }
-            lastSyncingState = isSyncing
-        }
+    val activeDetailRoute = currentBackStack
+        .filterIsInstance<AppRoute>()
+        .lastOrNull { it.isDetailPane }
 
-        androidx.compose.material3.Surface(
-            modifier = Modifier.fillMaxWidth().height(64.dp),
-            color = MaterialTheme.colorScheme.surface
+    val showLeftBack = !activeListRoute.isTopLevel
+    val leftTitle = if (showLeftBack) {
+        activeListRoute.defaultTitleRes?.let { stringResource(it) } ?: APP_BAR_BRAND_NAME
+    } else {
+        APP_BAR_BRAND_NAME
+    }
+
+    Surface(
+        modifier = Modifier.fillMaxWidth().height(64.dp),
+        color = MaterialTheme.colorScheme.surface
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
         ) {
+            // 左侧半区：动态对齐 ListPane 首选宽度
             Row(
-                modifier = Modifier.fillMaxSize(),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier
+                    .width(listPaneWidth)
+                    .fillMaxHeight()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // 左侧半区：动态对齐 ListPane 首选宽度
+                val verticalAlignment = if (showLeftBack) Alignment.CenterVertically else Alignment.Bottom
                 Row(
-                    modifier = Modifier
-                        .width(listPaneWidth)
-                        .fillMaxHeight()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = verticalAlignment,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    val verticalAlignment = if (showLeftBack) Alignment.CenterVertically else Alignment.Bottom
-                    Row(
-                        modifier = Modifier.weight(1f, fill = false),
-                        verticalAlignment = verticalAlignment,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        if (showLeftBack) {
-                            IconButton(
-                                onClick = onLeftBackClick ?: onBackClick,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurface
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = leftTitle,
-                            fontSize = if (showLeftBack) 22.sp else 30.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-
+                    if (showLeftBack) {
                         IconButton(
-                            onClick = onSyncStatusClick,
-                            modifier = Modifier
-                                .align(verticalAlignment)
-                                .size(34.dp)
+                            onClick = onLeftBackClick ?: onBackClick,
+                            modifier = Modifier.size(36.dp)
                         ) {
-                            CloudSyncIcon(
-                                isSyncing = isSyncing,
-                                showCloudDoneRecent = showCloudDoneRecent,
-                                hasError = syncError != null
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
-
-                        IconButton(
-                            onClick = {
-                                wifiHighlightJob?.cancel()
-                                wifiHighlightJob = scope.launch {
-                                    showWifiHighlightRecent = true
-                                    onToggleOfflineMode()
-                                    kotlinx.coroutines.delay(3000)
-                                    showWifiHighlightRecent = false
-                                }
-                            },
-                            modifier = Modifier
-                                .align(verticalAlignment)
-                                .size(34.dp)
-                        ) {
-                            WifiOfflineIcon(
-                                offlineMode = offlineMode,
-                                isTriggeredRecent = showWifiHighlightRecent
-                            )
-                        }
-
-                        DownloadBounceIconButton(
-                            activeDownloadsCount = activeDownloadsCount,
-                            onClick = onDownloadManagerClick
-                        )
-                    }
-
-                    val showLeftSearch = activeListRoute != AppRoute.Settings
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (showLeftSearch) {
-                            IconButton(
-                                onClick = onSearchClick,
-                                modifier = Modifier
-                                    .size(34.dp)
-                                    .offset(y = 2.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Search,
-                                    contentDescription = stringResource(R.string.search),
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                    }
-                }
-
-                androidx.compose.material3.VerticalDivider(
-                    color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-                )
-
-                // 右侧半区：对齐 DetailPane
-                Row(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxHeight()
-                        .padding(horizontal = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    val detailTitle = when {
-                        activeDetailRoute == null -> ""
-                        activeDetailRoute.isDefaultTopBar -> activeDetailRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
-                        else -> topBarState.title
                     }
 
                     Text(
-                        text = detailTitle,
-                        style = MaterialTheme.typography.titleLarge,
+                        text = leftTitle,
+                        fontSize = if (showLeftBack) 22.sp else 30.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -252,87 +299,120 @@ fun MainTopBar(
                         modifier = Modifier.weight(1f, fill = false)
                     )
 
-                    CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            if (activeDetailRoute != null && !activeDetailRoute.isDefaultTopBar) {
-                                topBarState.actions(this)
-                            }
+                    TopBarActionControls(
+                        isSyncing = isSyncing,
+                        showCloudDoneRecent = showCloudDoneRecent,
+                        syncError = syncError,
+                        onSyncStatusClick = onSyncStatusClick,
+                        offlineMode = offlineMode,
+                        showWifiHighlightRecent = showWifiHighlightRecent,
+                        onToggleOfflineClick = onToggleOfflineClick,
+                        activeDownloadsCount = activeDownloadsCount,
+                        onDownloadManagerClick = onDownloadManagerClick
+                    )
+                }
+
+                if (activeListRoute != AppRoute.Settings) {
+                    TopBarSearchButton(onSearchClick = onSearchClick, compact = true)
+                }
+            }
+
+            VerticalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+            )
+
+            // 右侧半区：对齐 DetailPane
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(horizontal = 16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                val detailTitle = when {
+                    activeDetailRoute == null -> ""
+                    activeDetailRoute.isDefaultTopBar -> activeDetailRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
+                    else -> topBarState.title
+                }
+
+                Text(
+                    text = detailTitle,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f, fill = false)
+                )
+
+                CompositionLocalProvider(LocalContentColor provides MaterialTheme.colorScheme.onSurfaceVariant) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (activeDetailRoute != null && !activeDetailRoute.isDefaultTopBar) {
+                            topBarState.actions(this)
                         }
                     }
                 }
             }
         }
-    } else {
-        TopAppBar(
-            title = {
-                if (titleText.isNotEmpty()) {
-                    if (isTopLevel) {
-                        val configuration = androidx.compose.ui.platform.LocalConfiguration.current
-                        val isLandscape = configuration.orientation == android.content.res.Configuration.ORIENTATION_LANDSCAPE
-                        val logoSpacing = if (isLandscape) 24.dp else 8.dp
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.Bottom,
-                            horizontalArrangement = Arrangement.spacedBy(logoSpacing)
-                        ) {
-                            Text(
-                                text = appName,
-                                fontSize = 30.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+    }
+}
 
-                            var showCloudDoneRecent by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
-                            var lastSyncingState by androidx.compose.runtime.remember { androidx.compose.runtime.mutableStateOf(false) }
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SinglePaneTopBar(
+    currentRoute: NavKey?,
+    topBarState: TopBarState,
+    onBackClick: () -> Unit,
+    onSearchClick: () -> Unit,
+    isSyncing: Boolean,
+    showCloudDoneRecent: Boolean,
+    syncError: String?,
+    onSyncStatusClick: () -> Unit,
+    activeDownloadsCount: Int,
+    onDownloadManagerClick: () -> Unit,
+    offlineMode: Boolean,
+    showWifiHighlightRecent: Boolean,
+    onToggleOfflineClick: () -> Unit
+) {
+    val appRoute = currentRoute as? AppRoute
+    val isTopLevel = appRoute?.isTopLevel ?: false
+    val isDefaultTopBarRoute = appRoute?.isDefaultTopBar ?: false
+    val titleText = when {
+        isTopLevel -> APP_BAR_BRAND_NAME
+        isDefaultTopBarRoute -> appRoute.defaultTitleRes?.let { stringResource(it) } ?: ""
+        topBarState.title.isNotEmpty() -> topBarState.title
+        else -> ""
+    }
 
-                            androidx.compose.runtime.LaunchedEffect(isSyncing) {
-                                if (lastSyncingState && !isSyncing) {
-                                showCloudDoneRecent = true
-                                kotlinx.coroutines.delay(5000)
-                                showCloudDoneRecent = false
-                            }
-                            lastSyncingState = isSyncing
-                        }
-
-                        IconButton(
-                            onClick = onSyncStatusClick,
-                            modifier = Modifier
-                                .align(Alignment.Bottom)
-                                .size(34.dp)
-                        ) {
-                            CloudSyncIcon(
-                                isSyncing = isSyncing,
-                                showCloudDoneRecent = showCloudDoneRecent,
-                                hasError = syncError != null
-                            )
-                        }
-
-                        IconButton(
-                            onClick = {
-                                wifiHighlightJob?.cancel()
-                                wifiHighlightJob = scope.launch {
-                                    showWifiHighlightRecent = true
-                                    onToggleOfflineMode()
-                                    kotlinx.coroutines.delay(3000)
-                                    showWifiHighlightRecent = false
-                                }
-                            },
-                            modifier = Modifier
-                                .align(Alignment.Bottom)
-                                .size(34.dp)
-                        ) {
-                            WifiOfflineIcon(
-                                offlineMode = offlineMode,
-                                isTriggeredRecent = showWifiHighlightRecent
-                            )
-                        }
-
-                        DownloadBounceIconButton(
+    TopAppBar(
+        title = {
+            if (titleText.isNotEmpty()) {
+                if (isTopLevel) {
+                    val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.Bottom,
+                        horizontalArrangement = Arrangement.spacedBy(if (isLandscape) 24.dp else 8.dp)
+                    ) {
+                        Text(
+                            text = APP_BAR_BRAND_NAME,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        TopBarActionControls(
+                            isSyncing = isSyncing,
+                            showCloudDoneRecent = showCloudDoneRecent,
+                            syncError = syncError,
+                            onSyncStatusClick = onSyncStatusClick,
+                            offlineMode = offlineMode,
+                            showWifiHighlightRecent = showWifiHighlightRecent,
+                            onToggleOfflineClick = onToggleOfflineClick,
                             activeDownloadsCount = activeDownloadsCount,
-                            onClick = onDownloadManagerClick
+                            onDownloadManagerClick = onDownloadManagerClick
                         )
                     }
                 } else {
@@ -347,9 +427,11 @@ fun MainTopBar(
             }
         },
         navigationIcon = {
-            val shouldShowBack = if (isTopLevel) false 
-                                 else if (!isDefaultTopBarRoute) (topBarState.showBack ?: (currentRoute != null))
-                                 else true
+            val shouldShowBack = when {
+                isTopLevel -> false
+                !isDefaultTopBarRoute -> topBarState.showBack ?: (currentRoute != null)
+                else -> true
+            }
             if (shouldShowBack) {
                 IconButton(onClick = {
                     if (!isDefaultTopBarRoute && topBarState.onBackClickOverride != null) {
@@ -367,32 +449,17 @@ fun MainTopBar(
                 topBarState.actions(this)
             }
             if (topBarState.showSearch) {
-                IconButton(
-                    onClick = onSearchClick,
-                    modifier = if (isTopLevel) {
-                        Modifier
-                            .size(34.dp)
-                            .offset(y = 2.dp)
-                    } else {
-                        Modifier
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Search,
-                        contentDescription = stringResource(R.string.search),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                TopBarSearchButton(onSearchClick = onSearchClick, compact = isTopLevel)
             }
         }
     )
-    }
 }
 
 @Composable
 private fun DownloadBounceIconButton(
     activeDownloadsCount: Int,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val translationY = if (activeDownloadsCount > 0) {
         val infiniteTransition = rememberInfiniteTransition(label = "download_bounce")
@@ -406,7 +473,7 @@ private fun DownloadBounceIconButton(
             label = "translationY"
         )
     } else {
-        androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(0f) }
+        remember { mutableFloatStateOf(0f) }
     }
 
     val alpha = if (activeDownloadsCount > 0) {
@@ -421,19 +488,17 @@ private fun DownloadBounceIconButton(
             label = "alpha"
         )
     } else {
-        androidx.compose.runtime.remember { androidx.compose.runtime.mutableFloatStateOf(1f) }
+        remember { mutableFloatStateOf(1f) }
     }
 
     IconButton(
         onClick = onClick,
-        modifier = Modifier
-            .offset(y = (-1).dp)
-            .size(34.dp)
+        modifier = modifier.size(34.dp)
     ) {
         Box(contentAlignment = Alignment.Center, modifier = Modifier.size(26.dp)) {
             if (activeDownloadsCount > 0) {
                 Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
+                    painter = painterResource(id = R.drawable.ic_symbol_arrow_downward),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary,
                     modifier = Modifier
@@ -452,7 +517,7 @@ private fun DownloadBounceIconButton(
                 )
             } else {
                 Icon(
-                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_arrow_downward),
+                    painter = painterResource(id = R.drawable.ic_symbol_arrow_downward),
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                     modifier = Modifier.size(20.dp)
@@ -599,7 +664,15 @@ private fun WifiOfflineIcon(
     )
 
     Icon(
-        painter = if (offlineMode) androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi_off) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi),
+        painter = if (offlineMode) {
+            androidx.compose.ui.res.painterResource(
+                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi_off
+            )
+        } else {
+            androidx.compose.ui.res.painterResource(
+                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_wifi
+            )
+        },
         contentDescription = null,
         tint = MaterialTheme.colorScheme.primary,
         modifier = modifier

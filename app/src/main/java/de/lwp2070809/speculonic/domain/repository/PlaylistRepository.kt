@@ -20,13 +20,12 @@ class PlaylistRepository(
 ) {
     private val mutex = Mutex()
     suspend fun getPlaylists(
-        forceRefresh: Boolean = false, 
+        forceRefresh: Boolean = false,
         hasLocalData: Boolean,
         skipInsert: Boolean = false
     ): List<Playlist> {
         val cached = musicDao.getPlaylists()
         val shouldRefresh = forceRefresh || (cached.isEmpty() && !hasLocalData)
-
         if (!shouldRefresh && cached.isNotEmpty()) {
             return cached.map { entityMapper.toPlaylist(it) }
         }
@@ -36,48 +35,55 @@ class PlaylistRepository(
             val response = api.getPlaylists(u, t, s)
             response.response.ensureOk()
             val list = response.response.playlists?.playlist ?: emptyList()
-            if (!skipInsert) {
-                if (list.isNotEmpty()) {
-                    val cachedMap = cached.associateBy { it.id }
-                    list.chunked(500).forEach { chunk ->
-                        musicDao.insertPlaylists(chunk.map { playlist ->
-                            val local = cachedMap[playlist.id]
-                            val serverCount = playlist.songCount ?: 0
-                            val finalCount = if (serverCount == 0 && local != null && local.songCount > 0) {
-                                local.songCount
-                            } else {
-                                serverCount
-                            }
-                            PlaylistEntity(
-                                id = playlist.id,
-                                name = playlist.name,
-                                comment = playlist.comment,
-                                owner = playlist.owner,
-                                `public` = playlist.public ?: false,
-                                songCount = finalCount,
-                                duration = playlist.duration?.toLong() ?: 0L,
-                                coverArt = playlist.coverArt,
-                                pinned = local?.pinned ?: false
-                            )
-                        })
-                    }
-                }
-                
-                val serverIds = list.map { it.id }
-                if (serverIds.isEmpty()) {
-                    musicDao.clearAllPlaylists()
-                } else {
-                    musicDao.deletePlaylistsNotIn(serverIds)
-                }
-                musicDao.getPlaylists().map { entityMapper.toPlaylist(it) }
-            } else {
+            if (skipInsert) {
                 list.sortedBy { it.name }
+            } else {
+                persistSyncedPlaylists(list, cached)
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (forceRefresh) throw e
             cached.map { entityMapper.toPlaylist(it) }
         }
+    }
+
+    private suspend fun persistSyncedPlaylists(
+        list: List<Playlist>,
+        cached: List<PlaylistEntity>
+    ): List<Playlist> {
+        if (list.isNotEmpty()) {
+            val cachedMap = cached.associateBy { it.id }
+            list.chunked(BATCH_CHUNK_SIZE).forEach { chunk ->
+                musicDao.insertPlaylists(chunk.map { toPlaylistEntity(it, cachedMap[it.id]) })
+            }
+        }
+        val serverIds = list.map { it.id }
+        if (serverIds.isEmpty()) {
+            musicDao.clearAllPlaylists()
+        } else {
+            musicDao.deletePlaylistsNotIn(serverIds)
+        }
+        return musicDao.getPlaylists().map { entityMapper.toPlaylist(it) }
+    }
+
+    private fun toPlaylistEntity(playlist: Playlist, local: PlaylistEntity?): PlaylistEntity {
+        val serverCount = playlist.songCount ?: 0
+        val finalCount = if (serverCount == 0 && local != null && local.songCount > 0) {
+            local.songCount
+        } else {
+            serverCount
+        }
+        return PlaylistEntity(
+            id = playlist.id,
+            name = playlist.name,
+            comment = playlist.comment,
+            owner = playlist.owner,
+            `public` = playlist.public ?: false,
+            songCount = finalCount,
+            duration = playlist.duration?.toLong() ?: 0L,
+            coverArt = playlist.coverArt,
+            pinned = local?.pinned ?: false
+        )
     }
 
     suspend fun getPlaylist(
@@ -92,76 +98,12 @@ class PlaylistRepository(
             return cached.map { entityMapper.toSong(it) }
         }
 
-        val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
         return try {
-            val response = api.getPlaylist(id, u, t, s)
-            if (response.response.status != "ok") {
-                val error = response.response.error
-                if (error?.code == 70) {
-                    musicDao.deletePlaylistWithSongs(id)
-                    throw PlaylistNotFoundException(id, error.message)
-                }
-                val errorMsg = error?.message ?: "Subsonic server returned status: ${response.response.status}"
-                throw IllegalStateException(errorMsg)
-            }
-            val playlistInfo = response.response.playlist
-                ?: throw IllegalStateException("Playlist data is missing in server response")
-            val list = playlistInfo.entry
-
-            val currentPlaylist = musicDao.getPlaylistById(id)
-            val songIds = list.map { it.id }
-            val existingSongsMap = if (songIds.isNotEmpty()) {
-                songIds.chunked(500)
-                    .flatMap { musicDao.getSongsByIds(it) }
-                    .associateBy { it.id }
-            } else {
-                emptyMap()
-            }
-
-            val entities = list.map { song ->
-                val local = existingSongsMap[song.id]
-                val isStarred = song.starred != null
-                val lastUpdated = if (isStarred && local?.starred != true) null else local?.lastUpdated
-                entityMapper.songToEntity(
-                    song = song,
-                    albumId = song.albumId ?: local?.albumId, 
-                    artistId = song.artistId ?: local?.artistId,
-                    localUri = local?.localUri, 
-                    isCached = local?.isFullyCached ?: false,
-                    isTranscoded = local?.isTranscoded ?: false,
-                    parentId = song.parent ?: local?.parent,
-                    isStarred = isStarred,
-                    lastUpdated = lastUpdated
-                )
-            }
-            val refs = list.mapIndexed { index, song -> 
-                PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index) 
-            }
-
-            val finalPlaylistEntity = if (currentPlaylist != null) {
-                currentPlaylist.copy(
-                    name = playlistInfo.name,
-                    comment = playlistInfo.comment,
-                    owner = playlistInfo.owner,
-                    `public` = playlistInfo.public ?: false,
-                    songCount = list.size,
-                    duration = playlistInfo.duration?.toLong() ?: 0L,
-                    coverArt = playlistInfo.coverArt,
-                    lastUpdated = System.currentTimeMillis()
-                )
-            } else {
-                PlaylistEntity(
-                    id = playlistInfo.id,
-                    name = playlistInfo.name,
-                    comment = playlistInfo.comment,
-                    owner = playlistInfo.owner,
-                    `public` = playlistInfo.public ?: false,
-                    songCount = list.size,
-                    duration = playlistInfo.duration?.toLong() ?: 0L,
-                    coverArt = playlistInfo.coverArt,
-                    pinned = false,
-                    lastUpdated = System.currentTimeMillis()
-                )
+            val playlistInfo = fetchRemotePlaylist(id, forceRefresh)
+            val finalPlaylistEntity = buildPlaylistEntity(id, playlistInfo)
+            val entities = buildPlaylistSongEntities(playlistInfo.entry)
+            val refs = playlistInfo.entry.mapIndexed { index, song ->
+                PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index)
             }
 
             if (!skipInsert) {
@@ -171,12 +113,7 @@ class PlaylistRepository(
                     refs = refs
                 )
             }
-
-            if (entities.isNotEmpty()) {
-                entities.map { entityMapper.toSong(it) }
-            } else {
-                emptyList()
-            }
+            entities.map { entityMapper.toSong(it) }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (e is PlaylistNotFoundException) {
@@ -185,6 +122,85 @@ class PlaylistRepository(
                 de.lwp2070809.speculonic.util.LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
             }
             throw e
+        }
+    }
+
+    private suspend fun fetchRemotePlaylist(
+        id: String,
+        forceRefresh: Boolean
+    ): de.lwp2070809.speculonic.network.model.Playlist {
+        val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
+        val response = api.getPlaylist(id, u, t, s)
+        if (response.response.status != "ok") {
+            val err = response.response.error
+            if (err?.code == SUBSONIC_ERROR_NOT_FOUND) {
+                musicDao.deletePlaylistWithSongs(id)
+                throw PlaylistNotFoundException(id, err.message)
+            }
+            error(err?.message ?: "Subsonic server returned status: ${response.response.status}")
+        }
+        return response.response.playlist ?: error("Playlist data is missing in server response")
+    }
+
+    private suspend fun buildPlaylistEntity(
+        id: String,
+        playlistInfo: de.lwp2070809.speculonic.network.model.Playlist
+    ): PlaylistEntity {
+        val currentPlaylist = musicDao.getPlaylistById(id)
+        return if (currentPlaylist != null) {
+            currentPlaylist.copy(
+                name = playlistInfo.name,
+                comment = playlistInfo.comment,
+                owner = playlistInfo.owner,
+                `public` = playlistInfo.public ?: false,
+                songCount = playlistInfo.entry.size,
+                duration = playlistInfo.duration?.toLong() ?: 0L,
+                coverArt = playlistInfo.coverArt,
+                lastUpdated = System.currentTimeMillis()
+            )
+        } else {
+            PlaylistEntity(
+                id = playlistInfo.id,
+                name = playlistInfo.name,
+                comment = playlistInfo.comment,
+                owner = playlistInfo.owner,
+                `public` = playlistInfo.public ?: false,
+                songCount = playlistInfo.entry.size,
+                duration = playlistInfo.duration?.toLong() ?: 0L,
+                coverArt = playlistInfo.coverArt,
+                pinned = false,
+                lastUpdated = System.currentTimeMillis()
+            )
+        }
+    }
+
+    private suspend fun buildPlaylistSongEntities(list: List<Song>): List<de.lwp2070809.speculonic.data.db.entities.SongEntity> {
+        val songIds = list.map { it.id }
+        val existingSongsMap = if (songIds.isNotEmpty()) {
+            songIds.chunked(BATCH_CHUNK_SIZE)
+                .flatMap { musicDao.getSongsByIds(it) }
+                .associateBy { it.id }
+        } else {
+            emptyMap()
+        }
+
+        return list.map { song ->
+            val local = existingSongsMap[song.id]
+            val isStarred = song.starred != null
+            val lastUpdated = if (isStarred && local?.starred != true) null else local?.lastUpdated
+            entityMapper.songToEntity(
+                song = song,
+                overrides = SongEntityOverrides(
+                    albumId = song.albumId ?: local?.albumId,
+                    artistId = song.artistId ?: local?.artistId,
+                    parentId = song.parent ?: local?.parent,
+                    localUri = local?.localUri,
+                    isCached = local?.isFullyCached ?: false,
+                    isTranscoded = local?.isTranscoded ?: false,
+                    isStarred = isStarred,
+                    lastUpdated = lastUpdated
+                )
+            )
         }
     }
 
@@ -290,5 +306,10 @@ class PlaylistRepository(
             if (e is kotlinx.coroutines.CancellationException) throw e
             false
         }
+    }
+
+    private companion object {
+        const val SUBSONIC_ERROR_NOT_FOUND = 70
+        const val BATCH_CHUNK_SIZE = 500
     }
 }

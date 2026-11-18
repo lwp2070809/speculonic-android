@@ -47,18 +47,15 @@ class UserActionRepository(
     }
 
     private suspend fun getStarredData(
-        forceRefresh: Boolean = false, 
+        forceRefresh: Boolean = false,
         skipInsert: Boolean = false
     ): Starred2Response {
         val cachedSongs = musicDao.getStarredSongs()
         val cachedAlbums = musicDao.getStarredAlbums()
-        
         val isCacheEmpty = cachedSongs.isEmpty() && cachedAlbums.isEmpty()
-        val shouldFetchFromNetwork = forceRefresh || isCacheEmpty
-
-        if (!shouldFetchFromNetwork) {
+        if (!forceRefresh && !isCacheEmpty) {
             return Starred2Response(
-                song = cachedSongs.map { entityMapper.toSong(it) }, 
+                song = cachedSongs.map { entityMapper.toSong(it) },
                 album = cachedAlbums.map { entityMapper.toAlbum(it) }
             )
         }
@@ -68,51 +65,57 @@ class UserActionRepository(
             val response = api.getStarred2(u, t, s)
             response.response.ensureOk()
             val starred2 = response.response.starred2 ?: Starred2Response()
-            
-            if (!skipInsert) {
-                val songEntities = starred2.song.chunked(500).flatMap { chunk ->
-                    val existingSongsMap = musicDao.getSongsByIds(chunk.map { it.id }).associateBy { it.id }
-                    chunk.map { song ->
-                        val local = existingSongsMap[song.id]
-                        val lastUpdated = if (local?.starred != true) null else local.lastUpdated
-                        entityMapper.songToEntity(
-                            song = song,
-                            albumId = song.albumId ?: local?.albumId,
-                            artistId = song.artistId ?: local?.artistId,
-                            localUri = local?.localUri,
-                            isCached = local?.isFullyCached ?: false,
-                            isTranscoded = local?.isTranscoded ?: false,
-                            parentId = song.parent ?: local?.parent,
-                            isStarred = true,
-                            lastUpdated = lastUpdated
-                        )
-                    }
-                }
-                val (albumEntities, listItems) = buildStarredAlbumsPayload(starred2.album)
-                musicDao.syncStarredData(songEntities, albumEntities, listItems)
-            }
-            
-            if (skipInsert) {
-                return starred2
-            }
-            
-            val finalSongs = musicDao.getStarredSongs().map { entityMapper.toSong(it) }
-            val finalAlbums = musicDao.getStarredAlbums().map { entityMapper.toAlbum(it) }
-            
-            Starred2Response(song = finalSongs, album = finalAlbums)
+            if (skipInsert) return starred2
+
+            val songEntities = mapStarredSongsToEntities(starred2.song)
+            val (albumEntities, listItems) = buildStarredAlbumsPayload(starred2.album)
+            musicDao.syncStarredData(songEntities, albumEntities, listItems)
+
+            Starred2Response(
+                song = musicDao.getStarredSongs().map { entityMapper.toSong(it) },
+                album = musicDao.getStarredAlbums().map { entityMapper.toAlbum(it) }
+            )
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (forceRefresh) throw e
             Starred2Response(
-                song = cachedSongs.map { entityMapper.toSong(it) }, 
+                song = cachedSongs.map { entityMapper.toSong(it) },
                 album = cachedAlbums.map { entityMapper.toAlbum(it) }
             )
         }
     }
 
+    private suspend fun mapStarredSongsToEntities(
+        songs: List<de.lwp2070809.speculonic.network.model.Song>
+    ): List<de.lwp2070809.speculonic.data.db.entities.SongEntity> {
+        return songs.chunked(500).flatMap { chunk ->
+            val existingSongsMap = musicDao.getSongsByIds(chunk.map { it.id }).associateBy { it.id }
+            chunk.map { song ->
+                val local = existingSongsMap[song.id]
+                val lastUpdated = if (local?.starred != true) null else local.lastUpdated
+                entityMapper.songToEntity(
+                    song = song,
+                    overrides = SongEntityOverrides(
+                        albumId = song.albumId ?: local?.albumId,
+                        artistId = song.artistId ?: local?.artistId,
+                        parentId = song.parent ?: local?.parent,
+                        localUri = local?.localUri,
+                        isCached = local?.isFullyCached ?: false,
+                        isTranscoded = local?.isTranscoded ?: false,
+                        isStarred = true,
+                        lastUpdated = lastUpdated
+                    )
+                )
+            }
+        }
+    }
+
     private suspend fun buildStarredAlbumsPayload(
         albums: List<Album>
-    ): Pair<List<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>, List<de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity>> {
+    ): Pair<
+        List<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>,
+        List<de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity>
+    > {
         if (albums.isEmpty()) {
             return emptyList<de.lwp2070809.speculonic.data.db.entities.AlbumEntity>() to emptyList()
         }

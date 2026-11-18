@@ -6,6 +6,8 @@ import dagger.assisted.Assisted
 import dagger.assisted.AssistedFactory
 import dagger.assisted.AssistedInject
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.lwp2070809.speculonic.data.DownloadTracker
+import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
@@ -22,12 +24,17 @@ data class AlbumDetailUiState(
     val isRefreshing: Boolean = false,
     val album: Album? = null,
     val songs: List<Song> = emptyList(),
+    val transcodeIncompatible: Boolean = false,
+    val activeDownloads: Set<String> = emptySet(),
+    val downloadedIds: Set<String> = emptySet(),
     val error: String? = null
 )
 
 @HiltViewModel(assistedFactory = AlbumDetailViewModel.Factory::class)
 class AlbumDetailViewModel @AssistedInject constructor(
     private val repository: SubsonicRepository,
+    private val preferencesManager: PreferencesManager,
+    private val downloadTracker: DownloadTracker,
     @Assisted private val albumId: String
 ) : ViewModel() {
 
@@ -36,15 +43,39 @@ class AlbumDetailViewModel @AssistedInject constructor(
         fun create(albumId: String): AlbumDetailViewModel
     }
 
-    private val _uiState = MutableStateFlow(AlbumDetailUiState())
+    private val _uiState = MutableStateFlow(
+        AlbumDetailUiState(transcodeIncompatible = preferencesManager.getCachedTranscodeIncompatibleFormats())
+    )
     val uiState: StateFlow<AlbumDetailUiState> = _uiState.asStateFlow()
 
     init {
-        
+        observePreferences()
+        observeDownloads()
         observeMetadata()
         observeSongs()
         
         loadAlbumDetails(forceRefresh = false)
+    }
+
+    private fun observePreferences() {
+        viewModelScope.launch {
+            preferencesManager.transcodeIncompatibleFormats.collectLatest { enabled ->
+                _uiState.update { it.copy(transcodeIncompatible = enabled) }
+            }
+        }
+    }
+
+    private fun observeDownloads() {
+        viewModelScope.launch {
+            downloadTracker.activeDownloadIds.collectLatest { activeIds ->
+                _uiState.update { it.copy(activeDownloads = activeIds) }
+            }
+        }
+        viewModelScope.launch {
+            downloadTracker.downloadedSongIds.collectLatest { downloadedIds ->
+                _uiState.update { it.copy(downloadedIds = downloadedIds) }
+            }
+        }
     }
 
     fun loadAlbumDetails(forceRefresh: Boolean = false, isManualRefresh: Boolean = false) {

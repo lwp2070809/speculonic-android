@@ -18,7 +18,7 @@ object DynamicSslTrustManager : X509TrustManager {
         factory.trustManagers.filterIsInstance<X509TrustManager>().first()
     }
 
-    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+    override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) = Unit
 
     override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
         if (allowInsecureConnections) {

@@ -133,43 +133,20 @@ class BluetoothLyricsManager(
 
                     var lastLineIndex = Int.MIN_VALUE
                     var lastDispatchedMediaId: String? = null
+                    var keepRunning = true
 
-                    while (isActive) {
-                        val activePlayer = mediaSessionProvider()?.player ?: break
-                        val currentMediaId = activePlayer.currentMediaItem?.mediaId
-                        if (currentMediaId == null || currentMediaId != currentLoadedMediaId) {
-                            wakeSignal.receive()
-                            continue
-                        }
-
-                        if (currentMediaId != lastDispatchedMediaId) {
-                            lastLineIndex = Int.MIN_VALUE
-                            lastDispatchedMediaId = currentMediaId
-                        }
-
-                        val lines = currentLyricsLines
-                        val position = activePlayer.currentPosition
-                        val lineIndex = if (lines.isEmpty()) {
-                            -1
+                    while (isActive && keepRunning) {
+                        val activePlayer = mediaSessionProvider()?.player
+                        if (activePlayer == null) {
+                            keepRunning = false
                         } else {
-                            lines.indexOfLast { it.timeMs <= position }
-                        }
-
-                        if (lineIndex != lastLineIndex) {
-                            val line = if (lineIndex != -1) lines[lineIndex].content else null
-                            updateMediaSessionMetadata(line)
-                            lastLineIndex = lineIndex
-                        }
-
-                        val nextLineTime = if (lineIndex + 1 < lines.size) lines[lineIndex + 1].timeMs else -1L
-                        val remainingMs = if (nextLineTime != -1L) nextLineTime - position else -1L
-
-                        if (!activePlayer.isPlaying || remainingMs <= 0L) {
-                            wakeSignal.receive()
-                        } else {
-                            withTimeoutOrNull(remainingMs.coerceAtLeast(16L)) {
-                                wakeSignal.receive()
-                            }
+                            val stateUpdate = dispatchLyricsStep(
+                                activePlayer = activePlayer,
+                                lastLineIndex = lastLineIndex,
+                                lastDispatchedMediaId = lastDispatchedMediaId
+                            )
+                            lastLineIndex = stateUpdate.first
+                            lastDispatchedMediaId = stateUpdate.second
                         }
                     }
                 }
@@ -182,6 +159,40 @@ class BluetoothLyricsManager(
     fun stopBluetoothLyricsUpdate() {
         bluetoothLyricsJob?.cancel()
         bluetoothLyricsJob = null
+    }
+
+    private suspend fun dispatchLyricsStep(
+        activePlayer: Player,
+        lastLineIndex: Int,
+        lastDispatchedMediaId: String?
+    ): Pair<Int, String?> {
+        val currentMediaId = activePlayer.currentMediaItem?.mediaId
+        if (currentMediaId == null || currentMediaId != currentLoadedMediaId) {
+            wakeSignal.receive()
+            return lastLineIndex to lastDispatchedMediaId
+        }
+
+        val updatedLineBaseline = if (currentMediaId != lastDispatchedMediaId) Int.MIN_VALUE else lastLineIndex
+        val lines = currentLyricsLines
+        val position = activePlayer.currentPosition
+        val lineIndex = if (lines.isEmpty()) -1 else lines.indexOfLast { it.timeMs <= position }
+
+        if (lineIndex != updatedLineBaseline) {
+            val line = if (lineIndex != -1) lines[lineIndex].content else null
+            updateMediaSessionMetadata(line)
+        }
+
+        val nextLineTime = if (lineIndex + 1 < lines.size) lines[lineIndex + 1].timeMs else -1L
+        val remainingMs = if (nextLineTime != -1L) nextLineTime - position else -1L
+
+        if (!activePlayer.isPlaying || remainingMs <= 0L) {
+            wakeSignal.receive()
+        } else {
+            withTimeoutOrNull(remainingMs.coerceAtLeast(MIN_LYRICS_WAKE_DELAY_MS)) {
+                wakeSignal.receive()
+            }
+        }
+        return lineIndex to currentMediaId
     }
 
     /**
@@ -214,5 +225,9 @@ class BluetoothLyricsManager(
         } else {
             (player as? BluetoothCarManager.CarDisguisePlayer)?.updateBluetoothLyrics(null, null)
         }
+    }
+
+    private companion object {
+        const val MIN_LYRICS_WAKE_DELAY_MS = 16L
     }
 }

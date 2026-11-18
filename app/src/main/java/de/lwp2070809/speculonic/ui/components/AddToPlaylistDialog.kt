@@ -3,12 +3,25 @@ package de.lwp2070809.speculonic.ui.components
 import de.lwp2070809.speculonic.R
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -63,7 +76,10 @@ fun AddToPlaylistDialog(
                                     if (isProcessing) {
                                         CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
                                     } else {
-                                        Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_add), contentDescription = null)
+                                        Icon(
+                                            painterResource(id = R.drawable.ic_symbol_playlist_add),
+                                            contentDescription = null
+                                        )
                                     }
                                 },
                                 modifier = Modifier.clickable(enabled = processingPlaylistId == null) {

@@ -19,49 +19,54 @@ class CacheValidator(private val context: Context) {
         private val md5Semaphore = Semaphore(2)
     }
 
-    suspend fun checkBinaryConsistency(uri: Uri, dbSong: SongEntity, deepCheck: Boolean = true): Boolean = withContext(Dispatchers.IO) {
-        try {
-            val length = if (uri.scheme == "file") {
-                val file = File(uri.path ?: return@withContext false)
-                if (!file.exists()) return@withContext false
-                file.length()
-            } else {
-                val docFile = DocumentFile.fromSingleUri(context, uri) ?: return@withContext false
-                if (!docFile.exists()) return@withContext false
-                docFile.length()
-            }
-
-            if (length <= 0) {
-                LogManager.i("CacheValidator: File is empty for ${dbSong.title}")
-                return@withContext false
-            }
-
-            // 如果该文件是服务端转码后导出的，其大小和哈希必然不同于服务端的 Raw 原始元数据，豁免严格比对
-            if (dbSong.isTranscoded) {
-                LogManager.d("CacheValidator: ${dbSong.title} is marked as transcoded. Size/MD5 check skipped.")
-                return@withContext true
-            }
-
-            if (dbSong.size != null && dbSong.size > 0) {
-                if (length != dbSong.size) {
-                    LogManager.i("CacheValidator: Size mismatch for ${dbSong.title}. Local: $length, Expected: ${dbSong.size}")
+    suspend fun checkBinaryConsistency(uri: Uri, dbSong: SongEntity, deepCheck: Boolean = true): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val length = resolvePhysicalFileLength(uri) ?: return@withContext false
+                if (length <= 0) {
+                    LogManager.i("CacheValidator: File is empty for ${dbSong.title}")
                     return@withContext false
                 }
+                verifyExpectedSizeAndHash(uri, length, dbSong, deepCheck)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                LogManager.e("CacheValidator: Failed binary check for ${dbSong.title}", e)
+                false
             }
-
-            if (deepCheck && !dbSong.md5.isNullOrBlank()) {
-                val localMd5 = calculateMd5(uri)
-                if (localMd5 != dbSong.md5) {
-                    LogManager.i("CacheValidator: MD5 mismatch for ${dbSong.title}. Local: $localMd5, Expected: ${dbSong.md5}")
-                    return@withContext false
-                }
-            }
-            return@withContext true
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.e("CacheValidator: Failed binary check for ${dbSong.title}", e)
-            false
         }
+
+    private fun resolvePhysicalFileLength(uri: Uri): Long? {
+        if (uri.scheme == "file") {
+            val file = File(uri.path ?: return null)
+            return if (file.exists()) file.length() else null
+        }
+        val docFile = DocumentFile.fromSingleUri(context, uri) ?: return null
+        return if (docFile.exists()) docFile.length() else null
+    }
+
+    private suspend fun verifyExpectedSizeAndHash(
+        uri: Uri,
+        length: Long,
+        dbSong: SongEntity,
+        deepCheck: Boolean
+    ): Boolean {
+        // 如果该文件是服务端转码后导出的，其大小和哈希必然不同于服务端的 Raw 原始元数据，豁免严格比对
+        if (dbSong.isTranscoded) {
+            LogManager.d("CacheValidator: ${dbSong.title} is marked as transcoded. Size/MD5 check skipped.")
+            return true
+        }
+        if (dbSong.size != null && dbSong.size > 0 && length != dbSong.size) {
+            LogManager.i("CacheValidator: Size mismatch for ${dbSong.title}. Local: $length, Expected: ${dbSong.size}")
+            return false
+        }
+        if (deepCheck && !dbSong.md5.isNullOrBlank()) {
+            val localMd5 = calculateMd5(uri)
+            if (localMd5 != dbSong.md5) {
+                LogManager.i("CacheValidator: MD5 mismatch for ${dbSong.title}. Local: $localMd5, Expected: ${dbSong.md5}")
+                return false
+            }
+        }
+        return true
     }
 
     suspend fun calculateMd5(uri: Uri): String? = withContext(Dispatchers.IO) {

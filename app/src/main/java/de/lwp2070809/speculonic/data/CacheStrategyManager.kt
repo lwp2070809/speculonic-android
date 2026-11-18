@@ -3,26 +3,25 @@ package de.lwp2070809.speculonic.data
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.util.LogManager
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
+import javax.inject.Inject
+import javax.inject.Singleton
 
-class CacheStrategyManager(
-    private val context: Context,
-    repository: SubsonicRepository,
-    private val preferencesManager: PreferencesManager
+@Singleton
+class CacheStrategyManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val preferencesManager: PreferencesManager,
+    private val database: AppDatabase,
+    private val downloadController: DownloadController
 ) {
-    private val downloadController = DownloadController(context, repository)
 
     
-    suspend fun triggerSilentCache(songId: String, title: String, artist: String, album: String, duration: Int?, coverArt: String?) {
+    suspend fun triggerSilentCache(songId: String, title: String) {
         try {
             
                 if (!preferencesManager.silentCacheEnabled.first()) {
@@ -36,8 +35,7 @@ class CacheStrategyManager(
                     return
                 }
 
-                val db = AppDatabase.getDatabase(context)
-                val songEntity = db.musicDao().getSongById(songId) ?: return
+                val songEntity = database.musicDao().getSongById(songId) ?: return
                 
                 
                 if (songEntity.isFullyCached) return

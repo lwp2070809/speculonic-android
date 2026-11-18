@@ -1,10 +1,8 @@
 package de.lwp2070809.speculonic.ui.components
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.ServerReachableManager
@@ -29,8 +27,8 @@ data class SongDetailUiState(
 
 @HiltViewModel
 class SongDetailViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val repository: SubsonicRepository
+    private val repository: SubsonicRepository,
+    private val metadataExtractor: SongAudioMetadataExtractor
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SongDetailUiState())
@@ -51,7 +49,7 @@ class SongDetailViewModel @Inject constructor(
         prepareForSong(songId)
         if (_uiState.value.sha1 != null) return
         viewModelScope.launch {
-            val sha1 = SongAudioMetadataExtractor.calculateSha1(uri, context)
+            val sha1 = metadataExtractor.calculateSha1(uri)
             _uiState.update { state ->
                 if (state.songId == songId) state.copy(sha1 = sha1) else state
             }
@@ -62,7 +60,7 @@ class SongDetailViewModel @Inject constructor(
         prepareForSong(songId)
         if (_uiState.value.id3Metadata != null) return
         viewModelScope.launch {
-            val metadata = SongAudioMetadataExtractor.extractId3(uri, suffix, isTranscoded, context)
+            val metadata = metadataExtractor.extractId3(uri, suffix, isTranscoded)
             _uiState.update { state ->
                 if (state.songId == songId) state.copy(id3Metadata = metadata) else state
             }

@@ -31,38 +31,62 @@ class MediaRepository(
     }
 
     suspend fun getArtistDetails(
-        id: String, 
+        id: String,
         forceRefresh: Boolean = false,
         skipInsert: Boolean = false
     ): Pair<Artist?, List<Album>> {
         val artistEntity = musicDao.getArtistById(id)
         val albums = musicDao.getAlbumsByArtist(id).map { entityMapper.toAlbum(it) }
-        
+
         if (forceRefresh || (artistEntity == null && albums.isEmpty())) {
-            val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
-            try {
-                val response = api.getArtist(id, u, t, s)
-                response.response.ensureOk()
-                val artist = response.response.artist
-                if (artist != null) {
-                    val finalAlbums = artist.album.ifEmpty { albums }
-                    if (!skipInsert) {
-                        musicDao.insertArtists(listOf(de.lwp2070809.speculonic.data.db.entities.ArtistEntity(artist.id, artist.name, artist.coverArt, artist.albumCount ?: finalAlbums.size)))
-                        if (artist.album.isNotEmpty()) {
-                            val albumEntities = artist.album.map { entityMapper.albumToEntity(it, isStarred = it.starred != null) }
-                            musicDao.insertAlbums(albumEntities)
-                        }
-                    }
-                    return Pair(artist, finalAlbums)
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                LogManager.e("MediaRepository: getArtist failed", e)
-                if (forceRefresh) throw e
-            }
+            fetchAndPersistArtistDetails(id, forceRefresh, skipInsert, albums)?.let { return it }
         }
-        
-        return Pair(artistEntity?.let { Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount) }, albums)
+
+        val cachedArtist = artistEntity?.let {
+            Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount)
+        }
+        return Pair(cachedArtist, albums)
+    }
+
+    private suspend fun fetchAndPersistArtistDetails(
+        id: String,
+        forceRefresh: Boolean,
+        skipInsert: Boolean,
+        fallbackAlbums: List<Album>
+    ): Pair<Artist?, List<Album>>? {
+        val (u, t, s) = authManager.getAuthParams(forceRefresh = forceRefresh)
+        return try {
+            val response = api.getArtist(id, u, t, s)
+            response.response.ensureOk()
+            val artist = response.response.artist ?: return null
+            val finalAlbums = artist.album.ifEmpty { fallbackAlbums }
+            if (!skipInsert) {
+                persistArtistAndAlbums(artist, finalAlbums.size)
+            }
+            Pair(artist, finalAlbums)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            LogManager.e("MediaRepository: getArtist failed", e)
+            if (forceRefresh) throw e
+            null
+        }
+    }
+
+    private suspend fun persistArtistAndAlbums(artist: Artist, resolvedAlbumCount: Int) {
+        musicDao.insertArtists(
+            listOf(
+                de.lwp2070809.speculonic.data.db.entities.ArtistEntity(
+                    artist.id,
+                    artist.name,
+                    artist.coverArt,
+                    artist.albumCount ?: resolvedAlbumCount
+                )
+            )
+        )
+        if (artist.album.isNotEmpty()) {
+            val albumEntities = artist.album.map { entityMapper.albumToEntity(it, isStarred = it.starred != null) }
+            musicDao.insertAlbums(albumEntities)
+        }
     }
 
     suspend fun getCachedArtistDetails(id: String): Pair<Artist?, List<Album>> {
@@ -148,15 +172,13 @@ class MediaRepository(
     }
 
     suspend fun getAlbum(
-        id: String, 
+        id: String,
         forceRefresh: Boolean = false,
         skipInsert: Boolean = false
     ): Album? {
         val cachedSongs = musicDao.getSongsByAlbum(id)
         val albumEntity = musicDao.getAlbumById(id)
-        
         val shouldRefresh = forceRefresh || cachedSongs.isEmpty() || albumEntity == null
-        
         if (!shouldRefresh) {
             return entityMapper.toAlbum(albumEntity, cachedSongs.map { entityMapper.toSong(it) })
         }
@@ -166,48 +188,61 @@ class MediaRepository(
             val response = api.getAlbum(id, u, t, s)
             response.response.ensureOk()
             val album = response.response.album
-            if (album != null) {
-                if (!skipInsert) {
-                    val isStarred = album.starred != null
-                    musicDao.insertAlbums(listOf(entityMapper.albumToEntity(album, existing = albumEntity, isStarred = isStarred)))
-                    
-                    val songIds = album.song.map { it.id }
-                    val existingSongsMap = songIds.chunked(500)
-                        .flatMap { musicDao.getSongsByIds(it) }
-                        .associateBy { it.id }
-                    
-                    val entities = album.song.map { song ->
-                        val local = existingSongsMap[song.id]
-                        val songIsStarred = song.starred != null
-                        val lastUpdated = if (songIsStarred && local?.starred != true) null else local?.lastUpdated
-                        entityMapper.songToEntity(song,
-                            albumId = id, 
-                            localUri = local?.localUri, 
-                            isCached = local?.isFullyCached ?: false,
-                            isTranscoded = local?.isTranscoded ?: false,
-                            parentId = song.parent ?: id,
-                            isStarred = songIsStarred,
-                            lastUpdated = lastUpdated
-                        )
-                    }
-                    
-                    if (forceRefresh) {
-                        val removedTargets = musicDao.deleteSongsByAlbumNotIn(id, songIds)
-                        onSongsRemoved(removedTargets)
-                    }
-                    entities.chunked(500).forEach { chunk -> musicDao.insertSongs(chunk) }
-                }
-                return album
-            } else if (forceRefresh && !skipInsert) {
-                val removedTargets = musicDao.deleteSongsByAlbumNotIn(id, emptyList())
-                onSongsRemoved(removedTargets)
+            if (!skipInsert) {
+                persistFetchedAlbum(id, album, albumEntity, forceRefresh)
             }
             album
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (forceRefresh) throw e
-            albumEntity?.let { album -> entityMapper.toAlbum(album, cachedSongs.map { song -> entityMapper.toSong(song) }) }
+            albumEntity?.let { existing ->
+                entityMapper.toAlbum(existing, cachedSongs.map { entityMapper.toSong(it) })
+            }
         }
+    }
+
+    private suspend fun persistFetchedAlbum(
+        albumId: String,
+        album: Album?,
+        existingAlbum: de.lwp2070809.speculonic.data.db.entities.AlbumEntity?,
+        forceRefresh: Boolean
+    ) {
+        if (album == null) {
+            if (forceRefresh) {
+                onSongsRemoved(musicDao.deleteSongsByAlbumNotIn(albumId, emptyList()))
+            }
+            return
+        }
+
+        musicDao.insertAlbums(
+            listOf(entityMapper.albumToEntity(album, existing = existingAlbum, isStarred = album.starred != null))
+        )
+        val songIds = album.song.map { it.id }
+        val existingSongsMap = songIds.chunked(500)
+            .flatMap { musicDao.getSongsByIds(it) }
+            .associateBy { it.id }
+
+        val entities = album.song.map { song ->
+            val local = existingSongsMap[song.id]
+            val songIsStarred = song.starred != null
+            val lastUpdated = if (songIsStarred && local?.starred != true) null else local?.lastUpdated
+            entityMapper.songToEntity(
+                song = song,
+                overrides = SongEntityOverrides(
+                    albumId = albumId,
+                    parentId = song.parent ?: albumId,
+                    localUri = local?.localUri,
+                    isCached = local?.isFullyCached ?: false,
+                    isTranscoded = local?.isTranscoded ?: false,
+                    isStarred = songIsStarred,
+                    lastUpdated = lastUpdated
+                )
+            )
+        }
+        if (forceRefresh) {
+            onSongsRemoved(musicDao.deleteSongsByAlbumNotIn(albumId, songIds))
+        }
+        entities.chunked(500).forEach { chunk -> musicDao.insertSongs(chunk) }
     }
 
     suspend fun getCachedAlbum(id: String): Album? {
@@ -224,7 +259,16 @@ class MediaRepository(
             val allArtists = indexes.index.flatMap { it.artist }
             if (allArtists.isNotEmpty()) {
                 allArtists.chunked(500).forEach { chunk ->
-                    musicDao.insertArtists(chunk.map { de.lwp2070809.speculonic.data.db.entities.ArtistEntity(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount ?: 0) })
+                    musicDao.insertArtists(
+                        chunk.map {
+                            de.lwp2070809.speculonic.data.db.entities.ArtistEntity(
+                                id = it.id,
+                                name = it.name,
+                                coverArt = it.coverArt,
+                                albumCount = it.albumCount ?: 0
+                            )
+                        }
+                    )
                 }
                 musicDao.repairAndCount()
             }

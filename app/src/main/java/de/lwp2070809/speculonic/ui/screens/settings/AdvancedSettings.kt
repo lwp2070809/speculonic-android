@@ -95,34 +95,19 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalIsDualPane
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 import de.lwp2070809.speculonic.util.LogLevel
 import de.lwp2070809.speculonic.util.LogManager
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
-    val uiState by viewModel.uiState.collectAsState()
+fun AdvancedSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarState) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showLogViewer by remember { mutableStateOf(false) }
     val isDualPane = LocalIsDualPane.current
     val title = stringResource(R.string.advanced)
 
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
 
     // 在内嵌展示第三栏日志面板时，返回键优先关闭日志面板（支持预测性返回缩放动效）
     var logBackProgress by remember { mutableFloatStateOf(0f) }
@@ -132,7 +117,6 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                 logBackProgress = event.progress
             }
             showLogViewer = false
-        } catch (e: kotlinx.coroutines.CancellationException) {
         } finally {
             logBackProgress = 0f
         }
@@ -153,7 +137,12 @@ fun AdvancedSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
                     .fillMaxHeight()
                     .background(MaterialTheme.colorScheme.background)
                     .verticalScroll(rememberScrollState())
-                    .padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
+                    .padding(
+                        start = SettingsConstants.PAGE_PADDING,
+                        end = SettingsConstants.PAGE_PADDING,
+                        top = SettingsConstants.PAGE_PADDING,
+                        bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current
+                    )
             ) {
                 var expandedLogLevel by remember { mutableStateOf(false) }
                 val logLevels = LogLevel.entries
@@ -351,7 +340,11 @@ fun LogViewerPane(
                                 Icon(
                                     painterResource(id = R.drawable.ic_symbol_filter_list),
                                     contentDescription = stringResource(R.string.log_level),
-                                    tint = if (filterLevel != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (filterLevel != null) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                             DropdownMenu(
@@ -387,7 +380,11 @@ fun LogViewerPane(
                                 Icon(
                                     painterResource(id = R.drawable.ic_symbol_dns),
                                     contentDescription = stringResource(R.string.log_tag_all),
-                                    tint = if (filterTag != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                                    tint = if (filterTag != null) {
+                                        MaterialTheme.colorScheme.primary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
                                 )
                             }
                             DropdownMenu(
@@ -442,7 +439,7 @@ fun LogViewerPane(
                                         moreMenuExpanded = false
                                         coroutineScope.launch(Dispatchers.IO) {
                                             try {
-                                                val file = LogManager.exportLogsToFile(context)
+                                                val file = de.lwp2070809.speculonic.util.exportLogsToFile(context)
                                                 val uri = FileProvider.getUriForFile(
                                                     context,
                                                     "${context.packageName}.fileprovider",
@@ -464,7 +461,10 @@ fun LogViewerPane(
                                                     context.startActivity(chooser)
                                                 }
                                             } catch (e: Exception) {
-                                                val errorText = context.applicationContext.getString(R.string.export_logs_failed, e.message ?: "")
+                                                val errorText = context.applicationContext.getString(
+                                                    R.string.export_logs_failed,
+                                                    e.message ?: ""
+                                                )
                                                 withContext(Dispatchers.Main) {
                                                     Toast.makeText(
                                                         context,
@@ -552,7 +552,7 @@ fun LogViewerPane(
                             LogLevel.DEBUG -> MaterialTheme.colorScheme.onSurfaceVariant
                             LogLevel.KAGUYA -> MaterialTheme.colorScheme.primary
                         }
-                        val displayText = LogManager.formatLogEntry(log, isKaguya)
+                        val displayText = log.format(isKaguya)
                         Text(
                             text = displayText,
                             fontFamily = FontFamily.Monospace,

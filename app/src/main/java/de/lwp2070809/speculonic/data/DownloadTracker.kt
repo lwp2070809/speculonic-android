@@ -1,28 +1,30 @@
 package de.lwp2070809.speculonic.data
 
 import android.content.Context
-import de.lwp2070809.speculonic.R
 import android.os.Handler
 import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.OptIn
+import androidx.core.net.toUri
+import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.exoplayer.offline.Download
 import androidx.media3.exoplayer.offline.DownloadManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.db.AppDatabase
-import de.lwp2070809.speculonic.domain.repository.AuthManager
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
-import de.lwp2070809.speculonic.domain.repository.LyricsRepository
-import de.lwp2070809.speculonic.domain.repository.UrlBuilder
+import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
-import androidx.documentfile.provider.DocumentFile
-import androidx.core.net.toUri
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +35,12 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import java.io.File
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicReference
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @OptIn(UnstableApi::class)
 data class DownloadTaskInfo(
@@ -44,7 +51,16 @@ data class DownloadTaskInfo(
 )
 
 @OptIn(UnstableApi::class)
-object DownloadTracker {
+@Singleton
+class DownloadTracker @Inject constructor(
+    @ApplicationContext private val appContext: Context,
+    private val preferencesManager: PreferencesManager,
+    private val database: AppDatabase,
+    private val repository: dagger.Lazy<SubsonicRepository>,
+    private val cacheExporter: CacheExporter,
+    private val cacheManager: CacheManager,
+    private val downloadManagerHelper: DownloadManagerHelper
+) {
     private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
     val downloadedSongIds = _downloadedSongIds.asStateFlow()
 
@@ -64,14 +80,10 @@ object DownloadTracker {
         .distinctUntilChanged()
 
     private val isInitialized = AtomicBoolean(false)
-    
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val entityMapper = EntityMapper
-
-    private val exportJobs = java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Job>()
-    private val pendingFileDeletionIds = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
-
-    private val pollJob = java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
+    private val exportJobs = ConcurrentHashMap<String, Job>()
+    private val pendingFileDeletionIds = ConcurrentHashMap.newKeySet<String>()
+    private val pollJob = AtomicReference<Job?>(null)
 
     fun markForFileDeletion(songId: String) {
         pendingFileDeletionIds.add(songId)
@@ -85,63 +97,85 @@ object DownloadTracker {
         return _allDownloads.value.any { it.task.request.id == songId }
     }
 
-    suspend fun deleteExportedSongAndCache(context: Context, songId: String) = kotlinx.coroutines.withContext(Dispatchers.IO) {
-        val db = AppDatabase.getDatabase(context)
-        val song = db.musicDao().getSongById(songId)
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun deleteExportedSongAndCache(songId: String) = withContext(Dispatchers.IO) {
+        val song = database.musicDao().getSongById(songId)
         song?.localUri?.let { uriString ->
-            LogManager.d("DownloadTracker: Removing exported file: $uriString")
-            val uri = uriString.toUri()
-            val docFile = try { DocumentFile.fromSingleUri(context, uri) } catch (e: Exception) { null }
-            if (docFile?.exists() == true) {
-                val fileName = docFile.name
-                val parentDir = docFile.parentFile
-                val audioDeleted = docFile.delete()
-                if (fileName != null && de.lwp2070809.speculonic.util.FormatUtils.isSupportedAudioFile(fileName)) {
-                    val lrcName = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(fileName)
-                    val lrcFile = parentDir?.findFile(lrcName)
-                    if (lrcFile?.exists() == true) {
-                        lrcFile.delete()
-                    } else {
-                        try {
-                            val lrcUri = de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(uriString).toUri()
-                            DocumentFile.fromSingleUri(context, lrcUri)?.takeIf { it.exists() }?.delete()
-                        } catch (e: Exception) {
-                            LogManager.w("DownloadTracker: Fallback LRC deletion failed", e)
-                        }
-                    }
-                }
-                if (audioDeleted) {
-                    LogManager.i("DownloadTracker: Successfully deleted SAF file for $songId")
-                }
-            } else if (uriString.startsWith("file:")) {
-                try {
-                    val path = uri.path
-                    if (path != null) {
-                        val file = java.io.File(path)
-                        if (file.exists()) {
-                            file.delete()
-                            val lrcFile = java.io.File(de.lwp2070809.speculonic.util.FormatUtils.replaceExtensionWithLrc(file.absolutePath))
-                            if (lrcFile.exists()) lrcFile.delete()
-                        }
-                    }
-                } catch (e: Exception) {
-                    LogManager.e("DownloadTracker: Failed to delete private file for $songId", e)
-                }
-            }
+            deleteExportedFiles(songId, uriString)
         }
-        db.musicDao().updateSongLocalUri(songId, null)
-        db.musicDao().updateSongCacheStatus(songId, null, false)
+        database.musicDao().updateSongLocalUri(songId, null)
+        database.musicDao().updateSongCacheStatus(songId, null, false)
         try {
-            CacheManager.acquirePlaybackCache(context).removeResource(songId)
+            cacheManager.acquirePlaybackCache().removeResource(songId)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("DownloadTracker: Failed to clean playback cache on remove", e)
         }
         try {
-            CacheManager.acquireDownloadCache(context).removeResource(songId)
+            cacheManager.acquireDownloadCache().removeResource(songId)
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
-            if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun deleteExportedFiles(songId: String, uriString: String) {
+        LogManager.d("DownloadTracker: Removing exported file: $uriString")
+        val uri = uriString.toUri()
+        val docFile = try {
+            DocumentFile.fromSingleUri(appContext, uri)
+        } catch (e: Exception) {
+            LogManager.w("DownloadTracker: Unable to resolve SAF document for $songId: ${e.message}")
+            null
+        }
+        if (docFile?.exists() == true) {
+            deleteSafAudioAndCompanionLrc(songId, uriString, docFile)
+        } else if (uriString.startsWith("file:")) {
+            deletePrivateAudioAndCompanionLrc(songId, uri)
+        }
+    }
+
+    private fun deleteSafAudioAndCompanionLrc(
+        songId: String,
+        uriString: String,
+        docFile: DocumentFile
+    ) {
+        val fileName = docFile.name
+        val parentDir = docFile.parentFile
+        val audioDeleted = docFile.delete()
+        if (fileName != null && FormatUtils.isSupportedAudioFile(fileName)) {
+            val lrcName = FormatUtils.replaceExtensionWithLrc(fileName)
+            val lrcFile = parentDir?.findFile(lrcName)
+            if (lrcFile?.exists() == true) {
+                lrcFile.delete()
+            } else {
+                try {
+                    val lrcUri = FormatUtils.replaceExtensionWithLrc(uriString).toUri()
+                    DocumentFile.fromSingleUri(appContext, lrcUri)?.takeIf { it.exists() }?.delete()
+                } catch (e: Exception) {
+                    LogManager.w("DownloadTracker: Fallback LRC deletion failed", e)
+                }
+            }
+        }
+        if (audioDeleted) {
+            LogManager.i("DownloadTracker: Successfully deleted SAF file for $songId")
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun deletePrivateAudioAndCompanionLrc(songId: String, uri: android.net.Uri) {
+        try {
+            val path = uri.path ?: return
+            val file = File(path)
+            if (!file.exists()) return
+            file.delete()
+            val lrcFile = File(FormatUtils.replaceExtensionWithLrc(file.absolutePath))
+            if (lrcFile.exists()) lrcFile.delete()
+        } catch (e: Exception) {
+            LogManager.e("DownloadTracker: Failed to delete private file for $songId", e)
         }
     }
 
@@ -153,45 +187,41 @@ object DownloadTracker {
         pollJob.getAndSet(null)?.cancel()
     }
 
-    fun init(context: Context) {
+    fun init() {
         if (isInitialized.getAndSet(true)) return
 
         scope.launch {
-            val downloadManager = DownloadManagerHelper.getDownloadManagerSuspend(context)
-            downloadManager.addListener(DownloadManagerListener(context))
-            loadDownloads(downloadManager)
+            val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
+            downloadManager.addListener(DownloadManagerListener())
+            refreshDownloads(downloadManager)
         }
     }
 
-    private suspend fun loadDownloads(downloadManager: DownloadManager) {
-        refreshDownloads(downloadManager)
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun getCurrentDownloadsSafe(downloadManager: DownloadManager): List<Download> {
+        return withContext(Dispatchers.Main) {
+            try {
+                downloadManager.currentDownloads.toList()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LogManager.w("DownloadTracker: Failed reading currentDownloads: ${e.message}")
+                emptyList()
+            }
+        }
     }
 
     private suspend fun refreshDownloads(downloadManager: DownloadManager) {
         val all = mutableListOf<DownloadTaskInfo>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
-        val currentActiveDownloads = withContext(Dispatchers.Main) {
-            try {
-                downloadManager.currentDownloads.toList()
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                emptyList()
-            }
-        }
-        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
+        val currentActiveMap = getCurrentDownloadsSafe(downloadManager).associateBy { it.request.id }
         downloadManager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
                 val dbDownload = cursor.download
                 val download = currentActiveMap[dbDownload.request.id] ?: dbDownload
                 all.add(DownloadTaskInfo(download))
-                if (download.state == Download.STATE_COMPLETED) {
-                    downloaded.add(download.request.id)
-                } else if (download.state == Download.STATE_DOWNLOADING || download.state == Download.STATE_QUEUED) {
-                    if (!isSilentDownload(download)) {
-                        active.add(download.request.id)
-                    }
-                }
+                classifyDownloadStatus(download, downloaded, active)
             }
         }
         _downloadedSongIds.value = downloaded
@@ -200,15 +230,24 @@ object DownloadTracker {
         checkAndStartPolling(downloadManager)
     }
 
-    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
-        val currentActiveDownloads = withContext(Dispatchers.Main) {
-            try {
-                downloadManager.currentDownloads.toList()
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                emptyList()
+    private fun classifyDownloadStatus(
+        download: Download,
+        downloaded: MutableSet<String>,
+        active: MutableSet<String>
+    ) {
+        val id = download.request.id
+        when (download.state) {
+            Download.STATE_COMPLETED -> downloaded.add(id)
+            Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
+                if (!isSilentDownload(download)) {
+                    active.add(id)
+                }
             }
         }
+    }
+
+    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
+        val currentActiveDownloads = getCurrentDownloadsSafe(downloadManager)
         if (currentActiveDownloads.isEmpty()) {
             pollJob.getAndSet(null)?.cancel()
             return
@@ -218,11 +257,7 @@ object DownloadTracker {
         _allDownloads.update { list ->
             list.map { item ->
                 val active = currentActiveMap[item.task.request.id]
-                if (active != null) {
-                    DownloadTaskInfo(active)
-                } else {
-                    item
-                }
+                if (active != null) DownloadTaskInfo(active) else item
             }
         }
         checkAndStartPolling(downloadManager)
@@ -236,7 +271,7 @@ object DownloadTracker {
             if (currentJob == null || !currentJob.isActive) {
                 val newJob = scope.launch {
                     while (true) {
-                        kotlinx.coroutines.delay(1000)
+                        delay(POLL_INTERVAL_MS)
                         pollActiveDownloadsProgress(downloadManager)
                     }
                 }
@@ -249,18 +284,7 @@ object DownloadTracker {
         }
     }
 
-    internal fun isSilentDownload(download: Download): Boolean {
-        return try {
-            if (download.request.data.isNotEmpty()) {
-                val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
-                json.optBoolean("isSilent", false)
-            } else false
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    private class DownloadManagerListener(private val context: Context) : DownloadManager.Listener {
+    private inner class DownloadManagerListener : DownloadManager.Listener {
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
             val isSilent = isSilentDownload(download)
 
@@ -269,11 +293,11 @@ object DownloadTracker {
                     _downloadedSongIds.update { it + download.request.id }
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
-                    
+
                     var job: Job? = null
                     job = scope.launch {
                         try {
-                            exportDownloadedSong(context, download)
+                            exportDownloadedSong(download)
                         } finally {
                             if (exportJobs[download.request.id] === job) {
                                 exportJobs.remove(download.request.id)
@@ -283,7 +307,7 @@ object DownloadTracker {
                     exportJobs[download.request.id] = job
                 }
                 Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
-                    if (!isSilentDownload(download)) {
+                    if (!isSilent) {
                         _activeDownloadIds.update { it + download.request.id }
                     } else {
                         _activeDownloadIds.update { it - download.request.id }
@@ -311,9 +335,9 @@ object DownloadTracker {
             checkAndStartPolling(downloadManager)
         }
 
+        @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
-            val activeJob = exportJobs.remove(download.request.id)
-            activeJob?.cancel()
+            exportJobs.remove(download.request.id)?.cancel()
 
             _downloadedSongIds.update { it - download.request.id }
             _activeDownloadIds.update { it - download.request.id }
@@ -321,22 +345,22 @@ object DownloadTracker {
                 current.filter { it.task.request.id != download.request.id }
             }
             checkAndStartPolling(downloadManager)
-            
+
             val isExplicitlyDeleted = consumePendingFileDeletion(download.request.id)
 
             scope.launch {
-                val db = AppDatabase.getDatabase(context)
-                val songEntity = db.musicDao().getSongById(download.request.id)
+                val songEntity = database.musicDao().getSongById(download.request.id)
                 var keepCacheStatus = false
                 if (!isExplicitlyDeleted && songEntity?.localUri != null && songEntity.isFullyCached) {
                     val uri = songEntity.localUri.toUri()
                     val exists = if (songEntity.localUri.startsWith("file:")) {
                         val path = uri.path
-                        path != null && java.io.File(path).exists()
+                        path != null && File(path).exists()
                     } else {
                         try {
-                            context.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+                            appContext.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
                         } catch (e: Exception) {
+                            LogManager.w("DownloadTracker: Failed checking SAF file descriptor: ${e.message}")
                             false
                         }
                     }
@@ -346,106 +370,153 @@ object DownloadTracker {
                 }
 
                 if (!keepCacheStatus) {
-                    deleteExportedSongAndCache(context, download.request.id)
+                    deleteExportedSongAndCache(download.request.id)
                 } else {
                     LogManager.i("DownloadTracker: Keep cache status for ${download.request.id}")
                 }
             }
         }
 
-        private suspend fun exportDownloadedSong(context: Context, download: Download) {
-            val preferencesManager = PreferencesManager.getInstance(context)
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun exportDownloadedSong(download: Download) {
             val cacheLocation = preferencesManager.cacheLocation.first()
             val isSafEnabled = cacheLocation.isNotBlank()
-
             val isSilent = isSilentDownload(download)
             LogManager.d("DownloadTracker: Preparing export for ${download.request.id}. Silent: $isSilent")
 
-            val cache = CacheManager.acquireDownloadCache(context)
-            val cacheDataSourceFactory = CacheDataSource.Factory()
-                .setCache(cache)
+            val cache = cacheManager.acquireDownloadCache()
+            val cacheDataSourceFactory = CacheDataSource.Factory().setCache(cache)
 
-            val db = AppDatabase.getDatabase(context)
-            val songEntity = db.musicDao().getSongById(download.request.id) ?: return
-            val (isTranscoded, targetFormat) = try {
-                if (download.request.data.isNotEmpty()) {
-                    val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
-                    Pair(json.optBoolean("isTranscoded", false), json.optString("targetFormat").takeIf { it.isNotBlank() })
-                } else Pair(false, null)
-            } catch (e: Exception) { Pair(false, null) }
-
-            val song = entityMapper.toSong(songEntity).copy(isTranscoded = isTranscoded)
-            
-            var lyrics: String? = null
-
-            
-            try {
-                val entryPoint = dagger.hilt.android.EntryPointAccessors.fromApplication(
-                    context.applicationContext,
-                    de.lwp2070809.speculonic.di.RepositoryEntryPoint::class.java
-                )
-                val repository = entryPoint.subsonicRepository()
-                if (repository.isConfigured) {
-                    val (rawLyrics, _) = repository.getLyricsData(song.id, song.artist, song.title, true)
-                    lyrics = rawLyrics
-
-
-                }
-            } catch (e: Exception) {
-                if (e is kotlinx.coroutines.CancellationException) throw e
-                LogManager.e("DownloadTracker: Failed to fetch additional metadata for export", e)
-            }
+            val songEntity = database.musicDao().getSongById(download.request.id) ?: return
+            val (isTranscoded, targetFormat) = parseDownloadFlags(download)
+            val song = EntityMapper.toSong(songEntity).copy(isTranscoded = isTranscoded)
+            val lyrics = fetchLyricsForExport(song.id, song.artist, song.title)
 
             val localUriResult = try {
                 if (isSafEnabled) {
-                    CacheExporter.exportToSaf(
-                        context,
-                        song,
-                        lyrics,
-                        cacheDataSourceFactory,
+                    cacheExporter.exportToSaf(
+                        song = song,
+                        lyrics = lyrics,
+                        cacheDataSourceFactory = cacheDataSourceFactory,
                         targetTranscodeFormat = targetFormat
                     )
                 } else {
-                    CacheExporter.exportToPrivate(
-                        context,
-                        song,
-                        lyrics,
-                        cacheDataSourceFactory,
+                    cacheExporter.exportToPrivate(
+                        song = song,
+                        lyrics = lyrics,
+                        cacheDataSourceFactory = cacheDataSourceFactory,
                         targetTranscodeFormat = targetFormat
                     )
                 }
             } catch (e: SecurityException) {
                 LogManager.e("DownloadTracker: SAF permission expired during export", e)
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, context.getString(de.lwp2070809.speculonic.R.string.saf_permission_expired), Toast.LENGTH_LONG).show()
+                    Toast.makeText(
+                        appContext,
+                        appContext.getString(R.string.saf_permission_expired),
+                        Toast.LENGTH_LONG
+                    ).show()
                 }
-                kotlin.Result.failure(e)
+                Result.failure(e)
             }
 
-            localUriResult.onSuccess { localUri ->
-                db.musicDao().updateSongCacheStatus(download.request.id, localUri, true, isTranscoded)
-                LogManager.i("DownloadTracker: Song ${download.request.id} exported to ${if (isSafEnabled) "SAF" else "Private"} and database status marked: $localUri (Transcoded: $isTranscoded)")
-                
+            handleExportResult(download, song.title, isSafEnabled, isTranscoded, cache, localUriResult)
+        }
 
-                
+        @Suppress("TooGenericExceptionCaught")
+        private fun parseDownloadFlags(download: Download): Pair<Boolean, String?> {
+            return try {
+                if (download.request.data.isNotEmpty()) {
+                    val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
+                    Pair(
+                        json.optBoolean("isTranscoded", false),
+                        json.optString("targetFormat").takeIf { it.isNotBlank() }
+                    )
+                } else {
+                    Pair(false, null)
+                }
+            } catch (e: Exception) {
+                LogManager.w("DownloadTracker: Failed parsing download flags: ${e.message}")
+                Pair(false, null)
+            }
+        }
+
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun fetchLyricsForExport(songId: String, artist: String?, title: String?): String? {
+            return try {
+                val repo = repository.get()
+                if (repo.isConfigured) {
+                    repo.getLyricsData(songId, artist, title, true).first
+                } else {
+                    null
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LogManager.e("DownloadTracker: Failed to fetch additional metadata for export", e)
+                null
+            }
+        }
+
+        @Suppress("TooGenericExceptionCaught")
+        private suspend fun handleExportResult(
+            download: Download,
+            songTitle: String,
+            isSafEnabled: Boolean,
+            isTranscoded: Boolean,
+            cache: androidx.media3.datasource.cache.Cache,
+            localUriResult: Result<String>
+        ) {
+            localUriResult.onSuccess { localUri ->
+                database.musicDao().updateSongCacheStatus(download.request.id, localUri, true, isTranscoded)
+                val targetLabel = if (isSafEnabled) "SAF" else "Private"
+                LogManager.i(
+                    "DownloadTracker: Song ${download.request.id} exported to $targetLabel " +
+                        "and database status marked: $localUri (Transcoded: $isTranscoded)"
+                )
+
                 LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
                 cache.removeResource(download.request.id)
                 try {
-                    CacheManager.acquirePlaybackCache(context).removeResource(download.request.id)
+                    cacheManager.acquirePlaybackCache().removeResource(download.request.id)
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("DownloadTracker: Failed to clean playback cache after export", e)
                 }
-            }.onFailure {
-                if (it is kotlinx.coroutines.CancellationException) {
-                    LogManager.i("DownloadTracker: Export cancelled for ${song.title}")
-                    throw it
+            }.onFailure { err ->
+                if (err is CancellationException) {
+                    LogManager.i("DownloadTracker: Export cancelled for $songTitle")
+                    throw err
                 } else {
-                    LogManager.e("DownloadTracker: Export failed for ${song.title}: ${it.message}")
+                    LogManager.e("DownloadTracker: Export failed for $songTitle: ${err.message}")
                     Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(context, context.getString(R.string.export_failed, it.message ?: ""), Toast.LENGTH_LONG).show()
+                        Toast.makeText(
+                            appContext,
+                            appContext.getString(R.string.export_failed, err.message ?: ""),
+                            Toast.LENGTH_LONG
+                        ).show()
                     }
                 }
+            }
+        }
+    }
+
+    companion object {
+        private const val POLL_INTERVAL_MS = 1000L
+
+        @Suppress("TooGenericExceptionCaught")
+        fun isSilentDownload(download: Download): Boolean {
+            return try {
+                if (download.request.data.isNotEmpty()) {
+                    val json = JSONObject(Util.fromUtf8Bytes(download.request.data))
+                    json.optBoolean("isSilent", false)
+                } else {
+                    false
+                }
+            } catch (e: Exception) {
+                LogManager.w("DownloadTracker: Failed parsing isSilent flag: ${e.message}")
+                false
             }
         }
     }

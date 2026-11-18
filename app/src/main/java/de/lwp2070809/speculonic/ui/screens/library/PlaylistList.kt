@@ -58,7 +58,6 @@ fun PlaylistList(
     onPlaylistClick: (String) -> Unit,
     onCreatePlaylist: (String) -> Unit,
     onDeletePlaylist: (String) -> Unit,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isInitialLoadComplete: Boolean = true
 ) {
@@ -158,7 +157,11 @@ fun PlaylistList(
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = alpha)),
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(Icons.Default.Add, contentDescription = null, tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = alpha))
+                            Icon(
+                                Icons.Default.Add,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = alpha)
+                            )
                         }
                     }
                 )
@@ -178,7 +181,11 @@ fun PlaylistList(
                     headlineContent = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     supportingContent = { 
                         val songCount = playlist.songCount ?: 0
-                        Text(pluralStringResource(R.plurals.songs_count, songCount, songCount), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(
+                            pluralStringResource(R.plurals.songs_count, songCount, songCount),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     },
                     leadingContent = {
                         val model = remember(playlist.coverArt) {
@@ -192,7 +199,9 @@ fun PlaylistList(
                                 .clip(RoundedCornerShape(8.dp))
                                 .background(MaterialTheme.colorScheme.surfaceVariant),
                             contentScale = ContentScale.Crop,
-                            error = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play)
+                            error = androidx.compose.ui.res.painterResource(
+                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play
+                            )
                         )
                     },
                     trailingContent = {

@@ -169,7 +169,6 @@ fun NowPlayingMobile(
                                     lyricsLines = uiState.lyricsLines,
                                     rawLyrics = uiState.rawLyrics,
                                     currentPositionFlow = playbackController.currentPosition,
-                                    isPlaying = playbackState.isPlaying,
                                     isLoading = uiState.isLoadingLyrics,
                                     onSeek = { playbackController.seekTo(it) },
                                     onClick = onToggleLyrics,
@@ -203,7 +202,7 @@ fun NowPlayingMobile(
                 verticalArrangement = Arrangement.SpaceEvenly
             ) {
                 PlaybackSeekBar(playbackState, playbackController)
-                MainControls(playbackState, playbackController, uiState, viewModel, onShowSongInfo)
+                MainControls(playbackState, playbackController, onShowSongInfo)
                 ExtraControls(playbackState, uiState, viewModel, isEffectivelyOnline, onShowSleepTimer)
             }
         }

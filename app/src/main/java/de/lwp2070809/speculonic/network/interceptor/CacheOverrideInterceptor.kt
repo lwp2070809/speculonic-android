@@ -9,11 +9,8 @@ class CacheOverrideInterceptor : Interceptor {
         val path = chain.request().url.encodedPath
         if (path.contains("getCoverArt") || path.contains("getAvatar")) {
             val cacheControl = response.header("Cache-Control")
-            if (cacheControl == null ||
-                cacheControl.contains("no-cache") ||
-                cacheControl.contains("no-store") ||
-                cacheControl.contains("max-age=0")
-            ) {
+            val shouldOverride = cacheControl == null || NO_CACHE_DIRECTIVES.any { cacheControl.contains(it) }
+            if (shouldOverride) {
                 return response.newBuilder()
                     .header("Cache-Control", "public, max-age=31536000")
                     .removeHeader("Pragma")
@@ -22,5 +19,9 @@ class CacheOverrideInterceptor : Interceptor {
             }
         }
         return response
+    }
+
+    private companion object {
+        val NO_CACHE_DIRECTIVES = listOf("no-cache", "no-store", "max-age=0")
     }
 }

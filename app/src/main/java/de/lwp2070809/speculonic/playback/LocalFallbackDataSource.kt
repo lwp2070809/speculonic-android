@@ -10,19 +10,19 @@ import androidx.media3.datasource.DataSource
 import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.TransferListener
-import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.util.LogManager
 
 @OptIn(UnstableApi::class)
 class LocalFallbackDataSource(
-    private val context: Context,
-    private val upstream: DataSource
+    context: Context,
+    private val upstream: DataSource,
+    private val musicDao: MusicDao
 ) : DataSource {
 
     private val contentDataSource = BufferedDataSource(ContentDataSource(context), 512 * 1024)
     private val fileDataSource = BufferedDataSource(FileDataSource(), 512 * 1024)
     private var activeDataSource: DataSource? = null
-    private val db = AppDatabase.getDatabase(context)
 
     override fun addTransferListener(transferListener: TransferListener) {
         upstream.addTransferListener(transferListener)
@@ -32,34 +32,8 @@ class LocalFallbackDataSource(
 
     override fun open(dataSpec: DataSpec): Long {
         val songId = dataSpec.key
-        
         if (songId != null) {
-            val localUri = queryLocalUri(songId)
-
-            if (!localUri.isNullOrBlank()) {
-                try {
-                    val uri = localUri.toUri()
-                    val targetDataSpec = dataSpec.withUri(uri)
-                    val dataSource = if (localUri.startsWith("content://")) {
-                        contentDataSource
-                    } else {
-                        fileDataSource
-                    }
-                    val bytesRead = dataSource.open(targetDataSpec)
-                    activeDataSource = dataSource
-                    val storageType = if (localUri.startsWith("content://")) "SAF" else "Private"
-                    de.lwp2070809.speculonic.util.LogManager.i(
-                        de.lwp2070809.speculonic.util.LogTag.CACHE,
-                        "Playback source: Matched $storageType file for songId=$songId: $localUri"
-                    )
-                    return bytesRead
-                } catch (e: Exception) {
-                    de.lwp2070809.speculonic.util.LogManager.w(
-                        de.lwp2070809.speculonic.util.LogTag.CACHE,
-                        "Playback source: Failed to open local file for songId=$songId, falling back. Error: ${e.message}"
-                    )
-                }
-            }
+            openLocalFileIfAvailable(songId, dataSpec)?.let { return it }
         }
 
         activeDataSource = upstream
@@ -72,9 +46,32 @@ class LocalFallbackDataSource(
         return upstream.open(dataSpec)
     }
 
+    private fun openLocalFileIfAvailable(songId: String, dataSpec: DataSpec): Long? {
+        val localUri = queryLocalUri(songId)
+        if (localUri.isNullOrBlank()) return null
+
+        return try {
+            val dataSource = if (localUri.startsWith("content://")) contentDataSource else fileDataSource
+            val bytesRead = dataSource.open(dataSpec.withUri(localUri.toUri()))
+            activeDataSource = dataSource
+            val storageType = if (localUri.startsWith("content://")) "SAF" else "Private"
+            de.lwp2070809.speculonic.util.LogManager.i(
+                de.lwp2070809.speculonic.util.LogTag.CACHE,
+                "Playback source: Matched $storageType file for songId=$songId: $localUri"
+            )
+            bytesRead
+        } catch (e: Exception) {
+            de.lwp2070809.speculonic.util.LogManager.w(
+                de.lwp2070809.speculonic.util.LogTag.CACHE,
+                "Playback source: Failed to open local file for songId=$songId, falling back. Error: ${e.message}"
+            )
+            null
+        }
+    }
+
     private fun queryLocalUri(songId: String): String? {
         return try {
-            val song = db.musicDao().getSongByIdSync(songId)
+            val song = musicDao.getSongByIdSync(songId)
             if (song != null && song.isFullyCached) {
                 song.localUri
             } else {

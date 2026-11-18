@@ -63,11 +63,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -86,6 +86,7 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.util.FormatUtils
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 import de.lwp2070809.speculonic.ui.screens.settings.components.StorageDashboardCard
 
 @Composable
@@ -110,29 +111,16 @@ private fun SpinningStorageRefreshIcon(modifier: Modifier = Modifier) {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StorageCacheSettings(
-    viewModel: SettingsViewModel,
+    viewModel: StorageCacheViewModel,
     topBarState: TopBarState,
     isEffectivelyOnline: Boolean
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.storage_cache_settings)
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
 
     LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
         viewModel.refreshCacheSize()
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
     }
 
     val context = LocalContext.current
@@ -175,7 +163,6 @@ fun StorageCacheSettings(
                 playbackBytes = uiState.playbackCacheBytes,
                 coverArtBytes = uiState.coverArtCacheBytes,
                 songBytes = uiState.songCacheBytes,
-                otherBytes = uiState.otherCacheBytes,
                 totalSpaceBytes = uiState.totalSpaceBytes,
                 maxCoverBytes = uiState.maxCoverCacheSize,
                 isCoverOverQuota = uiState.isCoverOverQuota,
@@ -453,6 +440,24 @@ fun StorageCacheSettings(
             inconsistentItems = uiState.inconsistentItems,
             onDismissRequest = { viewModel.dismissInconsistencyDialog() },
             onResolveItem = { item, action -> viewModel.resolveInconsistentItem(item, action) }
+        )
+    }
+
+    if (uiState.showSafetyGuardConfirm) {
+        AlertDialog(
+            onDismissRequest = { viewModel.cancelSafetyGuard() },
+            title = { Text(stringResource(R.string.safety_guard_title)) },
+            text = { Text(uiState.safetyGuardMessage ?: stringResource(R.string.safety_guard_message)) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.confirmSafetyGuard() }) {
+                    Text(stringResource(R.string.confirm))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.cancelSafetyGuard() }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 }

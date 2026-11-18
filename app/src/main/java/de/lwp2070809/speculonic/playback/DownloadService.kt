@@ -14,8 +14,10 @@ import androidx.media3.exoplayer.scheduler.Scheduler
 import dagger.hilt.android.AndroidEntryPoint
 import de.lwp2070809.speculonic.MainActivity
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.DownloadManagerHelper
 import org.json.JSONObject
+import javax.inject.Inject
 
 @UnstableApi
 @AndroidEntryPoint
@@ -26,33 +28,40 @@ class DownloadService : DownloadService(
     R.string.download_channel_name,
     R.string.download_channel_description
 ) {
+    @Inject
+    lateinit var downloadManagerHelper: DownloadManagerHelper
+
+    @Inject
+    lateinit var cacheManager: CacheManager
 
     private val cancelReceiver = object : android.content.BroadcastReceiver() {
         override fun onReceive(context: android.content.Context, intent: android.content.Intent) {
-            if (intent.action == ACTION_CANCEL_ALL_DOWNLOADS) {
-                de.lwp2070809.speculonic.util.LogManager.i("DownloadService: User cancelled all manual downloads from notification.")
-                if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
-                    return
-                }
-                val manager = DownloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return
-                isCancellingAll = true
-                var removedCount = 0
-                try {
-                    val activeDownloads = collectActiveDownloads(manager)
-                    for (download in activeDownloads) {
-                        if (!isSilent(download) && isActiveState(download.state)) {
-                            manager.removeDownload(download.request.id)
-                            removedCount++
-                        }
-                    }
-                    if (removedCount == 0) {
-                        isCancellingAll = false
-                    }
-                } catch (e: Exception) {
-                    isCancellingAll = false
-                    de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to cancel downloads in cancelReceiver", e)
+            if (intent.action != ACTION_CANCEL_ALL_DOWNLOADS) return
+            cancelAllManualDownloads()
+        }
+    }
+
+    private fun cancelAllManualDownloads() {
+        de.lwp2070809.speculonic.util.LogManager.i("DownloadService: User cancelled all manual downloads from notification.")
+        if (cacheManager.isReleasing) return
+        val manager = downloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return
+
+        isCancellingAll = true
+        var removedCount = 0
+        try {
+            val activeDownloads = collectActiveDownloads(manager)
+            for (download in activeDownloads) {
+                if (!isSilent(download) && isActiveState(download.state)) {
+                    manager.removeDownload(download.request.id)
+                    removedCount++
                 }
             }
+            if (removedCount == 0) {
+                isCancellingAll = false
+            }
+        } catch (e: Exception) {
+            isCancellingAll = false
+            de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to cancel downloads in cancelReceiver", e)
         }
     }
 
@@ -112,27 +121,16 @@ class DownloadService : DownloadService(
     }
 
     private fun isSilentOnly(): Boolean {
-        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
-            return false
-        }
-        val manager = DownloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return false
-        var hasActive = false
-        var hasManual = false
-        try {
-            val activeDownloads = collectActiveDownloads(manager)
-            for (download in activeDownloads) {
-                if (isActiveState(download.state) || download.state == Download.STATE_REMOVING) {
-                    hasActive = true
-                    if (!isSilent(download)) {
-                        hasManual = true
-                        break
-                    }
-                }
-            }
+        if (cacheManager.isReleasing) return false
+        val manager = downloadManagerHelper.getDownloadManagerOnlyIfInitialized() ?: return false
+        return try {
+            val activeOrRemoving = collectActiveDownloads(manager)
+                .filter { isActiveState(it.state) || it.state == Download.STATE_REMOVING }
+            activeOrRemoving.isNotEmpty() && activeOrRemoving.all { isSilent(it) }
         } catch (e: Exception) {
             de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to get downloads", e)
+            false
         }
-        return hasActive && !hasManual
     }
 
     override fun onCreate() {
@@ -146,7 +144,7 @@ class DownloadService : DownloadService(
             RECEIVER_NOT_EXPORTED
         )
         try {
-            if (!de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+            if (!cacheManager.isReleasing) {
                 getDownloadManager().addListener(downloadListener)
             }
         } catch (e: Exception) {
@@ -158,23 +156,27 @@ class DownloadService : DownloadService(
         val action = intent?.action
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onStartCommand action=$action flags=$flags startId=$startId")
 
-        if (de.lwp2070809.speculonic.data.CacheManager.isReleasing) {
+        if (cacheManager.isReleasing) {
             de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Cache is being released, stopping service.")
             stopSelf()
             return START_NOT_STICKY
         }
 
         val result = try {
-            if (isSilentOnly() && (action == "androidx.media3.exoplayer.downloadService.action.INIT" 
-                    || action == "androidx.media3.exoplayer.downloadService.action.RESTART"
-                    || intent == null)) {
+            val isSilentInitRestart = intent == null ||
+                action == "androidx.media3.exoplayer.downloadService.action.INIT" ||
+                action == "androidx.media3.exoplayer.downloadService.action.RESTART"
+            if (isSilentOnly() && isSilentInitRestart) {
                 de.lwp2070809.speculonic.util.LogManager.i("DownloadService: Intercepted silent download INIT action. Stopping service.")
                 stopSelf()
                 return START_NOT_STICKY
             }
             super.onStartCommand(intent, flags, startId)
         } catch (e: IllegalStateException) {
-            if (e.message.isNullOrBlank() || e.message?.contains("dead thread") == true || e.message?.contains("while cache is being released") == true) {
+            val isExpectedShutdownError = e.message.isNullOrBlank() ||
+                e.message?.contains("dead thread") == true ||
+                e.message?.contains("while cache is being released") == true
+            if (isExpectedShutdownError) {
                 de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Caught IllegalStateException (${e.message}), stopping self.")
                 stopSelf()
                 return START_NOT_STICKY
@@ -188,9 +190,11 @@ class DownloadService : DownloadService(
 
     @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.VANILLA_ICE_CREAM)
     override fun onTimeout(startId: Int, fgsType: Int) {
-        de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Foreground service timed out (fgsType=$fgsType, startId=$startId). Stopping service gracefully.")
+        de.lwp2070809.speculonic.util.LogManager.w(
+            "DownloadService: Foreground service timed out (fgsType=$fgsType, startId=$startId). Stopping service gracefully."
+        )
         try {
-            DownloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.pauseDownloads()
+            downloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.pauseDownloads()
         } catch (e: Exception) {
             de.lwp2070809.speculonic.util.LogManager.e("DownloadService: Failed to pause downloads on timeout", e)
         }
@@ -201,7 +205,7 @@ class DownloadService : DownloadService(
         de.lwp2070809.speculonic.util.LogManager.i("DownloadService: onDestroy")
         isCancellingAll = false
         try {
-            DownloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.removeListener(downloadListener)
+            downloadManagerHelper.getDownloadManagerOnlyIfInitialized()?.removeListener(downloadListener)
         } catch (e: java.lang.Exception) {
             de.lwp2070809.speculonic.util.LogManager.w("DownloadService: Failed to remove download listener", e)
         }
@@ -214,7 +218,7 @@ class DownloadService : DownloadService(
     }
 
     override fun getDownloadManager(): DownloadManager {
-        return DownloadManagerHelper.getDownloadManager(this)
+        return downloadManagerHelper.getDownloadManager()
     }
 
     override fun getScheduler(): Scheduler {

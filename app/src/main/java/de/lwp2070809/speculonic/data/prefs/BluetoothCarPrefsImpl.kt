@@ -18,10 +18,14 @@ class BluetoothCarPrefsImpl(private val context: Context) : BluetoothCarPrefs {
         private val BLUETOOTH_CAR_DEVICE_NAMES = stringSetPreferencesKey("bluetooth_car_device_names")
     }
 
-    override val carBluetoothEnabled: Flow<Boolean> = context.dataStore.data.map { it[CAR_BLUETOOTH_ENABLED] ?: false }.distinctUntilChanged()
-    override val bluetoothLyricsEnabled: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_ENABLED] ?: false }.distinctUntilChanged()
-    override val bluetoothLyricsHideProgressBar: Flow<Boolean> = context.dataStore.data.map { it[BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR] ?: false }.distinctUntilChanged()
-    override val bluetoothCarDeviceNames: Flow<Set<String>> = context.dataStore.data.map { it[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet() }.distinctUntilChanged()
+    override val carBluetoothEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[CAR_BLUETOOTH_ENABLED] ?: false }.distinctUntilChanged()
+    override val bluetoothLyricsEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[BLUETOOTH_LYRICS_ENABLED] ?: false }.distinctUntilChanged()
+    override val bluetoothLyricsHideProgressBar: Flow<Boolean> =
+        context.dataStore.data.map { it[BLUETOOTH_LYRICS_HIDE_PROGRESS_BAR] ?: false }.distinctUntilChanged()
+    override val bluetoothCarDeviceNames: Flow<Set<String>> =
+        context.dataStore.data.map { it[BLUETOOTH_CAR_DEVICE_NAMES] ?: emptySet() }.distinctUntilChanged()
 
     override suspend fun saveCarBluetoothEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->

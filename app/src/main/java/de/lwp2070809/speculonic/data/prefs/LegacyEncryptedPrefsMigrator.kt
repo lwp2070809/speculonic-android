@@ -118,7 +118,7 @@ internal object LegacyEncryptedPrefsMigrator {
         masterAead: Aead
     ): KeysetHandle {
         val hexKeyset = rawPrefs.getString(keysetAlias, null)
-            ?: throw IllegalStateException("Missing encrypted keyset: $keysetAlias")
+            ?: error("Missing encrypted keyset: $keysetAlias")
         return TinkProtoKeysetFormat.parseEncryptedKeyset(
             Hex.decode(hexKeyset),
             masterAead,
@@ -148,7 +148,7 @@ internal object LegacyEncryptedPrefsMigrator {
 
         val byteLength = buffer.getInt()
         if (byteLength < 0 || byteLength > buffer.remaining()) {
-            throw IllegalStateException("Corrupted encrypted string length: $byteLength")
+            error("Corrupted encrypted string length: $byteLength")
         }
         val strBytes = ByteArray(byteLength)
         buffer.get(strBytes)

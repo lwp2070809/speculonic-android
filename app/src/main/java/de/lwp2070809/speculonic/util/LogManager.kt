@@ -32,26 +32,26 @@ object LogTag {
     const val SYNC = "Sync"
     const val CACHE = "Cache"
 
+    private val PLAYBACK_PREFIXES = listOf("Playback", "Audio", "Car", "Bluetooth")
+    private val NETWORK_PREFIXES = listOf("SonicLog", "Network", "ServerReachable", "Offline")
+    private val SYNC_PREFIXES = listOf("Sync", "CoverArtSync", "MetadataSync")
+    private val CACHE_PREFIXES = listOf("Cache", "Download", "LocalFallback")
+
+    private fun String.matchesTagGroup(canonical: String, prefixes: List<String>): Boolean {
+        return equals(canonical, ignoreCase = true) ||
+            prefixes.any { startsWith(it, ignoreCase = true) }
+    }
+
     /**
      * 将细分模块前缀归一化为核心业务大类标签
      */
     fun resolve(raw: String): String {
         val trimmed = raw.trim()
         return when {
-            trimmed.equals(PLAYBACK, ignoreCase = true) || trimmed.startsWith("Playback", ignoreCase = true) ||
-                    trimmed.startsWith("Audio", ignoreCase = true) || trimmed.startsWith("Car", ignoreCase = true) ||
-                    trimmed.startsWith("Bluetooth", ignoreCase = true) -> PLAYBACK
-
-            trimmed.equals(NETWORK, ignoreCase = true) || trimmed.startsWith("SonicLog", ignoreCase = true) ||
-                    trimmed.startsWith("Network", ignoreCase = true) || trimmed.startsWith("ServerReachable", ignoreCase = true) ||
-                    trimmed.startsWith("Offline", ignoreCase = true) -> NETWORK
-
-            trimmed.equals(SYNC, ignoreCase = true) || trimmed.startsWith("Sync", ignoreCase = true) ||
-                    trimmed.startsWith("CoverArtSync", ignoreCase = true) || trimmed.startsWith("MetadataSync", ignoreCase = true) -> SYNC
-
-            trimmed.equals(CACHE, ignoreCase = true) || trimmed.startsWith("Cache", ignoreCase = true) ||
-                    trimmed.startsWith("Download", ignoreCase = true) || trimmed.startsWith("LocalFallback", ignoreCase = true) -> CACHE
-
+            trimmed.matchesTagGroup(PLAYBACK, PLAYBACK_PREFIXES) -> PLAYBACK
+            trimmed.matchesTagGroup(NETWORK, NETWORK_PREFIXES) -> NETWORK
+            trimmed.matchesTagGroup(SYNC, SYNC_PREFIXES) -> SYNC
+            trimmed.matchesTagGroup(CACHE, CACHE_PREFIXES) -> CACHE
             else -> APP
         }
     }
@@ -66,11 +66,22 @@ data class LogEntry(
     val message: String,
     val isEasterEgg: Boolean = false,
     val id: Long = logIdSequence.incrementAndGet()
-)
+) {
+    fun format(isKaguya: Boolean): String {
+        return if (isKaguya && isEasterEgg) {
+            "[$timestamp] $message"
+        } else {
+            val levelText = if (isKaguya && level == LogLevel.INFO) "月見 ヤチヨ" else level.name
+            "[$timestamp] [$tag] $levelText: $message"
+        }
+    }
+}
 
 object LogManager {
     private const val TAG = "SpeculonicLog"
     private const val MAX_LOGS = 2000
+    private const val CRASH_RECENT_LOGS_LIMIT = 200
+    private const val EASTER_EGG_PROBABILITY = 0.2
 
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs = _logs.asStateFlow()
@@ -166,42 +177,12 @@ object LogManager {
         sb.append("=== Recent In-Memory Logs (Last 200 entries) ===\n")
         val recentLogs: List<LogEntry>
         synchronized(this) {
-            recentLogs = buffer.toList().takeLast(200)
+            recentLogs = buffer.toList().takeLast(CRASH_RECENT_LOGS_LIMIT)
         }
         recentLogs.forEach { entry ->
-            sb.append(formatLogEntry(entry, isKaguya = false)).append("\n")
+            sb.append(entry.format(isKaguya = false)).append("\n")
         }
         crashFile.writeText(sb.toString())
-    }
-
-    /**
-     * 导出完整日志至缓存目录文件，若存在崩溃记录则附加在顶部
-     */
-    fun exportLogsToFile(context: Context): File {
-        flushIfDirty()
-        val logsDir = File(context.cacheDir, "logs").apply { mkdirs() }
-        val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-        val exportFile = File(logsDir, "speculonic_logs_$timeStr.txt")
-
-        val sb = StringBuilder()
-        sb.append("=== Speculonic Diagnostic Logs ===\n")
-        sb.append("Exported At: ").append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date())).append("\n\n")
-
-        val crashFile = File(context.cacheDir, "crash_dump.txt")
-        if (crashFile.exists()) {
-            try {
-                sb.append(">>> DETECTED LAST CRASH RECORD <<<\n")
-                sb.append(crashFile.readText()).append("\n")
-                sb.append(">>> END CRASH RECORD <<<\n\n")
-            } catch (_: Exception) {}
-        }
-
-        sb.append("=== Complete Log Buffer (${_logs.value.size} items) ===\n")
-        _logs.value.forEach { entry ->
-            sb.append(formatLogEntry(entry, isKaguya = false)).append("\n")
-        }
-        exportFile.writeText(sb.toString())
-        return exportFile
     }
 
     fun d(message: String) = d(LogTag.APP, message)
@@ -259,7 +240,7 @@ object LogManager {
         return sanitizeSensitiveText(url)
     }
 
-    fun sanitizeSensitiveText(text: String): String {
+    private fun sanitizeSensitiveText(text: String): String {
         if (text.isEmpty()) return text
         val redactedUserInfo = userInfoUrlRegex.replace(text, "$1***:***@")
         return sensitiveQueryRegex.replace(redactedUserInfo, "$1***")
@@ -303,7 +284,7 @@ object LogManager {
         buffer.addLast(entry)
         isDirty.set(true)
 
-        if (!isEasterEgg && minLevel == LogLevel.KAGUYA && Math.random() < 0.2) {
+        if (!isEasterEgg && minLevel == LogLevel.KAGUYA && Math.random() < EASTER_EGG_PROBABILITY) {
             triggerRandomEasterEgg()
         }
     }
@@ -323,15 +304,6 @@ object LogManager {
         _logs.value = emptyList()
     }
 
-    fun formatLogEntry(entry: LogEntry, isKaguya: Boolean = minLevel == LogLevel.KAGUYA): String {
-        return if (isKaguya && entry.isEasterEgg) {
-            "[${entry.timestamp}] ${entry.message}"
-        } else {
-            val levelText = if (isKaguya && entry.level == LogLevel.INFO) "月見 ヤチヨ" else entry.level.name
-            "[${entry.timestamp}] [${entry.tag}] $levelText: ${entry.message}"
-        }
-    }
-
     private const val CLIPBOARD_MAX_BYTES = 200 * 1024
     private const val CLIPBOARD_TRUNCATION_NOTICE = "--- [Truncated: showing newest logs within 200 KB clipboard limit] ---\n"
 
@@ -346,7 +318,7 @@ object LogManager {
         var truncated = false
 
         for (i in entries.indices.reversed()) {
-            val line = formatLogEntry(entries[i], isKaguya)
+            val line = entries[i].format(isKaguya)
             val lineBytes = line.encodeToByteArray().size
             val separatorBytes = if (selected.isEmpty()) 0 else 1
             if (usedBytes + separatorBytes + lineBytes > maxBytes) {
@@ -373,12 +345,47 @@ object LogManager {
             usedBytes -= removed.second + if (selected.isEmpty()) 0 else 1
         }
         if (selected.isEmpty()) {
-            val newestLine = formatLogEntry(entries.last(), isKaguya)
+            val newestLine = entries.last().format(isKaguya)
             return (CLIPBOARD_TRUNCATION_NOTICE + FormatUtils.truncateUtf8(newestLine, budget)) to true
         }
         val body = selected.asReversed().joinToString("\n") { it.first }
         return (CLIPBOARD_TRUNCATION_NOTICE + body) to true
     }
+}
+
+/**
+ * 导出完整日志至缓存目录文件，若存在崩溃记录则附加在顶部
+ */
+fun exportLogsToFile(context: Context): File {
+    LogManager.flushIfDirty()
+    val logsDir = File(context.cacheDir, "logs").apply { mkdirs() }
+    val timeStr = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
+    val exportFile = File(logsDir, "speculonic_logs_$timeStr.txt")
+    val entries = LogManager.logs.value
+
+    val sb = StringBuilder()
+    sb.append("=== Speculonic Diagnostic Logs ===\n")
+    sb.append("Exported At: ")
+        .append(SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US).format(Date()))
+        .append("\n\n")
+
+    val crashFile = File(context.cacheDir, "crash_dump.txt")
+    if (crashFile.exists()) {
+        try {
+            sb.append(">>> DETECTED LAST CRASH RECORD <<<\n")
+            sb.append(crashFile.readText()).append("\n")
+            sb.append(">>> END CRASH RECORD <<<\n\n")
+        } catch (e: Exception) {
+            Log.w("SpeculonicLog", "Failed reading crash dump", e)
+        }
+    }
+
+    sb.append("=== Complete Log Buffer (${entries.size} items) ===\n")
+    entries.forEach { entry ->
+        sb.append(entry.format(isKaguya = false)).append("\n")
+    }
+    exportFile.writeText(sb.toString())
+    return exportFile
 }
 
 data class EasterEggMessage(val speaker: String, val message: String)

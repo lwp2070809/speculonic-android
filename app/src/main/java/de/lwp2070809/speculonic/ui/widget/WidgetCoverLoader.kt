@@ -11,7 +11,7 @@ import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
 import coil3.request.SuccessResult
 import coil3.request.allowHardware
-import de.lwp2070809.speculonic.data.db.AppDatabase
+import dagger.hilt.android.EntryPointAccessors
 import de.lwp2070809.speculonic.util.CoverArtKeyUtils
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.Dispatchers
@@ -104,7 +104,10 @@ object WidgetCoverLoader {
     private fun loadFromLocalId3Sync(context: Context, songId: String, targetDp: Int): Bitmap? {
         if (songId.isEmpty()) return null
         return try {
-            val db = AppDatabase.getDatabase(context)
+            val db = EntryPointAccessors.fromApplication(
+                context.applicationContext,
+                WidgetEntryPoint::class.java
+            ).appDatabase()
             val song = db.musicDao().getSongByIdSync(songId)
             val localUri = song?.localUri?.let { Uri.parse(it) } ?: return null
 

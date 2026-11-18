@@ -272,7 +272,10 @@ class BluetoothCarManager(
         }
 
         private fun isHideProgressBarActive(): Boolean {
-            return carBluetoothEnabled && bluetoothLyricsEnabled && bluetoothLyricsHideProgressBar && deviceDetector.carConnectionState.value
+            return carBluetoothEnabled &&
+                bluetoothLyricsEnabled &&
+                bluetoothLyricsHideProgressBar &&
+                deviceDetector.carConnectionState.value
         }
 
         override fun getDuration(): Long {
@@ -330,12 +333,14 @@ private class DisguisedPlayerListener(
 
     override fun onTimelineChanged(timeline: Timeline, reason: Int) = target.onTimelineChanged(timeline, reason)
     override fun onTracksChanged(tracks: Tracks) = target.onTracksChanged(tracks)
-    override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) = target.onTrackSelectionParametersChanged(parameters)
+    override fun onTrackSelectionParametersChanged(parameters: TrackSelectionParameters) =
+        target.onTrackSelectionParametersChanged(parameters)
     override fun onIsLoadingChanged(isLoading: Boolean) = target.onIsLoadingChanged(isLoading)
     override fun onAvailableCommandsChanged(availableCommands: Player.Commands) = target.onAvailableCommandsChanged(availableCommands)
     override fun onPlaybackStateChanged(playbackState: Int) = target.onPlaybackStateChanged(playbackState)
     override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) = target.onPlayWhenReadyChanged(playWhenReady, reason)
-    override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) = target.onPlaybackSuppressionReasonChanged(playbackSuppressionReason)
+    override fun onPlaybackSuppressionReasonChanged(playbackSuppressionReason: Int) =
+        target.onPlaybackSuppressionReasonChanged(playbackSuppressionReason)
     override fun onIsPlayingChanged(isPlaying: Boolean) = target.onIsPlayingChanged(isPlaying)
     override fun onRepeatModeChanged(repeatMode: Int) = target.onRepeatModeChanged(repeatMode)
     override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) = target.onShuffleModeEnabledChanged(shuffleModeEnabled)
@@ -343,10 +348,12 @@ private class DisguisedPlayerListener(
     override fun onPlayerErrorChanged(error: PlaybackException?) = target.onPlayerErrorChanged(error)
     override fun onPositionDiscontinuity(oldPosition: Player.PositionInfo, newPosition: Player.PositionInfo, reason: Int) =
         target.onPositionDiscontinuity(oldPosition, newPosition, reason)
-    override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) = target.onPlaybackParametersChanged(playbackParameters)
+    override fun onPlaybackParametersChanged(playbackParameters: PlaybackParameters) =
+        target.onPlaybackParametersChanged(playbackParameters)
     override fun onSeekBackIncrementChanged(seekBackIncrementMs: Long) = target.onSeekBackIncrementChanged(seekBackIncrementMs)
     override fun onSeekForwardIncrementChanged(seekForwardIncrementMs: Long) = target.onSeekForwardIncrementChanged(seekForwardIncrementMs)
-    override fun onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs: Long) = target.onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs)
+    override fun onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs: Long) =
+        target.onMaxSeekToPreviousPositionChanged(maxSeekToPreviousPositionMs)
     override fun onAudioSessionIdChanged(audioSessionId: Int) = target.onAudioSessionIdChanged(audioSessionId)
     override fun onAudioAttributesChanged(audioAttributes: AudioAttributes) = target.onAudioAttributesChanged(audioAttributes)
     override fun onVolumeChanged(volume: Float) = target.onVolumeChanged(volume)

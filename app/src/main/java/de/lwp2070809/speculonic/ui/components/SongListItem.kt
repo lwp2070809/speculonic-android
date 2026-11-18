@@ -51,32 +51,6 @@ import de.lwp2070809.speculonic.ui.composition.buildRequest
 import de.lwp2070809.speculonic.util.FormatUtils
 
 /**
- * 歌曲列表项高频文本资源包装类，避免大列表快速滚动时子项内部重复查询 CompositionLocal。
- */
-@Immutable
-data class SongListItemStrings(
-    val successMsg: String,
-    val existsMsg: String,
-    val errorMsg: String,
-    val cdDownloaded: String,
-    val cdStar: String,
-    val moreOptions: String,
-    val download: String,
-    val removeDownload: String,
-    val songDetails: String,
-    val addToPlaylist: String,
-    val removeFromPlaylist: String,
-    val incompatibleDownloadedTemplate: String,
-    val unsupportedFormatTemplate: String
-) {
-    fun formatIncompatibleDownloaded(suffix: String): String =
-        String.format(incompatibleDownloadedTemplate, suffix)
-
-    fun formatUnsupportedFormat(suffix: String): String =
-        String.format(unsupportedFormatTemplate, suffix)
-}
-
-/**
  * 在列表父级作用域中缓存并记忆常用的歌曲列表项文本，实现整表复用。
  */
 @Composable
@@ -137,7 +111,6 @@ fun rememberSongListItemStrings(): SongListItemStrings {
 fun SongListItem(
     song: Song,
     isCurrent: Boolean,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     onClick: () -> Unit,
@@ -279,7 +252,13 @@ fun SongListItem(
                         modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                     ) {
                         Icon(
-                            painter = if (isStarred) rememberVectorPainter(Icons.Default.Favorite) else androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border),
+                            painter = if (isStarred) {
+                                rememberVectorPainter(Icons.Default.Favorite)
+                            } else {
+                                androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_favorite_border
+                                )
+                            },
                             contentDescription = strings.cdStar,
                             tint = if (isStarred) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -295,7 +274,14 @@ fun SongListItem(
                             if (isDownloaded) {
                                 DropdownMenuItem(
                                     text = { Text(strings.removeDownload) },
-                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete), contentDescription = null) },
+                                    leadingIcon = {
+                                        Icon(
+                                            androidx.compose.ui.res.painterResource(
+                                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_delete
+                                            ),
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = { 
                                         onRemoveDownloadClick()
                                         showMenu = false
@@ -304,7 +290,14 @@ fun SongListItem(
                             } else {
                                 DropdownMenuItem(
                                     text = { Text(strings.download) },
-                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download), contentDescription = null) },
+                                    leadingIcon = {
+                                        Icon(
+                                            androidx.compose.ui.res.painterResource(
+                                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_download
+                                            ),
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = { 
                                         onDownloadClick()
                                         showMenu = false
@@ -314,7 +307,14 @@ fun SongListItem(
                             }
                             DropdownMenuItem(
                                 text = { Text(strings.songDetails) },
-                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info), contentDescription = null) },
+                                leadingIcon = {
+                                    Icon(
+                                        androidx.compose.ui.res.painterResource(
+                                            id = de.lwp2070809.speculonic.R.drawable.ic_symbol_info
+                                        ),
+                                        contentDescription = null
+                                    )
+                                },
                                 onClick = { 
                                     showDetailDialog = true
                                     showMenu = false
@@ -322,7 +322,14 @@ fun SongListItem(
                             )
                             DropdownMenuItem(
                                 text = { Text(strings.addToPlaylist) },
-                                leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_add), contentDescription = null) },
+                                leadingIcon = {
+                                    Icon(
+                                        androidx.compose.ui.res.painterResource(
+                                            id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_add
+                                        ),
+                                        contentDescription = null
+                                    )
+                                },
                                 onClick = { 
                                     showAddToPlaylistDialog = true
                                     showMenu = false
@@ -333,7 +340,14 @@ fun SongListItem(
                                 HorizontalDivider()
                                 DropdownMenuItem(
                                     text = { Text(strings.removeFromPlaylist) },
-                                    leadingIcon = { Icon(androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline), contentDescription = null) },
+                                    leadingIcon = {
+                                        Icon(
+                                            androidx.compose.ui.res.painterResource(
+                                                id = de.lwp2070809.speculonic.R.drawable.ic_symbol_remove_circle_outline
+                                            ),
+                                            contentDescription = null
+                                        )
+                                    },
                                     onClick = {
                                         showMenu = false
                                         onRemoveFromPlaylistClick()

@@ -14,7 +14,6 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -27,13 +26,14 @@ import androidx.compose.material3.ExposedDropdownMenuAnchorType
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 
 
 import androidx.compose.foundation.layout.size
@@ -45,31 +45,14 @@ import de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AboutSettings(
-    viewModel: SettingsViewModel,
+    viewModel: GeneralSettingsViewModel,
     topBarState: TopBarState,
-    isEffectivelyOnline: Boolean,
-    onBackClick: () -> Unit
+    isEffectivelyOnline: Boolean
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val title = stringResource(R.string.about)
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
 
     
     val versionName = remember {
@@ -78,7 +61,8 @@ fun AboutSettings(
                 context.packageName,
                 android.content.pm.PackageManager.PackageInfoFlags.of(0)
             ).versionName
-        } catch (e: Exception) {
+        } catch (e: android.content.pm.PackageManager.NameNotFoundException) {
+            de.lwp2070809.speculonic.util.LogManager.w("AboutSettings: Package info unavailable", e)
             "1.0"
         } ?: "1.0"
     }
@@ -91,10 +75,13 @@ fun AboutSettings(
             .padding(top = 16.dp, bottom = 16.dp + LocalMiniPlayerBottomInset.current)
     ) {
         
+        val isGithubUpdateEnabled =
+            de.lwp2070809.speculonic.BuildConfig.FLAVOR == "github" &&
+                de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED
         ListItem(
             headlineContent = { Text(stringResource(R.string.version)) },
             supportingContent = { Text(versionName) },
-            trailingContent = if (de.lwp2070809.speculonic.BuildConfig.FLAVOR == "github" && de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED) {
+            trailingContent = if (isGithubUpdateEnabled) {
                 {
                     val isChecking = uiState.isCheckingUpdate
                     TextButton(
@@ -183,8 +170,8 @@ fun AboutSettings(
                 try {
                     val intent = Intent(Intent.ACTION_VIEW, "https://github.com/lwp2070809/speculonic-android".toUri())
                     context.startActivity(intent)
-                } catch (e: Exception) {
-                    
+                } catch (e: android.content.ActivityNotFoundException) {
+                    de.lwp2070809.speculonic.util.LogManager.w("AboutSettings: No browser available for repository URL", e)
                 }
             }
         )

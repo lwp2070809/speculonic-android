@@ -18,10 +18,14 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.extractor.DefaultExtractorsFactory
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
 
 @UnstableApi
-class PlayerBuilder(private val context: Context) {
+class PlayerBuilder(
+    private val context: Context,
+    private val musicDao: MusicDao
+) {
     
     fun build(
         playbackCache: androidx.media3.datasource.cache.Cache,
@@ -66,7 +70,7 @@ class PlayerBuilder(private val context: Context) {
         
         val fallbackDataSourceFactory = DataSource.Factory {
             val upstream = persistentDataSourceFactory.createDataSource()
-            LocalFallbackDataSource(context, upstream)
+            LocalFallbackDataSource(context, upstream, musicDao)
         }
 
         val extractorsFactory = DefaultExtractorsFactory()
@@ -111,9 +115,7 @@ class PlayerBuilder(private val context: Context) {
                 eventListener: VideoRendererEventListener,
                 allowedVideoJoiningTimeMs: Long,
                 out: ArrayList<Renderer>
-            ) {
-                
-            }
+            ) = Unit
 
             override fun buildTextRenderers(
                 context: Context,
@@ -121,9 +123,7 @@ class PlayerBuilder(private val context: Context) {
                 outputLooper: android.os.Looper,
                 extensionRendererMode: Int,
                 out: ArrayList<Renderer>
-            ) {
-                
-            }
+            ) = Unit
         }
 
         return ExoPlayer.Builder(context, renderersFactory)

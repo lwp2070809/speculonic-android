@@ -19,7 +19,10 @@ import kotlin.math.pow
 
 @OptIn(UnstableApi::class)
 class CacheOperations @javax.inject.Inject constructor(
-    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context
+    @dagger.hilt.android.qualifiers.ApplicationContext private val context: Context,
+    private val database: AppDatabase,
+    private val cacheManager: CacheManager,
+    private val downloadTracker: DownloadTracker
 ) {
 
     @Suppress("TooGenericExceptionCaught")
@@ -71,7 +74,7 @@ class CacheOperations @javax.inject.Inject constructor(
                 )
             }
 
-            CacheManager.executeWithCacheReleaseLock {
+            cacheManager.executeWithCacheReleaseLock {
                 if (clearPlaybackBuffer) {
                     File(context.cacheDir, "media_playback_buffer").deleteRecursively()
                 }
@@ -90,17 +93,16 @@ class CacheOperations @javax.inject.Inject constructor(
 
             if (resetDb) {
                 runBestEffort("CacheOperations: Failed to reset database cache status on $operationName", Unit) {
-                    val db = AppDatabase.getDatabase(context)
                     if (preserveSaf) {
-                        db.musicDao().resetNonSafCacheStatus()
+                        database.musicDao().resetNonSafCacheStatus()
                     } else {
-                        db.musicDao().resetAllCacheStatus()
+                        database.musicDao().resetAllCacheStatus()
                     }
                 }
             }
 
-            DownloadTracker.clearAll()
-            DownloadTracker.init(context)
+            downloadTracker.clearAll()
+            downloadTracker.init()
         }
     }
 

@@ -39,7 +39,6 @@ import de.lwp2070809.speculonic.R
 @Composable
 fun LibraryScreen(
     viewModel: LibraryViewModel,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
@@ -88,7 +87,11 @@ fun LibraryScreen(
                          uiState.artists.isEmpty() && 
                          uiState.playlists.isEmpty()
 
-    val showEmptyState = isLibraryEmpty && !uiState.isRefreshing && !uiState.isLoading && !uiState.isSyncing && uiState.isInitialLoadComplete
+    val showEmptyState = isLibraryEmpty &&
+        !uiState.isRefreshing &&
+        !uiState.isLoading &&
+        !uiState.isSyncing &&
+        uiState.isInitialLoadComplete
 
     Column(modifier = Modifier.fillMaxSize()) {
         PrimaryScrollableTabRow(
@@ -140,7 +143,9 @@ fun LibraryScreen(
                                 verticalArrangement = Arrangement.Center
                             ) {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_library_music),
+                                    painter = androidx.compose.ui.res.painterResource(
+                                        id = de.lwp2070809.speculonic.R.drawable.ic_symbol_library_music
+                                    ),
                                     contentDescription = null,
                                     modifier = Modifier.size(72.dp),
                                     tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
@@ -175,16 +180,15 @@ fun LibraryScreen(
                                         onPlaylistClick = onPlaylistClick,
                                         onCreatePlaylist = { viewModel.createPlaylist(it) },
                                         onDeletePlaylist = { viewModel.deletePlaylist(it) },
-                                        isOnline = isOnline,
                                         isEffectivelyOnline = isEffectivelyOnline,
                                         isInitialLoadComplete = uiState.isInitialLoadComplete
                                     )
                                     2 -> {
                                         AllSongsList(
                                             songsPaged = allSongsPaged,
-                                            isOnline = isOnline,
                                             isEffectivelyOnline = isEffectivelyOnline,
                                             isStreamingAllowed = isStreamingAllowed,
+                                            transcodeIncompatible = uiState.transcodeIncompatible,
                                             onStarClick = { songId, star -> viewModel.toggleStarSong(songId, star) }
                                         )
                                     }

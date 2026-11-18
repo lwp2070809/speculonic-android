@@ -40,7 +40,9 @@ class SubsonicServiceFactory(
             return service
         } catch (e: Exception) {
             LogManager.w(
-                "Failed to create SubsonicService with URL: ${LogManager.redactUrl(sanitizedUrl)}. Falling back to http://unconfigured.local/"
+                "Failed to create SubsonicService with URL: ${LogManager.redactUrl(sanitizedUrl)}. " +
+                    "Falling back to http://unconfigured.local/",
+                e
             )
         }
 

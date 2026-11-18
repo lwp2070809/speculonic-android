@@ -30,10 +30,16 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import java.util.concurrent.TimeUnit
+// Facade encapsulating sub-repositories while keeping ViewModels decoupled from sub-repo wiring
+@Suppress("TooManyFunctions")
 class SubsonicRepository(
     private val context: Context,
+    private val database: AppDatabase,
     private val musicDao: MusicDao,
-    private val preferencesManager: PreferencesManager
+    private val preferencesManager: PreferencesManager,
+    private val localLyricsProvider: de.lwp2070809.speculonic.util.LocalLyricsProvider,
+    private val cacheCleanupHelper: de.lwp2070809.speculonic.data.CacheCleanupHelper
 ) {
     private val observationScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val entityMapper = EntityMapper
@@ -142,7 +148,7 @@ class SubsonicRepository(
         val newApi = de.lwp2070809.speculonic.di.NetworkModule.provideSubsonicService(url)
         
         val cleanupCallback: suspend (List<de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget>) -> Unit = { targets ->
-            de.lwp2070809.speculonic.data.CacheCleanupHelper.purgeRemovedSongs(context, targets)
+            cacheCleanupHelper.purgeRemovedSongs(targets)
         }
         val newSyncManager = SyncManager(
             api = newApi,
@@ -152,12 +158,12 @@ class SubsonicRepository(
             entityMapper = entityMapper,
             onSongsRemoved = cleanupCallback,
             runInTransaction = { block ->
-                AppDatabase.getDatabase(context).withTransaction { block() }
+                database.withTransaction { block() }
             }
         )
         val newPlaylistRepository = PlaylistRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newUserActionRepository = UserActionRepository(newApi, musicDao, newAuthManager, entityMapper)
-        val newLyricsRepository = LyricsRepository(context, newApi, musicDao, newAuthManager)
+        val newLyricsRepository = LyricsRepository(newApi, musicDao, newAuthManager, localLyricsProvider)
         val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper, cleanupCallback)
         val newCoverArtSyncManager = CoverArtSyncManager(context, url, musicDao, newUrlBuilder)
 
@@ -218,11 +224,13 @@ class SubsonicRepository(
 
         val outcome = syncManager.syncAllData(
             serverCapabilities = serverCapabilities,
-            forceRefresh = forceRefresh,
-            ignoreLastModified = ignoreLastModified,
-            ignoreSafetyGuard = ignoreSafetyGuard,
-            hasLocalData = hasLocal,
-            keepSyncingState = keepSyncingState,
+            options = SyncOptions(
+                forceRefresh = forceRefresh,
+                ignoreLastModified = ignoreLastModified,
+                ignoreSafetyGuard = ignoreSafetyGuard,
+                hasLocalData = hasLocal,
+                keepSyncingState = keepSyncingState
+            ),
             onProgress = onProgress,
             onSyncComplete = { currentTime, serverLastModified ->
                 runCatching { getStarred(forceRefresh = true) }
@@ -275,13 +283,11 @@ class SubsonicRepository(
 
     fun buildCoverArtRequest(
         id: String?,
-        context: Context,
-        preferLocal: Boolean = false,
         size: Int? = null,
         crossfade: Boolean = true,
         fallbackUri: android.net.Uri? = null
     ): ImageRequest {
-        return coverArtSyncManager.buildCoverArtRequest(id, preferLocal, size, crossfade, fallbackUri)
+        return coverArtSyncManager.buildCoverArtRequest(id, size, crossfade, fallbackUri)
     }
 
     suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null) {
@@ -295,8 +301,11 @@ class SubsonicRepository(
         val hasLocal = hasLocalData()
         val lastPing = preferencesManager.getLastPingTimeSync()
         val now = System.currentTimeMillis()
-        val pingTTL = 12 * 60 * 60 * 1000L 
-        if (!force && hasLocal && (now - lastPing) < pingTTL && preferencesManager.getServerCapabilitiesSync() != null) {
+        val pingTtlMs = TimeUnit.HOURS.toMillis(PING_CACHE_TTL_HOURS)
+        val hasCachedCapabilities = hasLocal &&
+            (now - lastPing) < pingTtlMs &&
+            preferencesManager.getServerCapabilitiesSync() != null
+        if (!force && hasCachedCapabilities) {
             return true
         }
 
@@ -387,16 +396,20 @@ class SubsonicRepository(
         try {
             val playlists = getPlaylists(forceRefresh = true)
             playlists.forEach { playlist ->
-                try {
-                    getPlaylist(playlist.id, forceRefresh = true)
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    LogManager.w("Failed to preload playlist ${playlist.name} (${playlist.id}): ${e.message}")
-                }
+                preloadSinglePlaylist(playlist)
             }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("Failed to preload playlists and songs", e)
+        }
+    }
+
+    private suspend fun preloadSinglePlaylist(playlist: Playlist) {
+        try {
+            getPlaylist(playlist.id, forceRefresh = true)
+        } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
+            LogManager.w("Failed to preload playlist ${playlist.name} (${playlist.id}): ${e.message}")
         }
     }
 
@@ -559,7 +572,9 @@ class SubsonicRepository(
             val albumIds = albums.map { it.id }
             val missingSongAlbumIds = mediaRepository.getAlbumsWithoutSongs(albumIds)
             if (missingSongAlbumIds.isNotEmpty()) {
-                LogManager.i("SubsonicRepository: Found ${missingSongAlbumIds.size} newly added albums without songs, prefetching tracks...")
+                LogManager.i(
+                    "SubsonicRepository: Found ${missingSongAlbumIds.size} newly added albums without songs, prefetching tracks..."
+                )
                 coroutineScope {
                     val semaphore = Semaphore(3)
                     missingSongAlbumIds.map { albumId ->
@@ -625,4 +640,8 @@ class SubsonicRepository(
     }
 
     suspend fun search(query: String): SearchResult3 = mediaRepository.search(query)
+
+    companion object {
+        private const val PING_CACHE_TTL_HOURS = 12L
+    }
 }

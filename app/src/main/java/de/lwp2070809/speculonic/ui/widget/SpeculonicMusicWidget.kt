@@ -86,85 +86,88 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
                 context = context,
                 uriString = initialArtworkUri,
                 songId = initialSongId,
-                targetDp = 120
+                targetDp = COVER_PRELOAD_DP
             )
         }
 
         provideContent {
-            val currentPrefs = currentState<Preferences>()
-            val isTrackAvailable = currentPrefs[WidgetStateKeys.KEY_HAS_TRACK] ?: false
-            val title = currentPrefs[WidgetStateKeys.KEY_TITLE] ?: ""
-            val artist = currentPrefs[WidgetStateKeys.KEY_ARTIST] ?: ""
-            val album = currentPrefs[WidgetStateKeys.KEY_ALBUM] ?: ""
-            val isPlaying = (currentPrefs[WidgetStateKeys.KEY_IS_PLAYING] ?: false) && PlaybackService.isServiceActive
-            val currentSongId = currentPrefs[WidgetStateKeys.KEY_SONG_ID] ?: ""
-            val currentArtworkUri = currentPrefs[WidgetStateKeys.KEY_ARTWORK_URI] ?: ""
-            val backgroundAlpha = currentPrefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] ?: 0.85f
-            val size = LocalSize.current
+            WidgetGlanceBody(context = context)
+        }
+    }
 
-            // 阶段二：纯内存 O(1) 瞬时查询，未命中优雅展示音符占位图，杜绝 Compose 组合期间的阻塞 IO 与外部状态变异
-            val currentCoverBitmap = WidgetCoverLoader.getCoverFromCache(
-                songId = currentSongId,
-                uriString = currentArtworkUri
-            )
+    @Composable
+    private fun WidgetGlanceBody(context: Context) {
+        val currentPrefs = currentState<Preferences>()
+        val isTrackAvailable = currentPrefs[WidgetStateKeys.KEY_HAS_TRACK] ?: false
+        val title = currentPrefs[WidgetStateKeys.KEY_TITLE] ?: ""
+        val artist = currentPrefs[WidgetStateKeys.KEY_ARTIST] ?: ""
+        val album = currentPrefs[WidgetStateKeys.KEY_ALBUM] ?: ""
+        val isPlaying = (currentPrefs[WidgetStateKeys.KEY_IS_PLAYING] ?: false) && PlaybackService.isServiceActive
+        val currentSongId = currentPrefs[WidgetStateKeys.KEY_SONG_ID] ?: ""
+        val currentArtworkUri = currentPrefs[WidgetStateKeys.KEY_ARTWORK_URI] ?: ""
+        val backgroundAlpha = currentPrefs[WidgetStateKeys.KEY_BACKGROUND_ALPHA] ?: DEFAULT_BACKGROUND_ALPHA
+        val size = LocalSize.current
 
-            // 与配置预览页一致，使用系统动态 surfaceContainerHighest 并叠加用户设定的卡片透明度
-            val (daySurfaceHighest, nightSurfaceHighest) = remember(context) {
-                dynamicLightColorScheme(context).surfaceContainerHighest to
-                    dynamicDarkColorScheme(context).surfaceContainerHighest
+        // 阶段二：纯内存 O(1) 瞬时查询，未命中优雅展示音符占位图，杜绝 Compose 组合期间的阻塞 IO 与外部状态变异
+        val currentCoverBitmap = WidgetCoverLoader.getCoverFromCache(
+            songId = currentSongId,
+            uriString = currentArtworkUri
+        )
+
+        // 与配置预览页一致，使用系统动态 surfaceContainerHighest 并叠加用户设定的卡片透明度
+        val (daySurfaceHighest, nightSurfaceHighest) = remember(context) {
+            dynamicLightColorScheme(context).surfaceContainerHighest to
+                dynamicDarkColorScheme(context).surfaceContainerHighest
+        }
+        val containerColor = ColorProvider(
+            day = daySurfaceHighest.copy(alpha = backgroundAlpha),
+            night = nightSurfaceHighest.copy(alpha = backgroundAlpha)
+        )
+
+        val widgetColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            GlanceTheme.colors
+        } else {
+            SpeculonicWidgetGlanceColorScheme.colors
+        }
+
+        GlanceTheme(colors = widgetColors) {
+            // 遵循官方规范直接使用 actionStartActivity，杜绝经过广播 Trampoline 转发产生串线与延迟
+            val openIntent = Intent(context, MainActivity::class.java).apply {
+                action = if (isTrackAvailable) PlaybackService.ACTION_SHOW_PLAYER else Intent.ACTION_MAIN
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
             }
-            val containerColor = ColorProvider(
-                day = daySurfaceHighest.copy(alpha = backgroundAlpha),
-                night = nightSurfaceHighest.copy(alpha = backgroundAlpha)
-            )
+            val cardClickAction = actionStartActivity(openIntent)
 
-            val widgetColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                GlanceTheme.colors
-            } else {
-                SpeculonicWidgetGlanceColorScheme.colors
-            }
-
-            GlanceTheme(colors = widgetColors) {
-                // 遵循官方规范直接使用 actionStartActivity，杜绝经过广播 Trampoline 转发产生串线与延迟
-                val openIntent = Intent(context, MainActivity::class.java).apply {
-                    action = if (isTrackAvailable) PlaybackService.ACTION_SHOW_PLAYER else Intent.ACTION_MAIN
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
-                }
-                val cardClickAction = actionStartActivity(openIntent)
-
-                Box(
-                    modifier = GlanceModifier
-                        .fillMaxSize()
-                        .appWidgetBackground()
-                        .background(containerColor)
-                        .cornerRadius(16.dp)
-                        .clickable(cardClickAction)
-                        .padding(horizontal = 8.dp, vertical = 6.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (!isTrackAvailable) {
-                        EmptyWidgetContent(context, cardClickAction)
-                    } else {
-                        // 阈值以 270dp（约 4 格标准尺寸）为界限，在 1*3（标准模式）与 1*4（展开模式）之间自适应调节
-                        if (size.width < 270.dp) {
-                            StandardWidgetContent(
-                                optimizedCover = currentCoverBitmap,
-                                title = title,
-                                artist = artist,
-                                isPlaying = isPlaying,
-                                onCardClick = cardClickAction
-                            )
-                        } else {
-                            ExpandedWidgetContent(
-                                optimizedCover = currentCoverBitmap,
-                                title = title,
-                                artist = artist,
-                                album = album,
-                                isPlaying = isPlaying,
-                                onCardClick = cardClickAction
-                            )
-                        }
-                    }
+            Box(
+                modifier = GlanceModifier
+                    .fillMaxSize()
+                    .appWidgetBackground()
+                    .background(containerColor)
+                    .cornerRadius(16.dp)
+                    .clickable(cardClickAction)
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (!isTrackAvailable) {
+                    EmptyWidgetContent(context, cardClickAction)
+                } else if (size.width < EXPANDED_LAYOUT_MIN_WIDTH_DP.dp) {
+                    // 阈值以 270dp（约 4 格标准尺寸）为界限，在 1*3（标准模式）与 1*4（展开模式）之间自适应调节
+                    StandardWidgetContent(
+                        optimizedCover = currentCoverBitmap,
+                        title = title,
+                        artist = artist,
+                        isPlaying = isPlaying,
+                        onCardClick = cardClickAction
+                    )
+                } else {
+                    ExpandedWidgetContent(
+                        optimizedCover = currentCoverBitmap,
+                        title = title,
+                        artist = artist,
+                        album = album,
+                        isPlaying = isPlaying,
+                        onCardClick = cardClickAction
+                    )
                 }
             }
         }
@@ -460,6 +463,10 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
     }
 
     companion object {
+        private const val COVER_PRELOAD_DP = 120
+        private const val DEFAULT_BACKGROUND_ALPHA = 0.85f
+        private const val EXPANDED_LAYOUT_MIN_WIDTH_DP = 270
+
         val RESPONSIVE_BUCKETS = setOf(
             DpSize(180.dp, 56.dp), // 1*3 标准模式
             DpSize(270.dp, 56.dp)  // 1*4 展开模式

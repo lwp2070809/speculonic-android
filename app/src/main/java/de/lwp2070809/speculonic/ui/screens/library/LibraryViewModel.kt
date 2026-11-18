@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import androidx.paging.PagingData
 import androidx.paging.cachedIn
 import dagger.hilt.android.lifecycle.HiltViewModel
+import de.lwp2070809.speculonic.data.DownloadTracker
+import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
@@ -24,9 +26,6 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
-import android.content.Context
-import dagger.hilt.android.qualifiers.ApplicationContext
-
 data class LibraryUiState(
     val isRefreshing: Boolean = false,
     val isLoading: Boolean = false,
@@ -38,16 +37,22 @@ data class LibraryUiState(
     val playlists: List<Playlist> = emptyList(),
     val favorites: List<Song> = emptyList(),
     val selectedTabIndex: Int = 0,
+    val transcodeIncompatible: Boolean = false,
+    val activeDownloads: Set<String> = emptySet(),
+    val downloadedIds: Set<String> = emptySet(),
     val error: String? = null
 )
 
 @HiltViewModel
 class LibraryViewModel @Inject constructor(
-    @ApplicationContext private val context: Context,
-    private val repository: SubsonicRepository
+    private val repository: SubsonicRepository,
+    preferencesManager: PreferencesManager,
+    downloadTracker: DownloadTracker
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(LibraryUiState())
+    private val _uiState = MutableStateFlow(
+        LibraryUiState(transcodeIncompatible = preferencesManager.getCachedTranscodeIncompatibleFormats())
+    )
     
     val allSongsPaged: Flow<PagingData<Song>> = repository.getAllSongsPaged().cachedIn(viewModelScope)
     
@@ -59,7 +64,10 @@ class LibraryViewModel @Inject constructor(
         repository.getAllAlbumsFlow().debounceExceptFirst(500),
         repository.getArtistsFlow().debounceExceptFirst(500),
         repository.getStarredFlow(),
-        repository.getPlaylistsFlow()
+        repository.getPlaylistsFlow(),
+        preferencesManager.transcodeIncompatibleFormats,
+        downloadTracker.activeDownloadIds,
+        downloadTracker.downloadedSongIds
     ) { args: Array<Any?> ->
         val state = args[0] as LibraryUiState
         @Suppress("UNCHECKED_CAST")
@@ -70,12 +78,17 @@ class LibraryViewModel @Inject constructor(
             artists = args[4] as List<Artist>,
             favorites = args[5] as List<Song>,
             playlists = args[6] as List<Playlist>,
+            transcodeIncompatible = args[7] as Boolean,
+            activeDownloads = args[8] as Set<String>,
+            downloadedIds = args[9] as Set<String>,
             isInitialLoadComplete = true
         )
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
-        initialValue = LibraryUiState()
+        initialValue = LibraryUiState(
+            transcodeIncompatible = preferencesManager.getCachedTranscodeIncompatibleFormats()
+        )
     )
 
     init {

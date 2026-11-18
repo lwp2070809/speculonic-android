@@ -1,8 +1,6 @@
 package de.lwp2070809.speculonic.data.db
 
-import android.content.Context
 import androidx.room.Database
-import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
@@ -34,9 +32,6 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun musicDao(): MusicDao
 
     companion object {
-        @Volatile
-        private var INSTANCE: AppDatabase? = null
-
         
         
         val MIGRATION_14_15 = object : Migration(14, 15) {
@@ -60,7 +55,10 @@ abstract class AppDatabase : RoomDatabase() {
                 
                 db.execSQL("ALTER TABLE playlist_song_cross_ref_new RENAME TO playlist_song_cross_ref")
                 
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_song_cross_ref_playlistId_songId_order ON playlist_song_cross_ref (playlistId, songId, `order`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_playlist_song_cross_ref_playlistId_songId_order " +
+                        "ON playlist_song_cross_ref (playlistId, songId, `order`)"
+                )
             }
         }
 
@@ -129,12 +127,16 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
                 
                 db.execSQL("ALTER TABLE playlist_song_cross_ref_new RENAME TO playlist_song_cross_ref")
                 
-                db.execSQL("CREATE INDEX IF NOT EXISTS index_playlist_song_cross_ref_playlistId_songId_order ON playlist_song_cross_ref (playlistId, songId, `order`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS index_playlist_song_cross_ref_playlistId_songId_order " +
+                        "ON playlist_song_cross_ref (playlistId, songId, `order`)"
+                )
             }
         }
 
         val MIGRATION_21_22 = object : Migration(21, 22) {
             override fun migrate(db: SupportSQLiteDatabase) {
+                // Schema-only version bump; no DDL changes required.
             }
         }
 
@@ -153,7 +155,10 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
         val MIGRATION_24_25 = object : Migration(24, 25) {
             override fun migrate(db: SupportSQLiteDatabase) {
                 db.execSQL("ALTER TABLE songs ADD COLUMN discNumber INTEGER DEFAULT NULL")
-                db.execSQL("CREATE INDEX IF NOT EXISTS `index_songs_albumId_discNumber_track` ON `songs` (`albumId`, `discNumber`, `track`)")
+                db.execSQL(
+                    "CREATE INDEX IF NOT EXISTS `index_songs_albumId_discNumber_track` " +
+                        "ON `songs` (`albumId`, `discNumber`, `track`)"
+                )
                 db.execSQL("ALTER TABLE albums ADD COLUMN discTitlesJson TEXT DEFAULT NULL")
             }
         }
@@ -247,21 +252,6 @@ val MIGRATION_19_20 = object : Migration(19, 20) {
             MIGRATION_25_26,
             MIGRATION_26_27
         )
-
-fun getDatabase(context: Context): AppDatabase {
-            return INSTANCE ?: synchronized(this) {
-                val instance = Room.databaseBuilder(
-                    context.applicationContext,
-                    AppDatabase::class.java,
-                    "speculonic_database"
-                )
-                    .addMigrations(*ALL_MIGRATIONS)
-                    .fallbackToDestructiveMigration(dropAllTables = true)
-                    .build()
-                INSTANCE = instance
-                instance
-            }
-        }
     }
 }
 

@@ -13,8 +13,7 @@ import de.lwp2070809.speculonic.playback.PlaybackController
 @Composable
 fun PlaybackQueuePane(
     playbackController: PlaybackController,
-    modifier: Modifier = Modifier,
-    onBackClick: () -> Unit = {}
+    modifier: Modifier = Modifier
 ) {
     val playbackState by playbackController.playbackState.collectAsState()
 

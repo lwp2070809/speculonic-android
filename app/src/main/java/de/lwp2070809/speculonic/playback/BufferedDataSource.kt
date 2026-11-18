@@ -12,7 +12,7 @@ import kotlin.math.min
 @OptIn(UnstableApi::class)
 class BufferedDataSource(
     private val upstream: DataSource,
-    private val bufferSize: Int = 512 * 1024
+    private val bufferSize: Int = DEFAULT_BUFFER_SIZE_BYTES
 ) : DataSource {
 
     // 按需在 open 时分配、close 时置空释放，避免双源兜底壳在未触发分支闲置占用 1MB 堆内存
@@ -72,5 +72,9 @@ class BufferedDataSource(
             bufferLimit = 0
             buffer = null
         }
+    }
+
+    private companion object {
+        const val DEFAULT_BUFFER_SIZE_BYTES = 512 * 1024
     }
 }

@@ -64,7 +64,6 @@ import kotlinx.coroutines.launch
 fun LyricsView(
     lyricsLines: List<LyricLine>,
     rawLyrics: String?,
-    isPlaying: Boolean,
     isLoading: Boolean,
     onSeek: (Long) -> Unit,
     modifier: Modifier = Modifier,
@@ -84,7 +83,8 @@ fun LyricsView(
 
     val flowPositionState = currentPositionFlow?.collectAsStateWithLifecycle()
     val isStaticPosition = currentPositionFlow == null && currentPositionProvider == null
-    val currentLineIndex by remember(lyricsLines, currentPositionFlow, currentPositionProvider, if (isStaticPosition) currentPosition else Unit) {
+    val positionKey = if (isStaticPosition) currentPosition else Unit
+    val currentLineIndex by remember(lyricsLines, currentPositionFlow, currentPositionProvider, positionKey) {
         derivedStateOf {
             val pos = currentPositionProvider?.invoke() ?: (flowPositionState?.value ?: currentPosition)
             if (lyricsLines.isEmpty()) {
@@ -198,7 +198,11 @@ fun LyricsView(
                     val isHighlighted = if (isSeekingMode) index == centerItemIndex else index == currentLineIndex
                     
                     val color by animateColorAsState(
-                        targetValue = if (isHighlighted) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                        targetValue = if (isHighlighted) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        },
                         label = "LyricColor"
                     )
                     

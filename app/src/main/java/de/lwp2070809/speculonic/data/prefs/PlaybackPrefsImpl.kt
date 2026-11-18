@@ -30,7 +30,20 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         private val SYNC_PLAYBACK_STATE = booleanPreferencesKey("sync_playback_state")
         private val TRANSCODE_INCOMPATIBLE_FORMATS = booleanPreferencesKey("transcode_incompatible_formats")
         private val TARGET_TRANSCODE_FORMAT = stringPreferencesKey("target_transcode_format")
+        private const val SYNC_PREFS_NAME = "speculonic_playback_sync_prefs"
+        private const val KEY_TRANSCODE_INCOMPATIBLE = "transcode_incompatible_formats"
     }
+
+    private val syncPrefs by lazy {
+        context.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+    }
+
+    private val cachedTranscodeIncompatible = java.util.concurrent.atomic.AtomicBoolean(
+        context.getSharedPreferences(SYNC_PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_TRANSCODE_INCOMPATIBLE, false)
+    )
+
+    override fun getCachedTranscodeIncompatibleFormats(): Boolean = cachedTranscodeIncompatible.get()
 
     override val mobilePlayAllowed: Flow<Boolean> = context.dataStore.data.map { it[MOBILE_PLAY_ALLOWED] ?: true }.distinctUntilChanged()
     override val lastSongId: Flow<String?> = context.dataStore.data.map { it[LAST_SONG_ID] }.distinctUntilChanged()
@@ -79,7 +92,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     }
 
     override val lastSleepTimerMinutes: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_MINUTES] ?: 30 }.distinctUntilChanged()
-    override val lastSleepTimerSongCount: Flow<Int> = context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }.distinctUntilChanged()
+    override val lastSleepTimerSongCount: Flow<Int> =
+        context.dataStore.data.map { it[LAST_SLEEP_TIMER_SONG_COUNT] ?: 10 }.distinctUntilChanged()
 
     override suspend fun saveLastSleepTimerMinutes(minutes: Int) {
         context.dataStore.edit { preferences ->
@@ -95,11 +109,20 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
 
     override val skipSilenceEnabled: Flow<Boolean> = context.dataStore.data.map { it[SKIP_SILENCE_ENABLED] ?: false }.distinctUntilChanged()
     override val pauseOnVolumeZero: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_VOLUME_ZERO] ?: false }.distinctUntilChanged()
-    override val duckOnTransientFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }.distinctUntilChanged()
-    override val pauseOnAudioFocusLoss: Flow<Boolean> = context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }.distinctUntilChanged()
+    override val duckOnTransientFocusLoss: Flow<Boolean> =
+        context.dataStore.data.map { it[DUCK_ON_TRANSIENT_FOCUS_LOSS] ?: true }.distinctUntilChanged()
+    override val pauseOnAudioFocusLoss: Flow<Boolean> =
+        context.dataStore.data.map { it[PAUSE_ON_AUDIO_FOCUS_LOSS] ?: true }.distinctUntilChanged()
     override val syncPlaybackState: Flow<Boolean> = context.dataStore.data.map { it[SYNC_PLAYBACK_STATE] ?: false }.distinctUntilChanged()
-    override val transcodeIncompatibleFormats: Flow<Boolean> = context.dataStore.data.map { it[TRANSCODE_INCOMPATIBLE_FORMATS] ?: false }.distinctUntilChanged()
-    override val targetTranscodeFormat: Flow<String> = context.dataStore.data.map { it[TARGET_TRANSCODE_FORMAT] ?: "mp3" }.distinctUntilChanged()
+    override val transcodeIncompatibleFormats: Flow<Boolean> = context.dataStore.data.map {
+        val enabled = it[TRANSCODE_INCOMPATIBLE_FORMATS] ?: false
+        if (cachedTranscodeIncompatible.getAndSet(enabled) != enabled) {
+            syncPrefs.edit().putBoolean(KEY_TRANSCODE_INCOMPATIBLE, enabled).apply()
+        }
+        enabled
+    }.distinctUntilChanged()
+    override val targetTranscodeFormat: Flow<String> =
+        context.dataStore.data.map { it[TARGET_TRANSCODE_FORMAT] ?: "mp3" }.distinctUntilChanged()
 
     override suspend fun saveSkipSilenceEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
@@ -132,6 +155,8 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
     }
 
     override suspend fun saveTranscodeIncompatibleFormats(enabled: Boolean) {
+        cachedTranscodeIncompatible.set(enabled)
+        syncPrefs.edit().putBoolean(KEY_TRANSCODE_INCOMPATIBLE, enabled).apply()
         context.dataStore.edit { preferences ->
             preferences[TRANSCODE_INCOMPATIBLE_FORMATS] = enabled
         }

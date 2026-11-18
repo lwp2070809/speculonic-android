@@ -37,11 +37,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,7 +54,6 @@ import coil3.compose.AsyncImage
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.ui.components.SongListItem
 import de.lwp2070809.speculonic.ui.composition.LocalCoverArtRequester
 import de.lwp2070809.speculonic.ui.composition.LocalDownloadController
@@ -68,7 +65,6 @@ import kotlinx.coroutines.launch
 @Composable
 fun SearchScreen(
     viewModel: SearchViewModel,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
@@ -79,14 +75,12 @@ fun SearchScreen(
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
     val playbackController = LocalPlaybackController.current
-    val playbackStateState = playbackController.playbackState.collectAsState()
+    val playbackStateState = playbackController.playbackState.collectAsStateWithLifecycle()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
 
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
-    
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val transcodeIncompatible = uiState.transcodeIncompatible
     
     var searchBackProgress by remember { mutableFloatStateOf(0f) }
     androidx.activity.compose.PredictiveBackHandler(enabled = backHandlerEnabled) { progressFlow ->
@@ -95,13 +89,10 @@ fun SearchScreen(
                 searchBackProgress = event.progress
             }
             onClose()
-        } catch (e: kotlinx.coroutines.CancellationException) {
         } finally {
             searchBackProgress = 0f
         }
     }
-
-    val uiState by viewModel.uiState.collectAsState()
 
     LaunchedEffect(uiState.error) {
         val error = uiState.error
@@ -152,7 +143,10 @@ fun SearchScreen(
         }
 
         Box(modifier = Modifier.fillMaxSize()) {
-            if (!isEffectivelyOnline && uiState.results.song.isEmpty() && uiState.results.album.isEmpty() && uiState.results.artist.isEmpty()) {
+            val hasNoResults = uiState.results.song.isEmpty() &&
+                uiState.results.album.isEmpty() &&
+                uiState.results.artist.isEmpty()
+            if (!isEffectivelyOnline && hasNoResults) {
                 Column(
                     modifier = Modifier.align(Alignment.Center),
                     horizontalAlignment = Alignment.CenterHorizontally
@@ -224,12 +218,16 @@ fun SearchScreen(
                             SongListItem(
                                 song = song,
                                 isCurrent = song.id == currentSongId,
-                                isOnline = isOnline,
                                 isEffectivelyOnline = isEffectivelyOnline,
                                 isStreamingAllowed = isStreamingAllowed,
                                 transcodeIncompatible = transcodeIncompatible,
                                 onClick = {
-                                    val playableSongs = uiState.results.song.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                    val playableSongs = uiState.results.song.filter {
+                                        de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                                            it,
+                                            transcodeIncompatible
+                                        )
+                                    }
                                     val targetIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
 
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }

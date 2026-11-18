@@ -28,12 +28,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -42,30 +41,15 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.components.TopBarState
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
 
 @Composable
-fun BluetoothSettings(viewModel: SettingsViewModel, topBarState: TopBarState) {
-    val uiState by viewModel.uiState.collectAsState()
+fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarState) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val title = stringResource(R.string.bluetooth_audio)
     var showBluetoothNamesDialog by rememberSaveable { mutableStateOf(false) }
 
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
     
     val context = androidx.compose.ui.platform.LocalContext.current
     val activity = context as? androidx.activity.ComponentActivity

@@ -121,28 +121,33 @@ object MediaFormatUtils {
         return transcodeIncompatible
     }
 
+    private val EXTENSION_MIME_TYPES = mapOf(
+        "flac" to "audio/flac",
+        "opus" to "audio/opus",
+        "m4a" to "audio/mp4",
+        "aac" to "audio/mp4",
+        "alac" to "audio/mp4",
+        "ogg" to "audio/ogg",
+        "oga" to "audio/ogg",
+        "wav" to "audio/wav",
+        "aiff" to "audio/x-aiff",
+        "dsf" to "audio/x-dsf",
+        "ape" to "audio/x-ape",
+        "wv" to "audio/x-wavpack",
+        "wma" to "audio/x-ms-wma",
+        "mpc" to "audio/x-musepack",
+        "amr" to "audio/amr",
+        "awb" to "audio/amr-wb",
+        "webm" to "audio/webm",
+        "mka" to "audio/x-matroska",
+        "mp3" to "audio/mpeg"
+    )
+
     /**
      * 根据音频扩展名获取标准 MIME 类型
      */
     fun getMimeTypeFromExtension(extension: String?): String {
-        return when (extension?.trim()?.lowercase(Locale.getDefault())?.removePrefix(".")) {
-            "flac" -> "audio/flac"
-            "opus" -> "audio/opus"
-            "m4a", "aac", "alac" -> "audio/mp4"
-            "ogg", "oga" -> "audio/ogg"
-            "wav" -> "audio/wav"
-            "aiff" -> "audio/x-aiff"
-            "dsf" -> "audio/x-dsf"
-            "ape" -> "audio/x-ape"
-            "wv" -> "audio/x-wavpack"
-            "wma" -> "audio/x-ms-wma"
-            "mpc" -> "audio/x-musepack"
-            "amr" -> "audio/amr"
-            "awb" -> "audio/amr-wb"
-            "webm" -> "audio/webm"
-            "mka" -> "audio/x-matroska"
-            "mp3" -> "audio/mpeg"
-            else -> "audio/mpeg"
-        }
+        val normalized = extension?.trim()?.lowercase(Locale.getDefault())?.removePrefix(".")
+        return EXTENSION_MIME_TYPES[normalized] ?: "audio/mpeg"
     }
 }

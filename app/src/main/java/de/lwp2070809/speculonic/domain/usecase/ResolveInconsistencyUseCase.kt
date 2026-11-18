@@ -16,70 +16,54 @@ import javax.inject.Inject
 class ResolveInconsistencyUseCase @Inject constructor(
     @ApplicationContext private val context: Context,
     private val musicDao: de.lwp2070809.speculonic.data.db.dao.MusicDao,
-    private val downloadController: de.lwp2070809.speculonic.playback.DownloadController
+    private val downloadController: DownloadController
 ) {
-    suspend operator fun invoke(item: InconsistentItem, action: Action): Result<Unit> = withContext(Dispatchers.IO) {
+    suspend operator fun invoke(item: InconsistentItem, action: Action): Result<Unit> =
+        withContext(Dispatchers.IO) {
+            try {
+                when (action) {
+                    Action.DELETE -> resolveDelete(item)
+                    Action.REDOWNLOAD -> resolveRedownload(item)
+                }
+                Result.success(Unit)
+            } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
+                LogManager.e("ResolveInconsistencyUseCase: Failed to resolve item", e)
+                Result.failure(e)
+            }
+        }
+
+    private suspend fun resolveDelete(item: InconsistentItem) {
+        if (item.type == InconsistentItem.Type.ORPHANED_FILE) {
+            deletePhysicalFileSafely(item.localUri, "Failed to delete orphaned file")
+            return
+        }
+        item.dbSong?.let { song ->
+            musicDao.updateSongCacheStatus(song.id, null, false)
+            deletePhysicalFileSafely(item.localUri, "Failed to delete DB song file")
+        }
+    }
+
+    private suspend fun resolveRedownload(item: InconsistentItem) {
+        val song = item.dbSong ?: return
+        musicDao.updateSongCacheStatus(song.id, null, false)
+        deletePhysicalFileSafely(item.localUri, "Failed to delete DB song file before redownload")
+        downloadController.downloadSong(EntityMapper.toSong(song), isSilent = false)
+    }
+
+    private fun deletePhysicalFileSafely(uriString: String?, errorMessage: String) {
+        if (uriString == null) return
         try {
-
-            val deletePhysicalFile: (String) -> Boolean = { uriString ->
-                try {
-                    val uri = uriString.toUri()
-                    if (uri.scheme == "file") {
-                        val path = uri.path
-                        path != null && java.io.File(path).delete()
-                    } else {
-                        androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)?.delete() == true
-                    }
-                } catch (e: Exception) {
-                    if (e is kotlinx.coroutines.CancellationException) throw e
-                    LogManager.e("ResolveInconsistencyUseCase: Failed to delete physical file: $uriString", e)
-                    false
-                }
+            val uri = uriString.toUri()
+            if (uri.scheme == "file") {
+                val path = uri.path
+                if (path != null) java.io.File(path).delete()
+            } else {
+                androidx.documentfile.provider.DocumentFile.fromSingleUri(context, uri)?.delete()
             }
-
-            when (action) {
-                Action.DELETE -> {
-                    if (item.type == InconsistentItem.Type.ORPHANED_FILE) {
-                        try {
-                            item.localUri?.let { uri ->
-                                deletePhysicalFile(uri)
-                            }
-                        } catch (e: Exception) { LogManager.e("ResolveInconsistencyUseCase: Failed to delete orphaned file", e) }
-                    } else {
-                        item.dbSong?.let { song ->
-                            musicDao.updateSongCacheStatus(song.id, null, false)
-                            try {
-                                item.localUri?.let { uri ->
-                                    deletePhysicalFile(uri)
-                                }
-                            } catch (e: Exception) {
-                                LogManager.w("ResolveInconsistencyUseCase: Failed to delete DB song file", e)
-                            }
-                        }
-                    }
-                }
-                Action.REDOWNLOAD -> {
-                    item.dbSong?.let { song ->
-                        musicDao.updateSongCacheStatus(song.id, null, false)
-                        try {
-                            item.localUri?.let { uri ->
-                                deletePhysicalFile(uri)
-                            }
-                        } catch (e: Exception) {
-                            LogManager.w("ResolveInconsistencyUseCase: Failed to delete DB song file before redownload", e)
-                        }
-
-
-                        val songModel = EntityMapper.toSong(song)
-                        downloadController.downloadSong(songModel, isSilent = false)
-                    }
-                }
-            }
-            Result.success(Unit)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            LogManager.e("ResolveInconsistencyUseCase: Failed to resolve item", e)
-            Result.failure(e)
+            LogManager.w("ResolveInconsistencyUseCase: $errorMessage ($uriString)", e)
         }
     }
 

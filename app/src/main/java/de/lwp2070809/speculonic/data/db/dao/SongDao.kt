@@ -39,12 +39,12 @@ interface SongDao {
     suspend fun getSongIdsByAlbum(albumId: String): List<String>
 
     @Query("DELETE FROM songs WHERE id IN (:ids)")
-    suspend fun _deleteSongsByIds(ids: List<String>)
+    suspend fun deleteSongsByIdsBatch(ids: List<String>)
 
     @Transaction
     suspend fun deleteSongsByIds(ids: List<String>) {
         if (ids.isEmpty()) return
-        ids.chunked(900).forEach { _deleteSongsByIds(it) }
+        ids.chunked(SQLITE_IN_CHUNK_SIZE).forEach { deleteSongsByIdsBatch(it) }
     }
 
     @Query("SELECT id, localUri FROM songs WHERE albumId = :albumId")
@@ -120,12 +120,12 @@ interface SongDao {
     suspend fun getStarredSongIds(): List<String>
 
     @Query("UPDATE songs SET starred = 0 WHERE id IN (:ids)")
-    suspend fun _unstarSongsByIds(ids: List<String>)
+    suspend fun unstarSongsByIdsBatch(ids: List<String>)
 
     @Transaction
     suspend fun unstarSongsByIds(ids: List<String>) {
         if (ids.isEmpty()) return
-        ids.chunked(900).forEach { _unstarSongsByIds(it) }
+        ids.chunked(SQLITE_IN_CHUNK_SIZE).forEach { unstarSongsByIdsBatch(it) }
     }
 
     @Transaction
@@ -184,11 +184,11 @@ interface SongDao {
     suspend fun getSongByTitleAndArtist(title: String, artist: String): SongEntity?
 
     @Query("SELECT * FROM songs WHERE id IN (:ids)")
-    suspend fun _getSongsByIds(ids: List<String>): List<SongEntity>
+    suspend fun getSongsByIdsBatch(ids: List<String>): List<SongEntity>
 
     suspend fun getSongsByIds(ids: List<String>): List<SongEntity> {
         if (ids.isEmpty()) return emptyList()
-        return ids.chunked(900).flatMap { _getSongsByIds(it) }
+        return ids.chunked(SQLITE_IN_CHUNK_SIZE).flatMap { getSongsByIdsBatch(it) }
     }
 
     @Query("SELECT * FROM songs WHERE id = :songId")

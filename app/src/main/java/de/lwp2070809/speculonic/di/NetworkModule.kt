@@ -58,6 +58,7 @@ interface RepositoryEntryPoint {
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
     private const val DEFAULT_TIMEOUT = 30L
+    private const val ERROR_BODY_PREVIEW_LENGTH = 200
 
     // 向后兼容旧引用
     val ServerReachableManager = NetworkServerReachableManager
@@ -77,6 +78,7 @@ object NetworkModule {
         val app = try {
             SpeculonicApp.instance
         } catch (e: Exception) {
+            LogManager.w("NetworkModule: Failed to acquire SpeculonicApp instance", e)
             null
         } ?: return
 
@@ -262,9 +264,9 @@ object NetworkModule {
                 return matchXml.groupValues[1]
             }
         } catch (e: Exception) {
-            // Ignore
+            LogManager.w("NetworkModule: Failed to parse error message from response body", e)
         }
-        return body.take(200)
+        return body.take(ERROR_BODY_PREVIEW_LENGTH)
     }
 
     @Provides

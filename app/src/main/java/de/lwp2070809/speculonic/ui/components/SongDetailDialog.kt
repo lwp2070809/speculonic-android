@@ -84,7 +84,9 @@ fun SongDetailDialog(
     }
 
     LaunchedEffect(song.id, pagerState.currentPage) {
-        if (pagerState.currentPage == 2 && (uiState.songId != song.id || (uiState.remoteSong == null && !uiState.remoteLoading))) {
+        val shouldFetchRemote = uiState.songId != song.id ||
+            (uiState.remoteSong == null && !uiState.remoteLoading)
+        if (pagerState.currentPage == 2 && shouldFetchRemote) {
             viewModel.fetchRemoteSong(song.id, failedToFetchRemoteMsg)
         }
     }

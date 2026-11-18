@@ -42,9 +42,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun AllSongsList(
     songsPaged: LazyPagingItems<Song>,
-    isOnline: Boolean,
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
+    transcodeIncompatible: Boolean,
     onStarClick: (String, Boolean) -> Unit = { _, _ -> }
 ) {
     val mediaItemConverter = LocalMediaItemConverter.current
@@ -53,12 +53,9 @@ fun AllSongsList(
     val playbackStateState = playbackController.playbackState.collectAsState()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
  
-    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val allSongsTitle = stringResource(R.string.all_songs)
 
-    val preferencesManager = remember { de.lwp2070809.speculonic.data.PreferencesManager.getInstance(context) }
-    val transcodeIncompatible by preferencesManager.transcodeIncompatibleFormats.collectAsStateWithLifecycle(initialValue = false)
     val isDualPane = de.lwp2070809.speculonic.ui.composition.LocalIsDualPane.current
     val navigator = de.lwp2070809.speculonic.ui.composition.LocalNavigator.current
     val songStrings = rememberSongListItemStrings()
@@ -81,7 +78,6 @@ fun AllSongsList(
                     SongListItem(
                         song = song,
                         isCurrent = song.id == currentSongId,
-                        isOnline = isOnline,
                         isEffectivelyOnline = isEffectivelyOnline,
                         isStreamingAllowed = isStreamingAllowed,
                         transcodeIncompatible = transcodeIncompatible,
@@ -99,7 +95,12 @@ fun AllSongsList(
                                 }
                                 val windowEnd = minOf(windowStart + windowSize, totalCount)
                                 val windowSongs = (windowStart until windowEnd).mapNotNull { songsPaged.peek(it) }
-                                val playableSongs = windowSongs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+                                val playableSongs = windowSongs.filter {
+                                    de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                                        it,
+                                        transcodeIncompatible
+                                    )
+                                }
                                 val targetSong = songsPaged.peek(index)
                                 val startIndex = playableSongs.indexOfFirst { it.id == targetSong?.id }.coerceAtLeast(0)
 

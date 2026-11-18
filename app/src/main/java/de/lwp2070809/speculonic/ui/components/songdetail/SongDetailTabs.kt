@@ -88,7 +88,11 @@ fun LocalDbTab(
         DetailItem(stringResource(R.string.physical_path), displayUri)
         DetailItem(
             stringResource(R.string.sha_1),
-            sha1 ?: if (songEntity.localUri != null) stringResource(R.string.calculating) else stringResource(R.string.not_available_not_cached)
+            sha1 ?: if (songEntity.localUri != null) {
+                stringResource(R.string.calculating)
+            } else {
+                stringResource(R.string.not_available_not_cached)
+            }
         )
     }
 }
@@ -196,8 +200,16 @@ fun RemoteTab(
                                 .background(MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f))
                                 .padding(4.dp)
                         ) {
-                            Text(stringResource(R.string.local_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onErrorContainer)
-                            Text(diff.localValue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onErrorContainer)
+                            Text(
+                                stringResource(R.string.local_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Text(
+                                diff.localValue,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
                         Column(
@@ -206,8 +218,16 @@ fun RemoteTab(
                                 .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
                                 .padding(4.dp)
                         ) {
-                            Text(stringResource(R.string.remote_label), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
-                            Text(diff.remoteValue, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onPrimaryContainer)
+                            Text(
+                                stringResource(R.string.remote_label),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                            Text(
+                                diff.remoteValue,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         }
                     }
                 }

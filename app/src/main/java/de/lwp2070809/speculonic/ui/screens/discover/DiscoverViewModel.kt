@@ -40,6 +40,7 @@ data class DiscoverUiState(
     val recentlyAdded: List<Album> = emptyList(),
     val randomAlbums: List<Album> = emptyList(),
     val mostPlayed: List<Album> = emptyList(),
+    val transcodeIncompatible: Boolean = false,
     val errorMessage: String? = null,
     @androidx.annotation.StringRes val errorResId: Int? = null
 )
@@ -63,12 +64,17 @@ class DiscoverViewModel @Inject constructor(
 ) : ViewModel() {
 
     private var loadDataJob: Job? = null
-    private val _uiState = MutableStateFlow(DiscoverUiState())
+    private val _uiState = MutableStateFlow(
+        DiscoverUiState(transcodeIncompatible = preferencesManager.getCachedTranscodeIncompatibleFormats())
+    )
     val uiState: StateFlow<DiscoverUiState> = _uiState.asStateFlow()
 
-
-
     init {
+        viewModelScope.launch {
+            preferencesManager.transcodeIncompatibleFormats.collectLatest { enabled ->
+                _uiState.update { it.copy(transcodeIncompatible = enabled) }
+            }
+        }
         // 进入启动首页时静默触发服务端连接探测与拓展能力发现
         viewModelScope.launch {
             try {
@@ -92,7 +98,10 @@ class DiscoverViewModel @Inject constructor(
                 if (url.isNotBlank() && !url.contains("unconfigured")) {
                     val hasData = repository.hasLocalData()
                     if (!hasData && (!isFirst || !_uiState.value.isLoading)) {
-                        LogManager.i("DiscoverViewModel: Server configuration detected ready for the first time - triggering initial full sync to light up home page!")
+                        LogManager.i(
+                            "DiscoverViewModel: Server configuration detected ready for the first time - " +
+                                "triggering initial full sync to light up home page!"
+                        )
                         loadData()
                     }
                 }
@@ -131,7 +140,7 @@ class DiscoverViewModel @Inject constructor(
                     isFirst = false
                     0L
                 } else {
-                    150L
+                    FLOW_DEBOUNCE_MS
                 }
             }
             .collectLatest { data ->
@@ -144,13 +153,13 @@ class DiscoverViewModel @Inject constructor(
 
                 _uiState.update { state ->
                     state.copy(
-                        favoriteSongs = data.starredSongs.take(10),
+                        favoriteSongs = data.starredSongs.take(FAVORITE_PREVIEW_LIMIT),
                         pinnedPlaylists = data.pinnedPlaylists,
-                        favoriteAlbums = data.starredAlbums.take(10),
+                        favoriteAlbums = data.starredAlbums.take(FAVORITE_PREVIEW_LIMIT),
                         allFavoriteAlbums = data.starredAlbums,
-                        recentlyAdded = data.newest.take(20),
-                        mostPlayed = data.frequent.take(20),
-                        randomAlbums = data.random.take(20),
+                        recentlyAdded = data.newest.take(NEWEST_WINDOW_SIZE),
+                        mostPlayed = data.frequent.take(NEWEST_WINDOW_SIZE),
+                        randomAlbums = data.random.take(NEWEST_WINDOW_SIZE),
                         isInitialLoadComplete = state.isInitialLoadComplete || hasAnyData
                     )
                 }
@@ -183,23 +192,15 @@ class DiscoverViewModel @Inject constructor(
             try {
                 supervisorScope {
                     // 1. 核心任务：最新专辑（含曲目补全）与收藏数据
-                    val newestDeferred = async { repository.refreshNewestAlbumsAndSyncSongs(windowSize = 20) }
+                    val newestDeferred = async { repository.refreshNewestAlbumsAndSyncSongs(windowSize = NEWEST_WINDOW_SIZE) }
                     val starredDeferred = async { repository.refreshStarredData(forceRefresh = true) }
 
                     // 2. 辅助推荐任务：最常播放与随机推荐（容错保护，避免影响核心数据）
                     val frequentDeferred = async {
-                        runCatching { repository.getAlbumList("frequent", forceRefresh = true) }
-                            .onFailure {
-                                if (it is kotlinx.coroutines.CancellationException) throw it
-                                LogManager.w("DiscoverViewModel: Failed to refresh frequent albums: ${it.message}")
-                            }
+                        runOptionalRefresh("frequent") { repository.getAlbumList("frequent", forceRefresh = true) }
                     }
                     val randomDeferred = async {
-                        runCatching { repository.getAlbumList("random", forceRefresh = true) }
-                            .onFailure {
-                                if (it is kotlinx.coroutines.CancellationException) throw it
-                                LogManager.w("DiscoverViewModel: Failed to refresh random albums: ${it.message}")
-                            }
+                        runOptionalRefresh("random") { repository.getAlbumList("random", forceRefresh = true) }
                     }
 
                     // 核心任务必须成功
@@ -268,7 +269,11 @@ class DiscoverViewModel @Inject constructor(
                 if (index != -1) {
                     val mediaItems = playableSongs.map { it.toMediaItem(repository) }
                     if (mediaItems.isNotEmpty()) {
-                        playbackController.play(mediaItems, index, queueTitle = context.getString(de.lwp2070809.speculonic.R.string.favorite))
+                        playbackController.play(
+                            mediaItems,
+                            index,
+                            queueTitle = context.getString(de.lwp2070809.speculonic.R.string.favorite)
+                        )
                     }
                 }
             } catch (e: Exception) {
@@ -289,7 +294,23 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
+    private suspend fun runOptionalRefresh(label: String, block: suspend () -> Unit) {
+        try {
+            block()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogManager.w("DiscoverViewModel: Failed to refresh $label albums: ${e.message}")
+        }
+    }
+
     fun clearError() {
         _uiState.update { it.copy(errorMessage = null, errorResId = null) }
+    }
+
+    private companion object {
+        const val FAVORITE_PREVIEW_LIMIT = 10
+        const val NEWEST_WINDOW_SIZE = 20
+        const val FLOW_DEBOUNCE_MS = 150L
     }
 }

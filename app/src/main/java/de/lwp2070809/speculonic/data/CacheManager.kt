@@ -8,15 +8,22 @@ import androidx.media3.database.StandaloneDatabaseProvider
 import androidx.media3.datasource.cache.Cache
 import androidx.media3.datasource.cache.LeastRecentlyUsedCacheEvictor
 import androidx.media3.datasource.cache.SimpleCache
+import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.util.LogManager
 import java.io.File
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import javax.inject.Inject
+import javax.inject.Singleton
 
 @OptIn(UnstableApi::class)
-object CacheManager {
+@Singleton
+class CacheManager @Inject constructor(
+    @ApplicationContext private val context: Context,
+    private val downloadManagerHelper: dagger.Lazy<DownloadManagerHelper>
+) {
     private val mutex = Mutex()
     @Volatile private var playbackCache: Cache? = null
     @Volatile private var downloadCache: Cache? = null
@@ -28,24 +35,24 @@ object CacheManager {
     @Volatile var onRequireCacheRelease: (suspend () -> Unit)? = null
     @Volatile var onCacheRebuild: (() -> Unit)? = null
 
-    private fun getDatabaseProviderLocked(context: Context): DatabaseProvider {
+    private fun getDatabaseProviderLocked(): DatabaseProvider {
         return databaseProvider ?: StandaloneDatabaseProvider(context.applicationContext).also {
             databaseProvider = it
         }
     }
 
-    private fun getPlaybackCacheLocked(context: Context): Cache {
+    private fun getPlaybackCacheLocked(): Cache {
         if (playbackCache == null) {
             val cacheDir = File(context.cacheDir, "media_playback_buffer")
             if (!cacheDir.exists()) cacheDir.mkdirs()
             val evictor = LeastRecentlyUsedCacheEvictor(100 * 1024 * 1024L)
-            playbackCache = SimpleCache(cacheDir, evictor, getDatabaseProviderLocked(context))
+            playbackCache = SimpleCache(cacheDir, evictor, getDatabaseProviderLocked())
             LogManager.i("Playback Stream Buffer initialized at: ${cacheDir.absolutePath}")
         }
         return playbackCache!!
     }
 
-    private fun getDownloadCacheLocked(context: Context): Cache {
+    private fun getDownloadCacheLocked(): Cache {
         val fixedCacheSize = 900L * 1024 * 1024L // 900 MB
         if (downloadCache == null) {
             val externalDir = context.getExternalFilesDir(null)
@@ -65,7 +72,7 @@ object CacheManager {
             val evictor = LeastRecentlyUsedCacheEvictor(fixedCacheSize)
 
             try {
-                downloadCache = SimpleCache(targetDir, evictor, getDatabaseProviderLocked(context))
+                downloadCache = SimpleCache(targetDir, evictor, getDatabaseProviderLocked())
                 currentDownloadCacheSize = fixedCacheSize
                 LogManager.i(
                     "Persistent Download Cache (Internal) initialized at: ${targetDir.absolutePath} with size $fixedCacheSize"
@@ -79,16 +86,16 @@ object CacheManager {
     }
 
     // 挂起获取缓存在清理锁释放前排队等待，避免释放瞬间抛 IllegalStateException 导致业务失败
-    suspend fun acquirePlaybackCache(context: Context): Cache = mutex.withLock {
-        getPlaybackCacheLocked(context)
+    suspend fun acquirePlaybackCache(): Cache = mutex.withLock {
+        getPlaybackCacheLocked()
     }
 
-    suspend fun acquireDownloadCache(context: Context): Cache = mutex.withLock {
-        getDownloadCacheLocked(context)
+    suspend fun acquireDownloadCache(): Cache = mutex.withLock {
+        getDownloadCacheLocked()
     }
 
-    suspend fun acquireDatabaseProvider(context: Context): DatabaseProvider = mutex.withLock {
-        getDatabaseProviderLocked(context)
+    suspend fun acquireDatabaseProvider(): DatabaseProvider = mutex.withLock {
+        getDatabaseProviderLocked()
     }
 
     fun getPlaybackCacheOrNull(): Cache? = if (isReleasing) null else playbackCache
@@ -104,7 +111,7 @@ object CacheManager {
                     onRequireCacheRelease?.invoke()
 
                     // 先释放持有同一 SimpleCache 的 DownloadManager，再释放底层 Cache
-                    DownloadManagerHelper.release()
+                    downloadManagerHelper.get().release()
 
                     try {
                         androidx.media3.exoplayer.offline.DownloadService.clearDownloadManagerHelpers()
@@ -114,16 +121,18 @@ object CacheManager {
                     }
 
                     var retryCount = 0
-                    while (retryCount < 3) {
-                        var allSuccess = true
+                    var allReleased = false
+                    while (retryCount < MAX_CACHE_RELEASE_RETRIES && !allReleased) {
+                        var attemptSuccess = true
                         playbackCache?.let { cache ->
                             try {
                                 cache.release()
                                 playbackCache = null
                             } catch (e: Exception) {
-                                allSuccess = false
+                                attemptSuccess = false
                                 LogManager.w(
-                                    "CacheManager: Failed to release playbackCache (attempt ${retryCount + 1}/3)",
+                                    "CacheManager: Failed to release playbackCache " +
+                                        "(attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)",
                                     e
                                 )
                             }
@@ -133,30 +142,32 @@ object CacheManager {
                                 cache.release()
                                 downloadCache = null
                             } catch (e: Exception) {
-                                allSuccess = false
+                                attemptSuccess = false
                                 LogManager.w(
-                                    "CacheManager: Failed to release downloadCache (attempt ${retryCount + 1}/3)",
+                                    "CacheManager: Failed to release downloadCache " +
+                                        "(attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)",
                                     e
                                 )
                             }
                         }
 
-                        if (allSuccess) {
+                        if (attemptSuccess) {
                             databaseProvider = null
                             LogManager.i("CacheManager: All cache instances and database provider released.")
-                            break
+                            allReleased = true
+                        } else {
+                            retryCount++
+                            if (retryCount >= MAX_CACHE_RELEASE_RETRIES) {
+                                LogManager.e(
+                                    "CacheManager: Some caches failed to release after $retryCount retries, forcing clearance."
+                                )
+                                playbackCache = null
+                                downloadCache = null
+                                databaseProvider = null
+                            } else {
+                                delay(CACHE_RELEASE_RETRY_DELAY_MS)
+                            }
                         }
-                        retryCount++
-                        if (retryCount >= 3) {
-                            LogManager.e(
-                                "CacheManager: Some caches failed to release after $retryCount retries, forcing clearance."
-                            )
-                            playbackCache = null
-                            downloadCache = null
-                            databaseProvider = null
-                            break
-                        }
-                        delay(100)
                     }
 
                     block()
@@ -175,5 +186,10 @@ object CacheManager {
                 LogManager.e("CacheManager: Error in onCacheRebuild callback", e)
             }
         }
+    }
+
+    private companion object {
+        const val MAX_CACHE_RELEASE_RETRIES = 3
+        const val CACHE_RELEASE_RETRY_DELAY_MS = 100L
     }
 }

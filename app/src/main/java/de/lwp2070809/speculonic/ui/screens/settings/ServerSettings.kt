@@ -47,13 +47,11 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
@@ -65,7 +63,10 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.ui.composition.LocalMiniPlayerBottomInset
 import de.lwp2070809.speculonic.ui.components.TopBarState
-import de.lwp2070809.speculonic.ui.screens.settings.components.*
+import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBar
+import de.lwp2070809.speculonic.ui.screens.settings.components.DashboardItem
+import de.lwp2070809.speculonic.ui.screens.settings.components.OpenSubsonicBadge
+import de.lwp2070809.speculonic.ui.screens.settings.components.ServerConfigDialog
 
 @Composable
 private fun SpinningSyncIcon(
@@ -93,32 +94,16 @@ private fun SpinningSyncIcon(
 
 @Composable
 fun ServerSettings(
-    viewModel: SettingsViewModel,
+    viewModel: ServerSyncViewModel,
     topBarState: TopBarState,
     isEffectivelyOnline: Boolean
 ) {
-    val uiState by viewModel.uiState.collectAsState()
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var showEditDialog by rememberSaveable { mutableStateOf(false) }
     var showDeleteConfirm by rememberSaveable { mutableStateOf(false) }
     val title = stringResource(R.string.server)
 
-    val screenToken = remember { java.util.UUID.randomUUID().toString() }
-
-    LaunchedEffect(Unit) {
-        topBarState.update(
-            title = title,
-            actions = {},
-            showSearch = false,
-            showBack = true,
-            token = screenToken
-        )
-    }
-
-    androidx.compose.runtime.DisposableEffect(Unit) {
-        onDispose {
-            topBarState.clear(screenToken)
-        }
-    }
+    BindSettingsTopBar(topBarState = topBarState, title = title)
 
     Column(
         modifier = Modifier
@@ -199,7 +184,11 @@ fun ServerSettings(
                             onClick = { showDeleteConfirm = true },
                             enabled = isEffectivelyOnline
                         ) {
-                            Icon(Icons.Default.Delete, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = stringResource(R.string.delete),
+                                tint = MaterialTheme.colorScheme.error
+                            )
                         }
                     }
                 }
@@ -256,7 +245,9 @@ fun ServerSettings(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
-                                painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_done_all),
+                                painter = androidx.compose.ui.res.painterResource(
+                                    id = de.lwp2070809.speculonic.R.drawable.ic_symbol_done_all
+                                ),
                                 contentDescription = null,
                                 tint = MaterialTheme.colorScheme.primary,
                                 modifier = Modifier.size(24.dp)
@@ -308,7 +299,9 @@ fun ServerSettings(
                                 SpinningSyncIcon(contentDescription = stringResource(R.string.force_full_sync))
                             } else {
                                 Icon(
-                                    painter = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync),
+                                    painter = androidx.compose.ui.res.painterResource(
+                                        id = de.lwp2070809.speculonic.R.drawable.ic_symbol_sync
+                                    ),
                                     contentDescription = stringResource(R.string.force_full_sync)
                                 )
                             }
@@ -337,7 +330,11 @@ fun ServerSettings(
                         ),
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(start = SettingsConstants.PAGE_PADDING, end = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING)
+                            .padding(
+                                start = SettingsConstants.PAGE_PADDING,
+                                end = SettingsConstants.PAGE_PADDING,
+                                bottom = SettingsConstants.PAGE_PADDING
+                            )
                     ) {
                         Row(
                             modifier = Modifier.padding(16.dp),
@@ -387,7 +384,17 @@ fun ServerSettings(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete_server)) },
-            text = { Column { Text(stringResource(R.string.confirm_delete_server)); Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM)); Text(text = stringResource(R.string.delete_server_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall) } },
+            text = {
+                Column {
+                    Text(stringResource(R.string.confirm_delete_server))
+                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
+                    Text(
+                        text = stringResource(R.string.delete_server_warning),
+                        color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteServerSettings()
