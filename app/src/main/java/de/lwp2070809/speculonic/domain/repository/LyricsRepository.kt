@@ -1,6 +1,5 @@
 package de.lwp2070809.speculonic.domain.repository
 
-import android.content.Context
 import android.util.LruCache
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
@@ -9,9 +8,11 @@ import de.lwp2070809.speculonic.util.LocalLyricsProvider
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LyricLine
 import de.lwp2070809.speculonic.util.LyricsParser
-import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 
@@ -29,8 +30,7 @@ class LyricsRepository(
 
     private val negativeCache = LruCache<String, Boolean>(200)
     private val positiveCache = LruCache<String, Pair<String?, List<LyricLine>>>(50)
-    private val activeFetches =
-        java.util.concurrent.ConcurrentHashMap<String, kotlinx.coroutines.Deferred<Pair<String?, List<LyricLine>>>>()
+    private val activeFetches = mutableMapOf<String, Deferred<Pair<String?, List<LyricLine>>>>()
 
     suspend fun getLyricsData(
         songId: String, 
@@ -39,45 +39,21 @@ class LyricsRepository(
         hasSongLyricsExtension: Boolean
     ): Pair<String?, List<LyricLine>> {
         
-        synchronized(positiveCache) {
-            positiveCache.get(songId)
-        }?.let {
-            LogManager.d("LyricsRepository: Using positive memory cache for $songId")
-            return it
-        }
-
-        val existing = activeFetches[songId]
-        if (existing != null) {
-            return existing.await()
-        }
-
-        // 先原子占坑再在独立协程作用域启动任务，避免 computeIfAbsent 内回调 remove 触发递归更新异常
-        val newDeferred = CompletableDeferred<Pair<String?, List<LyricLine>>>()
-        val racer = activeFetches.putIfAbsent(songId, newDeferred)
-        if (racer != null) {
-            return racer.await()
-        }
-
-        repositoryScope.launch {
-            try {
+        val request = synchronized(activeFetches) {
+            positiveCache.get(songId)?.let { return it }
+            activeFetches[songId]?.let { return@synchronized it }
+            val fetch = repositoryScope.async(start = CoroutineStart.LAZY) {
                 val result = fetchLyricsDataInternal(songId, artist, title, hasSongLyricsExtension)
                 if (result.second.isNotEmpty() || !result.first.isNullOrBlank()) {
-                    synchronized(positiveCache) {
-                        positiveCache.put(songId, result)
-                    }
+                    positiveCache.put(songId, result)
                 }
-                newDeferred.complete(result)
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                newDeferred.cancel(e)
-                throw e
-            } catch (e: Throwable) {
-                newDeferred.completeExceptionally(e)
-            } finally {
-                activeFetches.remove(songId, newDeferred)
+                result
             }
+            activeFetches[songId] = fetch
+            fetch.invokeOnCompletion { synchronized(activeFetches) { activeFetches.remove(songId) } }
+            fetch
         }
-
-        return newDeferred.await()
+        return request.await()
     }
 
     private suspend fun fetchLyricsDataInternal(
@@ -90,7 +66,7 @@ class LyricsRepository(
         val localResult = readLocalLyricsOrNull(songId, song?.localUri)
         if (localResult != null) return localResult
 
-        if (synchronized(negativeCache) { negativeCache.get(songId) } == true) {
+        if (negativeCache.get(songId) == true) {
             LogManager.d("LyricsRepository: $songId is in negative cache, skipping network request")
             return Pair(null, emptyList())
         }
@@ -118,7 +94,6 @@ class LyricsRepository(
         val lrc = localLyricsProvider.getLyricsFromLrcFile(localUri)
         if (lrc.isNullOrBlank()) return null
         val lines = LyricsParser.parse(lrc)
-        if (lines.isEmpty()) return null
         LogManager.d("LyricsRepository: Using local LRC file for $songId")
         return Pair(lrc, lines)
     }
@@ -133,11 +108,11 @@ class LyricsRepository(
         return try {
             val response = api.getLyricsBySongId(songId, u, t, s)
             val lyricsList = response.response.lyricsList
-            val structured = lyricsList?.structuredLyrics?.firstOrNull()
+            val structured = lyricsList?.structuredLyrics?.firstOrNull { it.line.isNotEmpty() }
             if (structured != null) {
-                val lines = LyricsParser.fromStructured(structured.line)
-                val raw = LyricsParser.toLrcString(lines)
-                if (lines.isNotEmpty()) {
+                val lines = if (structured.synced) LyricsParser.fromStructured(structured.line, structured.offset ?: 0) else emptyList()
+                val raw = if (lines.isEmpty()) structured.line.joinToString("\n") { it.value } else LyricsParser.toLrcString(lines)
+                if (raw.isNotBlank()) {
                     persistLrcAsync(localUri, raw)
                     return Pair(raw, lines)
                 }
@@ -167,13 +142,13 @@ class LyricsRepository(
     ): Pair<String?, List<LyricLine>> {
         val (u, t, s) = authParams
         return try {
-            val raw = api.getLyrics(artist, title, u, t, s).response.lyrics?.content
+            val response = api.getLyrics(artist, title, u, t, s).response
+            if (response.status != "ok") return Pair(null, emptyList())
+            val raw = response.lyrics?.content
             val lines = LyricsParser.parse(raw)
-            if (raw.isNullOrBlank() && lines.isEmpty()) {
-                synchronized(negativeCache) {
-                    negativeCache.put(songId, true)
-                }
-            } else if (!raw.isNullOrBlank()) {
+            if (raw.isNullOrBlank()) {
+                negativeCache.put(songId, true)
+            } else {
                 persistLrcAsync(localUri, raw)
             }
             Pair(raw, lines)

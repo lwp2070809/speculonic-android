@@ -26,8 +26,10 @@ internal class LegacySyncExecutor(
     private val entityMapper: EntityMapper,
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit
 ) {
+    private data class DirectoryCounts(val total: Int, val failed: Int)
+
     private sealed class SyncDirResult {
-        data class Success(val subDirs: List<Pair<String, String?>>, val songCount: Int) : SyncDirResult()
+        data class Success(val subDirs: List<Pair<String, String>>) : SyncDirResult()
         object Failure : SyncDirResult()
     }
 
@@ -46,10 +48,13 @@ internal class LegacySyncExecutor(
             songs = musicDao.getSongsCount()
         )
         musicDao.clearSyncTempIds()
-        val syncResult = syncAllArtistsAndSongs()
+        val directories = syncAllArtistsAndSongs()
         syncAllAlbums(recordTempIds = true)
 
-        if (syncResult.totalCount > 0 && syncResult.failCount == 0) {
+        if (directories.failed > 0) {
+            throw IOException("Legacy sync incomplete: ${directories.failed}/${directories.total} directories failed")
+        }
+        if (directories.total > 0) {
             val remoteCounts = EntityCountSnapshot(
                 artists = musicDao.getSyncTempIdCountByType("artist"),
                 albums = musicDao.getSyncTempIdCountByType("album"),
@@ -59,11 +64,6 @@ internal class LegacySyncExecutor(
             LogManager.d("SyncManager: Performing legacy surgical sync-deletion via temp tables (zero directory failure)...")
             performSurgicalCleanup({}, null)
         } else {
-            if (syncResult.failCount > 0) {
-                val skipMsg = "SyncManager: Directory fetch encountered failures " +
-                    "(${syncResult.failCount}/${syncResult.totalCount} failed). Skipped surgical deletion."
-                LogManager.w(skipMsg)
-            }
             runInTransaction {
                 musicDao.clearSyncTempIds()
                 musicDao.repairAndCount()
@@ -75,18 +75,18 @@ internal class LegacySyncExecutor(
 
     suspend fun syncAllAlbums(type: String = "alphabeticalByName", recordTempIds: Boolean = false) {
         var offset = 0
-        var hasMore = true
-        while (hasMore) {
+        val seenAlbumIds = mutableSetOf<String>()
+        while (true) {
             val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
             val response = api.getAlbumList2(u, t, s, type = type, size = ALBUM_PAGE_SIZE, offset = offset)
-            val albums = response.response.albumList2?.album ?: emptyList()
-            if (albums.isEmpty()) {
-                hasMore = false
-            } else {
-                saveAlbumList(type, albums, offset, recordTempIds = recordTempIds)
-                offset += albums.size
-                hasMore = albums.size >= ALBUM_PAGE_SIZE
+            val albums = checkNotNull(response.response.ensureOk().albumList2) { "Missing albumList2 in response" }.album
+            if (albums.isEmpty()) return
+            if (!seenAlbumIds.addAll(albums.map { it.id })) {
+                throw IncompletePaginationException("Repeated album page at offset $offset")
             }
+            saveAlbumList(type, albums, offset, recordTempIds = recordTempIds)
+            if (albums.size < ALBUM_PAGE_SIZE) return
+            offset += albums.size
         }
     }
 
@@ -128,10 +128,10 @@ internal class LegacySyncExecutor(
         }
     }
 
-    suspend fun syncAllArtistsAndSongs(): SyncManager.LegacySyncResult {
+    private suspend fun syncAllArtistsAndSongs(): DirectoryCounts {
         val (u, t, s) = authManager.getAuthParams()
         val response = api.getIndexes(u, t, s)
-        val indexes = response.response.indexes ?: return SyncManager.LegacySyncResult(0, 0, 0)
+        val indexes = response.response.ensureOk().indexes ?: error("Missing indexes in getIndexes response")
 
         val allArtists = indexes.index.flatMap { it.artist }
         if (allArtists.isNotEmpty()) {
@@ -143,14 +143,13 @@ internal class LegacySyncExecutor(
             }
         }
 
-        val queue: MutableList<Pair<String, String?>> = allArtists.mapTo(mutableListOf()) { it.id to it.id }
+        val seen = allArtists.mapTo(mutableSetOf()) { it.id }
+        val queue = ArrayDeque(seen.map { it to it })
         var failCount = 0
         var totalCount = 0
-        var totalSongCount = 0
 
         while (queue.isNotEmpty()) {
-            val chunk = queue.take(DIRECTORY_CONCURRENCY)
-            queue.subList(0, chunk.size).clear()
+            val chunk = List(minOf(DIRECTORY_CONCURRENCY, queue.size)) { queue.removeFirst() }
             totalCount += chunk.size
 
             val nextDirs = coroutineScope {
@@ -158,24 +157,18 @@ internal class LegacySyncExecutor(
             }
             nextDirs.forEach { result ->
                 when (result) {
-                    is SyncDirResult.Success -> {
-                        queue.addAll(result.subDirs)
-                        totalSongCount += result.songCount
-                    }
+                    is SyncDirResult.Success -> result.subDirs.filterTo(queue) { seen.add(it.first) }
                     is SyncDirResult.Failure -> failCount++
                 }
             }
         }
 
-        if (totalCount > 0 && (failCount.toDouble() / totalCount) > MAX_FAILURE_RATIO) {
-            throw IOException("Legacy sync failure rate too high: $failCount/$totalCount directories failed")
-        }
-        return SyncManager.LegacySyncResult(totalCount, failCount, totalSongCount)
+        return DirectoryCounts(total = totalCount, failed = failCount)
     }
 
     private suspend fun syncSingleDirectory(
         id: String,
-        artistId: String?,
+        artistId: String,
         u: String,
         t: String,
         s: String
@@ -183,7 +176,7 @@ internal class LegacySyncExecutor(
         return try {
             val response = api.getMusicDirectory(id, u, t, s)
             response.response.ensureOk()
-            val directory = response.response.directory ?: return SyncDirResult.Success(emptyList(), 0)
+            val directory = response.response.directory ?: return SyncDirResult.Failure
             val children = directory.child
             val songs = children.filter { !it.isDir }
             val subDirs = children.filter { it.isDir }
@@ -191,7 +184,7 @@ internal class LegacySyncExecutor(
             if (songs.isNotEmpty()) {
                 persistDirectorySongs(id, artistId, songs)
             }
-            SyncDirResult.Success(subDirs.map { it.id to artistId }, songs.size)
+            SyncDirResult.Success(subDirs.map { it.id to artistId })
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -276,6 +269,5 @@ internal class LegacySyncExecutor(
         const val ALBUM_PAGE_SIZE = 500
         const val BATCH_SIZE = 500
         const val DIRECTORY_CONCURRENCY = 10
-        const val MAX_FAILURE_RATIO = 0.5
     }
 }

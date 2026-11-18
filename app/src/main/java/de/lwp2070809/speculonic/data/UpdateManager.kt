@@ -57,12 +57,10 @@ class UpdateManager(
                 .header("Accept", "application/vnd.github.v3+json")
                 .build()
 
-            val response = httpClient.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return UpdateResult.Error("Failed to fetch latest release")
+            val release = httpClient.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return UpdateResult.Error("Failed to fetch latest release")
+                UPDATE_JSON.parseToJsonElement(response.body.string()).jsonObject
             }
-
-            val release = UPDATE_JSON.parseToJsonElement(response.body.string()).jsonObject
             val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
             val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
             val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""

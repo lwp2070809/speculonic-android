@@ -15,6 +15,7 @@ import androidx.work.WorkerParameters
 import androidx.work.workDataOf
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import de.lwp2070809.speculonic.domain.repository.IncompletePaginationException
 import de.lwp2070809.speculonic.domain.repository.SafetyGuardException
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
@@ -110,6 +111,7 @@ class MetadataSyncWorker @AssistedInject constructor(
     private fun isNonRetryableFailure(e: Exception): Boolean {
         return when {
             e is SafetyGuardException -> true
+            e is IncompletePaginationException -> true
             e is IllegalArgumentException -> true
             e is SubsonicApiException && e.code in NON_RETRYABLE_SUBSONIC_CODES -> true
             runAttemptCount >= MAX_RETRY_ATTEMPTS -> true

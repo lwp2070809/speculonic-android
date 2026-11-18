@@ -34,12 +34,8 @@ interface MusicDao :
     ) {
         insertPlaylists(listOf(playlist))
         deletePlaylistSongs(playlist.id)
-        if (songs.isNotEmpty()) {
-            songs.chunked(500).forEach { insertSongs(it) }
-        }
-        if (refs.isNotEmpty()) {
-            refs.chunked(500).forEach { insertPlaylistSongCrossRefs(it) }
-        }
+        songs.chunked(500).forEach { insertSongs(it) }
+        refs.chunked(500).forEach { insertPlaylistSongCrossRefs(it) }
     }
 
     @Transaction

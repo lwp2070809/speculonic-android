@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
+import okhttp3.HttpUrl
 import java.util.concurrent.TimeUnit
 // Facade encapsulating sub-repositories while keeping ViewModels decoupled from sub-repo wiring
 @Suppress("TooManyFunctions")
@@ -79,8 +80,11 @@ class SubsonicRepository(
     private val mediaRepository: MediaRepository get() = requireComponents().mediaRepository
     private val coverArtSyncManager: CoverArtSyncManager get() = requireComponents().coverArtSyncManager
 
-    fun getCurrentAuthParams(): Triple<String, String, String>? {
-        return components?.authManager?.getAuthParams()
+    @Synchronized
+    fun getMediaAuthParams(requestUrl: HttpUrl): Triple<String, String, String>? {
+        val current = components ?: return null
+        if (!current.urlBuilder.isMediaEndpoint(requestUrl)) return null
+        return current.authManager.getAuthParams()
     }
 
     private var serverCapabilities = ServerCapabilities()

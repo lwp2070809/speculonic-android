@@ -12,6 +12,7 @@ import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.TransferListener
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.LogTag
 
 @OptIn(UnstableApi::class)
 class LocalFallbackDataSource(
@@ -20,8 +21,8 @@ class LocalFallbackDataSource(
     private val musicDao: MusicDao
 ) : DataSource {
 
-    private val contentDataSource = BufferedDataSource(ContentDataSource(context), 512 * 1024)
-    private val fileDataSource = BufferedDataSource(FileDataSource(), 512 * 1024)
+    private val contentDataSource = BufferedDataSource(ContentDataSource(context))
+    private val fileDataSource = BufferedDataSource(FileDataSource())
     private var activeDataSource: DataSource? = null
 
     override fun addTransferListener(transferListener: TransferListener) {
@@ -38,8 +39,8 @@ class LocalFallbackDataSource(
 
         activeDataSource = upstream
         if (songId != null) {
-            de.lwp2070809.speculonic.util.LogManager.i(
-                de.lwp2070809.speculonic.util.LogTag.CACHE,
+            LogManager.i(
+                LogTag.CACHE,
                 "Playback source: Upstream cache/network for songId=$songId"
             )
         }
@@ -50,19 +51,25 @@ class LocalFallbackDataSource(
         val localUri = queryLocalUri(songId)
         if (localUri.isNullOrBlank()) return null
 
+        val isSaf = localUri.startsWith("content://")
+        val dataSource = if (isSaf) contentDataSource else fileDataSource
+        activeDataSource = dataSource
         return try {
-            val dataSource = if (localUri.startsWith("content://")) contentDataSource else fileDataSource
             val bytesRead = dataSource.open(dataSpec.withUri(localUri.toUri()))
-            activeDataSource = dataSource
-            val storageType = if (localUri.startsWith("content://")) "SAF" else "Private"
-            de.lwp2070809.speculonic.util.LogManager.i(
-                de.lwp2070809.speculonic.util.LogTag.CACHE,
+            val storageType = if (isSaf) "SAF" else "Private"
+            LogManager.i(
+                LogTag.CACHE,
                 "Playback source: Matched $storageType file for songId=$songId: $localUri"
             )
             bytesRead
         } catch (e: Exception) {
-            de.lwp2070809.speculonic.util.LogManager.w(
-                de.lwp2070809.speculonic.util.LogTag.CACHE,
+            try {
+                close()
+            } catch (closeError: Exception) {
+                LogManager.w(LogTag.CACHE, "Failed to close local file for songId=$songId", closeError)
+            }
+            LogManager.w(
+                LogTag.CACHE,
                 "Playback source: Failed to open local file for songId=$songId, falling back. Error: ${e.message}"
             )
             null
@@ -71,12 +78,7 @@ class LocalFallbackDataSource(
 
     private fun queryLocalUri(songId: String): String? {
         return try {
-            val song = musicDao.getSongByIdSync(songId)
-            if (song != null && song.isFullyCached) {
-                song.localUri
-            } else {
-                null
-            }
+            musicDao.getSongByIdSync(songId)?.takeIf { it.isFullyCached }?.localUri
         } catch (e: Exception) {
             LogManager.e("LocalFallbackDataSource: DAO query failed for $songId", e)
             null
@@ -91,12 +93,13 @@ class LocalFallbackDataSource(
         return activeDataSource?.getUri()
     }
 
+    override fun getResponseHeaders(): Map<String, List<String>> = activeDataSource?.responseHeaders.orEmpty()
+
     override fun close() {
-        var exception: Throwable? = null
-        try { upstream.close() } catch (e: Throwable) { exception = e }
-        try { contentDataSource.close() } catch (e: Throwable) { if (exception == null) exception = e }
-        try { fileDataSource.close() } catch (e: Throwable) { if (exception == null) exception = e }
-        activeDataSource = null
-        if (exception != null) throw exception
+        try {
+            activeDataSource?.close()
+        } finally {
+            activeDataSource = null
+        }
     }
 }

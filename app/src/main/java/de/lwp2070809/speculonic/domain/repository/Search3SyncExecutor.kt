@@ -93,7 +93,7 @@ internal class Search3SyncExecutor(
                 existingSongsMetadata = existingSongsMetadata,
                 entityMapper = entityMapper
             )
-            val loopOutcome = streamSearch3Pages(authParams, streamState)
+            streamSearch3Pages(authParams, streamState)
 
             val remoteCounts = EntityCountSnapshot(
                 artists = musicDao.getSyncTempIdCountByType("artist"),
@@ -102,7 +102,7 @@ internal class Search3SyncExecutor(
             )
             verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreSafetyGuard, false)
 
-            finalizeSearch3Sync(loopOutcome, params, performSurgicalCleanup)
+            finalizeSearch3Sync(params, performSurgicalCleanup)
             params.onSyncComplete(params.currentTime, params.serverLastModified)
             pref.saveSyncProgress(null)
         } catch (e: CancellationException) {
@@ -116,38 +116,25 @@ internal class Search3SyncExecutor(
     }
 
     private suspend fun finalizeSearch3Sync(
-        loopOutcome: Search3LoopOutcome,
         params: SyncExecutionParams,
         performSurgicalCleanup: suspend (suspend (String) -> Unit, (suspend (String) -> Unit)?) -> Unit
     ) {
-        if (loopOutcome.offsetBugDetected) {
-            LogManager.w("SyncManager: Pagination offset loop guard triggered, skipping surgical deletion.")
-            val statsMsg = "正在更新统计信息..."
-            params.onProgress?.invoke(statsMsg)
-            pref.saveSyncProgress(statsMsg)
-            runInTransaction {
-                musicDao.clearSyncTempIds()
-                musicDao.repairAndCount()
-            }
-        } else {
-            val cleanupMsg = "正在清理冗余数据..."
-            params.onProgress?.invoke(cleanupMsg)
-            pref.saveSyncProgress(cleanupMsg)
-            LogManager.d("SyncManager: Performing surgical sync-deletion via temp tables...")
-            performSurgicalCleanup(
-                { status ->
-                    params.onProgress?.invoke(status)
-                    pref.saveSyncProgress(status)
-                },
-                params.onProgress
-            )
-        }
+        val cleanupMsg = "正在清理冗余数据..."
+        params.onProgress?.invoke(cleanupMsg)
+        pref.saveSyncProgress(cleanupMsg)
+        performSurgicalCleanup(
+            { status ->
+                params.onProgress?.invoke(status)
+                pref.saveSyncProgress(status)
+            },
+            params.onProgress
+        )
     }
 
     private suspend fun streamSearch3Pages(
         authParams: Triple<String, String, String>,
         streamState: Search3StreamState
-    ): Search3LoopOutcome = coroutineScope {
+    ): Unit = coroutineScope {
         val channels = Search3Channels()
         val writerJob = launchWriterJob(channels)
         val pagination = Search3PaginationState()
@@ -166,7 +153,7 @@ internal class Search3SyncExecutor(
             writerJob.join()
         }
 
-        Search3LoopOutcome(offsetBugDetected = pagination.offsetBugDetected)
+        if (pagination.offsetBugDetected) throw IncompletePaginationException("Incomplete search3 pagination")
     }
 
     private suspend fun fetchAndDecodePage(
@@ -180,7 +167,7 @@ internal class Search3SyncExecutor(
         val reqAlbumCount = if (pagination.albums.hasMore) ALBUM_PAGE_SIZE else 0
         val reqSongCount = if (pagination.songs.hasMore) SONG_PAGE_SIZE else 0
 
-        var pageStats = Search3PageStats()
+        var decodedStats: Search3PageStats? = null
         val responseBody = api.search3Stream(
             query = "",
             u = u,
@@ -201,7 +188,7 @@ internal class Search3SyncExecutor(
                     val streamingSerializer = SearchResult3StreamingSerializer(
                         channels = channels,
                         state = streamState,
-                        onPageStats = { pageStats = it },
+                        onPageStats = { decodedStats = it },
                         batchSize = BATCH_SIZE
                     )
                     json.decodeFromStream(SubsonicResponseStreamingSerializer(streamingSerializer), stream)
@@ -209,6 +196,7 @@ internal class Search3SyncExecutor(
             }
         }
 
+        val pageStats = checkNotNull(decodedStats) { "Missing searchResult3 in response" }
         updateCursor("artist", pagination.artists, reqArtistCount, pageStats.artistReceived, pageStats.artistAdded, pagination)
         updateCursor("album", pagination.albums, reqAlbumCount, pageStats.albumReceived, pageStats.albumAdded, pagination)
         updateCursor("song", pagination.songs, reqSongCount, pageStats.songReceived, pageStats.songAdded, pagination)
@@ -299,18 +287,10 @@ internal class Search3SyncExecutor(
         if (buffers.isEmpty()) return
         // 分批事务提交可显著抑制全量同步期间 InvalidationTracker 的高频 UI 失效刷新
         runInTransaction {
-            if (buffers.artists.isNotEmpty()) {
-                buffers.artists.chunked(BATCH_SIZE).forEach { musicDao.insertArtists(it) }
-            }
-            if (buffers.albums.isNotEmpty()) {
-                buffers.albums.chunked(BATCH_SIZE).forEach { musicDao.insertAlbums(it) }
-            }
-            if (buffers.songs.isNotEmpty()) {
-                buffers.songs.chunked(BATCH_SIZE).forEach { musicDao.insertSongs(it) }
-            }
-            if (buffers.tempIds.isNotEmpty()) {
-                buffers.tempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
-            }
+            buffers.artists.chunked(BATCH_SIZE).forEach { musicDao.insertArtists(it) }
+            buffers.albums.chunked(BATCH_SIZE).forEach { musicDao.insertAlbums(it) }
+            buffers.songs.chunked(BATCH_SIZE).forEach { musicDao.insertSongs(it) }
+            buffers.tempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
         }
         buffers.clear()
     }

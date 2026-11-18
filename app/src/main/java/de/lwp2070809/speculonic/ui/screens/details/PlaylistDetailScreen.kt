@@ -86,8 +86,13 @@ fun PlaylistDetailScreen(
 
     val transcodeIncompatible = uiState.transcodeIncompatible
 
-    val playableSongs = remember(uiState.songs, transcodeIncompatible) {
-        uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    val playableIndices = remember(uiState.songs, transcodeIncompatible) {
+        uiState.songs.indices.filter { index ->
+            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(uiState.songs[index], transcodeIncompatible)
+        }
+    }
+    val playableSongs = remember(uiState.songs, playableIndices) {
+        playableIndices.map(uiState.songs::get)
     }
 
     val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {
@@ -267,12 +272,10 @@ fun PlaylistDetailScreen(
                             isStreamingAllowed = isStreamingAllowed,
                             transcodeIncompatible = transcodeIncompatible,
                             onClick = {
-                                val playIndex = playableSongs.indexOfFirst { it.id == song.id }
-                                if (playIndex != -1) {
+                                val playIndex = playableIndices.binarySearch(index)
+                                if (playIndex >= 0) {
                                     val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
-                                    if (mediaItems.isNotEmpty()) {
-                                        playbackController.play(mediaItems, playIndex, queueTitle = uiState.playlist?.name)
-                                    }
+                                    playbackController.play(mediaItems, playIndex, queueTitle = uiState.playlist?.name)
                                 }
                             },
                             onStarClick = { star ->

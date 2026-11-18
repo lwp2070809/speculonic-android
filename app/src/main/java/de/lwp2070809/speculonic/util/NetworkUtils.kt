@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.util
 
+import java.net.InetAddress
 import java.net.URI
 
 object NetworkUtils {
@@ -15,7 +16,6 @@ object NetworkUtils {
     private const val RFC1918_CLASS_C_SECOND = 168
 
     private val localSuffixes = listOf(".local", ".lan", ".home", ".internal")
-    private val localIpv6Prefixes = listOf("fc", "fd", "fe80")
 
     /**
      * 判断给定 URL 的主机地址是否为局域网/私有本地网络地址。
@@ -42,7 +42,8 @@ object NetworkUtils {
     }
 
     private fun isLocalHostname(lowerHost: String): Boolean {
-        return lowerHost == "localhost" || localSuffixes.any { lowerHost.endsWith(it) }
+        val host = lowerHost.removeSuffix(".")
+        return host == "localhost" || localSuffixes.any { host.endsWith(it) }
     }
 
     private fun isLocalIpv4(lowerHost: String): Boolean {
@@ -64,7 +65,13 @@ object NetworkUtils {
     }
 
     private fun isLocalIpv6(lowerHost: String): Boolean {
-        return lowerHost.contains(":") &&
-            (lowerHost == "::1" || localIpv6Prefixes.any { lowerHost.startsWith(it) })
+        if (':' !in lowerHost) return false
+        val address = InetAddress.getByName(lowerHost.substringBefore('%'))
+        val uniqueLocalPrefix = 0xfc
+        val prefixMask = 0xfe
+        return address.isLoopbackAddress || address.isLinkLocalAddress ||
+            (address.address.size == IPV6_ADDRESS_BYTES && address.address[0].toInt() and prefixMask == uniqueLocalPrefix)
     }
+
+    private const val IPV6_ADDRESS_BYTES = 16
 }

@@ -3,15 +3,28 @@ package de.lwp2070809.speculonic.domain.repository
 import android.net.Uri
 import androidx.core.net.toUri
 import de.lwp2070809.speculonic.util.AppConstants
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
 
 class UrlBuilder(
-    private val baseUrl: String,
+    baseUrl: String,
     private val authManager: AuthManager
 ) {
+    private val restBaseUrl = baseUrl.removeSuffix("/") + "/rest/"
+    private val restHttpUrl = restBaseUrl.toHttpUrlOrNull()
+
+    internal fun isMediaEndpoint(request: HttpUrl): Boolean {
+        val rest = restHttpUrl ?: return false
+        if (rest.query != null || rest.fragment != null) return false
+        if (request.scheme != rest.scheme || request.host != rest.host || request.port != rest.port) return false
+        if (!request.encodedPath.startsWith(rest.encodedPath)) return false
+        val endpoint = request.encodedPath.removePrefix(rest.encodedPath).removeSuffix(".view")
+        return endpoint == "stream" || endpoint == "download"
+    }
+
     private fun buildBaseUri(endpoint: String, isForImageContent: Boolean = false, includeAuthParams: Boolean = true): Uri.Builder {
-        val cleanBaseUrl = baseUrl.removeSuffix("/")
-        val builder = "$cleanBaseUrl/rest/$endpoint".toUri().buildUpon()
+        val builder = "$restBaseUrl$endpoint".toUri().buildUpon()
         if (includeAuthParams) {
             val (u, t, s) = authManager.getAuthParams(isForImageContent = isForImageContent)
             builder.appendQueryParameter("u", u)

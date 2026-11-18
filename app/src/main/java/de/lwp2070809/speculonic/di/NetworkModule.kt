@@ -10,7 +10,6 @@ import dagger.hilt.EntryPoints
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import de.lwp2070809.speculonic.BuildConfig
 import de.lwp2070809.speculonic.SpeculonicApp
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.UpdateManager
@@ -30,7 +29,6 @@ import kotlinx.serialization.json.Json
 import okhttp3.Dns
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
-import okhttp3.logging.HttpLoggingInterceptor
 import java.io.IOException
 import java.net.Inet4Address
 import java.security.SecureRandom
@@ -153,17 +151,7 @@ object NetworkModule {
         val sslContext = SSLContext.getInstance("TLS")
         sslContext.init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
 
-        val loggingInterceptor = HttpLoggingInterceptor().apply {
-            level = if (BuildConfig.DEBUG) {
-                HttpLoggingInterceptor.Level.HEADERS
-            } else {
-                HttpLoggingInterceptor.Level.NONE
-            }
-            redactHeader("Authorization")
-        }
-
         return OkHttpClient.Builder()
-            .addInterceptor(loggingInterceptor)
             .addInterceptor(SonicLogInterceptor(allowInsecureProvider, trackReachability))
             .addNetworkInterceptor(CacheOverrideInterceptor())
             .connectTimeout(DEFAULT_TIMEOUT, TimeUnit.SECONDS)
@@ -273,10 +261,7 @@ object NetworkModule {
     @Singleton
     @StreamHttpClient
     fun provideStreamOkHttpClient(@ApplicationContext context: Context): OkHttpClient {
-        val builder = okHttpClientInstance.newBuilder()
-        // 确保流式与下载客户端绝对不包含 HttpLoggingInterceptor，杜绝大文件与音频流的内存缓冲及 OOM
-        builder.interceptors().removeAll { it is HttpLoggingInterceptor }
-        return builder.addInterceptor { chain ->
+        return okHttpClientInstance.newBuilder().addInterceptor { chain ->
             val request = chain.request()
             val url = request.url
             val path = url.encodedPath
@@ -284,7 +269,7 @@ object NetworkModule {
 
             val finalRequest = if (isMediaRequest && url.queryParameter("u") == null) {
                 val entryPoint = EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
-                val authParams = entryPoint.subsonicRepository().getCurrentAuthParams()
+                val authParams = entryPoint.subsonicRepository().getMediaAuthParams(url)
                 if (authParams != null) {
                     val (u, t, s) = authParams
                     val newUrl = url.newBuilder()
@@ -313,7 +298,7 @@ object NetworkModule {
 
                 if (!isSuccessful || isExplicitTextOrError) {
                     val bodyString = try {
-                        response.peekBody(10240).string()
+                        response.use { it.peekBody(10240).string() }
                     } catch (e: Exception) {
                         "Failed to read body: ${e.message}"
                     }

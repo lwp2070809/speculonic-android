@@ -60,7 +60,7 @@ object FormatUtils {
             if (lastSlash != -1) {
                 docId.substring(lastSlash + 1)
             } else {
-                Uri.decode(docId)
+                docId
             }
         } catch (e: Exception) {
             LogManager.w("FormatUtils: Failed to simplify SAF URI", e)
@@ -69,11 +69,11 @@ object FormatUtils {
     }
 
     fun getFullPhysicalPath(uriString: String): String {
-        if (uriString.isEmpty()) return ""
+        if (uriString.startsWith('/')) return uriString
         return try {
             val uri = uriString.toUri()
             if (uri.scheme == "file") {
-                return Uri.decode(uri.path ?: uriString)
+                return uri.path ?: uriString
             }
             val path = uri.path ?: return Uri.decode(uriString)
             val docId = when {
@@ -82,16 +82,15 @@ object FormatUtils {
                 else -> path
             }
             if (docId.startsWith(RAW_DOC_PREFIX)) {
-                return Uri.decode(docId.removePrefix(RAW_DOC_PREFIX))
+                return docId.removePrefix(RAW_DOC_PREFIX)
             }
-            val decoded = Uri.decode(docId)
-            if (decoded.startsWith(PRIMARY_DOC_PREFIX)) {
+            if (docId.startsWith(PRIMARY_DOC_PREFIX)) {
                 // SAF primary: documentId 对应主外部共享存储根目录，此处无 Context 可用
                 @Suppress("DEPRECATION")
                 val primaryRoot = Environment.getExternalStorageDirectory().absolutePath.trimEnd('/')
-                return "$primaryRoot/${decoded.removePrefix(PRIMARY_DOC_PREFIX)}"
+                return "$primaryRoot/${docId.removePrefix(PRIMARY_DOC_PREFIX)}"
             }
-            decoded
+            docId
         } catch (e: Exception) {
             LogManager.w("FormatUtils: Failed to resolve full physical path", e)
             Uri.decode(uriString)

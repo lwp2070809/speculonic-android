@@ -6,7 +6,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.os.Build
 import android.widget.RemoteViews
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
@@ -124,13 +123,7 @@ class SpeculonicMusicWidget : GlanceAppWidget() {
             night = nightSurfaceHighest.copy(alpha = backgroundAlpha)
         )
 
-        val widgetColors = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            GlanceTheme.colors
-        } else {
-            SpeculonicWidgetGlanceColorScheme.colors
-        }
-
-        GlanceTheme(colors = widgetColors) {
+        GlanceTheme {
             // 遵循官方规范直接使用 actionStartActivity，杜绝经过广播 Trampoline 转发产生串线与延迟
             val openIntent = Intent(context, MainActivity::class.java).apply {
                 action = if (isTrackAvailable) PlaybackService.ACTION_SHOW_PLAYER else Intent.ACTION_MAIN

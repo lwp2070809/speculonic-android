@@ -37,10 +37,6 @@ internal data class EntityCountSnapshot(
     val songs: Int
 )
 
-internal data class Search3LoopOutcome(
-    val offsetBugDetected: Boolean
-)
-
 internal data class PaginationStep(
     val hasMore: Boolean,
     val nextOffset: Int,
@@ -133,11 +129,10 @@ class SyncManager(
         onProgress: (suspend (String) -> Unit)?,
         onSyncComplete: suspend (Long, Long) -> Unit
     ): SyncOutcome {
-        pref.saveIsSyncing(true)
-        pref.saveSyncProgress(null)
-        pref.saveSyncError(null)
-
         try {
+            pref.saveIsSyncing(true)
+            pref.saveSyncProgress(null)
+            pref.saveSyncError(null)
             val authParams = authManager.getAuthParams()
             val progressMsg = "正在检查服务器更新..."
             onProgress?.invoke(progressMsg)
@@ -186,12 +181,7 @@ class SyncManager(
             pref.saveSyncError(e.message ?: e.toString())
             throw e
         } finally {
-            withContext(NonCancellable) {
-                if (!options.keepSyncingState) {
-                    pref.saveIsSyncing(false)
-                    pref.saveSyncProgress(null)
-                }
-            }
+            if (!options.keepSyncingState) resetSyncProgress()
         }
     }
 
@@ -309,14 +299,18 @@ class SyncManager(
             LogManager.e("SyncManager: quickSync failed", e)
             throw e
         } finally {
-            runCatching { musicDao.clearSyncTempIds() }
-            pref.saveIsSyncing(false)
-            pref.saveSyncProgress(null)
-            syncMutex.unlock()
+            try {
+                resetSyncProgress()
+            } finally {
+                syncMutex.unlock()
+            }
         }
     }
 
-    data class LegacySyncResult(val totalCount: Int, val failCount: Int, val songCount: Int)
+    private suspend fun resetSyncProgress() = withContext(NonCancellable) {
+        pref.saveIsSyncing(false)
+        pref.saveSyncProgress(null)
+    }
 
     companion object {
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L
