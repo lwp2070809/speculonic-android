@@ -23,7 +23,7 @@ android {
         minSdk = 33
         targetSdk = 37
         versionCode = 1
-        versionName = "0.10.0"
+        versionName = "0.10.1"
 
         if (!injectedAbi.isNullOrBlank()) {
             ndk {
