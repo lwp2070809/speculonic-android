@@ -29,8 +29,10 @@ import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
@@ -90,6 +92,7 @@ class PlaybackService : MediaSessionService() {
     private var cacheStrategyManager: CacheStrategyManager? = null
     private val serviceScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private val isInitializing = java.util.concurrent.atomic.AtomicBoolean(false)
+    private var playerInitJob: Job? = null
     @Volatile private var isServiceDestroyed = false
     
     @Volatile private var lastInitializedServerUrl: String? = null
@@ -204,8 +207,11 @@ class PlaybackService : MediaSessionService() {
     private fun setupCacheLifecycleCallbacks() {
         val serviceRef = java.lang.ref.WeakReference(this)
         cacheManager.onRequireCacheRelease = {
-            withContext(Dispatchers.Main) {
+            withContext(Dispatchers.Main + NonCancellable) {
                 val service = serviceRef.get() ?: return@withContext
+                service.playerInitJob?.cancelAndJoin()
+                service.playerInitJob = null
+                if (service.isServiceDestroyed) return@withContext
                 service.releasePlayerForCacheReset()
             }
         }
@@ -271,9 +277,9 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun initializeSessionAndPlayer() {
-        if (isServiceDestroyed || !isInitializing.compareAndSet(false, true)) return
+        if (isServiceDestroyed || cacheManager.isReleasing || !isInitializing.compareAndSet(false, true)) return
 
-        serviceScope.launch {
+        playerInitJob = serviceScope.launch {
             var createdRealPlayer: ExoPlayer? = null
             var attachedToSession = false
             try {
@@ -409,7 +415,7 @@ class PlaybackService : MediaSessionService() {
             }
         }
         isInitializing.set(false)
-        if (!isServiceDestroyed) {
+        if (!isServiceDestroyed && !cacheManager.isReleasing) {
             pendingConfig?.let { (url, username) ->
                 pendingConfig = null
                 if (hasServerConfigChanged(url, username)) {

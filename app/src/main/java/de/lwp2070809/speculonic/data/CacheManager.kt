@@ -25,6 +25,7 @@ class CacheManager @Inject constructor(
     private val downloadManagerHelper: dagger.Lazy<DownloadManagerHelper>
 ) {
     private val mutex = Mutex()
+    private val releaseMutex = Mutex()
     @Volatile private var playbackCache: Cache? = null
     @Volatile private var downloadCache: Cache? = null
     @Volatile private var databaseProvider: DatabaseProvider? = null
@@ -98,93 +99,97 @@ class CacheManager @Inject constructor(
         getDatabaseProviderLocked()
     }
 
+    internal suspend fun <T> withDownloadResources(block: (Cache, DatabaseProvider) -> T): T = mutex.withLock {
+        block(getDownloadCacheLocked(), getDatabaseProviderLocked())
+    }
+
     fun getPlaybackCacheOrNull(): Cache? = if (isReleasing) null else playbackCache
 
     fun getDownloadCacheOrNull(): Cache? = if (isReleasing) null else downloadCache
 
     suspend fun executeWithCacheReleaseLock(block: () -> Unit) {
-        try {
-            mutex.withLock {
-                isReleasing = true
-                try {
-                    LogManager.i("CacheManager: Requesting active components to release caches...")
-                    onRequireCacheRelease?.invoke()
-
-                    // 先释放持有同一 SimpleCache 的 DownloadManager，再释放底层 Cache
+        releaseMutex.withLock {
+            isReleasing = true
+            try {
+                LogManager.i("CacheManager: Requesting active components to release caches...")
+                // 主线程可能正在同步等待下载初始化；回调期间必须允许它取得缓存资源。
+                onRequireCacheRelease?.invoke()
+                mutex.withLock {
                     downloadManagerHelper.get().release()
-
-                    try {
-                        androidx.media3.exoplayer.offline.DownloadService.clearDownloadManagerHelpers()
-                        LogManager.i("CacheManager: Cleared Media3 DownloadManagerHelpers static cache.")
-                    } catch (e: Exception) {
-                        LogManager.e("CacheManager: Failed to clear DownloadManagerHelpers", e)
-                    }
-
-                    var retryCount = 0
-                    var allReleased = false
-                    while (retryCount < MAX_CACHE_RELEASE_RETRIES && !allReleased) {
-                        var attemptSuccess = true
-                        playbackCache?.let { cache ->
-                            try {
-                                cache.release()
-                                playbackCache = null
-                            } catch (e: Exception) {
-                                attemptSuccess = false
-                                LogManager.w(
-                                    "CacheManager: Failed to release playbackCache " +
-                                        "(attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)",
-                                    e
-                                )
-                            }
-                        }
-                        downloadCache?.let { cache ->
-                            try {
-                                cache.release()
-                                downloadCache = null
-                            } catch (e: Exception) {
-                                attemptSuccess = false
-                                LogManager.w(
-                                    "CacheManager: Failed to release downloadCache " +
-                                        "(attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)",
-                                    e
-                                )
-                            }
-                        }
-
-                        if (attemptSuccess) {
-                            databaseProvider = null
-                            LogManager.i("CacheManager: All cache instances and database provider released.")
-                            allReleased = true
-                        } else {
-                            retryCount++
-                            if (retryCount >= MAX_CACHE_RELEASE_RETRIES) {
-                                LogManager.e(
-                                    "CacheManager: Some caches failed to release after $retryCount retries, forcing clearance."
-                                )
-                                playbackCache = null
-                                downloadCache = null
-                                databaseProvider = null
-                            } else {
-                                delay(CACHE_RELEASE_RETRY_DELAY_MS)
-                            }
-                        }
-                    }
-
+                    clearDownloadManagerHelpers()
+                    releaseCaches()
                     block()
+                }
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                LogManager.e("CacheManager: Error during cache release & clearance", e)
+                throw e
+            } finally {
+                isReleasing = false
+                rebuildCaches()
+            }
+        }
+    }
+
+    private fun clearDownloadManagerHelpers() {
+        try {
+            androidx.media3.exoplayer.offline.DownloadService.clearDownloadManagerHelpers()
+            LogManager.i("CacheManager: Cleared Media3 DownloadManagerHelpers static cache.")
+        } catch (e: Exception) {
+            LogManager.e("CacheManager: Failed to clear DownloadManagerHelpers", e)
+        }
+    }
+
+    private suspend fun releaseCaches() {
+        var retryCount = 0
+        var allReleased = false
+        while (retryCount < MAX_CACHE_RELEASE_RETRIES && !allReleased) {
+            var attemptSuccess = true
+            playbackCache?.let { cache ->
+                try {
+                    cache.release()
+                    playbackCache = null
                 } catch (e: Exception) {
-                    if (e is CancellationException) throw e
-                    LogManager.e("CacheManager: Error during cache release & clearance", e)
-                    throw e
-                } finally {
-                    isReleasing = false
+                    attemptSuccess = false
+                    LogManager.w(
+                        "CacheManager: Failed to release playbackCache (attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)", e
+                    )
                 }
             }
-        } finally {
-            try {
-                onCacheRebuild?.invoke()
-            } catch (e: Exception) {
-                LogManager.e("CacheManager: Error in onCacheRebuild callback", e)
+            downloadCache?.let { cache ->
+                try {
+                    cache.release()
+                    downloadCache = null
+                } catch (e: Exception) {
+                    attemptSuccess = false
+                    LogManager.w(
+                        "CacheManager: Failed to release downloadCache (attempt ${retryCount + 1}/$MAX_CACHE_RELEASE_RETRIES)", e
+                    )
+                }
             }
+            if (attemptSuccess) {
+                databaseProvider = null
+                LogManager.i("CacheManager: All cache instances and database provider released.")
+                allReleased = true
+            } else {
+                retryCount++
+                if (retryCount >= MAX_CACHE_RELEASE_RETRIES) {
+                    LogManager.e("CacheManager: Some caches failed to release after $retryCount retries, forcing clearance.")
+                    playbackCache = null
+                    downloadCache = null
+                    databaseProvider = null
+                } else {
+                    delay(CACHE_RELEASE_RETRY_DELAY_MS)
+                }
+            }
+        }
+    }
+
+    private fun rebuildCaches() {
+        try {
+            onCacheRebuild?.invoke()
+        } catch (e: Exception) {
+            LogManager.e("CacheManager: Error in onCacheRebuild callback", e)
         }
     }
 

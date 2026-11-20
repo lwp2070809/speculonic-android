@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -37,11 +38,6 @@ class DownloadManagerHelper @Inject constructor(
     private val preferencesManager: PreferencesManager,
     private val cacheManager: CacheManager
 ) {
-    private data class BuiltDownloadManager(
-        val manager: DownloadManager,
-        val executor: ExecutorService
-    )
-
     @Volatile private var downloadExecutor: ExecutorService? = null
     @Volatile private var deferredHolder = CompletableDeferred<DownloadManager>()
     private var initJob: Job? = null
@@ -60,29 +56,9 @@ class DownloadManagerHelper @Inject constructor(
             }
             val generation = initGeneration.get()
             initJob = CoroutineScope(Dispatchers.IO).launch {
-                var built: BuiltDownloadManager? = null
                 try {
-                    built = buildDownloadManager(generation)
-                    val accepted = synchronized(this@DownloadManagerHelper) {
-                        if (generation == initGeneration.get() &&
-                            deferredHolder === targetDeferred &&
-                            !targetDeferred.isCompleted
-                        ) {
-                            downloadExecutor = built.executor
-                            targetDeferred.complete(built.manager)
-                        } else {
-                            false
-                        }
-                    }
-                    if (!accepted) {
-                        built.manager.release()
-                        built.executor.shutdownNow()
-                        built = null
-                        targetDeferred.cancel()
-                    }
+                    buildAndPublishDownloadManager(generation, targetDeferred)
                 } catch (e: CancellationException) {
-                    built?.manager?.release()
-                    built?.executor?.shutdownNow()
                     targetDeferred.cancel(e)
                     throw e
                 } catch (e: Exception) {
@@ -105,10 +81,10 @@ class DownloadManagerHelper @Inject constructor(
         if (current.isCompleted && !current.isCancelled) {
             return current.completedManagerOrNull() ?: fallbackInit()
         }
-        initializeAsync()
+        val pending = initializeAndGetDeferred()
         return try {
             runBlocking(Dispatchers.IO) {
-                deferredHolder.await()
+                pending.await()
             }
         } catch (e: Exception) {
             LogManager.e("DownloadManagerHelper: Error awaiting DownloadManager in getDownloadManager", e)
@@ -124,13 +100,12 @@ class DownloadManagerHelper @Inject constructor(
             if (completionError is CancellationException) throw completionError
             return withContext(Dispatchers.IO) { fallbackInit() }
         }
-        initializeAsync()
+        val pending = initializeAndGetDeferred()
         return try {
-            deferredHolder.await()
+            pending.await()
         } catch (e: CancellationException) {
             if (currentCoroutineContext().isActive) {
-                initializeAsync()
-                deferredHolder.await()
+                initializeAndGetDeferred().await()
             } else {
                 throw e
             }
@@ -139,6 +114,12 @@ class DownloadManagerHelper @Inject constructor(
 
     fun getDownloadManagerOnlyIfInitialized(): DownloadManager? =
         deferredHolder.completedManagerOrNull()
+
+    // 与 release() 替换 holder 互斥，避免启动旧代初始化后却等待一个尚未启动的新代 holder。
+    private fun initializeAndGetDeferred(): CompletableDeferred<DownloadManager> = synchronized(this) {
+        initializeAsync()
+        deferredHolder
+    }
 
     private fun CompletableDeferred<DownloadManager>.completedManagerOrNull(): DownloadManager? =
         if (isCompleted && !isCancelled && getCompletionExceptionOrNull() == null) {
@@ -158,30 +139,15 @@ class DownloadManagerHelper @Inject constructor(
                 CompletableDeferred<DownloadManager>().also { deferredHolder = it }
             )
         }
-        val built = executeFallbackBuild(generation, fresh)
-        val accepted = synchronized(this) {
-            if (generation == initGeneration.get() && deferredHolder === fresh && !fresh.isCompleted) {
-                downloadExecutor = built.executor
-                fresh.complete(built.manager)
-            } else {
-                false
-            }
-        }
-        if (!accepted) {
-            built.manager.release()
-            built.executor.shutdownNow()
-            fresh.cancel()
-            throw CancellationException("DownloadManagerHelper released during fallbackInit")
-        }
-        return built.manager
+        return executeFallbackBuild(generation, fresh)
     }
 
     @Suppress("TooGenericExceptionCaught")
     private fun executeFallbackBuild(
         generation: Long,
         fresh: CompletableDeferred<DownloadManager>
-    ): BuiltDownloadManager = try {
-        runBlocking(Dispatchers.IO) { buildDownloadManager(generation) }
+    ): DownloadManager = try {
+        runBlocking(Dispatchers.IO) { buildAndPublishDownloadManager(generation, fresh) }
     } catch (e: CancellationException) {
         fresh.cancel(e)
         throw e
@@ -190,77 +156,111 @@ class DownloadManagerHelper @Inject constructor(
         throw e
     }
 
-    private suspend fun buildDownloadManager(generation: Long): BuiltDownloadManager =
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun buildAndPublishDownloadManager(
+        generation: Long,
+        targetDeferred: CompletableDeferred<DownloadManager>
+    ): DownloadManager =
         withContext(Dispatchers.IO) {
             val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
-
-            val downloadCache = cacheManager.acquireDownloadCache()
-            if (generation != initGeneration.get()) {
-                throw CancellationException("DownloadManagerHelper released before acquiring databaseProvider")
-            }
-
             val okHttpClient = NetworkModule.provideStreamOkHttpClient(context)
             val httpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
-            val upstreamDataSourceFactory = httpDataSourceFactory
+            val initializationContext = currentCoroutineContext()
 
-            val databaseProvider = cacheManager.acquireDatabaseProvider()
-            if (generation != initGeneration.get()) {
-                throw CancellationException("DownloadManagerHelper released before constructing DownloadManager")
-            }
-
-            val newExecutor = Executors.newFixedThreadPool(4)
-
-            LogManager.i("Initializing DownloadManager for Persistent Track with Cascade Read. mobilePlayAllowed=$mobilePlayAllowed")
-
-            val manager = DownloadManager(
-                context.applicationContext,
-                databaseProvider,
-                downloadCache,
-                upstreamDataSourceFactory,
-                newExecutor
-            ).apply {
-                maxParallelDownloads = 5
-
-                // 避免 Media3 强制依赖系统 NET_CAPABILITY_VALIDATED 导致自托管内网或无公网验证环境下任务永久排队阻塞
-                requirements = Requirements(0)
-
-                addListener(object : DownloadManager.Listener {
-                    private val lastStates = java.util.concurrent.ConcurrentHashMap<String, Int>()
-
-                    override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
-                        val id = download.request.id
-                        val currentState = download.state
-                        val lastState = lastStates[id]
-
-                        if (lastState != currentState || finalException != null) {
-                            lastStates[id] = currentState
-                            val stateStr = when (currentState) {
-                                Download.STATE_QUEUED -> "QUEUED"
-                                Download.STATE_STOPPED -> "STOPPED"
-                                Download.STATE_DOWNLOADING -> "DOWNLOADING"
-                                Download.STATE_COMPLETED -> "COMPLETED"
-                                Download.STATE_FAILED -> "FAILED"
-                                Download.STATE_REMOVING -> "REMOVING"
-                                Download.STATE_RESTARTING -> "RESTARTING"
-                                else -> "UNKNOWN ($currentState)"
-                            }
-                            val exMsg = if (finalException != null) ", exception: ${finalException.message}" else ""
-                            LogManager.d("DownloadManager [$id] state changed -> $stateStr$exMsg")
-                        }
-
-                        if (currentState == Download.STATE_COMPLETED ||
-                            currentState == Download.STATE_FAILED ||
-                            currentState == Download.STATE_REMOVING
-                        ) {
-                            lastStates.remove(id)
-                        }
+            // 资源获取、构造和发布共享清理使用的锁，避免已取得的缓存先被释放，或新实例尚未发布就被清理遗漏。
+            cacheManager.withDownloadResources { downloadCache, databaseProvider ->
+                initializationContext.ensureActive()
+                if (!isCurrentInitialization(generation, targetDeferred)) {
+                    throw CancellationException("DownloadManagerHelper initialization superseded before construction")
+                }
+                val newExecutor = Executors.newFixedThreadPool(4)
+                var createdManager: DownloadManager? = null
+                try {
+                    LogManager.i(
+                        "Initializing DownloadManager for Persistent Track with Cascade Read. mobilePlayAllowed=$mobilePlayAllowed"
+                    )
+                    val manager = DownloadManager(
+                        context.applicationContext,
+                        databaseProvider,
+                        downloadCache,
+                        httpDataSourceFactory,
+                        newExecutor
+                    )
+                    createdManager = manager
+                    configureDownloadManager(manager)
+                    initializationContext.ensureActive()
+                    if (!publishIfCurrent(generation, targetDeferred, manager, newExecutor)) {
+                        throw CancellationException("DownloadManagerHelper initialization superseded before publication")
                     }
-                })
-
-                resumeDownloads()
+                    manager
+                } catch (e: Throwable) {
+                    runCatching { createdManager?.release() }.exceptionOrNull()?.let(e::addSuppressed)
+                    newExecutor.shutdownNow()
+                    throw e
+                }
             }
-            BuiltDownloadManager(manager, newExecutor)
         }
+
+    private fun isCurrentInitialization(generation: Long, targetDeferred: CompletableDeferred<DownloadManager>): Boolean =
+        synchronized(this) {
+            generation == initGeneration.get() && deferredHolder === targetDeferred && !targetDeferred.isCompleted
+        }
+
+    private fun publishIfCurrent(
+        generation: Long,
+        targetDeferred: CompletableDeferred<DownloadManager>,
+        manager: DownloadManager,
+        executor: ExecutorService
+    ): Boolean = synchronized(this) {
+        if (!isCurrentInitialization(generation, targetDeferred) || !targetDeferred.complete(manager)) {
+            false
+        } else {
+            downloadExecutor = executor
+            true
+        }
+    }
+
+    private fun configureDownloadManager(manager: DownloadManager) {
+        manager.maxParallelDownloads = MAX_PARALLEL_DOWNLOADS
+
+        // 避免 Media3 强制依赖系统 NET_CAPABILITY_VALIDATED 导致自托管内网或无公网验证环境下任务永久排队阻塞
+        manager.requirements = Requirements(0)
+
+        manager.addListener(object : DownloadManager.Listener {
+            private val lastStates = java.util.concurrent.ConcurrentHashMap<String, Int>()
+
+            override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
+                val id = download.request.id
+                val currentState = download.state
+                val lastState = lastStates[id]
+
+                if (lastState != currentState || finalException != null) {
+                    lastStates[id] = currentState
+                    val stateStr = when (currentState) {
+                        Download.STATE_QUEUED -> "QUEUED"
+                        Download.STATE_STOPPED -> "STOPPED"
+                        Download.STATE_DOWNLOADING -> "DOWNLOADING"
+                        Download.STATE_COMPLETED -> "COMPLETED"
+                        Download.STATE_FAILED -> "FAILED"
+                        Download.STATE_REMOVING -> "REMOVING"
+                        Download.STATE_RESTARTING -> "RESTARTING"
+                        else -> "UNKNOWN ($currentState)"
+                    }
+                    val exMsg = if (finalException != null) ", exception: ${finalException.message}" else ""
+                    LogManager.d("DownloadManager [$id] state changed -> $stateStr$exMsg")
+                }
+
+                if (currentState == Download.STATE_COMPLETED ||
+                    currentState == Download.STATE_FAILED ||
+                    currentState == Download.STATE_REMOVING
+                ) {
+                    lastStates.remove(id)
+                }
+            }
+        })
+
+        manager.resumeDownloads()
+    }
 
     fun updateRequirements(mobilePlayAllowed: Boolean) {
         val manager = getDownloadManagerOnlyIfInitialized() ?: return
@@ -283,5 +283,9 @@ class DownloadManagerHelper @Inject constructor(
         }
         manager?.release()
         executor?.shutdown()
+    }
+
+    private companion object {
+        const val MAX_PARALLEL_DOWNLOADS = 5
     }
 }

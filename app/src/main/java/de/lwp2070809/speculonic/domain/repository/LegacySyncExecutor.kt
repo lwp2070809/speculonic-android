@@ -49,12 +49,12 @@ internal class LegacySyncExecutor(
         )
         musicDao.clearSyncTempIds()
         val directories = syncAllArtistsAndSongs()
+        val indexedSongCount = musicDao.getSyncTempIdCountByType("song")
+        syncAllAlbums(indexedSongCount = indexedSongCount.takeIf { directories.failed == 0 })
 
         if (directories.failed > 0) {
             throw IOException("Legacy sync incomplete: ${directories.failed}/${directories.total} directories failed")
         }
-        val indexedSongCount = musicDao.getSyncTempIdCountByType("song")
-        syncAllAlbums(indexedSongCount = indexedSongCount)
         val remoteCounts = EntityCountSnapshot(
             artists = musicDao.getSyncTempIdCountByType("artist"),
             albums = musicDao.getSyncTempIdCountByType("album"),
