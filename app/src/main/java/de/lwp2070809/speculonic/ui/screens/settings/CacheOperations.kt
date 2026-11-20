@@ -58,15 +58,18 @@ class CacheOperations @javax.inject.Inject constructor(
         defaultValue
     }
 
+    private suspend fun runCacheReset(operationName: String, clearDownloads: Boolean, reset: suspend () -> Unit): Result<Unit> =
+        runCacheOp("CacheOperations: $operationName failed") { downloadTracker.resetWhileTrackingPaused(clearDownloads, reset) }
+
     private suspend fun resetManagedCache(
         operationName: String,
         clearPlaybackBuffer: Boolean = false,
         clearCoverArt: Boolean = false,
         clearPersistent: Boolean = false,
         resetDb: Boolean = false,
-        preserveSaf: Boolean = true
+        preserveAccountData: Boolean = true
     ): Result<Unit> = withContext(Dispatchers.IO) {
-        runCacheOp("CacheOperations: $operationName failed") {
+        runCacheReset(operationName, clearDownloads = clearPersistent) {
             runBestEffort("CacheOperations: Failed to stop DownloadServices", Unit) {
                 context.stopService(android.content.Intent(context, de.lwp2070809.speculonic.playback.DownloadService::class.java))
                 context.stopService(
@@ -74,7 +77,7 @@ class CacheOperations @javax.inject.Inject constructor(
                 )
             }
 
-            cacheManager.executeWithCacheReleaseLock {
+            cacheManager.executeWithCacheReleaseLock(preservePlayback = preserveAccountData) {
                 if (clearPlaybackBuffer) {
                     File(context.cacheDir, "media_playback_buffer").deleteRecursively()
                 }
@@ -93,7 +96,7 @@ class CacheOperations @javax.inject.Inject constructor(
 
             if (resetDb) {
                 runBestEffort("CacheOperations: Failed to reset database cache status on $operationName", Unit) {
-                    if (preserveSaf) {
+                    if (preserveAccountData) {
                         database.musicDao().resetNonSafCacheStatus()
                     } else {
                         database.musicDao().resetAllCacheStatus()
@@ -101,18 +104,16 @@ class CacheOperations @javax.inject.Inject constructor(
                 }
             }
 
-            downloadTracker.clearAll()
-            downloadTracker.init()
         }
     }
 
-    suspend fun clearAllCache(preserveSaf: Boolean = true): Result<Unit> = resetManagedCache(
+    suspend fun clearAllCache(preserveAccountData: Boolean = true): Result<Unit> = resetManagedCache(
         operationName = "clearAllCache",
         clearPlaybackBuffer = true,
         clearCoverArt = true,
         clearPersistent = true,
         resetDb = true,
-        preserveSaf = preserveSaf
+        preserveAccountData = preserveAccountData
     )
 
     suspend fun clearPlaybackCache(): Result<Unit> = resetManagedCache(
@@ -129,8 +130,7 @@ class CacheOperations @javax.inject.Inject constructor(
     suspend fun clearSongDownloads(): Result<Unit> = resetManagedCache(
         operationName = "clearSongDownloads",
         clearPersistent = true,
-        resetDb = true,
-        preserveSaf = true
+        resetDb = true
     )
 
     suspend fun calculateCacheSizes(cacheLocation: String): CacheBreakdown = withContext(Dispatchers.IO) {

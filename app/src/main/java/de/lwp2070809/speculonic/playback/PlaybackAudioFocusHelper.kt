@@ -169,6 +169,12 @@ class PlaybackAudioFocusHelper(
         return result
     }
 
+    fun releaseManualFocus() {
+        if (isDefaultFocusHandling) return
+        abandonAudioFocus()
+        resetLossState()
+    }
+
     fun abandonAudioFocus() {
         focusRequest?.let {
             val result = audioManager.abandonAudioFocusRequest(it)

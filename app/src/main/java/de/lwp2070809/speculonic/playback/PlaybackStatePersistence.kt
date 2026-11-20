@@ -13,6 +13,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
@@ -192,6 +193,34 @@ class PlaybackStatePersistence(
             currentDb.musicDao().updatePlaybackQueue(mediaItems.mapIndexed { index, item ->
                 PlaybackQueueEntity(index, item.mediaId)
             })
+        }
+    }
+
+    /** Called on the player thread after detaching the listener and before rebuilding against the same stores. */
+    suspend fun finishCacheReset(player: Player?, preservePlayback: Boolean) {
+        if (preservePlayback && player == null) return
+        val snapshot = if (preservePlayback) captureSnapshot(checkNotNull(player)) else null
+        val seq = saveGeneration.incrementAndGet()
+        saveStateJob?.cancel()
+        val pendingQueue = saveQueueJob
+        withContext(Dispatchers.IO) {
+            if (preservePlayback) {
+                pendingQueue?.join()
+            } else {
+                pendingQueue?.cancelAndJoin()
+                dbProvider()?.musicDao()?.clearPlaybackQueue()
+            }
+            preferencesManagerProvider()?.let { prefs ->
+                val state = snapshot ?: PlaybackSnapshot(
+                    mediaId = null,
+                    position = 0L,
+                    index = 0,
+                    repeatMode = prefs.repeatMode.first(),
+                    shuffleMode = prefs.shuffleMode.first(),
+                    queueTitle = null
+                )
+                persistSnapshotIfLatest(prefs, seq, requireUnpreemptedSchedule = false, snapshot = state)
+            }
         }
     }
 

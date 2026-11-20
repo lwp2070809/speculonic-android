@@ -23,7 +23,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,12 +34,15 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -79,8 +84,7 @@ class DownloadTracker @Inject constructor(
         }
         .distinctUntilChanged()
 
-    private val isInitialized = AtomicBoolean(false)
-    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val tracking = DownloadTrackingSession(::startTracking)
     private val exportJobs = ConcurrentHashMap<String, Job>()
     private val pendingFileDeletionIds = ConcurrentHashMap.newKeySet<String>()
     private val pollJob = AtomicReference<Job?>(null)
@@ -179,22 +183,28 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    fun clearAll() {
-        _downloadedSongIds.value = emptySet()
-        _activeDownloadIds.value = emptySet()
-        _allDownloads.value = emptyList()
-        isInitialized.set(false)
-        pollJob.getAndSet(null)?.cancel()
+    suspend fun resetWhileTrackingPaused(clearDownloads: Boolean, reset: suspend () -> Unit) = tracking.restartAfter {
+        // Media3 delivers listener callbacks on the main looper. Drain any in-flight callback
+        // from the detached listener before clearing the old session's observable state.
+        withContext(Dispatchers.Main.immediate) {
+            _downloadedSongIds.value = emptySet()
+            _activeDownloadIds.value = emptySet()
+            _allDownloads.value = emptyList()
+            pollJob.set(null)
+            if (clearDownloads) pendingFileDeletionIds.clear()
+        }
+        reset()
     }
 
-    fun init() {
-        if (isInitialized.getAndSet(true)) return
+    fun init() = tracking.start()
 
+    private fun startTracking(scope: CoroutineScope) {
         scope.launch {
             val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
-            val listener = DownloadManagerListener()
+            val listener = DownloadManagerListener(scope)
             downloadManager.addListener(listener)
-            refreshDownloads(downloadManager)
+            scope.coroutineContext.job.invokeOnCompletion { downloadManager.removeListener(listener) }
+            refreshDownloads(downloadManager, scope)
             recoverPendingExports(listener)
         }
     }
@@ -265,7 +275,7 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    private suspend fun refreshDownloads(downloadManager: DownloadManager) {
+    private suspend fun refreshDownloads(downloadManager: DownloadManager, scope: CoroutineScope) {
         val all = mutableListOf<DownloadTaskInfo>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
@@ -281,7 +291,7 @@ class DownloadTracker @Inject constructor(
         _downloadedSongIds.value = downloaded
         _activeDownloadIds.value = active
         _allDownloads.value = all
-        checkAndStartPolling(downloadManager)
+        checkAndStartPolling(downloadManager, scope)
     }
 
     private fun classifyDownloadStatus(
@@ -300,7 +310,7 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager) {
+    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager, scope: CoroutineScope) {
         val currentActiveDownloads = getCurrentDownloadsSafe(downloadManager)
         if (currentActiveDownloads.isEmpty()) {
             pollJob.getAndSet(null)?.cancel()
@@ -314,10 +324,10 @@ class DownloadTracker @Inject constructor(
                 if (active != null) DownloadTaskInfo(active) else item
             }
         }
-        checkAndStartPolling(downloadManager)
+        checkAndStartPolling(downloadManager, scope)
     }
 
-    private fun checkAndStartPolling(downloadManager: DownloadManager) {
+    private fun checkAndStartPolling(downloadManager: DownloadManager, scope: CoroutineScope) {
         // 仅存在真正下载中的任务时以 1Hz 轮询进度；QUEUED 等待状态转换由 Listener 事件驱动唤醒
         val hasDownloading = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING }
         if (hasDownloading) {
@@ -326,7 +336,7 @@ class DownloadTracker @Inject constructor(
                 val newJob = scope.launch {
                     while (true) {
                         delay(POLL_INTERVAL_MS)
-                        pollActiveDownloadsProgress(downloadManager)
+                        pollActiveDownloadsProgress(downloadManager, scope)
                     }
                 }
                 if (!pollJob.compareAndSet(currentJob, newJob)) {
@@ -338,7 +348,7 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    private inner class DownloadManagerListener : DownloadManager.Listener {
+    private inner class DownloadManagerListener(private val scope: CoroutineScope) : DownloadManager.Listener {
         fun scheduleExport(download: Download): Job {
             val id = download.request.id
             val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
@@ -361,6 +371,7 @@ class DownloadTracker @Inject constructor(
         }
 
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
+            if (!scope.isActive) return
             val isSilent = isSilentDownload(download)
 
             when (download.state) {
@@ -397,11 +408,12 @@ class DownloadTracker @Inject constructor(
                 }
                 updated
             }
-            checkAndStartPolling(downloadManager)
+            checkAndStartPolling(downloadManager, scope)
         }
 
         @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            if (!scope.isActive) return
             exportJobs.remove(download.request.id)?.cancel()
 
             _downloadedSongIds.update { it - download.request.id }
@@ -409,7 +421,7 @@ class DownloadTracker @Inject constructor(
             _allDownloads.update { current ->
                 current.filter { it.task.request.id != download.request.id }
             }
-            checkAndStartPolling(downloadManager)
+            checkAndStartPolling(downloadManager, scope)
 
             val isExplicitlyDeleted = consumePendingFileDeletion(download.request.id)
 
@@ -578,6 +590,39 @@ class DownloadTracker @Inject constructor(
             } catch (e: Exception) {
                 LogManager.w("DownloadTracker: Failed parsing isSilent flag: ${e.message}")
                 false
+            }
+        }
+    }
+}
+
+/** Owns all tracker work that can still read or export from the live Media3 caches. */
+internal class DownloadTrackingSession(private val onStart: (CoroutineScope) -> Unit) {
+    private val resetMutex = Mutex()
+    private var session: CoroutineScope? = null
+    private var paused = false
+
+    @Synchronized
+    fun start() {
+        if (paused || session != null) return
+        val next = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+        session = next
+        onStart(next)
+    }
+
+    suspend fun restartAfter(reset: suspend () -> Unit) = resetMutex.withLock {
+        val previous = synchronized(this) {
+            paused = true
+            session.also { session = null }
+        }
+        try {
+            // Join before taking the cache-release mutex: recovery or export may itself be
+            // waiting to acquire it. A cancelled settings screen must also drain that work.
+            withContext(NonCancellable) { previous?.coroutineContext?.job?.cancelAndJoin() }
+            reset()
+        } finally {
+            synchronized(this) {
+                paused = false
+                start()
             }
         }
     }

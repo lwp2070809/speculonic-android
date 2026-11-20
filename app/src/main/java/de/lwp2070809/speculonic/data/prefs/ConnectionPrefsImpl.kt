@@ -152,8 +152,12 @@ class ConnectionPrefsImpl(
         val hasPlainDs = plainDsUrl.isNotEmpty() || plainDsUser.isNotEmpty() || plainDsPass.isNotEmpty()
 
         if (hasPlainDs) return persistAndCleanupLegacy(plainDsUrl, plainDsUser, plainDsPass)
-        if (legacy == LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted) wipeCorruptedCredentials()
-        LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+        if (legacy == LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted) {
+            // Retain the original XML and key until a replacement account is successfully saved.
+            _credentialsResetWarning.value = true
+        } else {
+            LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+        }
         return DecryptedCredentials()
     }
 

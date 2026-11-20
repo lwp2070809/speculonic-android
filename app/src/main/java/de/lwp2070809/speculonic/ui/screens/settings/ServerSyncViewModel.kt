@@ -317,7 +317,7 @@ class ServerSyncViewModel @Inject constructor(
             stopSyncAndClearConnections(allowInsecureConnections)
             NetworkModule.clearSubsonicServiceCache()
             database.clearAllTables()
-            cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
+            cacheOperations.clearAllCache(preserveAccountData = false).onFailure { e ->
                 LogManager.e("ServerSyncViewModel: clearAllCache failed during server change", e)
             }
         } else if (DynamicSslTrustManager.allowInsecureConnections && !allowInsecureConnections) {
@@ -478,7 +478,7 @@ class ServerSyncViewModel @Inject constructor(
                 preferencesManager.saveServerSettings("", "", "")
 
                 database.clearAllTables()
-                cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
+                cacheOperations.clearAllCache(preserveAccountData = false).onFailure { e ->
                     LogManager.e("ServerSyncViewModel: clearAllCache failed during server deletion", e)
                 }
                 NetworkModule.ServerReachableManager.reset()

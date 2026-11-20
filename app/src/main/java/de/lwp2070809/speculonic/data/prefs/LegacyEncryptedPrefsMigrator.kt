@@ -2,9 +2,11 @@ package de.lwp2070809.speculonic.data.prefs
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import com.google.crypto.tink.Aead
 import com.google.crypto.tink.BinaryKeysetReader
 import com.google.crypto.tink.DeterministicAead
+import com.google.crypto.tink.InsecureSecretKeyAccess
 import com.google.crypto.tink.KeysetHandle
 import com.google.crypto.tink.RegistryConfiguration
 import com.google.crypto.tink.TinkProtoKeysetFormat
@@ -19,7 +21,7 @@ import java.io.IOException
 import java.nio.ByteBuffer
 import java.security.GeneralSecurityException
 import java.security.KeyStore
-import java.security.ProviderException
+import javax.crypto.AEADBadTagException
 
 /**
  * 仅用于从旧版 EncryptedSharedPreferences (speculonic_secure_prefs) 一次性只读迁出历史凭据。
@@ -73,11 +75,15 @@ internal object LegacyEncryptedPrefsMigrator {
             DeterministicAeadConfig.register()
             AeadConfig.register()
 
-            val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-            if (!keyStore.containsAlias(LEGACY_MASTER_KEY_ALIAS)) return LegacyMigrationResult.Corrupted
-            val masterAead = AndroidKeystoreKmsClient().getAead(MASTER_KEY_URI)
-            val keysetHandle = parseEncryptedKeyset(rawPrefs, KEY_KEYSET_ALIAS, masterAead)
-            val valueKeysetHandle = parseEncryptedKeyset(rawPrefs, VALUE_KEYSET_ALIAS, masterAead)
+            val masterAead = lazy {
+                val keyStore = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+                if (!keyStore.containsAlias(LEGACY_MASTER_KEY_ALIAS)) {
+                    throw KeystoreAesGcmCipher.InvalidCredentialData("Missing legacy master key")
+                }
+                AndroidKeystoreKmsClient().getAead(MASTER_KEY_URI)
+            }
+            val keysetHandle = readLegacyKeyset(rawPrefs, KEY_KEYSET_ALIAS, masterAead)
+            val valueKeysetHandle = readLegacyKeyset(rawPrefs, VALUE_KEYSET_ALIAS, masterAead)
 
             val daead = keysetHandle.getPrimitive(RegistryConfiguration.get(), DeterministicAead::class.java)
             val aead = valueKeysetHandle.getPrimitive(RegistryConfiguration.get(), Aead::class.java)
@@ -94,11 +100,17 @@ internal object LegacyEncryptedPrefsMigrator {
                 LegacyMigrationResult.NonePresent
             }
         } catch (e: Exception) {
-            if (!KeystoreAesGcmCipher.isPermanentFailure(e)) throw e
+            if (!isUnreadableLegacyData(e)) throw e
             LogManager.e("LegacyEncryptedPrefsMigrator: Failed decrypting legacy encrypted prefs: ${e.message}", e)
             LegacyMigrationResult.Corrupted
         }
     }
+
+    private fun isUnreadableLegacyData(error: Exception): Boolean =
+        generateSequence<Throwable>(error) { it.cause }.any {
+            it is KeystoreAesGcmCipher.InvalidCredentialData ||
+                it is AEADBadTagException || it is KeyPermanentlyInvalidatedException
+        }
 
     private fun readLegacyFallbackPrefs(context: Context): LegacyMigrationResult {
         if (!prefsFileExists(context, LEGACY_FALLBACK_PREFS_NAME)) {
@@ -118,38 +130,47 @@ internal object LegacyEncryptedPrefsMigrator {
         }
     }
 
-    private fun parseEncryptedKeyset(
+    private fun readLegacyKeyset(
         rawPrefs: SharedPreferences,
         keysetAlias: String,
-        masterAead: Aead
+        masterAead: Lazy<Aead>
     ): KeysetHandle {
         val hexKeyset = readEncryptedString(rawPrefs, keysetAlias)
             ?: throw KeystoreAesGcmCipher.InvalidCredentialData("Missing legacy keyset")
-        val serializedKeyset = decodeLegacyKeyset(hexKeyset)
+        val bytes = decodeStoredData("Invalid legacy keyset encoding") { Hex.decode(hexKeyset) }
         return try {
-            TinkProtoKeysetFormat.parseEncryptedKeyset(
-                serializedKeyset,
-                masterAead,
-                ByteArray(0),
-                RegistryConfiguration.get()
-            )
-        } catch (e: GeneralSecurityException) {
-            throw mapKeysetParseFailure(e)
+            parseLegacyKeyset(bytes, masterAead)
+        } finally {
+            bytes.fill(0)
         }
     }
 
-    private fun mapKeysetParseFailure(e: GeneralSecurityException): Exception {
-        if (KeystoreAesGcmCipher.isPermanentFailure(e)) return e
-        val hasProviderError = generateSequence<Throwable>(e) { it.cause }
-            .any { it is ProviderException }
-        val msg = e.message.orEmpty()
-        val isCorruptedKeyset = !hasProviderError &&
-            (msg.contains("keyset", ignoreCase = true) || msg.contains("corrupted", ignoreCase = true))
-        return if (isCorruptedKeyset) {
-            KeystoreAesGcmCipher.InvalidCredentialData("Corrupted legacy keyset", e)
-        } else {
-            e
+    internal fun parseLegacyKeyset(bytes: ByteArray, masterAead: Lazy<Aead>): KeysetHandle {
+        val envelope = try {
+            BinaryKeysetReader.withBytes(bytes).readEncrypted()
+        } catch (e: IOException) {
+            throw KeystoreAesGcmCipher.InvalidCredentialData("Invalid legacy keyset data", e)
         }
+        // Tink 1.8 wrote keyset_info on every wrapped keyset. Its Keystore fallback wrote
+        // a raw Keyset instead, independently for preference names and values.
+        if (!envelope.hasKeysetInfo()) {
+            return parseUnwrappedKeyset(bytes)
+        }
+        if (envelope.encryptedKeyset.size() < MIN_GCM_CIPHERTEXT_BYTES) {
+            throw KeystoreAesGcmCipher.InvalidCredentialData("Truncated encrypted legacy keyset")
+        }
+        val plaintext = masterAead.value.decrypt(envelope.encryptedKeyset.toByteArray(), ByteArray(0))
+        return try {
+            parseUnwrappedKeyset(plaintext)
+        } finally {
+            plaintext.fill(0)
+        }
+    }
+
+    private fun parseUnwrappedKeyset(bytes: ByteArray): KeysetHandle = try {
+        TinkProtoKeysetFormat.parseKeyset(bytes, InsecureSecretKeyAccess.get(), RegistryConfiguration.get())
+    } catch (e: GeneralSecurityException) {
+        throw KeystoreAesGcmCipher.InvalidCredentialData("Invalid unwrapped legacy keyset", e)
     }
 
     private fun decryptStringEntry(
@@ -182,19 +203,6 @@ internal object LegacyEncryptedPrefsMigrator {
         prefs.getString(key, null)
     } catch (e: ClassCastException) {
         throw KeystoreAesGcmCipher.InvalidCredentialData("Invalid encrypted preference type", e)
-    }
-
-    private fun decodeLegacyKeyset(hex: String): ByteArray {
-        val bytes = decodeStoredData("Invalid legacy keyset encoding") { Hex.decode(hex) }
-        val envelope = try {
-            BinaryKeysetReader.withBytes(bytes).readEncrypted()
-        } catch (e: IOException) {
-            throw KeystoreAesGcmCipher.InvalidCredentialData("Invalid legacy keyset data", e)
-        }
-        if (envelope.encryptedKeyset.size() < MIN_GCM_CIPHERTEXT_BYTES) {
-            throw KeystoreAesGcmCipher.InvalidCredentialData("Truncated encrypted legacy keyset")
-        }
-        return bytes
     }
 
     private fun decodeLegacyCiphertext(encoded: String): ByteArray {

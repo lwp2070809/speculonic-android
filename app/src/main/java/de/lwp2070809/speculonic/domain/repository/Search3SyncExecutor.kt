@@ -23,6 +23,16 @@ import okhttp3.ResponseBody
 private class EntityPaginationCursor {
     var hasMore = true
     var offset = 0
+
+    fun advance(label: String, received: Int, added: Int) {
+        if (!hasMore) return
+        if (received != added) {
+            throw IncompletePaginationException("Overlapping search3 $label page at offset $offset")
+        }
+        // A server may cap the page below the requested size. Probe until an empty page.
+        hasMore = received > 0
+        offset += received
+    }
 }
 
 private class Search3PaginationState {
@@ -30,7 +40,6 @@ private class Search3PaginationState {
     val albums = EntityPaginationCursor()
     val songs = EntityPaginationCursor()
     var page = 0
-    var offsetBugDetected = false
 
     fun hasPendingPages(maxPages: Int): Boolean {
         val anyMore = artists.hasMore || albums.hasMore || songs.hasMore
@@ -145,15 +154,12 @@ internal class Search3SyncExecutor(
                 fetchAndDecodePage(authParams, channels, streamState, pagination)
             }
             if (pagination.artists.hasMore || pagination.albums.hasMore || pagination.songs.hasMore) {
-                LogManager.w("SyncManager: Reached max search3 page limit ($MAX_SEARCH3_PAGES), stopping safely.")
-                pagination.offsetBugDetected = true
+                throw IncompletePaginationException("Exceeded search3 page limit ($MAX_SEARCH3_PAGES)")
             }
         } finally {
             channels.closeAll()
             writerJob.join()
         }
-
-        if (pagination.offsetBugDetected) throw IncompletePaginationException("Incomplete search3 pagination")
     }
 
     private suspend fun fetchAndDecodePage(
@@ -197,24 +203,9 @@ internal class Search3SyncExecutor(
         }
 
         val pageStats = checkNotNull(decodedStats) { "Missing searchResult3 in response" }
-        updateCursor("artist", pagination.artists, reqArtistCount, pageStats.artistReceived, pageStats.artistAdded, pagination)
-        updateCursor("album", pagination.albums, reqAlbumCount, pageStats.albumReceived, pageStats.albumAdded, pagination)
-        updateCursor("song", pagination.songs, reqSongCount, pageStats.songReceived, pageStats.songAdded, pagination)
-    }
-
-    private fun updateCursor(
-        label: String,
-        cursor: EntityPaginationCursor,
-        requestedCount: Int,
-        received: Int,
-        added: Int,
-        pagination: Search3PaginationState
-    ) {
-        if (!cursor.hasMore) return
-        val step = advancePaginationState(label, cursor.offset, requestedCount, received, added)
-        cursor.hasMore = step.hasMore
-        cursor.offset = step.nextOffset
-        if (step.offsetBugDetected) pagination.offsetBugDetected = true
+        pagination.artists.advance("artist", pageStats.artistReceived, pageStats.artistAdded)
+        pagination.albums.advance("album", pageStats.albumReceived, pageStats.albumAdded)
+        pagination.songs.advance("song", pageStats.songReceived, pageStats.songAdded)
     }
 
     private fun kotlinx.coroutines.CoroutineScope.launchWriterJob(channels: Search3Channels): Job {
@@ -293,32 +284,6 @@ internal class Search3SyncExecutor(
             buffers.tempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
         }
         buffers.clear()
-    }
-
-    private fun advancePaginationState(
-        entityLabel: String,
-        currentOffset: Int,
-        requestedCount: Int,
-        received: Int,
-        added: Int
-    ): PaginationStep {
-        return when {
-            received == 0 -> PaginationStep(hasMore = false, nextOffset = currentOffset, offsetBugDetected = false)
-            added == 0 -> {
-                LogManager.w("SyncManager: Server ignored ${entityLabel}Offset=$currentOffset, stopping $entityLabel pagination.")
-                PaginationStep(hasMore = false, nextOffset = currentOffset, offsetBugDetected = true)
-            }
-            received < requestedCount -> PaginationStep(
-                hasMore = false,
-                nextOffset = currentOffset + received,
-                offsetBugDetected = false
-            )
-            else -> PaginationStep(
-                hasMore = true,
-                nextOffset = currentOffset + received,
-                offsetBugDetected = false
-            )
-        }
     }
 
     private fun ensureJsonResponse(body: ResponseBody) {

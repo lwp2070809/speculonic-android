@@ -33,7 +33,7 @@ class CacheManager @Inject constructor(
     @Volatile var isReleasing: Boolean = false
         private set
 
-    @Volatile var onRequireCacheRelease: (suspend () -> Unit)? = null
+    @Volatile var onRequireCacheRelease: (suspend (preservePlayback: Boolean) -> Unit)? = null
     @Volatile var onCacheRebuild: (() -> Unit)? = null
 
     private fun getDatabaseProviderLocked(): DatabaseProvider {
@@ -107,13 +107,13 @@ class CacheManager @Inject constructor(
 
     fun getDownloadCacheOrNull(): Cache? = if (isReleasing) null else downloadCache
 
-    suspend fun executeWithCacheReleaseLock(block: () -> Unit) {
+    suspend fun executeWithCacheReleaseLock(preservePlayback: Boolean = true, block: () -> Unit) {
         releaseMutex.withLock {
             isReleasing = true
             try {
                 LogManager.i("CacheManager: Requesting active components to release caches...")
                 // 主线程可能正在同步等待下载初始化；回调期间必须允许它取得缓存资源。
-                onRequireCacheRelease?.invoke()
+                onRequireCacheRelease?.invoke(preservePlayback)
                 mutex.withLock {
                     downloadManagerHelper.get().release()
                     clearDownloadManagerHelpers()

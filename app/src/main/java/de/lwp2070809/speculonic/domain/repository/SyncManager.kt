@@ -2,12 +2,18 @@ package de.lwp2070809.speculonic.domain.repository
 
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import de.lwp2070809.speculonic.data.db.dao.SQLITE_IN_CHUNK_SIZE
 import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
+import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.SubsonicApiException
+import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.withContext
@@ -35,12 +41,6 @@ internal data class EntityCountSnapshot(
     val artists: Int,
     val albums: Int,
     val songs: Int
-)
-
-internal data class PaginationStep(
-    val hasMore: Boolean,
-    val nextOffset: Int,
-    val offsetBugDetected: Boolean
 )
 
 internal data class SyncExecutionParams(
@@ -194,8 +194,6 @@ class SyncManager(
         } catch (e: Exception) {
             if (!shouldFallbackFromSearch3(e)) throw e
             LogManager.w("SyncManager: search3Stream failed (${e.message}), falling back to legacy sync.")
-            runCatching { musicDao.clearSyncTempIds() }
-                .onFailure { LogManager.w("SyncManager: clearSyncTempIds failed before legacy fallback: ${it.message}") }
             legacyExecutor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
         }
     }
@@ -206,6 +204,7 @@ class SyncManager(
             is SafetyGuardException -> false
             is HttpException -> e.code() !in AUTH_HTTP_CODES
             is SubsonicApiException -> e.code !in AUTH_SUBSONIC_ERROR_CODES
+            is IncompletePaginationException,
             is SerializationException,
             is IllegalStateException -> true
             else -> false
@@ -216,19 +215,49 @@ class SyncManager(
         updateStatsProgress: suspend (String) -> Unit,
         onProgress: (suspend (String) -> Unit)?
     ) {
-        var removalTargets: List<SongCleanupTarget> = emptyList()
+        // Offset-based enumeration can miss an existing item if the library changes between requests.
+        // Complete all independent lookups before committing any deletions or purging files.
+        val removedByType = confirmRemoteRemovals().groupBy({ it.type }, { it.id })
+        val removalTargets = mutableListOf<SongCleanupTarget>()
         runInTransaction {
-            removalTargets = musicDao.getSongsNotInTempForCleanup()
-            musicDao.deleteSongsNotInTemp()
-            musicDao.deleteAlbumsNotInTemp()
-            musicDao.deleteArtistsNotInTemp()
+            removedByType["song"].orEmpty().chunked(SQLITE_IN_CHUNK_SIZE).forEach { ids ->
+                val targets = musicDao.getConfirmedSongCleanupTargets(ids)
+                musicDao.deleteSongsByIds(targets.map { it.id })
+                removalTargets.addAll(targets)
+            }
+            removedByType["album"].orEmpty().chunked(SQLITE_IN_CHUNK_SIZE).forEach { musicDao.deleteConfirmedAlbums(it) }
+            removedByType["artist"].orEmpty().chunked(SQLITE_IN_CHUNK_SIZE).forEach { musicDao.deleteConfirmedArtists(it) }
             musicDao.clearSyncTempIds()
             musicDao.repairAndCount()
         }
         if (onProgress != null) {
             updateStatsProgress("正在更新统计信息...")
         }
-        onSongsRemoved(removalTargets)
+        if (removalTargets.isNotEmpty()) onSongsRemoved(removalTargets)
+    }
+
+    private suspend fun confirmRemoteRemovals(): List<SyncTempIdEntity> {
+        val candidates = musicDao.getUnseenEntities()
+        if (candidates.isEmpty()) return emptyList()
+        val auth = authManager.getAuthParams()
+        return candidates.chunked(LOOKUP_CONCURRENCY).flatMap { batch ->
+            coroutineScope {
+                batch.map { async { confirmRemoteRemoval(it, auth) } }.awaitAll().filterNotNull()
+            }
+        }
+    }
+
+    private suspend fun confirmRemoteRemoval(candidate: SyncTempIdEntity, auth: Triple<String, String, String>): SyncTempIdEntity? {
+        val (user, token, salt) = auth
+        val response = when (candidate.type) {
+            "song" -> api.getSong(candidate.id, user, token, salt).response
+            "album" -> api.getAlbum(candidate.id, user, token, salt).response
+            "artist" -> api.getArtist(candidate.id, user, token, salt).response
+            else -> error("Unknown library entity: ${candidate.type}")
+        }
+        if (response.status == "failed" && response.error?.code == RESOURCE_NOT_FOUND) return candidate
+        response.ensureOk()
+        return null
     }
 
     private suspend fun fetchServerLastModified(
@@ -316,6 +345,8 @@ class SyncManager(
         private const val SYNC_DEBOUNCE_MILLIS = 12 * 60 * 60 * 1000L
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
         private const val MIN_ENTITIES_FOR_SAFETY = 10
+        private const val LOOKUP_CONCURRENCY = 8
+        private const val RESOURCE_NOT_FOUND = 70
         private val AUTH_HTTP_CODES = setOf(401)
         private val AUTH_SUBSONIC_ERROR_CODES = setOf(40, 41, 50)
     }

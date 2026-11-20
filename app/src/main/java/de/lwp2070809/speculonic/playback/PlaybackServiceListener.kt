@@ -35,7 +35,7 @@ class PlaybackServiceListener(
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
     private val volumeAutoPauseTracker = DeviceVolumeAutoPauseTracker()
 
-    private fun pushWidgetStateUpdate(player: Player) {
+    fun publishWidgetState() {
         val isIntended = player.playWhenReady &&
             player.playbackState != Player.STATE_ENDED &&
             player.playbackState != Player.STATE_IDLE
@@ -83,7 +83,7 @@ class PlaybackServiceListener(
 
         if (mediaItem == null) {
             currentActiveMediaId = null
-            pushWidgetStateUpdate(player)
+            publishWidgetState()
             deps.persistence.savePlaybackState(player, immediate = true)
             return
         }
@@ -92,7 +92,7 @@ class PlaybackServiceListener(
         val isRepeat = reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT
 
         if (isSameAsPrevious && !isRepeat) {
-            pushWidgetStateUpdate(player)
+            publishWidgetState()
             deps.persistence.savePlaybackState(player, immediate = true)
             return
         }
@@ -107,7 +107,7 @@ class PlaybackServiceListener(
         ) {
             carManager.loadLyricsForBluetooth(mediaItem)
         }
-        pushWidgetStateUpdate(player)
+        publishWidgetState()
         deps.persistence.savePlaybackState(player, immediate = true)
     }
 
@@ -151,24 +151,21 @@ class PlaybackServiceListener(
         }
         if (playbackState == Player.STATE_ENDED) {
             callbacks.onPlaybackEndedForTimer?.invoke()
-            pushWidgetStateUpdate(player)
+            publishWidgetState()
         } else if (playbackState == Player.STATE_IDLE ||
             playbackState == Player.STATE_READY ||
             playbackState == Player.STATE_BUFFERING
         ) {
-            pushWidgetStateUpdate(player)
+            publishWidgetState()
         }
-        if (!deps.audioFocusHelper.isDefaultFocusHandling &&
-            (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE)
-        ) {
-            deps.audioFocusHelper.abandonAudioFocus()
-            deps.audioFocusHelper.resetLossState()
+        if (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE) {
+            deps.audioFocusHelper.releaseManualFocus()
         }
     }
 
     override fun onIsPlayingChanged(isPlaying: Boolean) {
         PlaybackService.isPlayerPlaying = isPlaying
-        pushWidgetStateUpdate(player)
+        publishWidgetState()
     }
 
     override fun onDeviceVolumeChanged(volume: Int, muted: Boolean) {
@@ -200,7 +197,7 @@ class PlaybackServiceListener(
             else -> "REASON_$reason"
         }
         LogManager.i(LogTag.PLAYBACK, "playWhenReady changed -> $playWhenReady (reason=$reasonStr)")
-        pushWidgetStateUpdate(player)
+        publishWidgetState()
 
         if (playWhenReady) {
             handlePlayWhenReadyResumed()
@@ -224,6 +221,7 @@ class PlaybackServiceListener(
 
     private fun handlePlayWhenReadyResumed() {
         deps.persistence.startPositionPersistence(player)
+        player.currentMediaItem?.let { callbacks.onTriggerSilentCache(it) }
         val carManager = deps.carAudioManager
         if (carManager.carBluetoothEnabled && carManager.bluetoothLyricsEnabled) {
             carManager.startBluetoothLyricsUpdate()

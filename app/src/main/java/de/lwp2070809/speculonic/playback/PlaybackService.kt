@@ -95,9 +95,8 @@ class PlaybackService : MediaSessionService() {
     private var playerInitJob: Job? = null
     @Volatile private var isServiceDestroyed = false
     
-    @Volatile private var lastInitializedServerUrl: String? = null
-    @Volatile private var lastInitializedUsername: String? = null
-    @Volatile private var pendingConfig: Pair<String, String>? = null
+    private val playerBinding = PlaybackSessionBinding()
+    private var pendingConfig: Pair<String, String>? = null
 
     private var silentCacheJob: Job? = null
     private var currentQueueTitle: String? = null
@@ -206,13 +205,13 @@ class PlaybackService : MediaSessionService() {
 
     private fun setupCacheLifecycleCallbacks() {
         val serviceRef = java.lang.ref.WeakReference(this)
-        cacheManager.onRequireCacheRelease = {
+        cacheManager.onRequireCacheRelease = { preservePlayback ->
             withContext(Dispatchers.Main + NonCancellable) {
                 val service = serviceRef.get() ?: return@withContext
                 service.playerInitJob?.cancelAndJoin()
                 service.playerInitJob = null
                 if (service.isServiceDestroyed) return@withContext
-                service.releasePlayerForCacheReset()
+                service.releasePlayerForCacheReset(preservePlayback)
             }
         }
         cacheManager.onCacheRebuild = {
@@ -225,7 +224,7 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun releasePlayerForCacheReset() {
+    private suspend fun releasePlayerForCacheReset(preservePlayback: Boolean) {
         LogManager.w("PlaybackService: Cache release requested. Pausing playback and releasing internal player.")
         isPlayerPlaying = false
         isPlaybackIntended = false
@@ -235,27 +234,32 @@ class PlaybackService : MediaSessionService() {
         silentCacheJob?.cancel()
 
         val oldPlayer = mediaSession?.player
+        val detached = playerBinding.detach()
         val newPlaceholderPlayer = ExoPlayer.Builder(this).build()
-        mediaSession?.player = newPlaceholderPlayer
-        volumeCoordinator.setPlayer(newPlaceholderPlayer)
         mediaSession?.let { session ->
             val extras = android.os.Bundle(session.sessionExtras).apply {
                 putBoolean(EXTRA_KEY_SESSION_READY, false)
+                if (!preservePlayback) putString("queueTitle", null)
             }
             session.sessionExtras = extras
+            session.player = newPlaceholderPlayer
         }
+        volumeCoordinator.setPlayer(newPlaceholderPlayer)
 
-        releaseWrappedOrRawPlayer(oldPlayer, stopAndClear = true)
-        cacheStrategyManager = null
-        isInitializing.set(false)
+        try {
+            detached?.pause()
+            audioFocusHelper.releaseManualFocus()
+            if (!preservePlayback) currentQueueTitle = null
+            persistence.finishCacheReset(detached, preservePlayback)
+        } finally {
+            releaseWrappedOrRawPlayer(oldPlayer)
+            cacheStrategyManager = null
+            isInitializing.set(false)
+        }
     }
 
-    private fun releaseWrappedOrRawPlayer(oldPlayer: Player?, stopAndClear: Boolean = false) {
+    private fun releaseWrappedOrRawPlayer(oldPlayer: Player?) {
         try {
-            if (stopAndClear) {
-                oldPlayer?.stop()
-                oldPlayer?.clearMediaItems()
-            }
             if (oldPlayer is BluetoothCarManager.CarDisguisePlayer) {
                 oldPlayer.wrappedPlayer.release()
             } else {
@@ -267,8 +271,8 @@ class PlaybackService : MediaSessionService() {
     }
 
     private data class PlayerInitConfig(
-        val serverUrl: String,
-        val username: String,
+        val identity: Pair<String, String>,
+        val skipSilence: Boolean,
         val duckOnTransientFocusLoss: Boolean,
         val pauseOnAudioFocusLoss: Boolean
     ) {
@@ -278,6 +282,7 @@ class PlaybackService : MediaSessionService() {
 
     private fun initializeSessionAndPlayer() {
         if (isServiceDestroyed || cacheManager.isReleasing || !isInitializing.compareAndSet(false, true)) return
+        pendingConfig = null
 
         playerInitJob = serviceScope.launch {
             var createdRealPlayer: ExoPlayer? = null
@@ -286,16 +291,15 @@ class PlaybackService : MediaSessionService() {
                 launch(Dispatchers.IO) { downloadManagerHelper.initializeAsync() }
                 val config = loadPlayerInitConfig()
                 applyAudioFocusConfig(config)
-                if (config.serverUrl.isBlank()) {
+                if (config.identity.first.isBlank()) {
                     return@launch
                 }
 
                 cacheStrategyManager = injectedCacheStrategyManager
                 val realPlayer = buildConfiguredExoPlayer(config)?.also { createdRealPlayer = it } ?: return@launch
                 val sessionPlayer = carAudioManager.CarDisguisePlayer(realPlayer)
-                attachServiceListener(sessionPlayer)
                 persistence.restorePlaybackState(realPlayer, repository)
-                attachedToSession = attachSessionPlayerOnMain(config, sessionPlayer)
+                attachedToSession = attachSessionPlayerOnMain(config, sessionPlayer, realPlayer)
                 if (attachedToSession) {
                     createdRealPlayer = null
                 }
@@ -314,8 +318,8 @@ class PlaybackService : MediaSessionService() {
         pauseOnVolumeZero = prefs.pauseOnVolumeZero.first()
         prefs.maxCacheSize.first()
         PlayerInitConfig(
-            serverUrl = prefs.serverUrl.first(),
-            username = prefs.username.first(),
+            identity = prefs.readServerIdentity(),
+            skipSilence = prefs.skipSilenceEnabled.first(),
             duckOnTransientFocusLoss = prefs.duckOnTransientFocusLoss.first(),
             pauseOnAudioFocusLoss = prefs.pauseOnAudioFocusLoss.first()
         )
@@ -342,55 +346,53 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun attachServiceListener(sessionPlayer: Player) {
-        sessionPlayer.addListener(
-            PlaybackServiceListener(
-                player = sessionPlayer,
-                deps = PlaybackServiceDependencies(
-                    errorHandler = errorHandler,
-                    persistence = persistence,
-                    carAudioManager = carAudioManager,
-                    audioFocusHelper = audioFocusHelper
-                ),
-                callbacks = PlaybackServiceCallbacks(
-                    onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
-                    onMediaItemTransitionForTimer = { item, reason ->
-                        sleepTimerManager.handleMediaItemTransitionForTimer(item, reason)
-                    },
-                    onTimelineChangedForTimer = {
-                        sleepTimerManager.handleTimelineChangedForTimer(sessionPlayer)
-                    },
-                    onPlaybackEndedForTimer = {
-                        sleepTimerManager.handlePlaybackEndedForTimer()
-                    },
-                    isPauseOnVolumeZeroEnabled = { pauseOnVolumeZero }
-                ),
-                context = this@PlaybackService
-            )
+    private fun createServiceListener(sessionPlayer: Player): PlaybackServiceListener =
+        PlaybackServiceListener(
+            player = sessionPlayer,
+            deps = PlaybackServiceDependencies(
+                errorHandler = errorHandler,
+                persistence = persistence,
+                carAudioManager = carAudioManager,
+                audioFocusHelper = audioFocusHelper
+            ),
+            callbacks = PlaybackServiceCallbacks(
+                onTriggerSilentCache = { item -> triggerSilentCacheWithDelay(item) },
+                onMediaItemTransitionForTimer = { item, reason ->
+                    sleepTimerManager.handleMediaItemTransitionForTimer(item, reason)
+                },
+                onTimelineChangedForTimer = {
+                    sleepTimerManager.handleTimelineChangedForTimer(sessionPlayer)
+                },
+                onPlaybackEndedForTimer = {
+                    sleepTimerManager.handlePlaybackEndedForTimer()
+                },
+                isPauseOnVolumeZeroEnabled = { pauseOnVolumeZero }
+            ),
+            context = this@PlaybackService
         )
-    }
 
     private suspend fun attachSessionPlayerOnMain(
         config: PlayerInitConfig,
-        sessionPlayer: BluetoothCarManager.CarDisguisePlayer
+        sessionPlayer: BluetoothCarManager.CarDisguisePlayer,
+        realPlayer: ExoPlayer
     ): Boolean = withContext(Dispatchers.Main) {
-        if (isServiceDestroyed || mediaSession == null) {
+        val session = mediaSession ?: return@withContext false
+        val configIsStale = pendingConfig?.let { it != config.identity } == true
+        if (isServiceDestroyed || cacheManager.isReleasing || configIsStale) {
             return@withContext false
         }
-        val oldPlayer = mediaSession?.player
-        mediaSession?.player = sessionPlayer
+        val oldPlayer = session.player
+        val listener = createServiceListener(sessionPlayer)
+        playerBinding.attach(config.identity, sessionPlayer, realPlayer, listener, config.skipSilence)
+        session.player = sessionPlayer
         volumeCoordinator.setPlayer(sessionPlayer)
-        mediaSession?.let { session ->
-            val extras = android.os.Bundle(session.sessionExtras).apply {
-                putBoolean(EXTRA_KEY_SESSION_READY, true)
-            }
-            session.sessionExtras = extras
+        session.sessionExtras = android.os.Bundle(session.sessionExtras).apply {
+            putBoolean(EXTRA_KEY_SESSION_READY, true)
         }
 
-        lastInitializedServerUrl = config.serverUrl
-        lastInitializedUsername = config.username
         releaseWrappedOrRawPlayer(oldPlayer)
 
+        listener.publishWidgetState()
         syncCarBluetoothInitialState(sessionPlayer)
         true
     }
@@ -416,20 +418,14 @@ class PlaybackService : MediaSessionService() {
         }
         isInitializing.set(false)
         if (!isServiceDestroyed && !cacheManager.isReleasing) {
-            pendingConfig?.let { (url, username) ->
+            pendingConfig?.let { identity ->
                 pendingConfig = null
-                if (hasServerConfigChanged(url, username)) {
+                if (playerBinding.needsPlayer(identity)) {
                     LogManager.i("PlaybackService: Processing pending config change from initialization window...")
                     serviceScope.launch(Dispatchers.Main) { initializeSessionAndPlayer() }
                 }
             }
         }
-    }
-
-    private fun hasServerConfigChanged(url: String, username: String): Boolean {
-        val isValidCreds = url.isNotBlank() && username.isNotBlank()
-        val isDifferentServer = url != lastInitializedServerUrl || username != lastInitializedUsername
-        return isValidCreds && isDifferentServer
     }
 
     private var prefsObservationJob: Job? = null
@@ -470,19 +466,15 @@ class PlaybackService : MediaSessionService() {
     }
 
     private suspend fun observeServerConfigChanges(prefs: PreferencesManager) {
-        combine(prefs.serverUrl, prefs.username) { url, username -> url to username }
-            .collect { (url, username) ->
+        combine(prefs.serverUrl, prefs.username) { _, _ -> prefs.readServerIdentity() }
+            .collect { identity ->
                 if (isInitializing.get()) {
-                    pendingConfig = url to username
+                    pendingConfig = identity
                     return@collect
                 }
-                if (hasServerConfigChanged(url, username)) {
-                    LogManager.i(
-                        "PlaybackService: Server config changed from " +
-                            "'${LogManager.redactUrl(lastInitializedServerUrl ?: "")}' to " +
-                            "'${LogManager.redactUrl(url)}'. Re-initializing player..."
-                    )
-                    withContext(Dispatchers.Main) { initializeSessionAndPlayer() }
+                if (playerBinding.needsPlayer(identity)) {
+                    LogManager.i("PlaybackService: Initializing player for the configured server.")
+                    initializeSessionAndPlayer()
                 }
             }
     }
@@ -521,13 +513,7 @@ class PlaybackService : MediaSessionService() {
     }
 
     private suspend fun observeSkipSilencePreference(prefs: PreferencesManager) {
-        prefs.skipSilenceEnabled.collect { skip ->
-            val player = mediaSession?.player
-            val realPlayer = (player as? BluetoothCarManager.CarDisguisePlayer)?.wrappedPlayer ?: player
-            if (realPlayer is ExoPlayer) {
-                realPlayer.skipSilenceEnabled = skip
-            }
-        }
+        prefs.skipSilenceEnabled.collect(playerBinding::setSkipSilence)
     }
 
     private suspend fun observeAudioFocusPreferences(prefs: PreferencesManager) {
@@ -594,9 +580,7 @@ class PlaybackService : MediaSessionService() {
         persistence.cancelAll()
         carAudioManager.stopBluetoothLyricsUpdate()
         silentCacheJob?.cancel()
-        if (!audioFocusHelper.isDefaultFocusHandling) {
-            audioFocusHelper.abandonAudioFocus()
-        }
+        audioFocusHelper.releaseManualFocus()
         mediaSession?.run {
             release()
             player.release()
@@ -741,7 +725,7 @@ class PlaybackService : MediaSessionService() {
                     session.sessionExtras = android.os.Bundle(currentExtras).apply {
                         putString("queueTitle", title)
                     }
-                    persistence.savePlaybackState(session.player, immediate = true)
+                    playerBinding.player?.let { persistence.savePlaybackState(it, immediate = true) }
                     return com.google.common.util.concurrent.Futures.immediateFuture(
                         androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_SUCCESS)
                     )
@@ -802,7 +786,7 @@ class PlaybackService : MediaSessionService() {
     override fun onTaskRemoved(rootIntent: Intent?) {
         val player = mediaSession?.player
         if (player != null) {
-            persistence.savePlaybackState(player, immediate = true)
+            playerBinding.player?.let { persistence.savePlaybackState(it, immediate = true) }
             if (!player.playWhenReady || player.mediaItemCount == 0) {
                 stopSelf()
             }
@@ -819,7 +803,7 @@ class PlaybackService : MediaSessionService() {
         sleepTimerManager.release()
 
         carAudioManager.release()
-        mediaSession?.player?.let { persistence.savePlaybackState(it, immediate = true) }
+        playerBinding.detach()?.let { persistence.savePlaybackState(it, immediate = true) }
         // 服务销毁时立即重置微件为暂停态，使用应用级非取消作用域避开 serviceScope 取消及 300ms 防抖延迟
         de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {
             de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater.resetPlayingStateImmediate(applicationContext)

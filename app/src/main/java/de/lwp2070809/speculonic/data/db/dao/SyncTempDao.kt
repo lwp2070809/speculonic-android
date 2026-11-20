@@ -21,15 +21,33 @@ interface SyncTempDao {
     @Query("SELECT COUNT(*) FROM sync_temp_ids WHERE type = :type")
     suspend fun getSyncTempIdCountByType(type: String): Int
 
-    @Query("DELETE FROM artists WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'artist')")
-    suspend fun deleteArtistsNotInTemp()
+    @Query("""
+        SELECT id, 'song' AS type FROM songs WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'song')
+        UNION ALL
+        SELECT id, 'album' AS type FROM albums WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'album')
+        UNION ALL
+        SELECT id, 'artist' AS type FROM artists WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'artist')
+    """)
+    suspend fun getUnseenEntities(): List<SyncTempIdEntity>
 
-    @Query("DELETE FROM albums WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'album')")
-    suspend fun deleteAlbumsNotInTemp()
+    @Query("""
+        SELECT id, localUri FROM songs WHERE id IN (:ids)
+        AND id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'song')
+    """)
+    suspend fun getConfirmedSongCleanupTargets(ids: List<String>): List<SongCleanupTarget>
 
-    @Query("SELECT id, localUri FROM songs WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'song')")
-    suspend fun getSongsNotInTempForCleanup(): List<SongCleanupTarget>
+    @Query("""
+        DELETE FROM albums WHERE id IN (:ids)
+        AND id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'album')
+        AND NOT EXISTS (SELECT 1 FROM songs WHERE albumId = albums.id)
+    """)
+    suspend fun deleteConfirmedAlbums(ids: List<String>)
 
-    @Query("DELETE FROM songs WHERE id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'song')")
-    suspend fun deleteSongsNotInTemp()
+    @Query("""
+        DELETE FROM artists WHERE id IN (:ids)
+        AND id NOT IN (SELECT id FROM sync_temp_ids WHERE type = 'artist')
+        AND NOT EXISTS (SELECT 1 FROM albums WHERE artistId = artists.id)
+        AND NOT EXISTS (SELECT 1 FROM songs WHERE artistId = artists.id)
+    """)
+    suspend fun deleteConfirmedArtists(ids: List<String>)
 }

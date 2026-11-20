@@ -195,7 +195,7 @@ class StorageCacheViewModel @Inject constructor(
     private fun clearCache() {
         _uiState.update { it.copy(pendingClearCacheTarget = null) }
         viewModelScope.launch {
-            cacheOperations.clearAllCache(preserveSaf = true)
+            cacheOperations.clearAllCache()
                 .onSuccess {
                     LogManager.i("StorageCacheViewModel: Internal cache cleared.")
                     refreshCacheSize()
