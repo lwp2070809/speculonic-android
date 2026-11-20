@@ -72,6 +72,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     @Composable
+    @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
     private fun SpeculonicRootContent() {
         val context = LocalContext.current
         val lifecycleOwner = LocalLifecycleOwner.current

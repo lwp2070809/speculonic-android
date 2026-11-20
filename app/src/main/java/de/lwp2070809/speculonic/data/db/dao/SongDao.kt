@@ -5,24 +5,10 @@ import androidx.room.Dao
 import androidx.room.Query
 import androidx.room.Transaction
 import androidx.room.Upsert
-import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
+import de.lwp2070809.speculonic.data.db.entities.SearchSongState
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.map
-
-private val ALBUM_TRACK_COMPARATOR = compareBy<SongEntity>(
-    { it.discNumber ?: 1 },
-    { it.track ?: 0 },
-    { it.id }
-)
-
-private val PARENT_TRACK_COMPARATOR = compareBy<SongEntity>(
-    { it.discNumber ?: 1 },
-    { it.track ?: 0 },
-    { it.title },
-    { it.id }
-)
 
 @Dao
 interface SongDao {
@@ -47,31 +33,8 @@ interface SongDao {
         ids.chunked(SQLITE_IN_CHUNK_SIZE).forEach { deleteSongsByIdsBatch(it) }
     }
 
-    @Query("SELECT id, localUri FROM songs WHERE albumId = :albumId")
-    suspend fun getSongCleanupTargetsByAlbum(albumId: String): List<SongCleanupTarget>
-
-    @Query("SELECT id, localUri FROM songs WHERE parent = :parentId")
-    suspend fun getSongCleanupTargetsByParent(parentId: String): List<SongCleanupTarget>
-
-    @Transaction
-    suspend fun deleteSongsByAlbumNotIn(albumId: String, ids: List<String>): List<SongCleanupTarget> {
-        val allInAlbum = getSongCleanupTargetsByAlbum(albumId)
-        val targets = if (ids.isEmpty()) {
-            allInAlbum
-        } else {
-            val keepSet = ids.toHashSet()
-            allInAlbum.filter { it.id !in keepSet }
-        }
-        if (ids.isEmpty()) {
-            deleteSongsByAlbum(albumId)
-        } else if (targets.isNotEmpty()) {
-            deleteSongsByIds(targets.map { it.id })
-        }
-        return targets
-    }
-
-    @Query("DELETE FROM songs WHERE albumId = :albumId")
-    suspend fun deleteSongsByAlbum(albumId: String)
+    @Query("UPDATE songs SET albumId = NULL WHERE albumId = :albumId AND id IN (:ids)")
+    suspend fun detachAlbumSongs(albumId: String, ids: List<String>)
 
     @Query("SELECT id FROM songs WHERE parent = :parentId")
     suspend fun getSongIdsByParent(parentId: String): List<String>
@@ -92,23 +55,14 @@ interface SongDao {
     @Query("DELETE FROM songs WHERE parent = :parentId")
     suspend fun deleteSongsByParent(parentId: String)
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId")
-    suspend fun getSongsByAlbumRaw(albumId: String): List<SongEntity>
+    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), id")
+    suspend fun getSongsByAlbum(albumId: String): List<SongEntity>
 
-    suspend fun getSongsByAlbum(albumId: String): List<SongEntity> =
-        getSongsByAlbumRaw(albumId).sortedWith(ALBUM_TRACK_COMPARATOR)
+    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), title, id")
+    suspend fun getSongsByParent(parentId: String): List<SongEntity>
 
-    @Query("SELECT * FROM songs WHERE parent = :parentId")
-    suspend fun getSongsByParentRaw(parentId: String): List<SongEntity>
-
-    suspend fun getSongsByParent(parentId: String): List<SongEntity> =
-        getSongsByParentRaw(parentId).sortedWith(PARENT_TRACK_COMPARATOR)
-
-    @Query("SELECT * FROM songs WHERE parent = :parentId")
-    fun getSongsByParentRawFlow(parentId: String): Flow<List<SongEntity>>
-
-    fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>> =
-        getSongsByParentRawFlow(parentId).map { it.sortedWith(PARENT_TRACK_COMPARATOR) }
+    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), title, id")
+    fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     suspend fun getStarredSongs(): List<SongEntity>
@@ -154,7 +108,7 @@ interface SongDao {
     suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean)
 
     @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached, isTranscoded = :isTranscoded WHERE id = :songId")
-    suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean, isTranscoded: Boolean)
+    suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean, isTranscoded: Boolean): Int
 
     @Query("UPDATE songs SET isTranscoded = :isTranscoded WHERE id = :songId")
     suspend fun updateSongTranscodedStatus(songId: String, isTranscoded: Boolean)
@@ -173,6 +127,12 @@ interface SongDao {
 
     @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred, lastUpdated FROM songs")
     suspend fun getAllSongsMetadata(): List<SongMetadata>
+
+    @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred FROM songs WHERE id IN (:ids)")
+    fun observeSearchSongMetadata(ids: List<String>): Flow<List<SearchSongState>>
+
+    @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred FROM songs WHERE id IN (:ids)")
+    suspend fun getSearchSongMetadata(ids: List<String>): List<SearchSongState>
 
     @Query("SELECT * FROM songs WHERE id = :songId")
     suspend fun getSongById(songId: String): SongEntity?
@@ -194,11 +154,8 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE id = :songId")
     fun getSongByIdFlow(songId: String): Flow<SongEntity?>
 
-    @Query("SELECT * FROM songs WHERE albumId = :albumId")
-    fun getSongsByAlbumRawFlow(albumId: String): Flow<List<SongEntity>>
-
-    fun getSongsByAlbumFlow(albumId: String): Flow<List<SongEntity>> =
-        getSongsByAlbumRawFlow(albumId).map { it.sortedWith(ALBUM_TRACK_COMPARATOR) }
+    @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), id")
+    fun getSongsByAlbumFlow(albumId: String): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     fun getStarredSongsFlow(): Flow<List<SongEntity>>

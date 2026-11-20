@@ -18,6 +18,7 @@ interface ConnectionPrefs {
     fun getServerUrlSync(): String
     fun getUsernameSync(): String
     fun getPasswordSync(): CharArray
+    suspend fun readServerIdentity(): Pair<String, String>
 
     fun getServerCapabilitiesSync(): ServerCapabilities?
     fun setServerCapabilitiesSync(caps: ServerCapabilities?)

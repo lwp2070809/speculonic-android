@@ -192,8 +192,62 @@ class DownloadTracker @Inject constructor(
 
         scope.launch {
             val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
-            downloadManager.addListener(DownloadManagerListener())
+            val listener = DownloadManagerListener()
+            downloadManager.addListener(listener)
             refreshDownloads(downloadManager)
+            recoverPendingExports(listener)
+        }
+    }
+
+    private suspend fun recoverPendingExports(listener: DownloadManagerListener) {
+        val downloadCache = cacheManager.acquireDownloadCache()
+        val retained = downloadCache.keys
+        val candidates = _allDownloads.value.filter {
+            it.state == Download.STATE_COMPLETED && it.task.request.id in retained
+        }
+        if (candidates.isEmpty()) return
+
+        val cacheLocation = preferencesManager.cacheLocation.first()
+        if (cacheLocation.isNotBlank()) {
+            val hasSafPermission = appContext.contentResolver.persistedUriPermissions.any {
+                it.uri.toString() == cacheLocation && it.isReadPermission && it.isWritePermission
+            }
+            if (!hasSafPermission) {
+                LogManager.w("DownloadTracker: Skipping startup export recovery because SAF permission expired")
+                return
+            }
+        }
+
+        candidates.forEach { info ->
+            val songId = info.task.request.id
+            val songEntity = database.musicDao().getSongById(songId)
+            val alreadyExported = songEntity?.isFullyCached == true &&
+                !songEntity.localUri.isNullOrBlank() &&
+                doesExportedFileExist(songEntity.localUri)
+            if (songEntity == null || alreadyExported) {
+                runCatching { downloadCache.removeResource(songId) }.onFailure { err ->
+                    if (err is CancellationException) throw err
+                    LogManager.w("DownloadTracker: Failed cleaning retained cache for $songId: ${err.message}")
+                }
+            } else {
+                listener.scheduleExport(info.task).join()
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private fun doesExportedFileExist(uriString: String): Boolean {
+        val uri = uriString.toUri()
+        return if (uriString.startsWith("file:")) {
+            val path = uri.path
+            path != null && File(path).exists()
+        } else {
+            try {
+                appContext.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
+            } catch (e: Exception) {
+                LogManager.w("DownloadTracker: Failed checking SAF file descriptor: ${e.message}")
+                false
+            }
         }
     }
 
@@ -285,6 +339,27 @@ class DownloadTracker @Inject constructor(
     }
 
     private inner class DownloadManagerListener : DownloadManager.Listener {
+        fun scheduleExport(download: Download): Job {
+            val id = download.request.id
+            val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
+                try {
+                    exportDownloadedSong(download)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    LogManager.e("DownloadTracker: Export deferred for $id", e)
+                }
+            }
+            val existing = exportJobs.putIfAbsent(id, job)
+            if (existing != null) {
+                job.cancel()
+                return existing
+            }
+            job.invokeOnCompletion { exportJobs.remove(id, job) }
+            job.start()
+            return job
+        }
+
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
             val isSilent = isSilentDownload(download)
 
@@ -294,17 +369,7 @@ class DownloadTracker @Inject constructor(
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
 
-                    var job: Job? = null
-                    job = scope.launch {
-                        try {
-                            exportDownloadedSong(download)
-                        } finally {
-                            if (exportJobs[download.request.id] === job) {
-                                exportJobs.remove(download.request.id)
-                            }
-                        }
-                    }
-                    exportJobs[download.request.id] = job
+                    scheduleExport(download)
                 }
                 Download.STATE_DOWNLOADING, Download.STATE_QUEUED -> {
                     if (!isSilent) {
@@ -352,19 +417,7 @@ class DownloadTracker @Inject constructor(
                 val songEntity = database.musicDao().getSongById(download.request.id)
                 var keepCacheStatus = false
                 if (!isExplicitlyDeleted && songEntity?.localUri != null && songEntity.isFullyCached) {
-                    val uri = songEntity.localUri.toUri()
-                    val exists = if (songEntity.localUri.startsWith("file:")) {
-                        val path = uri.path
-                        path != null && File(path).exists()
-                    } else {
-                        try {
-                            appContext.contentResolver.openFileDescriptor(uri, "r")?.use { true } ?: false
-                        } catch (e: Exception) {
-                            LogManager.w("DownloadTracker: Failed checking SAF file descriptor: ${e.message}")
-                            false
-                        }
-                    }
-                    if (exists) {
+                    if (doesExportedFileExist(songEntity.localUri)) {
                         keepCacheStatus = true
                     }
                 }
@@ -392,6 +445,11 @@ class DownloadTracker @Inject constructor(
             val song = EntityMapper.toSong(songEntity).copy(isTranscoded = isTranscoded)
             val lyrics = fetchLyricsForExport(song.id, song.artist, song.title)
 
+            val register: suspend (String) -> Unit = { uri ->
+                check(database.musicDao().updateSongCacheStatus(song.id, uri, true, isTranscoded) == 1) {
+                    "Song removed during export"
+                }
+            }
             val localUriResult = try {
                 if (isSafEnabled) {
                     cacheExporter.exportToSaf(
@@ -399,13 +457,17 @@ class DownloadTracker @Inject constructor(
                         lyrics = lyrics,
                         cacheDataSourceFactory = cacheDataSourceFactory,
                         targetTranscodeFormat = targetFormat
-                    )
+                    ).mapCatching { uri ->
+                        register(uri)
+                        uri
+                    }.onFailure { if (it is CancellationException) throw it }
                 } else {
                     cacheExporter.exportToPrivate(
                         song = song,
                         lyrics = lyrics,
                         cacheDataSourceFactory = cacheDataSourceFactory,
-                        targetTranscodeFormat = targetFormat
+                        targetTranscodeFormat = targetFormat,
+                        register = register
                     )
                 }
             } catch (e: SecurityException) {
@@ -468,7 +530,6 @@ class DownloadTracker @Inject constructor(
             localUriResult: Result<String>
         ) {
             localUriResult.onSuccess { localUri ->
-                database.musicDao().updateSongCacheStatus(download.request.id, localUri, true, isTranscoded)
                 val targetLabel = if (isSafEnabled) "SAF" else "Private"
                 LogManager.i(
                     "DownloadTracker: Song ${download.request.id} exported to $targetLabel " +

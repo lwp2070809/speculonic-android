@@ -25,6 +25,13 @@ class BluetoothCarDeviceDetector(
 ) {
     var carBluetoothEnabled = false
     var bluetoothCarDeviceNames: Set<String> = emptySet()
+        set(value) {
+            if (field == value) return
+            field = value
+            connectionDebounceJob?.cancel()
+            connectionDebounceJob = null
+            _carConnectionState.value = if (carBluetoothEnabled) probeCarBluetoothConnected() else false
+        }
 
     private val _carConnectionState = MutableStateFlow(false)
     val carConnectionState = _carConnectionState.asStateFlow()
@@ -171,6 +178,7 @@ class BluetoothCarDeviceDetector(
             device.type == android.media.AudioDeviceInfo.TYPE_BLE_SPEAKER
     }
 
+    @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
     private fun isCarAudioDevice(device: android.bluetooth.BluetoothDevice): Boolean {
         val name = try {
             device.name ?: ""

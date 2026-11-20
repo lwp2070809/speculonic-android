@@ -5,6 +5,7 @@ import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
 import de.lwp2070809.speculonic.util.LogManager
+import java.io.IOException
 import kotlinx.coroutines.CancellationException
 
 data class SafChildEntry(
@@ -29,8 +30,17 @@ object SafDirectoryHelper {
         DocumentsContract.Document.COLUMN_MIME_TYPE
     )
 
-    fun listChildEntries(context: Context, treeUri: Uri): List<SafChildEntry> =
-        scanChildren(context, treeUri, targetNames = null)
+    fun listChildEntries(context: Context, treeUri: Uri): List<SafChildEntry> {
+        val children = resolveChildrenUri(treeUri) ?: throw IOException("Invalid document tree")
+        val cursor = context.contentResolver.query(children, CHILD_PROJECTION, null, null, null)
+            ?: throw IOException("Document provider did not return a directory listing")
+        return cursor.use {
+            val extras = it.extras
+            extras?.getString(DocumentsContract.EXTRA_ERROR)?.let { message -> throw IOException(message) }
+            if (extras?.getBoolean(DocumentsContract.EXTRA_LOADING) == true) throw IOException("Directory is still loading")
+            readCursorEntries(it, treeUri, null)
+        }
+    }
 
     fun findChildrenByName(context: Context, treeUri: Uri, targetNames: Set<String>): Map<String, SafChildEntry> {
         if (targetNames.isEmpty()) return emptyMap()
@@ -79,7 +89,7 @@ object SafDirectoryHelper {
     ): List<SafChildEntry> {
         val idIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
         val nameIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
-        if (idIdx < 0 || nameIdx < 0) return emptyList()
+        if (idIdx < 0 || nameIdx < 0) throw IOException("Incomplete directory listing")
         val sizeIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
         val mimeIdx = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
 
@@ -111,7 +121,10 @@ object SafDirectoryHelper {
     ): SafChildEntry? {
         val docId = cursor.getString(idIdx)
         val name = cursor.getString(nameIdx)
-        if (docId.isNullOrBlank() || name.isNullOrBlank()) return null
+        if (docId.isNullOrBlank() || name.isNullOrBlank()) {
+            LogManager.w("SafDirectoryHelper: Skipping incomplete document entry (docId=$docId, name=$name)")
+            return null
+        }
         if (targetNames != null && name !in targetNames) return null
         val size = if (sizeIdx >= 0 && !cursor.isNull(sizeIdx)) cursor.getLong(sizeIdx) else 0L
         val mime = if (mimeIdx >= 0 && !cursor.isNull(mimeIdx)) cursor.getString(mimeIdx) else null

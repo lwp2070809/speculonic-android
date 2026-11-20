@@ -1,10 +1,14 @@
 package de.lwp2070809.speculonic.data.prefs
 
 import android.security.keystore.KeyGenParameterSpec
+import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import java.security.InvalidKeyException
 import java.security.KeyStore
 import java.security.ProviderException
+import java.security.UnrecoverableKeyException
+import javax.crypto.AEADBadTagException
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -25,6 +29,20 @@ internal object KeystoreAesGcmCipher {
     private const val AES_KEY_SIZE_BITS = 256
     private const val HEADER_BYTES = 1 + IV_LENGTH_BYTES
 
+    internal class InvalidCredentialData(message: String, cause: Throwable? = null) : java.security.GeneralSecurityException(message, cause)
+
+    private fun isPermanentThrowable(throwable: Throwable): Boolean = when (throwable) {
+        is InvalidCredentialData,
+        is AEADBadTagException,
+        is KeyPermanentlyInvalidatedException,
+        is UnrecoverableKeyException,
+        is InvalidKeyException -> true
+        else -> false
+    }
+
+    fun isPermanentFailure(error: Exception): Boolean =
+        generateSequence<Throwable>(error) { it.cause }.any(::isPermanentThrowable)
+
     fun encrypt(plaintext: String): String {
         if (plaintext.isEmpty()) return ""
         val key = getOrCreateSecretKey()
@@ -43,20 +61,29 @@ internal object KeystoreAesGcmCipher {
 
     fun decrypt(encodedCiphertext: String): String {
         if (encodedCiphertext.isEmpty()) return ""
-        val payload = Base64.decode(encodedCiphertext, Base64.NO_WRAP)
-        require(payload.size > HEADER_BYTES && payload[0] == FORMAT_VERSION) {
-            "Corrupted or unsupported ciphertext format"
-        }
-
+        val payload = decodePayload(encodedCiphertext)
         val iv = payload.copyOfRange(1, HEADER_BYTES)
         val ciphertext = payload.copyOfRange(HEADER_BYTES, payload.size)
         val key = getExistingSecretKey()
-            ?: error("AndroidKeyStore master key missing for existing ciphertext")
+            ?: throw InvalidCredentialData("Missing key for existing ciphertext")
 
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(GCM_TAG_LENGTH_BITS, iv))
         val plaintextBytes = cipher.doFinal(ciphertext)
         return String(plaintextBytes, Charsets.UTF_8)
+    }
+
+    private fun decodePayload(encodedCiphertext: String): ByteArray {
+        val payload = try {
+            Base64.decode(encodedCiphertext, Base64.NO_WRAP)
+        } catch (e: IllegalArgumentException) {
+            throw InvalidCredentialData("Invalid ciphertext encoding", e)
+        }
+        if (payload.size < HEADER_BYTES + GCM_TAG_LENGTH_BITS / Byte.SIZE_BITS || payload[0] != FORMAT_VERSION) {
+            throw InvalidCredentialData("Invalid ciphertext header")
+        }
+
+        return payload
     }
 
     fun deleteKeyQuietly() {

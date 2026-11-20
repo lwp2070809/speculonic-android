@@ -212,6 +212,8 @@ data class Directory(
 
 @Serializable
 data class Indexes(
+    val child: List<Song> = emptyList(),
+    val shortcut: List<Artist> = emptyList(),
     val index: List<Index> = emptyList(),
     val lastModified: Long? = 0
 )

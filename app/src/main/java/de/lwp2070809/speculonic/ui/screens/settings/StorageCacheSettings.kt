@@ -435,6 +435,40 @@ fun StorageCacheSettings(
         )
     }
 
+    uiState.storageError?.let { error ->
+        val titleRes = if (error.source == StorageErrorSource.SCAN) {
+            R.string.scan_local_files
+        } else {
+            R.string.verify_cache
+        }
+        AlertDialog(
+            onDismissRequest = viewModel::dismissInconsistencyDialog,
+            title = { Text(stringResource(titleRes)) },
+            text = { Text(error.message) },
+            confirmButton = {
+                if (error.showConfigureSafAction) {
+                    TextButton(onClick = {
+                        viewModel.dismissInconsistencyDialog()
+                        directoryLauncher.launch(null)
+                    }) { Text(stringResource(R.string.configure_saf)) }
+                } else {
+                    TextButton(onClick = viewModel::dismissInconsistencyDialog) {
+                        Text(stringResource(R.string.close))
+                    }
+                }
+            },
+            dismissButton = if (error.showConfigureSafAction) {
+                {
+                    TextButton(onClick = viewModel::dismissInconsistencyDialog) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            } else {
+                null
+            }
+        )
+    }
+
     if (uiState.showInconsistencyDialog) {
         InconsistencyDialog(
             inconsistentItems = uiState.inconsistentItems,

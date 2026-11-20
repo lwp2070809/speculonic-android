@@ -12,18 +12,26 @@ import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
 import dagger.hilt.android.qualifiers.ApplicationContext
+import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
 import java.io.OutputStream
+import java.nio.file.AtomicMoveNotSupportedException
+import java.nio.file.Files
+import java.nio.file.StandardCopyOption
 import javax.inject.Inject
 import javax.inject.Singleton
+
+internal class MissingPrivateAudioException : IOException("私有源文件不存在")
 
 @OptIn(UnstableApi::class)
 @Singleton
@@ -31,6 +39,12 @@ class CacheExporter @Inject constructor(
     @ApplicationContext private val context: Context,
     private val preferencesManager: PreferencesManager
 ) {
+
+    private val privateFilesMutex = Mutex()
+    private val activeStagingFiles = mutableSetOf<File>()
+
+    private fun isAbandonedStagingFile(file: File): Boolean =
+        file.name.startsWith("export-") && file.extension == "part" && file !in activeStagingFiles
 
     @Volatile
     private var cachedRootDoc: Pair<String, DocumentFile>? = null
@@ -138,7 +152,7 @@ class CacheExporter @Inject constructor(
             .build()
 
         DataSourceInputStream(cacheOnlyDataSource, dataSpec).use { input ->
-            input.copyTo(outputStream)
+            if (input.copyTo(outputStream) != contentLength) throw IOException("Incomplete cached audio")
         }
     }
 
@@ -263,58 +277,77 @@ class CacheExporter @Inject constructor(
 
     suspend fun exportToPrivate(
         song: Song,
-        lyrics: String? = null,
+        lyrics: String?,
         cacheDataSourceFactory: CacheDataSource.Factory,
-        targetTranscodeFormat: String? = null
+        targetTranscodeFormat: String?,
+        register: suspend (String) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
         val cache = cacheDataSourceFactory.cache
             ?: return@withContext Result.failure(IllegalStateException("缓存实例缺失"))
-        val contentLength = getCacheContentLength(cache, song.id)
-        if (contentLength <= 0) {
-            LogManager.e("CacheExporter: Could not determine content length for ${song.id}")
-            return@withContext Result.failure(IOException("无法获取文件长度"))
-        }
-
-        val outcome = streamAudioToPrivateTarget(song, cache, contentLength, targetTranscodeFormat)
-        outcome.map { (privateDir, targetFile, finalFileName) ->
-            writeOptionalPrivateLyrics(song.id, privateDir, finalFileName, lyrics)
-            val uriString = targetFile.toURI().toString()
-            LogManager.i("CacheExporter: Private export complete for ${song.id}: $uriString")
-            uriString
+        val length = getCacheContentLength(cache, song.id)
+        if (length <= 0) return@withContext Result.failure(IOException("缓存文件不完整"))
+        val directory = File(context.getExternalFilesDir(null) ?: context.filesDir, "media_exported_private")
+        val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
+        val target = File(directory, buildExportFileName(song, suffix))
+        var staging: File? = null
+        try {
+            directory.mkdirs()
+            val temporary = privateFilesMutex.withLock {
+                File.createTempFile("export-", ".part", directory).also(activeStagingFiles::add)
+            }
+            staging = temporary
+            temporary.outputStream().use { streamCacheToOutput(cache, song.id, length, it) }
+            val uri = publishPrivateExport(song.id, directory, temporary, target, lyrics, register)
+            Result.success(uri)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Result.failure(e)
+        } finally {
+            withContext(kotlinx.coroutines.NonCancellable) {
+                privateFilesMutex.withLock {
+                    staging?.let { activeStagingFiles.remove(it) }
+                    cleanupHalfWrittenFile(staging)
+                }
+            }
         }
     }
 
-    private suspend fun streamAudioToPrivateTarget(
-        song: Song,
-        cache: androidx.media3.datasource.cache.Cache,
-        contentLength: Long,
-        targetTranscodeFormat: String?
-    ): Result<Triple<File, File, String>> {
-        var cleanupFile: File? = null
-        return try {
-            val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
-            val resolvedPrivateDir = File(baseDir, "media_exported_private")
-            if (!resolvedPrivateDir.exists()) {
-                resolvedPrivateDir.mkdirs()
-            }
-            val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
-            val resolvedFileName = buildExportFileName(song, suffix)
-            val resolvedTargetFile = File(resolvedPrivateDir, resolvedFileName)
-            cleanupFile = resolvedTargetFile
-            LogManager.d(
-                "CacheExporter: Streaming ${song.id} directly to private storage: ${resolvedTargetFile.absolutePath}"
-            )
-            resolvedTargetFile.outputStream().use { outputStream ->
-                streamCacheToOutput(cache, song.id, contentLength, outputStream)
-            }
-            Result.success(Triple(resolvedPrivateDir, resolvedTargetFile, resolvedFileName))
+    private suspend fun publishPrivateExport(
+        songId: String,
+        directory: File,
+        temporary: File,
+        target: File,
+        lyrics: String?,
+        register: suspend (String) -> Unit
+    ): String = privateFilesMutex.withLock {
+        val existedBefore = target.exists()
+        val uri = target.toURI().toString()
+        moveStagingToTarget(temporary, target)
+        val writtenLrc = writeOptionalPrivateLyrics(songId, directory, target.name, lyrics)
+        try {
+            register(uri)
         } catch (e: Exception) {
-            if (e !is CancellationException) {
-                LogManager.e("CacheExporter: Private export failed for ${song.id}", e)
+            if (!existedBefore || e is IllegalStateException) {
+                cleanupHalfWrittenFile(target)
+                cleanupHalfWrittenFile(writtenLrc)
             }
-            cleanupHalfWrittenFile(cleanupFile)
-            if (e is CancellationException) throw e
-            Result.failure(e)
+            throw e
+        }
+        uri
+    }
+
+    private fun moveStagingToTarget(staging: File, target: File) {
+        try {
+            Files.move(
+                staging.toPath(),
+                target.toPath(),
+                StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING
+            )
+        } catch (e: AtomicMoveNotSupportedException) {
+            LogManager.w("CacheExporter: Atomic move not supported for ${target.name}, using standard move: ${e.message}")
+            Files.move(staging.toPath(), target.toPath(), StandardCopyOption.REPLACE_EXISTING)
         }
     }
 
@@ -323,15 +356,49 @@ class CacheExporter @Inject constructor(
         privateDir: File,
         finalFileName: String,
         lyrics: String?
-    ) {
-        if (lyrics.isNullOrBlank()) return
-        try {
-            File(privateDir, FormatUtils.replaceExtensionWithLrc(finalFileName)).writeText(lyrics)
+    ): File? {
+        if (lyrics.isNullOrBlank()) return null
+        val lrcFile = File(privateDir, FormatUtils.replaceExtensionWithLrc(finalFileName))
+        return try {
+            lrcFile.writeText(lyrics)
+            lrcFile
         } catch (lrcEx: Exception) {
             if (lrcEx is CancellationException) throw lrcEx
             LogManager.w(
                 "CacheExporter: Private audio exported cleanly, but .lrc write failed for $songId: ${lrcEx.message}"
             )
+            cleanupHalfWrittenFile(lrcFile)
+            null
+        }
+    }
+
+    internal suspend fun cleanupOrphanedPrivateFiles(musicDao: MusicDao): Unit = withContext(Dispatchers.IO) {
+        privateFilesMutex.withLock {
+            val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
+            val privateExportedDir = File(baseDir, "media_exported_private")
+            if (!privateExportedDir.exists()) return@withLock
+
+            val validPrivatePaths = musicDao.getAllCachedSongs()
+                .mapNotNull { it.localUri }
+                .filter { it.startsWith("file:") }
+                .mapNotNull { it.toUri().path }
+                .toSet()
+            val validPrivateLrcPaths = validPrivatePaths
+                .map { FormatUtils.replaceExtensionWithLrc(it) }
+                .toSet()
+
+            privateExportedDir.listFiles()
+                ?.filter { it.isFile && it.name != ".nomedia" }
+                ?.forEach { file ->
+                    val isLrc = file.name.endsWith(".lrc")
+                    val isAudio = FormatUtils.isSupportedAudioFile(file.name)
+                    val isOrphan = (isAudio && !validPrivatePaths.contains(file.absolutePath)) ||
+                        (isLrc && !validPrivateLrcPaths.contains(file.absolutePath))
+                    if (isOrphan || isAbandonedStagingFile(file)) {
+                        file.delete()
+                        LogManager.i("CacheSync: Deleted orphaned private file: ${file.name}")
+                    }
+                }
         }
     }
 
@@ -345,16 +412,16 @@ class CacheExporter @Inject constructor(
         val sourcePath = privateFileUriString.toUri().path
             ?: return@withContext Result.failure(IllegalArgumentException("Invalid private file path"))
         val sourceFile = File(sourcePath)
-        if (!sourceFile.exists()) {
-            return@withContext Result.failure(IOException("私有源文件不存在"))
+        if (Files.notExists(sourceFile.toPath())) {
+            return@withContext Result.failure(MissingPrivateAudioException())
         }
 
         val outcome = copyPrivateAudioToSafTarget(song, sourceFile, targetSafUriString)
-        outcome.map { exported ->
-            copyOptionalPrivateLrcToSaf(song.id, sourceFile, exported)
+        outcome.mapCatching { exported ->
+            copyOptionalPrivateLrcToSaf(sourceFile, exported)
             LogManager.i("CacheExporter: Exported private file to SAF: ${exported.docUri}")
             exported.docUri.toString()
-        }
+        }.onFailure { if (it is CancellationException) throw it }
     }
 
     private suspend fun copyPrivateAudioToSafTarget(
@@ -424,26 +491,24 @@ class CacheExporter @Inject constructor(
     }
 
     private fun copyOptionalPrivateLrcToSaf(
-        songId: String,
         sourceFile: File,
         exported: SafExportedTarget
     ) {
         val sourceLrcFile = File(FormatUtils.replaceExtensionWithLrc(sourceFile.absolutePath))
         if (!sourceLrcFile.exists()) return
-        try {
-            val lrcFileName = FormatUtils.replaceExtensionWithLrc(exported.fileName)
-            val targetLrcUri = exported.existingLrcUri
-                ?: exported.rootDoc.createFile("application/octet-stream", lrcFileName)?.uri
-                ?: return
+        val lrcFileName = FormatUtils.replaceExtensionWithLrc(exported.fileName)
+        val createdDoc = if (exported.existingLrcUri == null) {
+            exported.rootDoc.createFile("application/octet-stream", lrcFileName)
+                ?: throw IOException("Unable to create lyrics file")
+        } else {
+            null
+        }
+        val targetLrcUri = exported.existingLrcUri ?: checkNotNull(createdDoc).uri
+        runCatching {
             openTruncatedOutputStream(context, targetLrcUri)?.use { out ->
                 sourceLrcFile.inputStream().use { input -> input.copyTo(out) }
-            }
-        } catch (lrcEx: Exception) {
-            if (lrcEx is CancellationException) throw lrcEx
-            LogManager.w(
-                "CacheExporter: Private audio migrated cleanly, but .lrc export failed for $songId: ${lrcEx.message}"
-            )
-        }
+            } ?: throw IOException("Unable to open lyrics file")
+        }.onFailure { cleanupHalfWrittenDoc(createdDoc) }.getOrThrow()
     }
 
     private fun cleanupHalfWrittenDoc(docFile: DocumentFile?) {

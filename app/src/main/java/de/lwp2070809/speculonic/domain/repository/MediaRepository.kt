@@ -5,7 +5,8 @@ import androidx.paging.PagingConfig
 import androidx.paging.PagingData
 import androidx.paging.map
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
-import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
+import androidx.room.withTransaction
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
@@ -27,7 +28,7 @@ class MediaRepository(
     private val musicDao: MusicDao,
     private val authManager: AuthManager,
     private val entityMapper: EntityMapper,
-    private val onSongsRemoved: suspend (List<SongCleanupTarget>) -> Unit = {}
+    private val database: AppDatabase
 ) {
     fun getArtistsFlow(): Flow<List<Artist>> {
         return musicDao.getAllArtistsFlow().map { list -> 
@@ -193,8 +194,22 @@ class MediaRepository(
             val response = api.getAlbum(id, u, t, s)
             response.response.ensureOk()
             val album = response.response.album
-            if (!skipInsert) {
-                persistFetchedAlbum(id, album, albumEntity, forceRefresh)
+            if (album != null) {
+                check(album.id == id) { "Mismatched album response for $id" }
+                val hasCompleteSongs = (album.songCount ?: 0) <= album.song.distinctBy { it.id }.size
+                check(!(forceRefresh && cachedSongs.isNotEmpty() && !hasCompleteSongs)) {
+                    "Incomplete album response for $id"
+                }
+                if (!skipInsert) {
+                    database.withTransaction {
+                        persistFetchedAlbum(
+                            albumId = id,
+                            album = album,
+                            existingAlbum = musicDao.getAlbumById(id),
+                            detachRemoved = forceRefresh && hasCompleteSongs
+                        )
+                    }
+                }
             }
             album
         } catch (e: Exception) {
@@ -208,17 +223,10 @@ class MediaRepository(
 
     private suspend fun persistFetchedAlbum(
         albumId: String,
-        album: Album?,
+        album: Album,
         existingAlbum: de.lwp2070809.speculonic.data.db.entities.AlbumEntity?,
-        forceRefresh: Boolean
+        detachRemoved: Boolean
     ) {
-        if (album == null) {
-            if (forceRefresh) {
-                onSongsRemoved(musicDao.deleteSongsByAlbumNotIn(albumId, emptyList()))
-            }
-            return
-        }
-
         musicDao.insertAlbums(
             listOf(entityMapper.albumToEntity(album, existing = existingAlbum, isStarred = album.starred != null))
         )
@@ -229,7 +237,7 @@ class MediaRepository(
 
         val entities = album.song.map { song ->
             val local = existingSongsMap[song.id]
-            val songIsStarred = song.starred != null
+            val songIsStarred = song.starred != null || local?.starred == true
             val lastUpdated = if (songIsStarred && local?.starred != true) null else local?.lastUpdated
             entityMapper.songToEntity(
                 song = song,
@@ -244,8 +252,9 @@ class MediaRepository(
                 )
             )
         }
-        if (forceRefresh) {
-            onSongsRemoved(musicDao.deleteSongsByAlbumNotIn(albumId, songIds))
+        if (detachRemoved) {
+            val removedIds = musicDao.getSongIdsByAlbum(albumId) - songIds.toHashSet()
+            removedIds.chunked(500).forEach { musicDao.detachAlbumSongs(albumId, it) }
         }
         entities.chunked(500).forEach { chunk -> musicDao.insertSongs(chunk) }
     }
@@ -326,13 +335,17 @@ class MediaRepository(
             val response = api.search3(query, u = u, t = t, s = s)
             response.response.ensureOk()
             val results = response.response.searchResult3 ?: SearchResult3()
-            val songIds = results.song.map { it.id }
+            val songIds = results.song.map { it.id }.distinct()
             val existingMap = songIds.chunked(500)
-                .flatMap { musicDao.getSongsByIds(it) }
+                .flatMap { musicDao.getSearchSongMetadata(it) }
                 .associateBy { it.id }
             results.copy(song = results.song.map { song ->
                 val local = existingMap[song.id]
-                song.copy(localUri = local?.localUri, isFullyCached = local?.isFullyCached ?: false)
+                song.copy(
+                    localUri = local?.localUri,
+                    isFullyCached = local?.isFullyCached ?: false,
+                    isTranscoded = local?.isTranscoded ?: false
+                )
             })
         } catch (e: Exception) {
             if (e is CancellationException) throw e

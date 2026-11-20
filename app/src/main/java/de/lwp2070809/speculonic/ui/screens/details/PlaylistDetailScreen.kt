@@ -69,6 +69,7 @@ fun PlaylistDetailScreen(
     val playbackStateState = playbackController.playbackState.collectAsStateWithLifecycle()
     val currentSongId by remember { derivedStateOf { playbackStateState.value.currentSongId } }
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val displayedSongs = uiState.songs
     val context = LocalContext.current
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
@@ -261,7 +262,7 @@ fun PlaylistDetailScreen(
                     }
 
                     itemsIndexed(
-                        items = uiState.songs,
+                        items = displayedSongs,
                         key = { index, song -> "${song.id}_$index" },
                         contentType = { _, _ -> "song_item" }
                     ) { index, song ->
@@ -288,7 +289,7 @@ fun PlaylistDetailScreen(
                                 downloadController.removeDownload(song.id)
                             },
                             onRemoveFromPlaylistClick = {
-                                viewModel.removeFromPlaylist(song.id, index) { success ->
+                                viewModel.removeFromPlaylist(song.id, index, displayedSongs) { success ->
                                     val msg = if (success) removeSuccessMsg else removeErrorMsg
                                     Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                                 }

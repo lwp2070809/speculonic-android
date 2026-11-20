@@ -233,12 +233,12 @@ private fun DualSlotCrossfadeImage(
     } else {
         snap()
     }
-    val alpha0 by animateFloatAsState(
+    val alpha0 = animateFloatAsState(
         targetValue = if (state.targetSlot != -1 && state.displayedSlot == 0 && state.slot0Ready) maxAlpha else 0f,
         animationSpec = animSpec,
         label = "crossfadeAlpha0"
     )
-    val alpha1 by animateFloatAsState(
+    val alpha1 = animateFloatAsState(
         targetValue = if (state.targetSlot != -1 && state.displayedSlot == 1 && state.slot1Ready) maxAlpha else 0f,
         animationSpec = animSpec,
         label = "crossfadeAlpha1"
@@ -268,7 +268,7 @@ private fun DualSlotCrossfadeImage(
 private fun ArtworkSlotImage(
     model: Any?,
     attempt: Int,
-    alpha: Float,
+    alpha: androidx.compose.runtime.State<Float>,
     contentScale: ContentScale,
     imageModifier: Modifier,
     onResult: (model: Any, success: Boolean) -> Unit
@@ -282,7 +282,7 @@ private fun ArtworkSlotImage(
             onError = { onResult(model, false) },
             modifier = Modifier
                 .fillMaxSize()
-                .graphicsLayer { this.alpha = alpha }
+                .graphicsLayer { this.alpha = alpha.value }
                 .then(imageModifier),
             contentScale = contentScale
         )

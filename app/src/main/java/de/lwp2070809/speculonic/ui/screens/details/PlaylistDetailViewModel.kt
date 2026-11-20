@@ -217,20 +217,20 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
-    fun removeFromPlaylist(songId: String, fallbackIndex: Int = -1, onResult: (Boolean) -> Unit = {}) {
+    fun removeFromPlaylist(
+        songId: String,
+        fallbackIndex: Int,
+        selectedSongs: List<Song>,
+        onResult: (Boolean) -> Unit = {}
+    ) {
         viewModelScope.launch {
             playlistOperationMutex.withLock {
                 _uiState.update { it.copy(isModifying = true) }
                 try {
-                    val currentSongs = _uiState.value.songs
-                    val isMatchingSongId = songId.isEmpty() || currentSongs[fallbackIndex].id == songId
-                    val actualIndex = if (fallbackIndex in currentSongs.indices && isMatchingSongId) {
-                        fallbackIndex
-                    } else {
-                        currentSongs.indexOfFirst { it.id == songId }
-                    }
-                    if (actualIndex < 0) {
-                        LogManager.w("PlaylistDetailViewModel: removeFromPlaylist skipped, song $songId not found")
+                    val currentSongs = repository.getCachedPlaylistSongs(playlistId)
+                    val actualIndex = resolvePlaylistRemoval(selectedSongs, currentSongs, songId, fallbackIndex)
+                    if (actualIndex == null) {
+                        loadPlaylistDetails(forceRefresh = true)
                         onResult(false)
                         return@withLock
                     }
@@ -247,4 +247,11 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
+}
+
+internal fun resolvePlaylistRemoval(selectedSongs: List<Song>, currentSongs: List<Song>, songId: String, index: Int): Int? {
+    if (currentSongs.getOrNull(index)?.id == songId && selectedSongs.size == currentSongs.size &&
+        selectedSongs.indices.all { selectedSongs[it].id == currentSongs[it].id }
+    ) return index
+    return currentSongs.indices.singleOrNull { currentSongs[it].id == songId }
 }

@@ -37,6 +37,9 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.repeatOnLifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -81,6 +84,11 @@ fun SearchScreen(
 
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val resultIds = remember(uiState.results.song) { uiState.results.song.map { it.id }.distinct() }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+    LaunchedEffect(viewModel, resultIds, lifecycle) {
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) { viewModel.observeResultMetadata(resultIds) }
+    }
     val transcodeIncompatible = uiState.transcodeIncompatible
     
     var searchBackProgress by remember { mutableFloatStateOf(0f) }

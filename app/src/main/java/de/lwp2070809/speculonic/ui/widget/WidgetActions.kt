@@ -4,7 +4,7 @@ import android.content.Context
 import androidx.glance.GlanceId
 import androidx.glance.action.ActionParameters
 import androidx.glance.appwidget.action.ActionCallback
-import androidx.media3.common.Player
+import de.lwp2070809.speculonic.playback.toggleCurrentItem
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -47,13 +47,8 @@ class WidgetPlayPauseAction : ActionCallback {
         val controller = widgetEntryPoint(context).playbackController()
         var needsAutoRestore = false
         controller.executeOnControllerAsync { ctrl ->
-            if (ctrl.playWhenReady) {
-                ctrl.pause()
-            } else if (ctrl.mediaItemCount > 0) {
-                if (ctrl.playbackState == Player.STATE_IDLE) {
-                    ctrl.prepare()
-                }
-                ctrl.play()
+            if (ctrl.mediaItemCount > 0) {
+                ctrl.toggleCurrentItem()
             } else {
                 needsAutoRestore = true
             }

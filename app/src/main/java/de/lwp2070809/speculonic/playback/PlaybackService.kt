@@ -448,8 +448,16 @@ class PlaybackService : MediaSessionService() {
             }
             launch {
                 prefs.bluetoothCarDeviceNames.collect {
+                    val wasConnected = carAudioManager.isCarBluetoothConnected()
                     carAudioManager.bluetoothCarDeviceNames = it
-                    restartBluetoothLyricsIfActive()
+                    val isNowConnected = carAudioManager.isCarBluetoothConnected()
+                    if (carAudioManager.carBluetoothEnabled && !wasConnected && isNowConnected) {
+                        (mediaSession?.player as? BluetoothCarManager.CarDisguisePlayer)?.triggerCoverSync()
+                        if (carAudioManager.syncPlaybackState) {
+                            carAudioManager.syncPlaybackStateToBluetooth()
+                        }
+                    }
+                    syncBluetoothLyricsAvailability()
                 }
             }
         }
@@ -490,10 +498,12 @@ class PlaybackService : MediaSessionService() {
     }
 
     private fun syncBluetoothLyricsAvailability() {
-        if (!carAudioManager.carBluetoothEnabled || !carAudioManager.bluetoothLyricsEnabled) {
-            carAudioManager.stopBluetoothLyricsUpdate()
+        val available = carAudioManager.carBluetoothEnabled && carAudioManager.bluetoothLyricsEnabled &&
+            carAudioManager.isCarBluetoothConnected()
+        if (!available) {
+            carAudioManager.lyricsManager.release()
             carAudioManager.updateMediaSessionMetadata(null)
-        } else if (carAudioManager.isCarBluetoothConnected()) {
+        } else {
             mediaSession?.player?.currentMediaItem?.let { carAudioManager.loadLyricsForBluetooth(it) }
         }
     }
@@ -714,7 +724,7 @@ class PlaybackService : MediaSessionService() {
         ): com.google.common.util.concurrent.ListenableFuture<androidx.media3.session.SessionResult> {
             if (controller.uid != android.os.Process.myUid()) {
                 return com.google.common.util.concurrent.Futures.immediateFuture(
-                    androidx.media3.session.SessionResult(androidx.media3.session.SessionResult.RESULT_ERROR_PERMISSION_DENIED)
+                    androidx.media3.session.SessionResult(androidx.media3.session.SessionError.ERROR_PERMISSION_DENIED)
                 )
             }
             when (customCommand.customAction) {

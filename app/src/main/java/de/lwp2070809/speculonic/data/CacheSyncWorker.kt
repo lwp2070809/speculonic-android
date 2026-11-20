@@ -3,9 +3,6 @@ package de.lwp2070809.speculonic.data
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.os.Handler
-import android.os.Looper
-import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
@@ -49,6 +46,29 @@ import java.util.UUID
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
+internal class MigrationOutcome {
+    var firstFailure: Throwable? = null
+        private set
+
+    fun recordFailure(error: Throwable) {
+        if (error is CancellationException) throw error
+        if (error is MissingPrivateAudioException) return
+        if (firstFailure == null || error is SecurityException) firstFailure = error
+    }
+}
+
+@OptIn(UnstableApi::class)
+private data class VerifySongsConfig(
+    val context: Context,
+    val musicDao: MusicDao,
+    val isSafEnabled: Boolean,
+    val existingSafSongIds: Set<String>,
+    val downloadCache: Cache,
+    val validator: CacheValidator,
+    val isDeepSync: Boolean,
+    val downloadManager: DownloadManager
+)
+
 @OptIn(UnstableApi::class)
 @HiltWorker
 class CacheSyncWorker @AssistedInject constructor(
@@ -67,41 +87,69 @@ class CacheSyncWorker @AssistedInject constructor(
         val isDeepSync = inputData.getBoolean(KEY_DEEP_SYNC, false)
         val isForceScan = inputData.getBoolean(KEY_FORCE_SCAN, false)
         val shouldHealCovers = inputData.getBoolean(KEY_HEAL_COVERS, false)
-
-        if (shouldSkipDueToCooldown(isDeepSync, isForceScan)) {
-            return Result.success()
-        }
+        if (shouldSkipDueToCooldown(isDeepSync, isForceScan)) return Result.success()
 
         LogManager.i(
             "CacheSync: Starting binary sync " +
                 "(Deep: $isDeepSync, Force: $isForceScan, HealCovers: $shouldHealCovers)..."
         )
-
         val context = applicationContext
-        val musicDao = database.musicDao()
-        val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
         val cacheLocation = preferencesManager.cacheLocation.first()
         val isSafEnabled = cacheLocation.isNotBlank()
-
         if (isSafEnabled && !hasValidSafPermission(context, cacheLocation)) {
-            return Result.failure()
+            return failureResult(context.getString(R.string.saf_permission_expired), needsSaf = true)
+        }
+        if (preferencesManager.serverUrl.first().isBlank()) return Result.failure()
+
+        val musicDao = database.musicDao()
+        val migrationOutcome = if (isSafEnabled) migratePrivateCacheToSaf(context, musicDao) else MigrationOutcome()
+        if (migrationOutcome.firstFailure is SecurityException) {
+            return failureResult(context.getString(R.string.saf_permission_expired), needsSaf = true)
+        }
+        cacheExporter.cleanupOrphanedPrivateFiles(musicDao)
+
+        val (safEntries, existingSafIds) = preloadSafIfEnabled(context, cacheLocation).getOrElse { error ->
+            return failureResult(error.localizedMessage ?: error.javaClass.simpleName, needsSaf = true)
         }
 
+        verifyAndHeal(context, musicDao, cacheLocation, isDeepSync, shouldHealCovers, safEntries, existingSafIds)
+        migrationOutcome.firstFailure?.let { error ->
+            val detail = error.localizedMessage ?: error.javaClass.simpleName
+            return failureResult(context.getString(R.string.export_failed, detail))
+        }
+
+        preferencesManager.saveLastCacheScanTime(System.currentTimeMillis())
+        setProgress(workDataOf(PROGRESS to COMPLETED_PROGRESS, STATUS to context.getString(R.string.sync_completed)))
+        LogManager.i("CacheSync: Sync completed.")
+        return Result.success()
+    }
+
+    private fun failureResult(status: String?, needsSaf: Boolean = false): Result =
+        Result.failure(workDataOf(STATUS to status, KEY_ERROR_NEEDS_SAF to needsSaf))
+
+    private fun preloadSafIfEnabled(
+        context: Context,
+        cacheLocation: String
+    ): kotlin.Result<Pair<List<SafChildEntry>?, Set<String>>> {
+        if (cacheLocation.isBlank()) return kotlin.Result.success(null to emptySet())
+        return runCatching { preloadSafAudioFiles(context, cacheLocation) }.onFailure {
+            if (it is CancellationException) throw it
+            LogManager.e("CacheSync: Unable to read SAF directory", it)
+        }
+    }
+
+    private suspend fun verifyAndHeal(
+        context: Context,
+        musicDao: MusicDao,
+        cacheLocation: String,
+        isDeepSync: Boolean,
+        shouldHealCovers: Boolean,
+        safEntries: List<SafChildEntry>?,
+        existingSafIds: Set<String>
+    ) {
+        val isSafEnabled = cacheLocation.isNotBlank()
+        val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
         val downloadCache = cacheManager.acquireDownloadCache()
-        val serverUrl = preferencesManager.serverUrl.first()
-        if (serverUrl.isBlank()) return Result.failure()
-
-        if (isSafEnabled) {
-            migratePrivateCacheToSaf(context, musicDao)
-        }
-        cleanupOrphanedPrivateFiles(context, musicDao)
-
-        val (safEntries, existingSafIds) = if (isSafEnabled) {
-            preloadSafAudioFiles(context, cacheLocation)
-        } else {
-            null to emptySet()
-        }
-
         val cachedSongs = musicDao.getAllCachedSongs()
         if (cachedSongs.isNotEmpty()) {
             verifyCachedSongs(
@@ -118,7 +166,6 @@ class CacheSyncWorker @AssistedInject constructor(
                 )
             )
         }
-
         val updatedSafEntries = if (isSafEnabled) {
             scanOrphanedSafEntries(context, musicDao, cacheLocation, safEntries)
         } else {
@@ -127,18 +174,7 @@ class CacheSyncWorker @AssistedInject constructor(
         if (updatedSafEntries != null) {
             LogManager.d("CacheSync: SAF entries processed (${updatedSafEntries.size}).")
         }
-
         healCoversIfRequested(context, shouldHealCovers)
-
-        preferencesManager.saveLastCacheScanTime(System.currentTimeMillis())
-        setProgress(
-            workDataOf(
-                PROGRESS to COMPLETED_PROGRESS,
-                STATUS to context.getString(R.string.sync_completed)
-            )
-        )
-        LogManager.i("CacheSync: Sync completed.")
-        return Result.success()
     }
 
     private suspend fun shouldSkipDueToCooldown(
@@ -172,42 +208,12 @@ class CacheSyncWorker @AssistedInject constructor(
         return hasPermission
     }
 
-    private fun preloadSafAudioFiles(
-        context: Context,
-        cacheLocation: String
-    ): Pair<List<SafChildEntry>?, Set<String>> {
-        val existingSafSongIds = mutableSetOf<String>()
-        return try {
-            val entries = SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri())
-            entries.forEach { entry ->
-                val fileName = entry.name
-                val songId = MediaFormatUtils.extractSongIdFromFileName(fileName)
-                if (songId != null && MediaFormatUtils.isSupportedAudioFile(fileName)) {
-                    existingSafSongIds.add(songId)
-                }
-            }
-            LogManager.i(
-                "CacheSync: Batch pre-loaded ${existingSafSongIds.size} SAF files. " +
-                    "Disabling O(N) IPC queries."
-            )
-            entries to existingSafSongIds
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.e("CacheSync: Failed to pre-scan SAF directory for fast contains check", e)
-            null to existingSafSongIds
-        }
+    private fun preloadSafAudioFiles(context: Context, cacheLocation: String): Pair<List<SafChildEntry>, Set<String>> {
+        val entries = SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri())
+        val ids = entries.asSequence().filter { MediaFormatUtils.isSupportedAudioFile(it.name) }
+            .mapNotNull { MediaFormatUtils.extractSongIdFromFileName(it.name) }.toSet()
+        return entries to ids
     }
-
-    private data class VerifySongsConfig(
-        val context: Context,
-        val musicDao: MusicDao,
-        val isSafEnabled: Boolean,
-        val existingSafSongIds: Set<String>,
-        val downloadCache: Cache,
-        val validator: CacheValidator,
-        val isDeepSync: Boolean,
-        val downloadManager: DownloadManager
-    )
 
     private suspend fun verifyCachedSongs(
         cachedSongs: List<SongEntity>,
@@ -451,17 +457,17 @@ class CacheSyncWorker @AssistedInject constructor(
     private suspend fun migratePrivateCacheToSaf(
         context: Context,
         musicDao: MusicDao
-    ) {
+    ): MigrationOutcome {
         val cachedSongs = musicDao.getAllCachedSongs()
         val toMigrate = cachedSongs.filter {
             !it.localUri.isNullOrBlank() && it.localUri.startsWith("file:")
         }
-        if (toMigrate.isEmpty()) return
+        val outcome = MigrationOutcome()
+        if (toMigrate.isEmpty()) return outcome
 
         LogManager.i("CacheSync: Found ${toMigrate.size} songs waiting for migration to SAF.")
         val total = toMigrate.size
-
-        toMigrate.forEachIndexed { index, song ->
+        for ((index, song) in toMigrate.withIndex()) {
             val progressPercent = index * PERCENT_SCALE / total
             val progressValue = MIGRATION_BASE_PROGRESS +
                 (progressPercent * MIGRATION_PROGRESS_RANGE / PERCENT_SCALE)
@@ -476,50 +482,34 @@ class CacheSyncWorker @AssistedInject constructor(
                     )
                 )
             )
-            migrateSingleSongToSaf(context, musicDao, song)
+            val error = migrateSingleSongToSaf(musicDao, song) ?: continue
+            outcome.recordFailure(error)
+            if (error is SecurityException) return outcome
         }
+        return outcome
     }
 
     private suspend fun migrateSingleSongToSaf(
-        context: Context,
         musicDao: MusicDao,
         song: SongEntity
-    ) {
-        val songModel = EntityMapper.toSong(song)
+    ): Throwable? {
+        val existingUri = song.localUri ?: return IllegalStateException("Not a private file")
         val localUriResult = try {
-            val existingUri = song.localUri
-            if (existingUri != null && existingUri.startsWith("file:")) {
-                cacheExporter.exportPrivateFileToSaf(songModel, existingUri)
-            } else {
-                kotlin.Result.failure(Exception("Not a private file"))
-            }
+            cacheExporter.exportPrivateFileToSaf(EntityMapper.toSong(song), existingUri)
         } catch (e: SecurityException) {
             LogManager.e("CacheSync: SAF permission expired during migration", e)
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.saf_permission_expired),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
-            kotlin.Result.failure(e)
+            return e
         }
 
         localUriResult.onSuccess { localUri ->
-            val oldLocalUri = song.localUri
             musicDao.updateSongLocalUri(song.id, localUri)
             LogManager.i("CacheSync: Migrated ${song.title} to SAF successfully.")
-            cleanupMigratedPrivateFiles(song, oldLocalUri)
-        }.onFailure {
-            LogManager.e("CacheSync: Migration failed for ${song.title}: ${it.message}")
-            Handler(Looper.getMainLooper()).post {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.export_failed, it.message ?: ""),
-                    Toast.LENGTH_LONG
-                ).show()
-            }
+            cleanupMigratedPrivateFiles(song, existingUri)
         }
+        val error = localUriResult.exceptionOrNull()
+        if (error is CancellationException) throw error
+        if (error != null) LogManager.e("CacheSync: Migration failed for ${song.title}", error)
+        return error
     }
 
     private suspend fun cleanupMigratedPrivateFiles(song: SongEntity, oldLocalUri: String?) {
@@ -557,34 +547,6 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun cleanupOrphanedPrivateFiles(context: Context, musicDao: MusicDao) {
-        val baseDir = context.getExternalFilesDir(null) ?: context.filesDir
-        val privateExportedDir = File(baseDir, "media_exported_private")
-        if (!privateExportedDir.exists()) return
-
-        val validPrivatePaths = musicDao.getAllCachedSongs()
-            .mapNotNull { it.localUri }
-            .filter { it.startsWith("file:") }
-            .mapNotNull { it.toUri().path }
-            .toSet()
-        val validPrivateLrcPaths = validPrivatePaths
-            .map { FormatUtils.replaceExtensionWithLrc(it) }
-            .toSet()
-
-        privateExportedDir.listFiles()
-            ?.filter { it.isFile && it.name != ".nomedia" }
-            ?.forEach { file ->
-                val isLrc = file.name.endsWith(".lrc")
-                val isAudio = FormatUtils.isSupportedAudioFile(file.name)
-                val isOrphan = (isAudio && !validPrivatePaths.contains(file.absolutePath)) ||
-                    (isLrc && !validPrivateLrcPaths.contains(file.absolutePath))
-                if (isOrphan) {
-                    file.delete()
-                    LogManager.i("CacheSync: Deleted orphaned private file: ${file.name}")
-                }
-            }
-    }
-
     private fun isMeteredNetwork(context: Context): Boolean {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         val network = cm.activeNetwork ?: return false
@@ -593,11 +555,13 @@ class CacheSyncWorker @AssistedInject constructor(
     }
 
     companion object {
+        const val MANUAL_SCAN_WORK_NAME = "CacheSync_Once"
         const val KEY_DEEP_SYNC = "deep_sync"
         const val KEY_FORCE_SCAN = "force_scan"
         const val KEY_HEAL_COVERS = "heal_covers"
         const val PROGRESS = "progress"
         const val STATUS = "status"
+        const val KEY_ERROR_NEEDS_SAF = "error_needs_saf"
 
         const val CACHE_SCAN_COOLDOWN_HOURS = 168L
 
@@ -629,7 +593,8 @@ class CacheSyncWorker @AssistedInject constructor(
         fun runOnce(
             context: Context,
             forceScan: Boolean = false,
-            healCovers: Boolean = false
+            healCovers: Boolean = false,
+            replaceExisting: Boolean = false
         ): UUID {
             val data = Data.Builder()
                 .putBoolean(KEY_FORCE_SCAN, forceScan)
@@ -638,8 +603,9 @@ class CacheSyncWorker @AssistedInject constructor(
             val request = OneTimeWorkRequestBuilder<CacheSyncWorker>()
                 .setInputData(data)
                 .build()
+            val policy = if (replaceExisting) ExistingWorkPolicy.REPLACE else ExistingWorkPolicy.KEEP
             WorkManager.getInstance(context)
-                .enqueueUniqueWork("CacheSync_Once", ExistingWorkPolicy.REPLACE, request)
+                .enqueueUniqueWork(MANUAL_SCAN_WORK_NAME, policy, request)
             return request.id
         }
 

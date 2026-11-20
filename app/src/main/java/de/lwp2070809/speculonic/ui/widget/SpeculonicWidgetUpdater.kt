@@ -133,7 +133,7 @@ object SpeculonicWidgetUpdater {
                     appContext,
                     WidgetEntryPoint::class.java
                 )
-                if (entryPoint.playbackController().playbackState.value.playWhenReady) {
+                if (entryPoint.playbackController().playbackState.value.showPauseButton) {
                     return@withLock
                 }
                 clearStalePlayingFlagLocked(appContext)

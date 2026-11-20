@@ -193,7 +193,6 @@ private fun MainContent(
         }
     }
 
-    val searchViewModel: SearchViewModel = hiltViewModel(key = "search_${serverUrl ?: ""}")
     val nowPlayingViewModel: NowPlayingViewModel = hiltViewModel(key = "nowplaying_${serverUrl ?: ""}")
 
     data class NavItem(val route: AppRoute, @StringRes val title: Int, val icon: @Composable () -> Unit)
@@ -392,7 +391,7 @@ private fun MainContent(
                                 val hasActiveDetailInDualPane = isDualPane &&
                                     (lastBackStackEntry as? AppRoute)?.isDetailPane == true
                                 SearchScreen(
-                                    viewModel = searchViewModel,
+                                    viewModel = hiltViewModel<SearchViewModel>(key = "search_${serverUrl ?: ""}"),
                                     isEffectivelyOnline = isEffectivelyOnline,
                                     isStreamingAllowed = isStreamingAllowed,
                                     onAlbumClick = { albumId ->

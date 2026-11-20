@@ -66,13 +66,8 @@ fun rememberSongListItemStrings(): SongListItemStrings {
     val songDetails = stringResource(R.string.song_details)
     val addToPlaylist = stringResource(R.string.add_to_playlist)
     val removeFromPlaylist = stringResource(R.string.remove_from_playlist)
-    val context = LocalContext.current
-    val incompatibleDownloadedTemplate = remember(context) {
-        context.getString(R.string.incompatible_downloaded_hint)
-    }
-    val unsupportedFormatTemplate = remember(context) {
-        context.getString(R.string.unsupported_format_hint)
-    }
+    val incompatibleDownloadedTemplate = stringResource(R.string.incompatible_downloaded_hint)
+    val unsupportedFormatTemplate = stringResource(R.string.unsupported_format_hint)
 
     return remember(
         successMsg,

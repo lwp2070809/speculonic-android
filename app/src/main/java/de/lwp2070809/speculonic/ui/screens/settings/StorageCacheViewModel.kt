@@ -6,6 +6,7 @@ import android.net.NetworkCapabilities
 import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -23,7 +24,6 @@ import de.lwp2070809.speculonic.playback.PlaybackController
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -33,7 +33,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 
 private const val DEFAULT_MAX_COVER_CACHE_BYTES = 512L * 1024 * 1024
@@ -44,6 +46,17 @@ enum class CacheClearTarget {
     COVER_ART,
     SONGS
 }
+
+enum class StorageErrorSource {
+    SCAN,
+    VERIFY
+}
+
+data class StorageErrorDialogState(
+    val source: StorageErrorSource,
+    val message: String,
+    val showConfigureSafAction: Boolean
+)
 
 data class StorageCacheUiState(
     val cacheLocation: String = "",
@@ -71,6 +84,7 @@ data class StorageCacheUiState(
     val isInteractiveScanning: Boolean = false,
     val interactiveScanProgress: Int = 0,
     val interactiveScanStatus: String = "",
+    val storageError: StorageErrorDialogState? = null,
     val showInconsistencyDialog: Boolean = false,
     val inconsistentItems: List<InconsistentItem> = emptyList(),
     val pendingClearCacheTarget: CacheClearTarget? = null,
@@ -92,12 +106,13 @@ class StorageCacheViewModel @Inject constructor(
     private val cacheOperations: CacheOperations
 ) : ViewModel() {
 
-    private var workObserverJob: Job? = null
     private val _uiState = MutableStateFlow(StorageCacheUiState())
     val uiState: StateFlow<StorageCacheUiState> = _uiState.asStateFlow()
+    private val pendingScanWorkId = AtomicReference<UUID?>(null)
 
     init {
         observeStoragePreferences()
+        observeWorkProgress()
     }
 
     private fun observeStoragePreferences() {
@@ -122,7 +137,7 @@ class StorageCacheViewModel @Inject constructor(
         viewModelScope.launch {
             preferencesManager.saveCacheLocation(location)
             if (location.isNotEmpty()) {
-                scanLocalFiles()
+                scanLocalFiles(replaceExisting = true)
             } else {
                 val cachedSongs = database.musicDao().getAllCachedSongs()
                 cachedSongs.forEach { song ->
@@ -184,7 +199,7 @@ class StorageCacheViewModel @Inject constructor(
                 .onSuccess {
                     LogManager.i("StorageCacheViewModel: Internal cache cleared.")
                     refreshCacheSize()
-                    scanLocalFiles()
+                    scanLocalFiles(replaceExisting = true)
                 }
                 .onFailure { e ->
                     showCacheOperationFailureToast(e)
@@ -235,7 +250,7 @@ class StorageCacheViewModel @Inject constructor(
 
     fun syncWithServer(ignoreSafetyGuard: Boolean = false) {
         _uiState.update { it.copy(showMobileSyncConfirm = false, showSafetyGuardConfirm = false) }
-        if (playbackController.playbackState.value.isPlaying) {
+        if (playbackController.playbackState.value.showPauseButton) {
             playbackController.togglePlayPause()
         }
 
@@ -244,6 +259,7 @@ class StorageCacheViewModel @Inject constructor(
                 it.copy(
                     isInteractiveScanning = true,
                     interactiveScanProgress = 0,
+                    storageError = null,
                     interactiveScanStatus = context.getString(R.string.sync_preparing),
                     showInconsistencyDialog = false,
                     inconsistentItems = emptyList()
@@ -310,10 +326,22 @@ class StorageCacheViewModel @Inject constructor(
                     }
                 }
                 is VerifyCacheState.Error -> {
+                    val showSafAction = cacheLocation.isNotBlank() &&
+                        (state.exception is SecurityException || state.exception is IOException)
+                    val message = if (state.exception is SecurityException) {
+                        context.getString(R.string.saf_permission_expired)
+                    } else {
+                        state.exception.localizedMessage ?: state.exception.javaClass.simpleName
+                    }
                     _uiState.update {
                         it.copy(
                             isInteractiveScanning = false,
-                            showInconsistencyDialog = true,
+                            showInconsistencyDialog = false,
+                            storageError = StorageErrorDialogState(
+                                source = StorageErrorSource.VERIFY,
+                                message = message,
+                                showConfigureSafAction = showSafAction
+                            ),
                             inconsistentItems = emptyList()
                         )
                     }
@@ -323,7 +351,7 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     fun dismissInconsistencyDialog() {
-        _uiState.update { it.copy(showInconsistencyDialog = false, inconsistentItems = emptyList()) }
+        _uiState.update { it.copy(showInconsistencyDialog = false, storageError = null, inconsistentItems = emptyList()) }
     }
 
     fun resolveInconsistentItem(item: InconsistentItem, action: String) {
@@ -342,40 +370,87 @@ class StorageCacheViewModel @Inject constructor(
         }
     }
 
-    fun scanLocalFiles() {
-        _uiState.update {
-            it.copy(
-                isScanning = true,
-                syncPercentage = 0,
-                syncProgress = context.getString(R.string.stop_and_scan)
-            )
-        }
-        if (playbackController.playbackState.value.isPlaying) {
+    fun scanLocalFiles(replaceExisting: Boolean = false) {
+        if (playbackController.playbackState.value.showPauseButton) {
             playbackController.togglePlayPause()
         }
 
-        val workId = CacheSyncWorker.runOnce(context, forceScan = true, healCovers = false)
-        observeWorkProgress(workId)
+        val workId = CacheSyncWorker.runOnce(
+            context,
+            forceScan = true,
+            healCovers = false,
+            replaceExisting = replaceExisting
+        )
+        if (replaceExisting) {
+            pendingScanWorkId.set(workId)
+        } else if (!_uiState.value.isScanning) {
+            pendingScanWorkId.compareAndSet(null, workId)
+        }
     }
 
-    private fun observeWorkProgress(workId: UUID) {
-        workObserverJob?.cancel()
-        workObserverJob = viewModelScope.launch {
+    private fun observeWorkProgress() {
+        viewModelScope.launch {
+            var observedActiveId: UUID? = null
+            var lastConsumedFinishedId: UUID? = null
             WorkManager.getInstance(context)
-                .getWorkInfoByIdFlow(workId)
-                .collect { info ->
-                    if (info == null) return@collect
-                    val progress = info.progress.getInt(CacheSyncWorker.PROGRESS, 0)
-                    val status = info.progress.getString(CacheSyncWorker.STATUS)
-                    _uiState.update { it.copy(syncPercentage = progress, syncProgress = status) }
-
-                    if (info.state.isFinished) {
-                        refreshCacheSize()
-                        _uiState.update { it.copy(isScanning = false, syncPercentage = null, syncProgress = null) }
-                        workObserverJob?.cancel()
+                .getWorkInfosForUniqueWorkFlow(CacheSyncWorker.MANUAL_SCAN_WORK_NAME)
+                .collect { infos ->
+                    val active = infos.firstOrNull { !it.state.isFinished }
+                    val pendingId = pendingScanWorkId.get()
+                    val finished = infos.firstOrNull { info ->
+                        isConsumableFinishedScan(info, observedActiveId, pendingId, lastConsumedFinishedId)
+                    }
+                    observedActiveId = active?.id
+                    if (active != null && active.id != pendingId) {
+                        pendingScanWorkId.compareAndSet(pendingId, null)
+                    }
+                    updateScanningProgress(active)
+                    if (finished != null) {
+                        lastConsumedFinishedId = finished.id
+                        pendingScanWorkId.compareAndSet(finished.id, null)
+                        handleFinishedScan(finished)
                     }
                 }
         }
+    }
+
+    private fun isConsumableFinishedScan(
+        info: WorkInfo,
+        observedActiveId: UUID?,
+        pendingId: UUID?,
+        lastConsumedFinishedId: UUID?
+    ): Boolean {
+        if (!info.state.isFinished || info.state == WorkInfo.State.CANCELLED) return false
+        if (info.id == lastConsumedFinishedId) return false
+        return info.id == observedActiveId || info.id == pendingId
+    }
+
+    private fun updateScanningProgress(active: WorkInfo?) {
+        _uiState.update {
+            it.copy(
+                isScanning = active != null,
+                syncPercentage = active?.progress?.getInt(CacheSyncWorker.PROGRESS, 0),
+                syncProgress = active?.let { work ->
+                    work.progress.getString(CacheSyncWorker.STATUS) ?: context.getString(R.string.stop_and_scan)
+                }
+            )
+        }
+    }
+
+    private fun handleFinishedScan(finished: WorkInfo) {
+        finished.outputData.getString(CacheSyncWorker.STATUS)?.let { message ->
+            val needsSaf = finished.outputData.getBoolean(CacheSyncWorker.KEY_ERROR_NEEDS_SAF, false)
+            _uiState.update {
+                it.copy(
+                    storageError = StorageErrorDialogState(
+                        source = StorageErrorSource.SCAN,
+                        message = message,
+                        showConfigureSafAction = needsSaf
+                    )
+                )
+            }
+        }
+        refreshCacheSize()
     }
 
     private fun isUnmeteredNetwork(): Boolean {

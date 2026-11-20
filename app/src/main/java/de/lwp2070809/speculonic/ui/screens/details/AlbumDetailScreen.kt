@@ -76,6 +76,7 @@ fun AlbumDetailScreen(
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val songStrings = rememberSongListItemStrings()
     val context = LocalContext.current
+    val resources = androidx.compose.ui.platform.LocalResources.current
     val activeDownloads = uiState.activeDownloads
     val downloadedIds = uiState.downloadedIds
     val transcodeIncompatible = uiState.transcodeIncompatible
@@ -224,9 +225,9 @@ fun AlbumDetailScreen(
                                             val queueTitle = uiState.album?.let { album ->
                                                 val discName = album.discTitles.find { it.disc == discNum }?.title
                                                 val discLabel = if (!discName.isNullOrBlank()) {
-                                                    context.getString(R.string.disc_named_format, discNum, discName)
+                                                    resources.getString(R.string.disc_named_format, discNum, discName)
                                                 } else {
-                                                    context.getString(R.string.disc_format, discNum)
+                                                    resources.getString(R.string.disc_format, discNum)
                                                 }
                                                 "${album.name} • $discLabel"
                                             }

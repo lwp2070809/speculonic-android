@@ -168,7 +168,7 @@ class SubsonicRepository(
         val newPlaylistRepository = PlaylistRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newUserActionRepository = UserActionRepository(newApi, musicDao, newAuthManager, entityMapper)
         val newLyricsRepository = LyricsRepository(newApi, musicDao, newAuthManager, localLyricsProvider)
-        val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper, cleanupCallback)
+        val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper, database)
         val newCoverArtSyncManager = CoverArtSyncManager(context, url, musicDao, newUrlBuilder)
 
         components = Components(
@@ -614,6 +614,8 @@ class SubsonicRepository(
         resetReachableIfForced(forceRefresh)
         return userActionRepository.getStarredAlbums(forceRefresh, skipInsert = false)
     }
+
+    fun observeSearchSongMetadata(ids: List<String>) = musicDao.observeSearchSongMetadata(ids)
 
     fun getStarredFlow(): Flow<List<Song>> = userActionRepository.getStarredFlow()
 

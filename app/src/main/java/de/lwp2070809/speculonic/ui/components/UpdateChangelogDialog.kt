@@ -42,7 +42,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalWindowInfo
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
@@ -77,9 +77,14 @@ fun UpdateChangelogDialog(
     onUpdateNow: () -> Unit,
     onDismiss: () -> Unit
 ) {
-    val configuration = LocalConfiguration.current
     val density = LocalDensity.current
-    val maxDialogHeight = (configuration.screenHeightDp.dp * 0.84f).coerceAtLeast(320.dp)
+    val windowHeightDp = with(density) { LocalWindowInfo.current.containerSize.height.toDp() }
+    val compact = windowHeightDp <= 360.dp
+    val maxDialogHeight = if (compact) {
+        (windowHeightDp - 16.dp).coerceAtLeast(160.dp)
+    } else {
+        (windowHeightDp * 0.84f).coerceAtLeast(320.dp).coerceAtMost((windowHeightDp - 48.dp).coerceAtLeast(160.dp))
+    }
 
     val fallbackNotes = stringResource(R.string.update_no_release_notes)
     val markdownContent = remember(releaseNotes, fallbackNotes) {
@@ -96,7 +101,7 @@ fun UpdateChangelogDialog(
     ) {
         Surface(
             modifier = Modifier
-                .padding(horizontal = 24.dp, vertical = 24.dp)
+                .padding(horizontal = 24.dp, vertical = if (compact) 8.dp else 24.dp)
                 .widthIn(min = 280.dp, max = 560.dp)
                 .fillMaxWidth()
                 .heightIn(max = maxDialogHeight),
@@ -105,25 +110,9 @@ fun UpdateChangelogDialog(
             tonalElevation = AlertDialogDefaults.TonalElevation
         ) {
             Column(modifier = Modifier.fillMaxWidth()) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp)
-                ) {
-                    Text(
-                        text = stringResource(R.string.update_available_title),
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = AlertDialogDefaults.titleContentColor
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = stringResource(R.string.update_available_subtitle, version),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                if (!compact) ChangelogHeader(version)
 
-                if (isScrollable) {
+                if (!compact && isScrollable) {
                     HorizontalDivider(
                         color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
                     )
@@ -135,47 +124,50 @@ fun UpdateChangelogDialog(
                         .fillMaxWidth()
                         .onSizeChanged { viewportHeightPx = it.height }
                 ) {
-                    Markdown(
-                        markdownState = markdownState,
-                        colors = markdownColor(),
-                        typography = markdownTypography(
-                            h1 = MaterialTheme.typography.titleLarge,
-                            h2 = MaterialTheme.typography.titleMedium,
-                            h3 = MaterialTheme.typography.titleSmall,
-                            h4 = MaterialTheme.typography.titleSmall,
-                            h5 = MaterialTheme.typography.labelLarge,
-                            h6 = MaterialTheme.typography.labelMedium,
-                            text = MaterialTheme.typography.bodyMedium,
-                            paragraph = MaterialTheme.typography.bodyMedium,
-                            ordered = MaterialTheme.typography.bodyMedium,
-                            bullet = MaterialTheme.typography.bodyMedium,
-                            list = MaterialTheme.typography.bodyMedium,
-                            code = MaterialTheme.typography.bodySmall,
-                            table = MaterialTheme.typography.bodySmall
-                        ),
-                        components = markdownComponents(
-                            table = { model ->
-                                ResponsiveMarkdownTable(
-                                    content = model.content,
-                                    node = model.node,
-                                    style = model.typography.table
+                    Column(Modifier.fillMaxWidth().verticalScroll(scrollState)) {
+                        if (compact) ChangelogHeader(version)
+                        Markdown(
+                            markdownState = markdownState,
+                            colors = markdownColor(),
+                            typography = markdownTypography(
+                                h1 = MaterialTheme.typography.titleLarge,
+                                h2 = MaterialTheme.typography.titleMedium,
+                                h3 = MaterialTheme.typography.titleSmall,
+                                h4 = MaterialTheme.typography.titleSmall,
+                                h5 = MaterialTheme.typography.labelLarge,
+                                h6 = MaterialTheme.typography.labelMedium,
+                                text = MaterialTheme.typography.bodyMedium,
+                                paragraph = MaterialTheme.typography.bodyMedium,
+                                ordered = MaterialTheme.typography.bodyMedium,
+                                bullet = MaterialTheme.typography.bodyMedium,
+                                list = MaterialTheme.typography.bodyMedium,
+                                code = MaterialTheme.typography.bodySmall,
+                                table = MaterialTheme.typography.bodySmall
+                            ),
+                            components = markdownComponents(
+                                table = { model ->
+                                    ResponsiveMarkdownTable(
+                                        content = model.content,
+                                        node = model.node,
+                                        style = model.typography.table
+                                    )
+                                }
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(
+                                    start = 24.dp,
+                                    end = if (isScrollable) 22.dp else 24.dp,
+                                    top = 12.dp,
+                                    bottom = 12.dp
                                 )
-                            }
-                        ),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .verticalScroll(scrollState)
-                            .padding(
-                                start = 24.dp,
-                                end = if (isScrollable) 22.dp else 24.dp,
-                                top = 12.dp,
-                                bottom = 12.dp
-                            )
-                    )
+                        )
+                    }
 
                     if (isScrollable && viewportHeightPx > 0) {
                         VerticalScrollbar(
                             scrollState = scrollState,
+                            viewportHeight = viewportHeightPx,
                             modifier = Modifier
                                 .align(Alignment.CenterEnd)
                                 .width(20.dp)
@@ -193,7 +185,8 @@ fun UpdateChangelogDialog(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 20.dp),
+                        .padding(horizontal = 24.dp)
+                        .padding(top = if (compact) 2.dp else 12.dp, bottom = if (compact) 2.dp else 20.dp),
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
@@ -210,8 +203,26 @@ fun UpdateChangelogDialog(
 }
 
 @Composable
+private fun ChangelogHeader(version: String) {
+    Column(Modifier.fillMaxWidth().padding(start = 24.dp, end = 24.dp, top = 24.dp, bottom = 12.dp)) {
+        Text(
+            text = stringResource(R.string.update_available_title),
+            style = MaterialTheme.typography.headlineSmall,
+            color = AlertDialogDefaults.titleContentColor
+        )
+        Spacer(Modifier.height(6.dp))
+        Text(
+            text = stringResource(R.string.update_available_subtitle, version),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
 private fun VerticalScrollbar(
     scrollState: ScrollState,
+    viewportHeight: Int,
     modifier: Modifier = Modifier
 ) {
     val scope = rememberCoroutineScope()
@@ -233,54 +244,38 @@ private fun VerticalScrollbar(
     val endPaddingPx = with(density) { 6.dp.toPx() }
     val barWidthPx = with(density) { 4.dp.toPx() }
     val minThumbHeightPx = with(density) { 28.dp.toPx() }
+    val maxValue = scrollState.maxValue
+    val trackHeight = viewportHeight - 2f * verticalPaddingPx
+    if (trackHeight <= minThumbHeightPx || maxValue <= 0) return
+    val thumbHeight = (trackHeight * viewportHeight / (viewportHeight.toFloat() + maxValue))
+        .coerceIn(minThumbHeightPx, trackHeight)
+    val travel = trackHeight - thumbHeight
+    if (travel <= 0f) return
+    fun scrollPosition(y: Float): Int {
+        val fraction = ((y - verticalPaddingPx - thumbHeight / 2f) / travel).coerceIn(0f, 1f)
+        return (fraction * maxValue).roundToInt()
+    }
 
     Box(
         modifier = modifier
-            .pointerInput(scrollState.maxValue) {
+            .pointerInput(maxValue, travel, thumbHeight, verticalPaddingPx) {
                 detectTapGestures { offset ->
-                    val maxValue = scrollState.maxValue
-                    val trackHeight = (size.height - verticalPaddingPx * 2f).coerceAtLeast(1f)
-                    if (maxValue > 0) {
-                        val fraction = ((offset.y - verticalPaddingPx) / trackHeight).coerceIn(0f, 1f)
-                        scope.launch {
-                            scrollState.animateScrollTo((fraction * maxValue).roundToInt())
-                        }
-                    }
+                    scope.launch { scrollState.animateScrollTo(scrollPosition(offset.y)) }
                 }
             }
-            .pointerInput(scrollState.maxValue) {
+            .pointerInput(maxValue, travel, thumbHeight, verticalPaddingPx) {
                 detectVerticalDragGestures(
                     onDragStart = { isDragging = true },
                     onDragEnd = { isDragging = false },
                     onDragCancel = { isDragging = false },
                     onVerticalDrag = { change, _ ->
                         change.consume()
-                        val maxValue = scrollState.maxValue
-                        val viewportHeight = scrollState.viewportSize.toFloat()
-                        val trackHeight = (size.height - verticalPaddingPx * 2f).coerceAtLeast(1f)
-                        val totalContentHeight = viewportHeight + maxValue
-                        if (maxValue > 0 && totalContentHeight > 0f) {
-                            val thumbHeight = (trackHeight * (viewportHeight / totalContentHeight))
-                                .coerceIn(minThumbHeightPx, trackHeight)
-                            val scrollableTrack = (trackHeight - thumbHeight).coerceAtLeast(1f)
-                            val targetFraction = ((change.position.y - verticalPaddingPx - thumbHeight / 2f) / scrollableTrack)
-                                .coerceIn(0f, 1f)
-                            scope.launch {
-                                scrollState.scrollTo((targetFraction * maxValue).roundToInt())
-                            }
-                        }
+                        scope.launch { scrollState.scrollTo(scrollPosition(change.position.y)) }
                     }
                 )
             }
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val maxValue = scrollState.maxValue
-            val viewportHeight = scrollState.viewportSize.toFloat()
-            if (maxValue <= 0 || viewportHeight <= 0f) return@Canvas
-
-            val trackHeight = (size.height - verticalPaddingPx * 2f).coerceAtLeast(0f)
-            if (trackHeight <= 0f) return@Canvas
-
             val barLeft = size.width - endPaddingPx - barWidthPx
             val cornerRadius = CornerRadius(barWidthPx / 2f, barWidthPx / 2f)
 
@@ -291,12 +286,8 @@ private fun VerticalScrollbar(
                 cornerRadius = cornerRadius
             )
 
-            val totalContentHeight = viewportHeight + maxValue
-            val thumbHeight = (trackHeight * (viewportHeight / totalContentHeight))
-                .coerceIn(minThumbHeightPx, trackHeight)
-            val maxThumbOffset = (trackHeight - thumbHeight).coerceAtLeast(0f)
             val scrollFraction = (scrollState.value.toFloat() / maxValue.toFloat()).coerceIn(0f, 1f)
-            val thumbTop = verticalPaddingPx + maxThumbOffset * scrollFraction
+            val thumbTop = verticalPaddingPx + travel * scrollFraction
 
             drawRoundRect(
                 color = thumbColor,

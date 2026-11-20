@@ -3,10 +3,11 @@ package de.lwp2070809.speculonic.ui.screens.search
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
-import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.data.PreferencesManager
+import de.lwp2070809.speculonic.data.db.entities.SearchSongState
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.SearchResult3
+import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.NetworkMonitor
 import kotlinx.coroutines.CancellationException
@@ -38,7 +39,6 @@ data class SearchUiState(
 class SearchViewModel @Inject constructor(
     private val repository: SubsonicRepository,
     private val preferencesManager: PreferencesManager,
-    private val downloadTracker: DownloadTracker,
     private val networkMonitor: NetworkMonitor
 ) : ViewModel() {
 
@@ -48,10 +48,10 @@ class SearchViewModel @Inject constructor(
     val uiState = _uiState.asStateFlow()
 
     private val searchQuery = MutableStateFlow("")
-    private var knownStarredIds: Set<String>? = null
     private val inFlightStarOverrides = HashMap<String, Boolean>()
     private val baselineStarredById = HashMap<String, String?>()
     private val starGenById = HashMap<String, Long>()
+    private val resultMetadata = SearchResultMetadata()
 
     init {
         viewModelScope.launch {
@@ -60,59 +60,20 @@ class SearchViewModel @Inject constructor(
             }
         }
 
-        viewModelScope.launch {
-            repository.getStarredFlow().collectLatest { starredSongs ->
-                val newIds = starredSongs.mapTo(HashSet()) { it.id }
-                val prevIds = knownStarredIds
-                knownStarredIds = newIds
-                val addedIds = if (prevIds == null) newIds else newIds - prevIds
-                val removedIds = if (prevIds == null) emptySet() else prevIds - newIds
-                if (addedIds.isEmpty() && removedIds.isEmpty()) return@collectLatest
-                _uiState.update { state ->
-                    val currentResults = state.results
-                    if (currentResults.song.isEmpty()) return@update state
-                    var changed = false
-                    val updatedSongs = currentResults.song.map { song ->
-                        val pending = inFlightStarOverrides[song.id]
-                        val nextStarred = when {
-                            pending != null -> if (pending) (song.starred ?: OPTIMISTIC_STAR_MARKER) else null
-                            song.id in addedIds -> song.starred ?: OPTIMISTIC_STAR_MARKER
-                            song.id in removedIds -> null
-                            else -> song.starred
-                        }
-                        if (nextStarred != song.starred) {
-                            changed = true
-                            song.copy(starred = nextStarred)
-                        } else {
-                            song
-                        }
-                    }
-                    if (changed) state.copy(results = currentResults.copy(song = updatedSongs)) else state
-                }
-            }
-        }
-
-        viewModelScope.launch {
-            downloadTracker.downloadedSongIds.collectLatest { downloadedIds ->
-                _uiState.update { state ->
-                    val currentResults = state.results
-                    if (currentResults.song.isNotEmpty()) {
-                        val updatedSongs = currentResults.song.map { song ->
-                            song.copy(isFullyCached = downloadedIds.contains(song.id))
-                        }
-                        if (updatedSongs != currentResults.song) {
-                            state.copy(results = currentResults.copy(song = updatedSongs))
-                        } else {
-                            state
-                        }
-                    } else {
-                        state
-                    }
-                }
-            }
-        }
-
         observeSearchExecution()
+    }
+
+    suspend fun observeResultMetadata(ids: List<String>) {
+        if (ids.isEmpty()) {
+            resultMetadata.clear()
+            return
+        }
+        val observedIds = ids.toHashSet()
+        repository.observeSearchSongMetadata(ids).distinctUntilChanged().collect { rows ->
+            val state = _uiState.value
+            val songs = resultMetadata.merge(state.results.song, observedIds, rows, inFlightStarOverrides)
+            if (songs != state.results.song) _uiState.value = state.copy(results = state.results.copy(song = songs))
+        }
     }
 
     @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
@@ -253,5 +214,40 @@ class SearchViewModel @Inject constructor(
 
     fun clearError() {
         _uiState.update { it.copy(error = null) }
+    }
+}
+
+internal class SearchResultMetadata {
+    private var previousStars = emptyMap<String, Boolean?>()
+
+    fun clear() {
+        previousStars = emptyMap()
+    }
+
+    fun merge(
+        songs: List<Song>,
+        observedIds: Set<String>,
+        rows: List<SearchSongState>,
+        pendingStars: Map<String, Boolean>
+    ): List<Song> {
+        val byId = rows.associateBy { it.id }
+        val merged = songs.map { song ->
+            if (song.id !in observedIds) return@map song
+            val local = byId[song.id]
+            val changed = song.id in previousStars && local != null && local.starred != previousStars[song.id]
+            val star = pendingStars[song.id] ?: local?.starred?.takeIf { changed }
+            song.copy(
+                localUri = local?.localUri,
+                isFullyCached = local?.isFullyCached ?: false,
+                isTranscoded = local?.isTranscoded ?: false,
+                starred = when (star) {
+                    true -> song.starred ?: OPTIMISTIC_STAR_MARKER
+                    false -> null
+                    null -> song.starred
+                }
+            )
+        }
+        previousStars = observedIds.associateWith { byId[it]?.starred }
+        return merged
     }
 }

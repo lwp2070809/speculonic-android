@@ -16,7 +16,7 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * 同步删歌或局部刷新移除曲目后的物理缓存联动清理助手。
+ * 全库同步确认删歌后的物理缓存清理。
  * 仅清理应用私有导出目录及其伴生歌词和 Media3 内部缓存区块，
  * 绝不在服务端元数据同步时删除用户外部 SAF 目录中的文件。
  */
@@ -42,6 +42,7 @@ class CacheCleanupHelper @Inject constructor(
                 .onFailure { if (it is CancellationException) throw it }
                 .getOrNull()
 
+            val downloadIds = downloadTracker.allDownloadsFlow.value.mapTo(HashSet()) { it.task.request.id }
             var removedPrivateFiles = 0
             val activeIds = mutableListOf<String>()
 
@@ -50,7 +51,7 @@ class CacheCleanupHelper @Inject constructor(
                     removedPrivateFiles++
                 }
                 if (!cacheManager.isReleasing) {
-                    if (downloadTracker.hasDownload(target.id)) {
+                    if (target.id in downloadIds) {
                         activeIds.add(target.id)
                     }
                     runCatching { downloadCache?.removeResource(target.id) }

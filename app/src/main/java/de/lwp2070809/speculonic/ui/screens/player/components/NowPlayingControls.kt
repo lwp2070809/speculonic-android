@@ -120,7 +120,7 @@ fun MainControls(
                 modifier = Modifier.size(72.dp)
             ) {
                 Icon(
-                    painter = if (playbackState.playWhenReady) {
+                    painter = if (playbackState.showPauseButton) {
                         androidx.compose.ui.res.painterResource(
                             id = de.lwp2070809.speculonic.R.drawable.ic_symbol_pause
                         )
@@ -128,7 +128,7 @@ fun MainControls(
                         androidx.compose.ui.graphics.vector.rememberVectorPainter(Icons.Default.PlayArrow)
                     },
                     contentDescription = stringResource(
-                        if (playbackState.playWhenReady) R.string.content_description_pause else R.string.play
+                        if (playbackState.showPauseButton) R.string.content_description_pause else R.string.play
                     ),
                     modifier = Modifier.size(40.dp)
                 )

@@ -171,6 +171,14 @@ data class SongMetadata(
     val lastUpdated: Long
 )
 
+data class SearchSongState(
+    val id: String,
+    val localUri: String?,
+    val isFullyCached: Boolean,
+    val isTranscoded: Boolean,
+    val starred: Boolean
+)
+
 data class SongCleanupTarget(
     val id: String,
     val localUri: String?

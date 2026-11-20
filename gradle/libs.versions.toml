@@ -29,6 +29,8 @@ glance = "1.1.1"
 markdownRenderer = "0.45.0"
 
 [libraries]
+junit = { module = "junit:junit", version = "4.13.2" }
+robolectric = { module = "org.robolectric:robolectric", version = "4.14.1" }
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
 androidx-paging-compose = { group = "androidx.paging", name = "paging-compose", version.ref = "pagingCompose" }
 androidx-room-paging = { group = "androidx.room", name = "room-paging", version.ref = "room" }

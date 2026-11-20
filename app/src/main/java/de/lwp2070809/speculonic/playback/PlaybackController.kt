@@ -34,6 +34,19 @@ import javax.inject.Inject
 import javax.inject.Singleton
 import kotlin.coroutines.resume
 
+internal fun Player.showsPauseButton() = playWhenReady &&
+    (playbackState == Player.STATE_BUFFERING || playbackState == Player.STATE_READY)
+
+internal fun Player.toggleCurrentItem() {
+    if (showsPauseButton()) {
+        pause()
+    } else {
+        if (playbackState == Player.STATE_ENDED) seekTo(0L)
+        if (playbackState == Player.STATE_IDLE) prepare()
+        play()
+    }
+}
+
 data class PlaybackState(
     val currentSongId: String = "",
     val currentSongTitle: String = "",
@@ -41,7 +54,7 @@ data class PlaybackState(
     val artworkUri: Uri? = null,
     val artworkId: String? = null,
     val isPlaying: Boolean = false,
-    val playWhenReady: Boolean = false,
+    val showPauseButton: Boolean = false,
     val currentPosition: Long = 0L,
     val duration: Long = 0L,
     val repeatMode: Int = Player.REPEAT_MODE_OFF,
@@ -61,7 +74,7 @@ private data class WidgetStateSnapshot(
     val artist: String,
     val artworkUri: Uri?,
     val isPlaying: Boolean,
-    val playWhenReady: Boolean
+    val showPauseButton: Boolean
 )
 
 @OptIn(ExperimentalCoroutinesApi::class)
@@ -116,7 +129,7 @@ class PlaybackController @Inject constructor(
                         artist = state.currentArtist,
                         artworkUri = state.artworkUri,
                         isPlaying = state.isPlaying,
-                        playWhenReady = state.playWhenReady
+                        showPauseButton = state.showPauseButton
                     )
                 }
                 .distinctUntilChanged()
@@ -251,7 +264,7 @@ class PlaybackController @Inject constructor(
                 override fun onDisconnected(controller: MediaController) {
                     super.onDisconnected(controller)
                     _isSessionReady.value = false
-                    _playbackState.value = _playbackState.value.copy(isPlaying = false, playWhenReady = false)
+                    _playbackState.value = _playbackState.value.copy(isPlaying = false, showPauseButton = false)
                     handleProgressTicker()
                     LogManager.w("PlaybackController: MediaController disconnected")
                 }
@@ -397,7 +410,7 @@ class PlaybackController @Inject constructor(
             artworkUri = currentMediaItem?.mediaMetadata?.artworkUri,
             artworkId = artworkId,
             isPlaying = controller.isPlaying,
-            playWhenReady = controller.playWhenReady,
+            showPauseButton = controller.showsPauseButton(),
             currentPosition = pos,
             duration = getEffectiveDuration(controller, currentMediaItem),
             repeatMode = controller.repeatMode,
@@ -475,14 +488,8 @@ class PlaybackController @Inject constructor(
 
     fun togglePlayPause() {
         executeWhenReady { controller ->
-            if (controller.playWhenReady) {
-                controller.pause()
-            } else {
-                if (controller.playbackState == Player.STATE_IDLE) {
-                    controller.prepare()
-                }
-                controller.play()
-            }
+            if (controller.mediaItemCount > 0) controller.toggleCurrentItem()
+            else scope.launch { restoreQueueAndPlay() }
         }
     }
 

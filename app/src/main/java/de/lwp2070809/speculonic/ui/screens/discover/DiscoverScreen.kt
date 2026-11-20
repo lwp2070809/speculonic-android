@@ -80,8 +80,8 @@ fun DiscoverScreen(
     val navigator = LocalNavigator.current
     val context = LocalContext.current
 
-    LaunchedEffect(uiState.errorMessage, uiState.errorResId) {
-        val errorText = uiState.errorMessage ?: uiState.errorResId?.let { context.getString(it) }
+    val errorText = uiState.errorMessage ?: uiState.errorResId?.let { stringResource(it) }
+    LaunchedEffect(errorText) {
         if (errorText != null) {
             Toast.makeText(context, errorText, Toast.LENGTH_SHORT).show()
             viewModel.clearError()

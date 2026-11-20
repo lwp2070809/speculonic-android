@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.ui.screens.settings
 
 import android.content.Context
+import android.widget.Toast
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -277,28 +278,37 @@ class ServerSyncViewModel @Inject constructor(
         allowInsecureConnections: Boolean
     ) {
         _uiState.update { it.copy(isSaving = true, isTestingConnection = false, urlError = null, testConnectionResult = null) }
+        try {
+            val (oldUrl, oldUser) = preferencesManager.readServerIdentity()
+            val isServerChanged = oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)
 
-        val oldUrl = preferencesManager.serverUrl.first()
-        val oldUser = preferencesManager.username.first()
-        val isServerChanged = oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)
+            withContext(Dispatchers.IO) {
+                preferencesManager.saveAllowInsecureConnections(allowInsecureConnections)
+                applyNetworkTransition(isServerChanged, allowInsecureConnections)
+                NetworkModule.ServerReachableManager.reset()
+            }
 
-        withContext(Dispatchers.IO) {
-            preferencesManager.saveAllowInsecureConnections(allowInsecureConnections)
-            applyNetworkTransition(isServerChanged, allowInsecureConnections)
-            NetworkModule.ServerReachableManager.reset()
+            preferencesManager.saveServerSettings(url, user, pass)
+            _uiState.update {
+                it.copy(
+                    serverUrl = url,
+                    username = user,
+                    password = pass,
+                    allowInsecureConnections = allowInsecureConnections
+                )
+            }
+            pingAndTriggerInitialSyncIfNeeded(url, oldUrl, user, oldUser, syncCoverArt)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogManager.e("ServerSyncViewModel: Failed saving server settings", e)
+            val detail = e.localizedMessage ?: context.getString(R.string.unknown_error)
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, context.getString(R.string.server_save_retry, detail), Toast.LENGTH_LONG).show()
+            }
+        } finally {
+            _uiState.update { it.copy(isSaving = false) }
         }
-
-        _uiState.update {
-            it.copy(
-                serverUrl = url,
-                username = user,
-                password = pass,
-                allowInsecureConnections = allowInsecureConnections
-            )
-        }
-        preferencesManager.saveServerSettings(url, user, pass)
-        pingAndTriggerInitialSyncIfNeeded(url, oldUrl, user, oldUser, syncCoverArt)
-        _uiState.update { it.copy(isSaving = false) }
     }
 
     private suspend fun applyNetworkTransition(isServerChanged: Boolean, allowInsecureConnections: Boolean) {
@@ -460,27 +470,37 @@ class ServerSyncViewModel @Inject constructor(
 
     fun deleteServerSettings() {
         viewModelScope.launch(Dispatchers.IO) {
-            // 先于清除凭据终止同步任务与在途请求、驱逐连接池并重置不安全连接策略，防止删除后仍有旧会话复用
-            stopSyncAndClearConnections(allowInsecureConnections = false)
-            NetworkModule.clearSubsonicServiceCache()
-            preferencesManager.saveAllowInsecureConnections(false)
-            preferencesManager.saveServerSettings("", "", "")
+            try {
+                // 先于清除凭据终止同步任务与在途请求、驱逐连接池并重置不安全连接策略，防止删除后仍有旧会话复用
+                stopSyncAndClearConnections(allowInsecureConnections = false)
+                NetworkModule.clearSubsonicServiceCache()
+                preferencesManager.saveAllowInsecureConnections(false)
+                preferencesManager.saveServerSettings("", "", "")
 
-            database.clearAllTables()
-            cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
-                LogManager.e("ServerSyncViewModel: clearAllCache failed during server deletion", e)
-            }
-            NetworkModule.ServerReachableManager.reset()
+                database.clearAllTables()
+                cacheOperations.clearAllCache(preserveSaf = false).onFailure { e ->
+                    LogManager.e("ServerSyncViewModel: clearAllCache failed during server deletion", e)
+                }
+                NetworkModule.ServerReachableManager.reset()
 
-            _uiState.update {
-                it.copy(
-                    serverUrl = "",
-                    username = "",
-                    password = "",
-                    testConnectionResult = null,
-                    allowInsecureConnections = false,
-                    urlError = null
-                )
+                _uiState.update {
+                    it.copy(
+                        serverUrl = "",
+                        username = "",
+                        password = "",
+                        testConnectionResult = null,
+                        allowInsecureConnections = false,
+                        urlError = null
+                    )
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                LogManager.e("ServerSyncViewModel: Failed deleting server settings", e)
+                val detail = e.localizedMessage ?: context.getString(R.string.unknown_error)
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(context, detail, Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

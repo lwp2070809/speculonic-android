@@ -29,7 +29,7 @@ internal class LegacySyncExecutor(
     private data class DirectoryCounts(val total: Int, val failed: Int)
 
     private sealed class SyncDirResult {
-        data class Success(val subDirs: List<Pair<String, String>>) : SyncDirResult()
+        data class Success(val subDirs: List<Pair<String, String?>>) : SyncDirResult()
         object Failure : SyncDirResult()
     }
 
@@ -49,40 +49,43 @@ internal class LegacySyncExecutor(
         )
         musicDao.clearSyncTempIds()
         val directories = syncAllArtistsAndSongs()
-        syncAllAlbums(recordTempIds = true)
 
         if (directories.failed > 0) {
             throw IOException("Legacy sync incomplete: ${directories.failed}/${directories.total} directories failed")
         }
-        if (directories.total > 0) {
-            val remoteCounts = EntityCountSnapshot(
-                artists = musicDao.getSyncTempIdCountByType("artist"),
-                albums = musicDao.getSyncTempIdCountByType("album"),
-                songs = musicDao.getSyncTempIdCountByType("song")
-            )
-            verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreSafetyGuard, true)
-            LogManager.d("SyncManager: Performing legacy surgical sync-deletion via temp tables (zero directory failure)...")
-            performSurgicalCleanup({}, null)
-        } else {
-            runInTransaction {
-                musicDao.clearSyncTempIds()
-                musicDao.repairAndCount()
-            }
-        }
+        val indexedSongCount = musicDao.getSyncTempIdCountByType("song")
+        syncAllAlbums(indexedSongCount = indexedSongCount)
+        val remoteCounts = EntityCountSnapshot(
+            artists = musicDao.getSyncTempIdCountByType("artist"),
+            albums = musicDao.getSyncTempIdCountByType("album"),
+            songs = indexedSongCount
+        )
+        verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreSafetyGuard, true)
+        LogManager.d("SyncManager: Performing legacy surgical sync-deletion via temp tables (zero directory failure)...")
+        performSurgicalCleanup({}, null)
         params.onSyncComplete(params.currentTime, params.serverLastModified)
         pref.saveSyncProgress(null)
     }
 
-    suspend fun syncAllAlbums(type: String = "alphabeticalByName", recordTempIds: Boolean = false) {
+    suspend fun syncAllAlbums(type: String = "alphabeticalByName", indexedSongCount: Int? = null) {
         var offset = 0
         val seenAlbumIds = mutableSetOf<String>()
+        val recordTempIds = indexedSongCount != null
         while (true) {
             val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
             val response = api.getAlbumList2(u, t, s, type = type, size = ALBUM_PAGE_SIZE, offset = offset)
             val albums = checkNotNull(response.response.ensureOk().albumList2) { "Missing albumList2 in response" }.album
             if (albums.isEmpty()) return
-            if (!seenAlbumIds.addAll(albums.map { it.id })) {
-                throw IncompletePaginationException("Repeated album page at offset $offset")
+            if (indexedSongCount == 0 && albums.any { (it.songCount ?: 0) > 0 || it.song.isNotEmpty() }) {
+                throw IOException("Legacy sync incomplete: albums contain songs missing from the directory index")
+            }
+            val hasPaginationIssue = if (recordTempIds) {
+                albums.any { !seenAlbumIds.add(it.id) }
+            } else {
+                !seenAlbumIds.addAll(albums.map { it.id })
+            }
+            if (hasPaginationIssue) {
+                throw IncompletePaginationException("Overlapping album page at offset $offset")
             }
             saveAlbumList(type, albums, offset, recordTempIds = recordTempIds)
             if (albums.size < ALBUM_PAGE_SIZE) return
@@ -133,7 +136,7 @@ internal class LegacySyncExecutor(
         val response = api.getIndexes(u, t, s)
         val indexes = response.response.ensureOk().indexes ?: error("Missing indexes in getIndexes response")
 
-        val allArtists = indexes.index.flatMap { it.artist }
+        val allArtists = indexes.index.flatMap { it.artist }.distinctBy { it.id }
         if (allArtists.isNotEmpty()) {
             allArtists.chunked(BATCH_SIZE).forEach { chunk ->
                 musicDao.insertArtists(
@@ -144,7 +147,11 @@ internal class LegacySyncExecutor(
         }
 
         val seen = allArtists.mapTo(mutableSetOf()) { it.id }
-        val queue = ArrayDeque(seen.map { it to it })
+        val queue = ArrayDeque<Pair<String, String?>>(seen.map { it to it })
+        indexes.shortcut.filter { seen.add(it.id) }.forEach { queue.add(it.id to null) }
+        val rootSongs = indexes.child.filterNot { it.isDir }
+        rootSongs.chunked(BATCH_SIZE).forEach { persistDirectorySongs(null, null, it) }
+        indexes.child.filter { it.isDir && seen.add(it.id) }.forEach { queue.add(it.id to it.artistId) }
         var failCount = 0
         var totalCount = 0
 
@@ -168,7 +175,7 @@ internal class LegacySyncExecutor(
 
     private suspend fun syncSingleDirectory(
         id: String,
-        artistId: String,
+        artistId: String?,
         u: String,
         t: String,
         s: String
@@ -184,7 +191,7 @@ internal class LegacySyncExecutor(
             if (songs.isNotEmpty()) {
                 persistDirectorySongs(id, artistId, songs)
             }
-            SyncDirResult.Success(subDirs.map { it.id to artistId })
+            SyncDirResult.Success(subDirs.map { it.id to (artistId ?: it.artistId) })
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -194,7 +201,7 @@ internal class LegacySyncExecutor(
     }
 
     private suspend fun persistDirectorySongs(
-        directoryId: String,
+        directoryId: String?,
         artistId: String?,
         songs: List<Song>
     ) {
@@ -211,7 +218,7 @@ internal class LegacySyncExecutor(
                 song = song,
                 overrides = SongEntityOverrides(
                     albumId = song.albumId ?: directoryId,
-                    artistId = artistId ?: song.artistId,
+                    artistId = song.artistId ?: artistId,
                     parentId = directoryId,
                     localUri = local?.localUri,
                     isCached = local?.isFullyCached ?: false,
@@ -253,7 +260,7 @@ internal class LegacySyncExecutor(
                 id = albumId,
                 name = firstSong.album ?: "Unknown Album",
                 artist = firstSong.artist ?: "Unknown Artist",
-                artistId = artistId ?: firstSong.artistId,
+                artistId = firstSong.artistId ?: artistId,
                 coverArt = firstSong.coverArt,
                 songCount = songsInAlbum.size,
                 starred = existingAlbum?.starred ?: false,
