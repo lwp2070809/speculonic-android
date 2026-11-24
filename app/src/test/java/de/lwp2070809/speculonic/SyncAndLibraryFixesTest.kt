@@ -4,20 +4,42 @@ import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.prefs.ConnectionPrefsImpl
 import de.lwp2070809.speculonic.domain.repository.MediaRepository
 import de.lwp2070809.speculonic.domain.repository.PlaylistRepository
+import de.lwp2070809.speculonic.domain.repository.SubsonicResponseStreamingSerializer
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.network.model.SubsonicAlbumResponse
+import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import de.lwp2070809.speculonic.network.model.SubsonicResponse
 import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.util.MediaFormatUtils
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class SyncAndLibraryFixesTest {
+
+    @Test
+    fun streamingPagePreservesApiErrorsForFallbackDecision() {
+        val decoder = SubsonicResponseStreamingSerializer(Unit.serializer())
+        val json = Json { ignoreUnknownKeys = true }
+        for (code in listOf(40, 41, 50, 0)) {
+            val body = """{"subsonic-response":{"error":{"code":$code,"message":"server error"},"status":"failed"}}"""
+            val error = assertThrows(SubsonicApiException::class.java) {
+                decoder.decodePage(json, body.byteInputStream())
+            }
+            assertEquals(code, error.code)
+            assertEquals("server error", error.message)
+        }
+        assertThrows(SerializationException::class.java) {
+            decoder.decodePage(json, "{".byteInputStream())
+        }
+    }
 
     private fun testSong(
         id: String,

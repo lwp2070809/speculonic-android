@@ -15,9 +15,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.json.Json
-import kotlinx.serialization.json.decodeFromStream
 import okhttp3.ResponseBody
 
 private class EntityPaginationCursor {
@@ -67,7 +65,6 @@ private class Search3ChannelBuffers {
     }
 }
 
-@OptIn(ExperimentalSerializationApi::class)
 internal class Search3SyncExecutor(
     private val api: SubsonicService,
     private val musicDao: MusicDao,
@@ -197,7 +194,7 @@ internal class Search3SyncExecutor(
                         onPageStats = { decodedStats = it },
                         batchSize = BATCH_SIZE
                     )
-                    json.decodeFromStream(SubsonicResponseStreamingSerializer(streamingSerializer), stream)
+                    SubsonicResponseStreamingSerializer(streamingSerializer).decodePage(json, stream)
                 }
             }
         }

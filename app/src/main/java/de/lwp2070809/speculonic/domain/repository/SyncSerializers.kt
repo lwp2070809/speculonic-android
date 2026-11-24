@@ -14,6 +14,7 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.KSerializer
+import kotlinx.serialization.SerializationException
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.builtins.nullable
 import kotlinx.serialization.builtins.serializer
@@ -23,11 +24,14 @@ import kotlinx.serialization.encoding.CompositeDecoder
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
 import kotlinx.serialization.encoding.decodeStructure
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.decodeFromStream
 import kotlinx.serialization.json.intOrNull
+import java.io.InputStream
 
 data class Search3PageStats(
     val artistReceived: Int = 0,
@@ -235,6 +239,15 @@ class SubsonicResponseStreamingSerializer(
     searchResult3Serializer: KSerializer<Unit>
 ) : KSerializer<Unit> {
     private val nullableSearchResult3Serializer = searchResult3Serializer.nullable
+
+    internal fun decodePage(json: Json, stream: InputStream) {
+        try {
+            json.decodeFromStream(this, stream)
+        } catch (e: SerializationException) {
+            // Stream decoding wraps exceptions from deserialize; sync needs the original API error code.
+            throw (e.cause as? SubsonicApiException ?: e)
+        }
+    }
 
     override val descriptor: SerialDescriptor = buildClassSerialDescriptor("SubsonicResponse") {
         element("subsonic-response", buildClassSerialDescriptor("ResponseContent") {

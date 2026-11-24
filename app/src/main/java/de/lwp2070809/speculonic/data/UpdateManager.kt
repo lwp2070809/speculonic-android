@@ -63,7 +63,7 @@ class UpdateManager(
             }
             val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
             val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
-            val releaseNotes = release["body"]?.jsonPrimitive?.content ?: ""
+            val releaseNotes = normalizeReleaseNotes(release["body"]?.jsonPrimitive?.content.orEmpty())
 
             preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
 
@@ -119,3 +119,5 @@ class UpdateManager(
         data class Error(val message: String) : UpdateResult()
     }
 }
+
+internal fun normalizeReleaseNotes(notes: String): String = notes.replace("\r\n", "\n").replace('\r', '\n')
