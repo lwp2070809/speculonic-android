@@ -13,21 +13,21 @@ interface ArtistDao {
 
     @Query("""
         SELECT id, name, coverArt, lastUpdated,
-        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount 
+        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount
         FROM artists WHERE id = :id
     """)
     suspend fun getArtistById(id: String): ArtistEntity?
 
     @Query("""
         SELECT id, name, coverArt, lastUpdated,
-        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount 
+        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount
         FROM artists ORDER BY name ASC
     """)
     suspend fun getArtists(): List<ArtistEntity>
 
     @Query("""
         SELECT id, name, coverArt, lastUpdated,
-        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount 
+        (SELECT COUNT(*) FROM albums WHERE artistId = artists.id) AS albumCount
         FROM artists ORDER BY name ASC
     """)
     fun getAllArtistsFlow(): Flow<List<ArtistEntity>>
@@ -42,7 +42,7 @@ interface ArtistDao {
     suspend fun hasLocalData(): Boolean
 
     @Query("""
-        UPDATE artists 
+        UPDATE artists
         SET albumCount = (SELECT COUNT(*) FROM albums WHERE artistId = artists.id)
     """)
     suspend fun updateArtistAlbumCounts()

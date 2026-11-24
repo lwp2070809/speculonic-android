@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.data.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
@@ -32,6 +33,13 @@ class PlaybackPrefsImpl(private val context: Context) : PlaybackPrefs {
         private val TARGET_TRANSCODE_FORMAT = stringPreferencesKey("target_transcode_format")
         private const val SYNC_PREFS_NAME = "speculonic_playback_sync_prefs"
         private const val KEY_TRANSCODE_INCOMPATIBLE = "transcode_incompatible_formats"
+
+        internal fun clearStoredPlaybackState(prefs: MutablePreferences) {
+            prefs.remove(LAST_SONG_ID)
+            prefs.remove(LAST_POSITION)
+            prefs.remove(LAST_QUEUE_INDEX)
+            prefs.remove(LAST_QUEUE_TITLE)
+        }
     }
 
     private val syncPrefs by lazy {

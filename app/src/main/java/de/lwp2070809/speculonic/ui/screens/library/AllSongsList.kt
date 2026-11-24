@@ -97,18 +97,20 @@ fun AllSongsList(
                                 val windowSongs = (windowStart until windowEnd).mapNotNull { songsPaged.peek(it) }
                                 val playableSongs = windowSongs.filter {
                                     de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
-                                        it,
-                                        transcodeIncompatible
+                                        song = it,
+                                        transcodeIncompatible = transcodeIncompatible,
+                                        isStreamingAllowed = isStreamingAllowed
                                     )
                                 }
                                 val targetSong = songsPaged.peek(index)
-                                val startIndex = playableSongs.indexOfFirst { it.id == targetSong?.id }.coerceAtLeast(0)
-
-                                val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
-                                    playableSongs.map { mediaItemConverter.toMediaItem(it) }
-                                }
-                                if (mediaItems.isNotEmpty()) {
-                                    playbackController.play(mediaItems, startIndex, queueTitle = allSongsTitle)
+                                val startIndex = playableSongs.indexOfFirst { it.id == targetSong?.id }
+                                if (startIndex != -1) {
+                                    val mediaItems = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Default) {
+                                        playableSongs.map { mediaItemConverter.toMediaItem(it) }
+                                    }
+                                    if (mediaItems.isNotEmpty()) {
+                                        playbackController.play(mediaItems, startIndex, queueTitle = allSongsTitle)
+                                    }
                                 }
                             }
                         },

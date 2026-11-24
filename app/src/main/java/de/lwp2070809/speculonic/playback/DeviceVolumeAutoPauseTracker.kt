@@ -3,10 +3,12 @@ package de.lwp2070809.speculonic.playback
 /**
  * 设备媒体音量归零自动暂停状态跟踪器。
  * 仅在播放器处于活跃播放 intention 且音量从非 0 / 未静音跃迁至 0 / 静音时建议暂停；
- * 跳过首次异步初始化回调，并在开关关闭期间持续维护基线状态。
+ * 未提供初始音量状态时跳过首次异步初始化回调，并在开关关闭期间持续维护基线状态。
  */
-class DeviceVolumeAutoPauseTracker {
-    private var lastIsZeroOrMuted: Boolean? = null
+class DeviceVolumeAutoPauseTracker(
+    initialIsZeroOrMuted: Boolean? = null
+) {
+    private var lastIsZeroOrMuted: Boolean? = initialIsZeroOrMuted
 
     fun onDeviceVolumeChanged(
         volume: Int,

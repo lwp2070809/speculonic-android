@@ -72,8 +72,14 @@ fun FavoriteList(
         songs.isNotEmpty() && songs.all { it.isFullyCached }
     }
 
-    val playableSongs = remember(songs, transcodeIncompatible) {
-        songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    val playableSongs = remember(songs, transcodeIncompatible, isStreamingAllowed) {
+        songs.filter {
+            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                song = it,
+                transcodeIncompatible = transcodeIncompatible,
+                isStreamingAllowed = isStreamingAllowed
+            )
+        }
     }
 
     val isPlayActionsEnabled = remember(playableSongs, downloadedIds, isStreamingAllowed) {

@@ -232,7 +232,7 @@ fun DiscoverScreen(
                                 if (isDualPane) {
                                     navigator?.navigate(AppRoute.PlaybackQueue)
                                 }
-                                viewModel.playFavoriteSong(song)
+                                viewModel.playFavoriteSong(song, isStreamingAllowed = isStreamingAllowed)
                             },
                             onStarClick = { songId, star ->
                                 viewModel.toggleStarSong(songId, star)

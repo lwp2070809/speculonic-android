@@ -135,8 +135,14 @@ fun AlbumDetailScreen(
         uiState.songs.isNotEmpty() && uiState.songs.all { it.isFullyCached }
     }
 
-    val playableSongs = remember(uiState.songs, transcodeIncompatible) {
-        uiState.songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    val playableSongs = remember(uiState.songs, transcodeIncompatible, isStreamingAllowed) {
+        uiState.songs.filter {
+            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                song = it,
+                transcodeIncompatible = transcodeIncompatible,
+                isStreamingAllowed = isStreamingAllowed
+            )
+        }
     }
 
     val discGroups = remember(uiState.songs) {
@@ -218,7 +224,11 @@ fun AlbumDetailScreen(
                                     transcodeIncompatible = transcodeIncompatible,
                                     onPlayDisc = {
                                         val discPlayable = songsInDisc.filter {
-                                            MediaFormatUtils.isSongPlayable(it, transcodeIncompatible)
+                                            MediaFormatUtils.isSongPlayable(
+                                                song = it,
+                                                transcodeIncompatible = transcodeIncompatible,
+                                                isStreamingAllowed = isStreamingAllowed
+                                            )
                                         }
                                         val mediaItems = discPlayable.map { mediaItemConverter.toMediaItem(it) }
                                         if (mediaItems.isNotEmpty()) {
@@ -300,8 +310,14 @@ fun DiscSectionHeader(
     transcodeIncompatible: Boolean,
     onPlayDisc: () -> Unit
 ) {
-    val playableSongs = remember(songs, transcodeIncompatible) {
-        songs.filter { de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible) }
+    val playableSongs = remember(songs, transcodeIncompatible, isStreamingAllowed) {
+        songs.filter {
+            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                song = it,
+                transcodeIncompatible = transcodeIncompatible,
+                isStreamingAllowed = isStreamingAllowed
+            )
+        }
     }
     val isPlayEnabled = remember(playableSongs, isStreamingAllowed) {
         playableSongs.isNotEmpty() && (isStreamingAllowed || playableSongs.any { it.isFullyCached })

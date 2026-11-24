@@ -524,8 +524,13 @@ class SubsonicRepository(
         return playlistRepository.addToPlaylist(playlistId, songId, hasLocalData())
     }
 
-    suspend fun removeFromPlaylist(playlistId: String, index: Int): Boolean {
-        return playlistRepository.removeFromPlaylist(playlistId, index, hasLocalData())
+    suspend fun removeFromPlaylist(
+        playlistId: String,
+        songId: String,
+        fallbackIndex: Int,
+        selectedSongs: List<Song>
+    ): PlaylistRepository.PlaylistRemovalOutcome {
+        return playlistRepository.removeFromPlaylist(playlistId, songId, fallbackIndex, selectedSongs, hasLocalData())
     }
 
     suspend fun refreshStarredData(forceRefresh: Boolean = false): de.lwp2070809.speculonic.network.model.Starred2Response {

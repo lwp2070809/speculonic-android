@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import de.lwp2070809.speculonic.data.DownloadTracker
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.domain.repository.PlaylistNotFoundException
+import de.lwp2070809.speculonic.domain.repository.PlaylistRepository
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
@@ -221,25 +222,26 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         songId: String,
         fallbackIndex: Int,
         selectedSongs: List<Song>,
-        onResult: (Boolean) -> Unit = {}
+        onResult: (PlaylistRepository.PlaylistRemovalOutcome) -> Unit = {}
     ) {
         viewModelScope.launch {
             playlistOperationMutex.withLock {
                 _uiState.update { it.copy(isModifying = true) }
                 try {
-                    val currentSongs = repository.getCachedPlaylistSongs(playlistId)
-                    val actualIndex = resolvePlaylistRemoval(selectedSongs, currentSongs, songId, fallbackIndex)
-                    if (actualIndex == null) {
-                        loadPlaylistDetails(forceRefresh = true)
-                        onResult(false)
-                        return@withLock
+                    val outcome = repository.removeFromPlaylist(
+                        playlistId = playlistId,
+                        songId = songId,
+                        fallbackIndex = fallbackIndex,
+                        selectedSongs = selectedSongs
+                    )
+                    if (outcome == PlaylistRepository.PlaylistRemovalOutcome.NOT_FOUND) {
+                        markPlaylistDeleted(shouldAutoExit = true)
                     }
-                    val success = repository.removeFromPlaylist(playlistId, actualIndex)
-                    onResult(success)
+                    onResult(outcome)
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
                     LogManager.e("PlaylistDetailViewModel: removeFromPlaylist failed", e)
-                    onResult(false)
+                    onResult(PlaylistRepository.PlaylistRemovalOutcome.FAILED)
                 } finally {
                     _uiState.update { it.copy(isModifying = false) }
                 }
@@ -247,11 +249,4 @@ class PlaylistDetailViewModel @AssistedInject constructor(
         }
     }
 
-}
-
-internal fun resolvePlaylistRemoval(selectedSongs: List<Song>, currentSongs: List<Song>, songId: String, index: Int): Int? {
-    if (currentSongs.getOrNull(index)?.id == songId && selectedSongs.size == currentSongs.size &&
-        selectedSongs.indices.all { selectedSongs[it].id == currentSongs[it].id }
-    ) return index
-    return currentSongs.indices.singleOrNull { currentSongs[it].id == songId }
 }

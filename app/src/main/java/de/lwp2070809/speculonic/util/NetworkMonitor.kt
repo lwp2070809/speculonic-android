@@ -34,10 +34,13 @@ class ConnectivityManagerNetworkMonitor(
     private val connectivityManager = context.getSystemService(ConnectivityManager::class.java)
     @Volatile private var isCallbackActive = false
 
-    private fun readCurrentNetworkStatus(): NetworkStatus {
+    private fun readCurrentNetworkStatus(losingNetwork: Network? = null): NetworkStatus {
         val cm = connectivityManager ?: return NetworkStatus(isOnline = false, isMetered = false)
         val activeNetwork = cm.activeNetwork
-        val caps = activeNetwork?.let { cm.getNetworkCapabilities(it) }
+        if (activeNetwork == null || activeNetwork == losingNetwork) {
+            return NetworkStatus(isOnline = false, isMetered = false)
+        }
+        val caps = cm.getNetworkCapabilities(activeNetwork)
         val online = caps?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
         val metered = online && !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         return NetworkStatus(isOnline = online, isMetered = metered)
@@ -63,23 +66,21 @@ class ConnectivityManagerNetworkMonitor(
                 } else {
                     debounceJob?.cancel()
                     debounceJob = launch {
-                        delay(1500)
+                        delay(NETWORK_LOST_RECHECK_DELAY_MS)
                         channel.trySend(readCurrentNetworkStatus())
                     }
                 }
             }
 
             override fun onLost(network: Network) {
-                val status = readCurrentNetworkStatus()
-                if (!status.isOnline) {
-                    debounceJob?.cancel()
-                    debounceJob = launch {
-                        delay(1500)
-                        channel.trySend(readCurrentNetworkStatus())
-                    }
-                } else {
-                    debounceJob?.cancel()
+                val status = readCurrentNetworkStatus(losingNetwork = network)
+                debounceJob?.cancel()
+                if (status.isOnline) {
                     channel.trySend(status)
+                }
+                debounceJob = launch {
+                    delay(NETWORK_LOST_RECHECK_DELAY_MS)
+                    channel.trySend(readCurrentNetworkStatus())
                 }
             }
         }
@@ -116,4 +117,8 @@ class ConnectivityManagerNetworkMonitor(
     override val isOnline: Flow<Boolean> = networkStatus.map { it.isOnline }.distinctUntilChanged()
 
     override val isMetered: Flow<Boolean> = networkStatus.map { it.isMetered }.distinctUntilChanged()
+
+    private companion object {
+        const val NETWORK_LOST_RECHECK_DELAY_MS = 1500L
+    }
 }

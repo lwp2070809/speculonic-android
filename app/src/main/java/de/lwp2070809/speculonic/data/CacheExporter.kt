@@ -24,10 +24,12 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.io.OutputStream
 import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
+import java.util.Arrays
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -473,10 +475,15 @@ class CacheExporter @Inject constructor(
         onDocCreated: (DocumentFile) -> Unit
     ): Uri? {
         if (existingAudio != null && existingAudio.size == sourceFile.length()) {
-            LogManager.i(
-                "CacheExporter: File already exists in SAF with matching size, skipping stream write: $fileName"
+            if (safFileMatchesSource(existingAudio.uri, sourceFile)) {
+                LogManager.i(
+                    "CacheExporter: File already exists in SAF with matching content, skipping write: $fileName"
+                )
+                return existingAudio.uri
+            }
+            LogManager.w(
+                "CacheExporter: SAF file size matches (${existingAudio.size}) but content differs, replacing: $fileName"
             )
-            return existingAudio.uri
         }
         if (existingAudio != null) {
             DocumentFile.fromSingleUri(context, existingAudio.uri)?.delete()
@@ -484,10 +491,28 @@ class CacheExporter @Inject constructor(
         val createdDoc = rootDoc.createFile(FormatUtils.getMimeTypeFromExtension(suffix), fileName)
             ?: return null
         onDocCreated(createdDoc)
-        openTruncatedOutputStream(context, createdDoc.uri)?.use { outputStream ->
+        val copiedBytes = openTruncatedOutputStream(context, createdDoc.uri)?.use { outputStream ->
             sourceFile.inputStream().use { inputStream -> inputStream.copyTo(outputStream) }
         } ?: throw IOException("Failed to open SAF output stream")
+        if (copiedBytes != sourceFile.length()) {
+            throw IOException("Incomplete SAF audio export for $fileName: wrote $copiedBytes of ${sourceFile.length()}")
+        }
         return createdDoc.uri
+    }
+
+    private fun safFileMatchesSource(safUri: Uri, sourceFile: File): Boolean {
+        return try {
+            val safStream = context.contentResolver.openInputStream(safUri) ?: return false
+            safStream.use { existingStream ->
+                sourceFile.inputStream().use { sourceStream ->
+                    streamsHaveIdenticalContent(existingStream, sourceStream)
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            LogManager.w("CacheExporter: Failed comparing SAF file with private source (${e.message})")
+            false
+        }
     }
 
     private fun copyOptionalPrivateLrcToSaf(
@@ -533,6 +558,30 @@ class CacheExporter @Inject constructor(
 
     companion object {
         private const val MAX_FILENAME_UTF8_BYTES = 255
+        private const val STREAM_COMPARE_BUFFER_BYTES = 65_536
+
+        internal fun streamsHaveIdenticalContent(first: InputStream, second: InputStream): Boolean {
+            val firstBuf = ByteArray(STREAM_COMPARE_BUFFER_BYTES)
+            val secondBuf = ByteArray(STREAM_COMPARE_BUFFER_BYTES)
+            while (true) {
+                val firstRead = readChunkOrEof(first, firstBuf)
+                val secondRead = readChunkOrEof(second, secondBuf)
+                if (firstRead != secondRead) return false
+                if (firstRead == 0) return true
+                if (!Arrays.equals(firstBuf, 0, firstRead, secondBuf, 0, secondRead)) return false
+            }
+        }
+
+        private fun readChunkOrEof(stream: InputStream, buffer: ByteArray): Int {
+            var totalRead = 0
+            while (totalRead < buffer.size) {
+                val count = stream.read(buffer, totalRead, buffer.size - totalRead)
+                if (count == -1) break
+                totalRead += count
+            }
+            return totalRead
+        }
+
         internal fun openTruncatedOutputStream(context: Context, uri: Uri): OutputStream? {
             return try {
                 context.contentResolver.openOutputStream(uri, "wt")

@@ -44,24 +44,44 @@ class DownloadController @Inject constructor(
     }
 
     fun downloadSong(song: Song, isSilent: Boolean = false) {
-        if (!isSilent) {
-            val hasPermission = context.checkSelfPermission(
-                android.Manifest.permission.POST_NOTIFICATIONS
-            ) == android.content.pm.PackageManager.PERMISSION_GRANTED
-            if (!hasPermission) {
-                requestNotificationPermission()
-            }
+        ensureNotificationPermissionIfNeeded(isSilent)
+        val activeIds = downloadTracker.activeDownloadIds.value
+        val downloadedIds = downloadTracker.downloadedSongIds.value
+        if (activeIds.contains(song.id) || downloadedIds.contains(song.id) || !recentlyRequested.add(song.id)) {
+            LogManager.d("DownloadController: Song ${song.title} is already active or downloaded. Skipping AddRequest.")
+            return
         }
-            val activeIds = downloadTracker.activeDownloadIds.value
-            val downloadedIds = downloadTracker.downloadedSongIds.value
-            if (activeIds.contains(song.id) || downloadedIds.contains(song.id) || !recentlyRequested.add(song.id)) {
-                LogManager.d("DownloadController: Song ${song.title} is already active or downloaded. Skipping AddRequest.")
-                return
-            }
-            scope.launch {
-                kotlinx.coroutines.delay(RECENT_REQUEST_DEBOUNCE_MS)
-                recentlyRequested.remove(song.id)
-            }
+        scheduleRecentRequestClear(song.id)
+        enqueueDownloadRequest(song, isSilent)
+    }
+
+    suspend fun redownloadSong(song: Song, isSilent: Boolean = false) {
+        ensureNotificationPermissionIfNeeded(isSilent)
+        recentlyRequested.remove(song.id)
+        downloadTracker.prepareForRedownload(song.id)
+        recentlyRequested.add(song.id)
+        scheduleRecentRequestClear(song.id)
+        enqueueDownloadRequest(song, isSilent)
+    }
+
+    private fun ensureNotificationPermissionIfNeeded(isSilent: Boolean) {
+        if (isSilent) return
+        val hasPermission = context.checkSelfPermission(
+            android.Manifest.permission.POST_NOTIFICATIONS
+        ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+        if (!hasPermission) {
+            requestNotificationPermission()
+        }
+    }
+
+    private fun scheduleRecentRequestClear(songId: String) {
+        scope.launch {
+            kotlinx.coroutines.delay(RECENT_REQUEST_DEBOUNCE_MS)
+            recentlyRequested.remove(songId)
+        }
+    }
+
+    private fun enqueueDownloadRequest(song: Song, isSilent: Boolean) {
         val playbackState = playbackController.get().playbackState.value
         if (!isSilent && playbackState.currentSongId == song.id) {
             android.os.Handler(android.os.Looper.getMainLooper()).post {

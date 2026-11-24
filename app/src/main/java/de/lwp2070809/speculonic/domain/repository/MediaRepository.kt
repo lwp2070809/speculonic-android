@@ -196,8 +196,8 @@ class MediaRepository(
             val album = response.response.album
             if (album != null) {
                 check(album.id == id) { "Mismatched album response for $id" }
-                val hasCompleteSongs = (album.songCount ?: 0) <= album.song.distinctBy { it.id }.size
-                check(!(forceRefresh && cachedSongs.isNotEmpty() && !hasCompleteSongs)) {
+                val completeness = evaluateAlbumCompleteness(album.songCount, album.song)
+                check(!(forceRefresh && cachedSongs.isNotEmpty() && completeness.isKnownIncomplete)) {
                     "Incomplete album response for $id"
                 }
                 if (!skipInsert) {
@@ -206,7 +206,7 @@ class MediaRepository(
                             albumId = id,
                             album = album,
                             existingAlbum = musicDao.getAlbumById(id),
-                            detachRemoved = forceRefresh && hasCompleteSongs
+                            detachRemoved = forceRefresh && completeness.canDetachRemoved
                         )
                     }
                 }
@@ -387,9 +387,22 @@ class MediaRepository(
             .replace("_", "\\_")
     }
 
-    private companion object {
+    internal data class AlbumCompleteness(
+        val isKnownIncomplete: Boolean,
+        val canDetachRemoved: Boolean
+    )
+
+    internal companion object {
         const val SEARCH_ARTIST_LIMIT = 20
         const val SEARCH_ALBUM_LIMIT = 20
         const val SEARCH_SONG_LIMIT = 100
+
+        internal fun evaluateAlbumCompleteness(songCount: Int?, songs: List<Song>): AlbumCompleteness {
+            val distinctSize = songs.distinctBy { it.id }.size
+            return AlbumCompleteness(
+                isKnownIncomplete = songCount != null && distinctSize < songCount,
+                canDetachRemoved = songCount != null && distinctSize >= songCount
+            )
+        }
     }
 }

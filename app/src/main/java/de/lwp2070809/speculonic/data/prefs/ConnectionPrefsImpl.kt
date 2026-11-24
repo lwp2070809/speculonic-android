@@ -20,6 +20,7 @@ import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -37,6 +38,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import java.io.File
+import java.security.MessageDigest
 
 private data class DecryptedCredentials(
     val serverUrl: String = "",
@@ -46,6 +48,7 @@ private data class DecryptedCredentials(
 
 class ConnectionPrefsImpl(
     context: Context,
+    private val clearLegacyAccountData: suspend () -> Unit,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val settingsStore: DataStore<Preferences> = context.applicationContext.dataStore,
     private val secureDataStore: DataStore<Preferences> = getOrCreateSecureDataStore(context.applicationContext)
@@ -89,12 +92,12 @@ class ConnectionPrefsImpl(
 
     private suspend fun readCredentials(): DecryptedCredentials {
         credentialsState.value?.let { return it }
-        return credentialsMutex.withLock {
-            credentialsState.value?.let { return@withLock it }
-            withContext(ioDispatcher) {
-                loadOrMigrateCredentials().also { credentialsState.value = it }
+        // The cache reset can cancel and drain playback initialization, which also reads credentials.
+        return initScope.async {
+            credentialsMutex.withLock {
+                credentialsState.value ?: loadOrMigrateCredentials().also { credentialsState.value = it }
             }
-        }
+        }.await()
     }
 
     private fun currentCredentialsSync(): DecryptedCredentials {
@@ -110,6 +113,10 @@ class ConnectionPrefsImpl(
     }.distinctUntilChanged()
 
     private suspend fun loadOrMigrateCredentials(): DecryptedCredentials {
+        if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
+            finishLegacyAccountReset()
+            return DecryptedCredentials()
+        }
         val currentPrefs = secureDataStore.data.first()
         val encUrl = currentPrefs[SEC_SERVER_URL]
         val encUser = currentPrefs[SEC_USERNAME]
@@ -137,7 +144,24 @@ class ConnectionPrefsImpl(
             return DecryptedCredentials()
         }
         cleanupAnyLeftoverLegacyStorage()
+        ensureAccountFingerprintStored(credentials.serverUrl, credentials.username)
+        clearCredentialsResetPendingIfPresent()
         return credentials
+    }
+
+    private suspend fun clearCredentialsResetPendingIfPresent() {
+        if (settingsStore.data.first()[CREDENTIALS_RESET_PENDING] == true) {
+            settingsStore.edit { it.remove(CREDENTIALS_RESET_PENDING) }
+        }
+    }
+
+    private suspend fun ensureAccountFingerprintStored(url: String, user: String) {
+        val fingerprint = computeAccountFingerprint(url, user)
+        if (fingerprint.isEmpty()) return
+        val existing = settingsStore.data.first()[LAST_ACCOUNT_FINGERPRINT]
+        if (existing != fingerprint) {
+            settingsStore.edit { it[LAST_ACCOUNT_FINGERPRINT] = fingerprint }
+        }
     }
 
     private suspend fun migrateFromLegacySources(): DecryptedCredentials {
@@ -153,12 +177,34 @@ class ConnectionPrefsImpl(
 
         if (hasPlainDs) return persistAndCleanupLegacy(plainDsUrl, plainDsUser, plainDsPass)
         if (legacy == LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted) {
-            // Retain the original XML and key until a replacement account is successfully saved.
-            _credentialsResetWarning.value = true
+            settingsStore.edit { it[LEGACY_ACCOUNT_RESET_PENDING] = true }
+            finishLegacyAccountReset()
         } else {
             LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+            if (legacyMainPrefs[CREDENTIALS_RESET_PENDING] == true) {
+                _credentialsResetWarning.value = true
+            }
         }
         return DecryptedCredentials()
+    }
+
+    private suspend fun finishLegacyAccountReset() {
+        settingsStore.edit { prefs ->
+            PlaybackPrefsImpl.clearStoredPlaybackState(prefs)
+            CacheSyncPrefsImpl.clearAccountState(prefs)
+            prefs.remove(LAST_ACCOUNT_FINGERPRINT)
+            prefs.remove(SERVER_CAPABILITIES_JSON)
+            prefs.remove(LAST_PING_TIME)
+        }
+        setServerCapabilitiesSync(null)
+        setLastPingTimeSync(0L)
+        clearLegacyAccountData()
+        LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+        settingsStore.edit {
+            it.remove(LEGACY_ACCOUNT_RESET_PENDING)
+            it[CREDENTIALS_RESET_PENDING] = true
+        }
+        _credentialsResetWarning.value = true
     }
 
     private suspend fun persistAndCleanupLegacy(
@@ -168,6 +214,8 @@ class ConnectionPrefsImpl(
     ): DecryptedCredentials {
         try {
             writeEncryptedToDataStore(url, user, pass)
+            ensureAccountFingerprintStored(url, user)
+            clearCredentialsResetPendingIfPresent()
             cleanupAnyLeftoverLegacyStorage()
         } catch (e: CancellationException) {
             throw e
@@ -193,6 +241,7 @@ class ConnectionPrefsImpl(
     private suspend fun wipeCorruptedCredentials() {
         secureDataStore.edit { it.clear() }
         KeystoreAesGcmCipher.deleteKeyQuietly()
+        settingsStore.edit { it[CREDENTIALS_RESET_PENDING] = true }
         _credentialsResetWarning.value = true
     }
 
@@ -222,18 +271,31 @@ class ConnectionPrefsImpl(
     override suspend fun readServerIdentity(): Pair<String, String> =
         readCredentials().let { it.serverUrl to it.username }
 
+    override suspend fun readLastAccountFingerprint(): String? =
+        settingsStore.data.first()[LAST_ACCOUNT_FINGERPRINT]?.takeIf { it.isNotBlank() }
+
     override suspend fun saveServerSettings(url: String, user: String, pass: String) {
         credentialsMutex.withLock {
             withContext(ioDispatcher) {
+                if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
+                    throw java.io.IOException("Legacy account cleanup is still pending")
+                }
                 // Empty entries also record an explicit logout across restarts during legacy cleanup.
                 writeEncryptedToDataStore(url, user, pass)
                 credentialsState.value = DecryptedCredentials(url, user, pass)
                 _credentialsResetWarning.value = false
 
+                val fingerprint = computeAccountFingerprint(url, user)
                 settingsStore.edit { preferences ->
                     preferences.remove(SERVER_URL)
                     preferences.remove(USERNAME)
                     preferences.remove(PASSWORD)
+                    preferences.remove(CREDENTIALS_RESET_PENDING)
+                    if (fingerprint.isEmpty()) {
+                        preferences.remove(LAST_ACCOUNT_FINGERPRINT)
+                    } else {
+                        preferences[LAST_ACCOUNT_FINGERPRINT] = fingerprint
+                    }
                     val currentVer = preferences[SERVER_CONFIG_VERSION] ?: 0
                     preferences[SERVER_CONFIG_VERSION] = currentVer + 1
                 }
@@ -364,6 +426,9 @@ class ConnectionPrefsImpl(
         private val SERVER_URL = stringPreferencesKey("server_url")
         private val USERNAME = stringPreferencesKey("username")
         private val PASSWORD = stringPreferencesKey("password")
+        private val LAST_ACCOUNT_FINGERPRINT = stringPreferencesKey("last_account_fingerprint")
+        private val CREDENTIALS_RESET_PENDING = booleanPreferencesKey("credentials_reset_pending")
+        private val LEGACY_ACCOUNT_RESET_PENDING = booleanPreferencesKey("legacy_account_reset_pending")
         private val SERVER_CONFIG_VERSION = intPreferencesKey("server_config_version")
         private val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
         private val SERVER_CAPABILITIES_JSON = stringPreferencesKey("server_capabilities_json")
@@ -377,6 +442,15 @@ class ConnectionPrefsImpl(
 
         @Volatile
         private var secureDataStoreInstance: DataStore<Preferences>? = null
+
+        internal fun computeAccountFingerprint(url: String, user: String): String {
+            val normalizedUrl = url.trim()
+            val normalizedUser = user.trim()
+            if (normalizedUrl.isEmpty() && normalizedUser.isEmpty()) return ""
+            val digest = MessageDigest.getInstance("SHA-256")
+                .digest("$normalizedUrl\n$normalizedUser".toByteArray(Charsets.UTF_8))
+            return digest.joinToString("") { "%02x".format(it) }
+        }
 
         private fun getOrCreateSecureDataStore(appContext: Context): DataStore<Preferences> {
             return secureDataStoreInstance ?: synchronized(this) {

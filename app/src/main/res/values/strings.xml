@@ -161,7 +161,9 @@
     <string name="add_to_playlist_error">Failed to add to playlist</string>
     <string name="song_already_in_playlist">Song already in this playlist</string>
     <string name="remove_from_playlist">Remove from Playlist</string>
+    <string name="remove_from_playlist_confirm">Remove “%1$s” from this playlist? If another client edits the playlist at the same time, the server may remove a different track.</string>
     <string name="remove_from_playlist_success">Removed from playlist</string>
+    <string name="remove_from_playlist_conflict">Playlist changed on server; list refreshed, please retry</string>
     <string name="remove_from_playlist_error">Failed to remove from playlist</string>
     <string name="create_playlist">Create Playlist</string>
     <string name="playlist_name">Playlist Name</string>
@@ -273,6 +275,7 @@
     <string name="inconsistency_reason_mismatch">Binary mismatch</string>
     <string name="inconsistency_reason_orphaned">Unknown orphaned file</string>
     <string name="redownload">Redownload</string>
+    <string name="redownload_queued">Queued for redownload: %1$s</string>
 
     <!-- About -->
     <string name="about">About</string>
@@ -433,7 +436,7 @@
     <string name="clear_song_downloads_confirm">Are you sure you want to delete all internal offline cached songs? Files stored in SAF directory will remain untouched.</string>
     <string name="credentials_reset_warning_title">Server Credentials Need Re-verification</string>
     <string name="server_save_retry">Couldn’t save server settings. Please try again. %1$s</string>
-    <string name="credentials_reset_warning_message">Encrypted credentials could not be unlocked due to key or storage changes and have been safely cleared. Please re-enter your server address and login details. Local library metadata and cached songs remain untouched.</string>
+    <string name="credentials_reset_warning_message">Encrypted credentials could not be unlocked and have been cleared. Please re-enter your server address and login details to reconnect and sync your library.</string>
     <string name="refresh_offline_toast">Offline mode or no network, cannot refresh</string>
     <string name="refresh_failed">Refresh failed</string>
     <string name="cd_expand">Expand</string>

@@ -87,6 +87,7 @@ class DownloadTracker @Inject constructor(
     private val tracking = DownloadTrackingSession(::startTracking)
     private val exportJobs = ConcurrentHashMap<String, Job>()
     private val pendingFileDeletionIds = ConcurrentHashMap.newKeySet<String>()
+    private val redownloadingIds = ConcurrentHashMap.newKeySet<String>()
     private val pollJob = AtomicReference<Job?>(null)
 
     fun markForFileDeletion(songId: String) {
@@ -101,14 +102,41 @@ class DownloadTracker @Inject constructor(
         return _allDownloads.value.any { it.task.request.id == songId }
     }
 
-    @Suppress("TooGenericExceptionCaught")
-    suspend fun deleteExportedSongAndCache(songId: String) = withContext(Dispatchers.IO) {
-        val song = database.musicDao().getSongById(songId)
-        song?.localUri?.let { uriString ->
-            deleteExportedFiles(songId, uriString)
+    suspend fun prepareForRedownload(songId: String) = withContext(Dispatchers.IO) {
+        exportJobs.remove(songId)?.cancel()
+        pendingFileDeletionIds.remove(songId)
+        val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
+        val hasExistingTask = withContext(Dispatchers.Main) {
+            downloadManager.currentDownloads.any { it.request.id == songId }
+        } || runCatching { downloadManager.downloadIndex.getDownload(songId) != null }.getOrDefault(false)
+
+        if (hasExistingTask) {
+            // 标记正在重下，拦截随后到达的旧任务 onDownloadRemoved 避免误删紧随其后的新缓存
+            redownloadingIds.add(songId)
         }
-        database.musicDao().updateSongLocalUri(songId, null)
-        database.musicDao().updateSongCacheStatus(songId, null, false)
+        withContext(Dispatchers.Main.immediate) {
+            _downloadedSongIds.update { it - songId }
+            _activeDownloadIds.update { it - songId }
+            _allDownloads.update { current -> current.filter { it.task.request.id != songId } }
+        }
+        clearInternalAudioCaches(songId)
+        if (hasExistingTask) {
+            try {
+                androidx.media3.exoplayer.offline.DownloadService.sendRemoveDownload(
+                    appContext,
+                    de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                    songId,
+                    false
+                )
+            } catch (e: Exception) {
+                redownloadingIds.remove(songId)
+                LogManager.e("DownloadTracker: Failed removing stale task before redownload for $songId", e)
+            }
+        }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    private suspend fun clearInternalAudioCaches(songId: String) {
         try {
             cacheManager.acquirePlaybackCache().removeResource(songId)
         } catch (e: CancellationException) {
@@ -123,6 +151,17 @@ class DownloadTracker @Inject constructor(
         } catch (e: Exception) {
             LogManager.e("DownloadTracker: Failed to clean persistent download cache on remove", e)
         }
+    }
+
+    @Suppress("TooGenericExceptionCaught")
+    suspend fun deleteExportedSongAndCache(songId: String) = withContext(Dispatchers.IO) {
+        val song = database.musicDao().getSongById(songId)
+        song?.localUri?.let { uriString ->
+            deleteExportedFiles(songId, uriString)
+        }
+        database.musicDao().updateSongLocalUri(songId, null)
+        database.musicDao().updateSongCacheStatus(songId, null, false)
+        clearInternalAudioCaches(songId)
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -191,7 +230,10 @@ class DownloadTracker @Inject constructor(
             _activeDownloadIds.value = emptySet()
             _allDownloads.value = emptyList()
             pollJob.set(null)
-            if (clearDownloads) pendingFileDeletionIds.clear()
+            if (clearDownloads) {
+                pendingFileDeletionIds.clear()
+                redownloadingIds.clear()
+            }
         }
         reset()
     }
@@ -376,6 +418,7 @@ class DownloadTracker @Inject constructor(
 
             when (download.state) {
                 Download.STATE_COMPLETED -> {
+                    redownloadingIds.remove(download.request.id)
                     _downloadedSongIds.update { it + download.request.id }
                     _activeDownloadIds.update { it - download.request.id }
                     LogManager.i("DownloadTracker: Download completed for ${download.request.id}. Silent: $isSilent")
@@ -414,6 +457,10 @@ class DownloadTracker @Inject constructor(
         @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             if (!scope.isActive) return
+            if (redownloadingIds.remove(download.request.id)) {
+                LogManager.i("DownloadTracker: Ignored stale removal callback during redownload of ${download.request.id}")
+                return
+            }
             exportJobs.remove(download.request.id)?.cancel()
 
             _downloadedSongIds.update { it - download.request.id }

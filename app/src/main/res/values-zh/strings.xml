@@ -160,7 +160,9 @@
     <string name="add_to_playlist_error">添加到歌单失败</string>
     <string name="song_already_in_playlist">歌曲已在歌单中</string>
     <string name="remove_from_playlist">从歌单中移除</string>
+    <string name="remove_from_playlist_confirm">要从此歌单中移除《%1$s》吗？如果其他客户端同时编辑此歌单，服务器可能移除另一首曲目。</string>
     <string name="remove_from_playlist_success">已成功从歌单中移除</string>
+    <string name="remove_from_playlist_conflict">歌单已在服务端变更，已刷新列表，请重试</string>
     <string name="remove_from_playlist_error">从歌单中移除失败</string>
     <string name="create_playlist">创建歌单</string>
     <string name="playlist_name">歌单名称</string>
@@ -269,6 +271,7 @@
     <string name="inconsistency_reason_mismatch">文件内容不一致</string>
     <string name="inconsistency_reason_orphaned">未知的孤立文件</string>
     <string name="redownload">重新下载</string>
+    <string name="redownload_queued">已加入重新下载队列：%1$s</string>
 
     
     <string name="about">关于</string>
@@ -429,7 +432,7 @@
     <string name="clear_song_downloads_confirm">确定要删除所有内部存储中的离线缓存歌曲吗？外部 SAF 目录中的文件将被保留。</string>
     <string name="credentials_reset_warning_title">服务器凭据需要重新验证</string>
     <string name="server_save_retry">保存服务器设置失败，请重试。%1$s</string>
-    <string name="credentials_reset_warning_message">由于设备密钥变动或存储异常，原加密凭据无法解锁，系统已将其安全清除。请重新输入服务器地址与账号密码；本地曲库数据及离线歌曲缓存均完好保留。</string>
+    <string name="credentials_reset_warning_message">加密凭据无法解锁，已清除。请重新输入服务器地址与账号密码，以重新连接并同步曲库。</string>
     <string name="refresh_offline_toast">当前处于离线或无网络状态，无法刷新</string>
     <string name="refresh_failed">刷新失败</string>
     <string name="cd_expand">展开</string>

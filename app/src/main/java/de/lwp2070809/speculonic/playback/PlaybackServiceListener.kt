@@ -33,7 +33,7 @@ class PlaybackServiceListener(
 ) : Player.Listener {
 
     private var currentActiveMediaId: String? = player.currentMediaItem?.mediaId
-    private val volumeAutoPauseTracker = DeviceVolumeAutoPauseTracker()
+    private val volumeAutoPauseTracker = DeviceVolumeAutoPauseTracker(resolveInitialZeroOrMuted(context))
 
     fun publishWidgetState() {
         val isIntended = player.playWhenReady &&
@@ -242,6 +242,15 @@ class PlaybackServiceListener(
                 focusHelper.setDelayedFocusPending(false)
                 player.playWhenReady = false
             }
+        }
+    }
+
+    private companion object {
+        private fun resolveInitialZeroOrMuted(context: Context?): Boolean? {
+            val audioManager = context?.getSystemService(Context.AUDIO_SERVICE) as? AudioManager ?: return null
+            val volume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC)
+            val muted = audioManager.isStreamMute(AudioManager.STREAM_MUSIC)
+            return volume <= 0 || muted
         }
     }
 }

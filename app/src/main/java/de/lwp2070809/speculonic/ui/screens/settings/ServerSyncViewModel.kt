@@ -9,6 +9,7 @@ import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
+import de.lwp2070809.speculonic.data.prefs.ConnectionPrefsImpl
 import de.lwp2070809.speculonic.di.NetworkModule
 import de.lwp2070809.speculonic.domain.repository.SafetyGuardException
 import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
@@ -280,7 +281,24 @@ class ServerSyncViewModel @Inject constructor(
         _uiState.update { it.copy(isSaving = true, isTestingConnection = false, urlError = null, testConnectionResult = null) }
         try {
             val (oldUrl, oldUser) = preferencesManager.readServerIdentity()
-            val isServerChanged = oldUrl.isNotEmpty() && (url != oldUrl || user != oldUser)
+            val oldFingerprint = preferencesManager.readLastAccountFingerprint()
+            val hadResetWarning = preferencesManager.credentialsResetWarning.value
+            val dao = database.musicDao()
+            val hadLocalData = withContext(Dispatchers.IO) {
+                repository.hasLocalData() ||
+                    dao.getSongsCount() > 0 ||
+                    dao.getAllPlaylistIds().isNotEmpty() ||
+                    dao.getPlaybackQueue().isNotEmpty()
+            }
+            val isServerChanged = shouldResetLocalDataForAccountChange(
+                newUrl = url,
+                newUser = user,
+                oldUrl = oldUrl,
+                oldUser = oldUser,
+                oldFingerprint = oldFingerprint,
+                hadResetWarning = hadResetWarning,
+                hadLocalData = hadLocalData
+            )
 
             withContext(Dispatchers.IO) {
                 preferencesManager.saveAllowInsecureConnections(allowInsecureConnections)
@@ -297,7 +315,7 @@ class ServerSyncViewModel @Inject constructor(
                     allowInsecureConnections = allowInsecureConnections
                 )
             }
-            pingAndTriggerInitialSyncIfNeeded(url, oldUrl, user, oldUser, syncCoverArt)
+            pingAndTriggerInitialSyncIfNeeded(url, isServerChanged, syncCoverArt)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -314,12 +332,7 @@ class ServerSyncViewModel @Inject constructor(
     private suspend fun applyNetworkTransition(isServerChanged: Boolean, allowInsecureConnections: Boolean) {
         if (isServerChanged) {
             // 换服时先取消后台同步循环、应用新安全策略并驱逐连接池，避免旧服同步继续发起请求或写入即将清空的库表
-            stopSyncAndClearConnections(allowInsecureConnections)
-            NetworkModule.clearSubsonicServiceCache()
-            database.clearAllTables()
-            cacheOperations.clearAllCache(preserveAccountData = false).onFailure { e ->
-                LogManager.e("ServerSyncViewModel: clearAllCache failed during server change", e)
-            }
+            clearAccountScopedData(allowInsecureConnections)
         } else if (DynamicSslTrustManager.allowInsecureConnections && !allowInsecureConnections) {
             // 安全降级时先取消在途同步再驱逐连接池，避免先断连触发异步异常并重复驱逐
             stopSyncAndClearConnections(allowInsecureConnections)
@@ -328,11 +341,29 @@ class ServerSyncViewModel @Inject constructor(
         }
     }
 
+    private suspend fun clearAccountScopedData(allowInsecureConnections: Boolean) {
+        stopSyncAndClearConnections(allowInsecureConnections)
+        NetworkModule.clearSubsonicServiceCache()
+        database.clearAllTables()
+        cacheOperations.clearAllCache(preserveAccountData = false).onFailure { e ->
+            LogManager.e("ServerSyncViewModel: clearAllCache failed during account reset", e)
+        }
+        preferencesManager.savePlaybackState(
+            songId = null,
+            position = 0L,
+            queueIndex = 0,
+            queueTitle = null,
+            repeatMode = preferencesManager.repeatMode.first(),
+            shuffleMode = preferencesManager.shuffleMode.first()
+        )
+        preferencesManager.saveServerLastModified(0L)
+        preferencesManager.saveLastSyncTime(0L)
+        preferencesManager.saveLastFullSyncTime(0L)
+    }
+
     private suspend fun pingAndTriggerInitialSyncIfNeeded(
         url: String,
-        oldUrl: String,
-        user: String,
-        oldUser: String,
+        isServerChanged: Boolean,
         syncCoverArt: Boolean
     ) {
         withContext(Dispatchers.IO) {
@@ -345,7 +376,7 @@ class ServerSyncViewModel @Inject constructor(
             }
         }
 
-        if (!repository.hasLocalData() || oldUrl != url || oldUser != user) {
+        if (!repository.hasLocalData() || isServerChanged) {
             if (url.isNotEmpty()) {
                 performFullSync(isForced = true, syncCoverArt = syncCoverArt)
             }
@@ -472,15 +503,9 @@ class ServerSyncViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 // 先于清除凭据终止同步任务与在途请求、驱逐连接池并重置不安全连接策略，防止删除后仍有旧会话复用
-                stopSyncAndClearConnections(allowInsecureConnections = false)
-                NetworkModule.clearSubsonicServiceCache()
+                clearAccountScopedData(allowInsecureConnections = false)
                 preferencesManager.saveAllowInsecureConnections(false)
                 preferencesManager.saveServerSettings("", "", "")
-
-                database.clearAllTables()
-                cacheOperations.clearAllCache(preserveAccountData = false).onFailure { e ->
-                    LogManager.e("ServerSyncViewModel: clearAllCache failed during server deletion", e)
-                }
                 NetworkModule.ServerReachableManager.reset()
 
                 _uiState.update {
@@ -502,6 +527,27 @@ class ServerSyncViewModel @Inject constructor(
                     Toast.makeText(context, detail, Toast.LENGTH_LONG).show()
                 }
             }
+        }
+    }
+
+    internal companion object {
+        internal fun shouldResetLocalDataForAccountChange(
+            newUrl: String,
+            newUser: String,
+            oldUrl: String,
+            oldUser: String,
+            oldFingerprint: String?,
+            hadResetWarning: Boolean,
+            hadLocalData: Boolean
+        ): Boolean {
+            if (oldUrl.isNotEmpty()) {
+                return newUrl != oldUrl || newUser != oldUser
+            }
+            if (!hadResetWarning && !hadLocalData) {
+                return false
+            }
+            val newFingerprint = ConnectionPrefsImpl.computeAccountFingerprint(newUrl, newUser)
+            return oldFingerprint.isNullOrBlank() || oldFingerprint != newFingerprint
         }
     }
 }

@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.di
 
 import android.content.Context
+import dagger.Lazy
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -17,6 +18,7 @@ import de.lwp2070809.speculonic.data.prefs.GeneralSystemPrefs
 import de.lwp2070809.speculonic.data.prefs.GeneralSystemPrefsImpl
 import de.lwp2070809.speculonic.data.prefs.PlaybackPrefs
 import de.lwp2070809.speculonic.data.prefs.PlaybackPrefsImpl
+import de.lwp2070809.speculonic.ui.screens.settings.CacheOperations
 import javax.inject.Singleton
 
 @Module
@@ -25,10 +27,15 @@ object PreferencesModule {
 
     @Provides
     @Singleton
-    fun providePreferencesManager(@ApplicationContext context: Context): PreferencesManager {
+    fun providePreferencesManager(
+        @ApplicationContext context: Context,
+        cacheOperations: Lazy<CacheOperations>
+    ): PreferencesManager {
         val appContext = context.applicationContext
         return PreferencesManager(
-            ConnectionPrefsImpl(appContext),
+            ConnectionPrefsImpl(appContext, clearLegacyAccountData = {
+                cacheOperations.get().clearLegacyAccountData().getOrThrow()
+            }),
             PlaybackPrefsImpl(appContext),
             BluetoothCarPrefsImpl(appContext),
             CacheSyncPrefsImpl(appContext),

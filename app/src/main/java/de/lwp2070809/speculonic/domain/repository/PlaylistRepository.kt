@@ -7,6 +7,7 @@ import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Playlist
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.network.model.ensureOk
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
@@ -18,6 +19,13 @@ class PlaylistRepository(
     private val authManager: AuthManager,
     private val entityMapper: EntityMapper
 ) {
+    enum class PlaylistRemovalOutcome {
+        REMOVED,
+        CONFLICT_REFRESHED,
+        NOT_FOUND,
+        FAILED
+    }
+
     private val mutex = Mutex()
     suspend fun getPlaylists(
         forceRefresh: Boolean = false,
@@ -100,29 +108,37 @@ class PlaylistRepository(
 
         return try {
             val playlistInfo = fetchRemotePlaylist(id, forceRefresh)
-            val finalPlaylistEntity = buildPlaylistEntity(id, playlistInfo)
-            val entities = buildPlaylistSongEntities(playlistInfo.entry)
-            val refs = playlistInfo.entry.mapIndexed { index, song ->
-                PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index)
+            if (skipInsert) {
+                buildPlaylistSongEntities(playlistInfo.entry).map { entityMapper.toSong(it) }
+            } else {
+                persistRemotePlaylist(id, playlistInfo)
             }
-
-            if (!skipInsert) {
-                musicDao.syncPlaylistWithSongs(
-                    playlist = finalPlaylistEntity,
-                    songs = entities,
-                    refs = refs
-                )
-            }
-            entities.map { entityMapper.toSong(it) }
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             if (e is PlaylistNotFoundException) {
-                de.lwp2070809.speculonic.util.LogManager.w("PlaylistRepository: playlist id=$id not found on server (cleaned locally)")
+                LogManager.w("PlaylistRepository: playlist id=$id not found on server (cleaned locally)")
             } else {
-                de.lwp2070809.speculonic.util.LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
+                LogManager.e("PlaylistRepository: getPlaylist failed for id=$id", e)
             }
             throw e
         }
+    }
+
+    private suspend fun persistRemotePlaylist(
+        id: String,
+        playlistInfo: Playlist
+    ): List<Song> {
+        val finalPlaylistEntity = buildPlaylistEntity(id, playlistInfo)
+        val entities = buildPlaylistSongEntities(playlistInfo.entry)
+        val refs = playlistInfo.entry.mapIndexed { index, song ->
+            PlaylistSongCrossRef(playlistId = id, songId = song.id, order = index)
+        }
+        musicDao.syncPlaylistWithSongs(
+            playlist = finalPlaylistEntity,
+            songs = entities,
+            refs = refs
+        )
+        return entities.map { entityMapper.toSong(it) }
     }
 
     private suspend fun fetchRemotePlaylist(
@@ -185,22 +201,7 @@ class PlaylistRepository(
         }
 
         return list.map { song ->
-            val local = existingSongsMap[song.id]
-            val isStarred = song.starred != null
-            val lastUpdated = if (isStarred && local?.starred != true) null else local?.lastUpdated
-            entityMapper.songToEntity(
-                song = song,
-                overrides = SongEntityOverrides(
-                    albumId = song.albumId ?: local?.albumId,
-                    artistId = song.artistId ?: local?.artistId,
-                    parentId = song.parent ?: local?.parent,
-                    localUri = local?.localUri,
-                    isCached = local?.isFullyCached ?: false,
-                    isTranscoded = local?.isTranscoded ?: false,
-                    isStarred = isStarred,
-                    lastUpdated = lastUpdated
-                )
-            )
+            toPlaylistSongEntity(song, existingSongsMap[song.id], entityMapper)
         }
     }
 
@@ -292,24 +293,79 @@ class PlaylistRepository(
         }
     }
 
-    suspend fun removeFromPlaylist(playlistId: String, index: Int, hasLocalData: Boolean): Boolean = mutex.withLock {
-        val (u, t, s) = authManager.getAuthParams()
+    suspend fun removeFromPlaylist(
+        playlistId: String,
+        songId: String,
+        fallbackIndex: Int,
+        selectedSongs: List<Song>,
+        hasLocalData: Boolean
+    ): PlaylistRemovalOutcome = mutex.withLock {
         return try {
-            val response = api.updatePlaylist(playlistId, u, t, s, songIndexToRemove = index)
-            val success = response.response.status == "ok"
-            if (success) {
+            val remotePlaylist = fetchRemotePlaylist(playlistId, forceRefresh = true)
+            val actualIndex = resolvePlaylistRemoval(selectedSongs, remotePlaylist.entry, songId, fallbackIndex)
+            if (actualIndex == null) {
+                persistRemotePlaylist(playlistId, remotePlaylist)
+                return@withLock PlaylistRemovalOutcome.CONFLICT_REFRESHED
+            }
+            val (u, t, s) = authManager.getAuthParams()
+            // Subsonic updatePlaylist only accepts an index for removal, with no track ID
+            // or revision precondition. Another client can still change the order after our read.
+            val response = api.updatePlaylist(playlistId, u, t, s, songIndexToRemove = actualIndex)
+            if (response.response.status == "ok") {
                 getPlaylist(playlistId, forceRefresh = true)
                 getPlaylists(forceRefresh = true, hasLocalData = hasLocalData)
+                PlaylistRemovalOutcome.REMOVED
+            } else {
+                PlaylistRemovalOutcome.FAILED
             }
-            success
+        } catch (e: PlaylistNotFoundException) {
+            LogManager.w("PlaylistRepository: playlist id=$playlistId not found during removal", e)
+            PlaylistRemovalOutcome.NOT_FOUND
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
-            false
+            LogManager.e("PlaylistRepository: removeFromPlaylist failed for id=$playlistId", e)
+            PlaylistRemovalOutcome.FAILED
         }
     }
 
-    private companion object {
+    internal companion object {
         const val SUBSONIC_ERROR_NOT_FOUND = 70
         const val BATCH_CHUNK_SIZE = 500
+
+        internal fun resolvePlaylistRemoval(
+            selectedSongs: List<Song>,
+            currentSongs: List<Song>,
+            songId: String,
+            index: Int
+        ): Int? {
+            if (currentSongs.getOrNull(index)?.id == songId &&
+                selectedSongs.size == currentSongs.size &&
+                selectedSongs.indices.all { selectedSongs[it].id == currentSongs[it].id }
+            ) return index
+            return currentSongs.indices.singleOrNull { currentSongs[it].id == songId }
+        }
+
+        internal fun toPlaylistSongEntity(
+            song: Song,
+            local: de.lwp2070809.speculonic.data.db.entities.SongEntity?,
+            entityMapper: EntityMapper = EntityMapper
+        ): de.lwp2070809.speculonic.data.db.entities.SongEntity {
+            // getPlaylist 条目可能省略 starred，取消收藏仅以权威 getStarred2 同步为准
+            val isStarred = song.starred != null || local?.starred == true
+            val lastUpdated = if (isStarred && local?.starred != true) null else local?.lastUpdated
+            return entityMapper.songToEntity(
+                song = song,
+                overrides = SongEntityOverrides(
+                    albumId = song.albumId ?: local?.albumId,
+                    artistId = song.artistId ?: local?.artistId,
+                    parentId = song.parent ?: local?.parent,
+                    localUri = local?.localUri,
+                    isCached = local?.isFullyCached ?: false,
+                    isTranscoded = local?.isTranscoded ?: false,
+                    isStarred = isStarred,
+                    lastUpdated = lastUpdated
+                )
+            )
+        }
     }
 }

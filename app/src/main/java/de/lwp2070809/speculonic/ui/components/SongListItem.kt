@@ -126,7 +126,11 @@ fun SongListItem(
     val isStarred = song.starred != null
     val isDownloaded = song.isFullyCached
     
-    val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(song, transcodeIncompatible)
+    val isPlayable = de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+        song = song,
+        transcodeIncompatible = transcodeIncompatible,
+        isStreamingAllowed = isStreamingAllowed
+    )
 
     val isEnabled = isPlayable && (isDownloaded || isStreamingAllowed)
     val alpha = if (isEnabled) 1.0f else 0.38f

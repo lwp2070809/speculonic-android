@@ -48,7 +48,7 @@ class ResolveInconsistencyUseCase @Inject constructor(
         val song = item.dbSong ?: return
         musicDao.updateSongCacheStatus(song.id, null, false)
         deletePhysicalFileSafely(item.localUri, "Failed to delete DB song file before redownload")
-        downloadController.downloadSong(EntityMapper.toSong(song), isSilent = false)
+        downloadController.redownloadSong(EntityMapper.toSong(song), isSilent = false)
     }
 
     private fun deletePhysicalFileSafely(uriString: String?, errorMessage: String) {

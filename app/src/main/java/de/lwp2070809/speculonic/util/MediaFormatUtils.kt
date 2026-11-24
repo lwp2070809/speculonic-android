@@ -103,9 +103,17 @@ object MediaFormatUtils {
      *
      * @param song 待判定的单曲对象
      * @param transcodeIncompatible 是否开启了服务端转码不兼容格式选项
+     * @param isStreamingAllowed 当前网络与离线策略是否允许远程流媒体播放
      * @return 若可播放返回 true；若需在 UI 层置灰并拦截点击返回 false
      */
-    fun isSongPlayable(song: Song, transcodeIncompatible: Boolean): Boolean {
+    fun isSongPlayable(
+        song: Song,
+        transcodeIncompatible: Boolean,
+        isStreamingAllowed: Boolean = true
+    ): Boolean {
+        if (!isStreamingAllowed && !song.isFullyCached) {
+            return false
+        }
         val isDirectSupported = isDirectPlaybackSupported(song.suffix)
         if (isDirectSupported) {
             return true

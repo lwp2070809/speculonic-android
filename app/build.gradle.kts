@@ -207,6 +207,9 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.multiplatform.markdown.renderer)
     implementation(libs.multiplatform.markdown.renderer.m3)
+
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 detekt {

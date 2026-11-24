@@ -293,15 +293,17 @@ fun SearchScreen(
                                     onClick = {
                                         val playableSongs = uiState.results.song.filter {
                                             de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
-                                                it,
-                                                transcodeIncompatible
+                                                song = it,
+                                                transcodeIncompatible = transcodeIncompatible,
+                                                isStreamingAllowed = isStreamingAllowed
                                             )
                                         }
-                                        val targetIndex = playableSongs.indexOfFirst { it.id == song.id }.coerceAtLeast(0)
-
-                                        val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
-                                        if (mediaItems.isNotEmpty()) {
-                                            playbackController.play(mediaItems, targetIndex)
+                                        val targetIndex = playableSongs.indexOfFirst { it.id == song.id }
+                                        if (targetIndex != -1) {
+                                            val mediaItems = playableSongs.map { mediaItemConverter.toMediaItem(it) }
+                                            if (mediaItems.isNotEmpty()) {
+                                                playbackController.play(mediaItems, targetIndex)
+                                            }
                                         }
                                     },
                                     onStarClick = { star ->

@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -25,6 +26,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -42,7 +44,9 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import de.lwp2070809.speculonic.domain.repository.PlaylistRepository.PlaylistRemovalOutcome
 import de.lwp2070809.speculonic.network.model.Playlist
+import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.ui.components.ActionButtonsRow
 import de.lwp2070809.speculonic.ui.components.MediaDetailHeader
 import de.lwp2070809.speculonic.ui.components.SongListItem
@@ -72,8 +76,30 @@ fun PlaylistDetailScreen(
     val displayedSongs = uiState.songs
     val context = LocalContext.current
     val removeSuccessMsg = stringResource(R.string.remove_from_playlist_success)
+    val removeConflictMsg = stringResource(R.string.remove_from_playlist_conflict)
     val removeErrorMsg = stringResource(R.string.remove_from_playlist_error)
     val playlistNotFoundMsg = stringResource(R.string.playlist_not_found)
+    var removal by remember { mutableStateOf<PlaylistRemovalSelection?>(null) }
+    removal?.let { selection ->
+        PlaylistRemovalDialog(
+            songTitle = selection.songs[selection.index].title,
+            canConfirm = isEffectivelyOnline && !uiState.isModifying && !uiState.isDeleted,
+            onDismiss = { removal = null },
+            onConfirm = {
+                removal = null
+                val song = selection.songs[selection.index]
+                viewModel.removeFromPlaylist(song.id, selection.index, selection.songs) { outcome ->
+                    val msg = when (outcome) {
+                        PlaylistRemovalOutcome.REMOVED -> removeSuccessMsg
+                        PlaylistRemovalOutcome.CONFLICT_REFRESHED -> removeConflictMsg
+                        PlaylistRemovalOutcome.FAILED -> removeErrorMsg
+                        PlaylistRemovalOutcome.NOT_FOUND -> null
+                    }
+                    if (msg != null) Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                }
+            }
+        )
+    }
     val activeDownloads = uiState.activeDownloads
     val downloadedIds = uiState.downloadedIds
     val isAnyDownloading = remember(activeDownloads, uiState.songs) {
@@ -87,9 +113,13 @@ fun PlaylistDetailScreen(
 
     val transcodeIncompatible = uiState.transcodeIncompatible
 
-    val playableIndices = remember(uiState.songs, transcodeIncompatible) {
+    val playableIndices = remember(uiState.songs, transcodeIncompatible, isStreamingAllowed) {
         uiState.songs.indices.filter { index ->
-            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(uiState.songs[index], transcodeIncompatible)
+            de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                song = uiState.songs[index],
+                transcodeIncompatible = transcodeIncompatible,
+                isStreamingAllowed = isStreamingAllowed
+            )
         }
     }
     val playableSongs = remember(uiState.songs, playableIndices) {
@@ -289,10 +319,7 @@ fun PlaylistDetailScreen(
                                 downloadController.removeDownload(song.id)
                             },
                             onRemoveFromPlaylistClick = {
-                                viewModel.removeFromPlaylist(song.id, index, displayedSongs) { success ->
-                                    val msg = if (success) removeSuccessMsg else removeErrorMsg
-                                    Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
-                                }
+                                removal = PlaylistRemovalSelection(displayedSongs, index)
                             },
                             isRemoveFromPlaylistEnabled = isEffectivelyOnline && !uiState.isModifying
                         )
@@ -301,6 +328,26 @@ fun PlaylistDetailScreen(
             }
         }
     }
+}
+
+private data class PlaylistRemovalSelection(val songs: List<Song>, val index: Int)
+
+@Composable
+private fun PlaylistRemovalDialog(
+    songTitle: String,
+    canConfirm: Boolean,
+    onDismiss: () -> Unit,
+    onConfirm: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.remove_from_playlist)) },
+        text = { Text(stringResource(R.string.remove_from_playlist_confirm, songTitle)) },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = canConfirm) { Text(stringResource(R.string.confirm)) }
+        }
+    )
 }
 
 @Composable

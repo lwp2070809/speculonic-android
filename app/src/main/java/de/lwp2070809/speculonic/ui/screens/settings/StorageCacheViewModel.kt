@@ -366,6 +366,15 @@ class StorageCacheViewModel @Inject constructor(
                 _uiState.update { state ->
                     state.copy(inconsistentItems = state.inconsistentItems.filter { it.id != item.id })
                 }
+                if (useCaseAction == ResolveInconsistencyUseCase.Action.REDOWNLOAD) {
+                    withContext(Dispatchers.Main) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.redownload_queued, item.displayTitle),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
             }
         }
     }

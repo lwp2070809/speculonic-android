@@ -257,13 +257,17 @@ class DiscoverViewModel @Inject constructor(
         }
     }
 
-    fun playFavoriteSong(song: Song) {
+    fun playFavoriteSong(song: Song, isStreamingAllowed: Boolean = true) {
         viewModelScope.launch {
             try {
                 val transcodeIncompatible = preferencesManager.transcodeIncompatibleFormats.first()
                 val allFavoriteSongs = repository.getStarred()
                 val playableSongs = allFavoriteSongs.filter {
-                    de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(it, transcodeIncompatible)
+                    de.lwp2070809.speculonic.util.MediaFormatUtils.isSongPlayable(
+                        song = it,
+                        transcodeIncompatible = transcodeIncompatible,
+                        isStreamingAllowed = isStreamingAllowed
+                    )
                 }
                 val index = playableSongs.indexOfFirst { it.id == song.id }
                 if (index != -1) {

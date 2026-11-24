@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.data.prefs
 
 import android.content.Context
+import androidx.datastore.preferences.core.MutablePreferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
@@ -30,6 +31,17 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         private const val PREFS_NAME = "speculonic_cache_sync_prefs"
         private const val KEY_MAX_COVER_CACHE_SIZE = "max_cover_cache_size"
         private const val DEFAULT_MAX_COVER_CACHE_SIZE = 512L * 1024 * 1024
+
+        internal fun clearAccountState(prefs: MutablePreferences) {
+            prefs.remove(CACHE_LOCATION)
+            prefs.remove(LAST_CACHE_SCAN_TIME)
+            prefs.remove(LAST_SYNC_TIME)
+            prefs.remove(LAST_FULL_SYNC_TIME)
+            prefs.remove(SERVER_LAST_MODIFIED)
+            prefs.remove(IS_SYNCING)
+            prefs.remove(SYNC_PROGRESS)
+            prefs.remove(SYNC_ERROR)
+        }
     }
 
     private val syncPrefs by lazy {
