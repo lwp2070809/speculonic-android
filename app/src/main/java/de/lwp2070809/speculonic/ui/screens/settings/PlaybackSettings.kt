@@ -51,30 +51,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
             .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
 
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.pause_on_volume_zero)) },
-            supportingContent = { Text(stringResource(R.string.pause_on_volume_zero_description)) },
-            trailingContent = {
-                Switch(
-                    checked = uiState.pauseOnVolumeZero,
-                    onCheckedChange = { viewModel.updatePauseOnVolumeZero(it) }
-                )
-            }
-        )
-
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.skip_silence)) },
-            supportingContent = { Text(stringResource(R.string.skip_silence_description)) },
-            trailingContent = {
-                Switch(
-                    checked = uiState.skipSilenceEnabled,
-                    onCheckedChange = { viewModel.updateSkipSilenceEnabled(it) }
-                )
-            }
-        )
-
-        Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
-        
         Text(
             text = stringResource(R.string.transient_focus_change),
             style = MaterialTheme.typography.titleSmall,
@@ -116,22 +92,30 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
         Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
         Text(
-            text = stringResource(R.string.transcode_incompatible_formats),
+            text = stringResource(R.string.playback_other),
             style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.primary,
             modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
 
         ListItem(
-            headlineContent = { Text(stringResource(R.string.transcode_incompatible_formats)) },
-            supportingContent = { Text(stringResource(R.string.transcode_incompatible_formats_description)) },
+            headlineContent = { Text(stringResource(R.string.pause_on_volume_zero)) },
+            supportingContent = { Text(stringResource(R.string.pause_on_volume_zero_description)) },
             trailingContent = {
                 Switch(
-                    checked = uiState.transcodeIncompatibleFormats,
-                    onCheckedChange = { enabled ->
-                        if (!enabled) showFormatDialog = false
-                        viewModel.updateTranscodeIncompatibleFormats(enabled)
-                    }
+                    checked = uiState.pauseOnVolumeZero,
+                    onCheckedChange = { viewModel.updatePauseOnVolumeZero(it) }
+                )
+            }
+        )
+
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.skip_silence)) },
+            supportingContent = { Text(stringResource(R.string.skip_silence_description)) },
+            trailingContent = {
+                Switch(
+                    checked = uiState.skipSilenceEnabled,
+                    onCheckedChange = { viewModel.updateSkipSilenceEnabled(it) }
                 )
             }
         )
@@ -195,5 +179,18 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
             }
         }
 
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.transcode_incompatible_formats)) },
+            supportingContent = { Text(stringResource(R.string.transcode_incompatible_formats_description)) },
+            trailingContent = {
+                Switch(
+                    checked = uiState.transcodeIncompatibleFormats,
+                    onCheckedChange = { enabled ->
+                        if (!enabled) showFormatDialog = false
+                        viewModel.updateTranscodeIncompatibleFormats(enabled)
+                    }
+                )
+            }
+        )
     }
 }
