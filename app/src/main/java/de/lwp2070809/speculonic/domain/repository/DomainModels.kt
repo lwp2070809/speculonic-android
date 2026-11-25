@@ -12,7 +12,14 @@ data class ServerCapabilities(
 )
 
 
-class SafetyGuardException(message: String) : Exception(message)
+class SafetyGuardException(
+    val entity: Entity,
+    val remoteCount: Int,
+    val localCount: Int,
+    isLegacy: Boolean
+) : Exception("Sync stopped for $entity (remote=$remoteCount, local=$localCount, legacy=$isLegacy)") {
+    enum class Entity { SONGS, ALBUMS, ARTISTS }
+}
 
 internal class IncompletePaginationException(message: String) : Exception(message)
 

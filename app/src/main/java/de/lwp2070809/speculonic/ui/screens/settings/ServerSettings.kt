@@ -384,17 +384,7 @@ fun ServerSettings(
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
             title = { Text(stringResource(R.string.delete_server)) },
-            text = {
-                Column {
-                    Text(stringResource(R.string.confirm_delete_server))
-                    Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
-                    Text(
-                        text = stringResource(R.string.delete_server_warning),
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.bodySmall
-                    )
-                }
-            },
+            text = { Text(stringResource(R.string.confirm_delete_server)) },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteServerSettings()

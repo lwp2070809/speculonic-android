@@ -62,14 +62,14 @@
     <string name="download_channel_name">Download Service</string>
     <string name="download_channel_description">Background download service</string>
     <string name="unlimited">Unlimited</string>
-    <string name="download_server_limit_toast">The currently playing song will download after skipping or finishing.</string>
+    <string name="download_server_limit_toast">This song will download after you skip it or it ends.</string>
     <string name="mobile_play_allowed">Allow playback on metered networks</string>
     <string name="auto_offline_disabled_toast">Auto-offline mode has been automatically disabled.</string>
     <string name="offline_mode_enabled_toast">Offline mode enabled</string>
     <string name="offline_mode_disabled_toast">Offline mode disabled</string>
     <string name="pref_auto_offline_on_metered_title">Auto-offline Mode</string>
     <string name="pref_auto_offline_on_metered_summary">Automatically enter offline mode when a metered network is detected, and recover when connected to an unmetered network</string>
-    <string name="network_restricted_error">Playback paused: Mobile network streaming is not allowed. Please connect to Wi-Fi or enable mobile data streaming in settings.</string>
+    <string name="network_restricted_error">Playback paused. Connect to an unmetered network or allow playback on metered networks in Settings.</string>
     <string name="view_logs">View Logs</string>
     <string name="logs">Logs</string>
     <string name="clear_logs">Clear</string>
@@ -87,7 +87,7 @@
     <string name="setup_server">Setup Server</string>
     <string name="test_connection">Test Connection</string>
     <string name="delete_server">Delete Server</string>
-    <string name="confirm_delete_server">Are you sure you want to delete this server configuration?</string>
+    <string name="confirm_delete_server">Delete this server configuration and its local library data and cache? Exported files will be kept.</string>
     <string name="cancel">Cancel</string>
     <string name="delete">Delete</string>
     <string name="confirm">Confirm</string>
@@ -116,14 +116,14 @@
     <string name="external_usage">External Usage: %1$s</string>
     <string name="scan_local_files">Scan Local Files</string>
     <string name="verify_cache">Verify Cache Consistency</string>
-    <string name="verify_description">Deep check local files against server metadata.</string>
+    <string name="verify_description">Check cached songs for missing files or inconsistencies.</string>
     <string name="max_cover_cache">Max Album Cover Cache</string>
     <string name="cover_cache_restart_hint">Changes to the cover cache limit will take effect on next startup.</string>
-    <string name="clear_internal_cache">Clear All Cache</string>
+    <string name="clear_internal_cache">Clear Internal Cache</string>
     <string name="mobile_data_warning">Metered Network Warning</string>
     <string name="mobile_verify_confirm">You are currently on a metered network. Verification may consume data. Continue?</string>
     <string name="verify_anyway">Verify Anyway</string>
-    <string name="clear_cache_confirm">Are you sure you want to clear the internal cache? SAF files and metadata will remain untouched.</string>
+    <string name="clear_cache_confirm">Clear internal cache? Files in the external SAF directory and library metadata will be kept.</string>
     <string name="clear">Clear</string>
 
     
@@ -135,17 +135,18 @@
     <string name="no_content_available">No content available.</string>
 
     
-    <string name="safety_guard_title">Security Guard</string>
-    <string name="safety_guard_message">Safety protection triggered: Server songs count is much lower than local baseline. Sync aborted to prevent accidental deletion.</string>
+    <string name="safety_guard_title">Sync Stopped</string>
+    <string name="safety_guard_message">The server returned fewer library entries than expected. Sync stopped to prevent accidental deletion.</string>
+    <string name="safety_guard_details">The server returned far fewer entries for %1$s (%2$d) than are stored locally (%3$d). Sync stopped to prevent accidental deletion.</string>
     <string name="force_sync">Force Sync</string>
     <string name="background_sync">Background Auto-Sync</string>
-    <string name="background_sync_description">Sync metadata even when the app is closed (requires Charging &amp; Wi-Fi).</string>
+    <string name="background_sync_description">Sync metadata while charging on an unmetered network.</string>
     <string name="force_full_sync">Force Full Sync</string>
     <string name="force_full_sync_description">Ignore server timestamps and perform a complete metadata rebuild.</string>
     <string name="silent_cache">Silent Cache</string>
     <string name="silent_cache_description">Automatically download songs after 5s of playback.</string>
     <string name="silent_cache_warning_title">Disable Silent Cache?</string>
-    <string name="silent_cache_warning_message">Disabling silent cache will prevent songs from being saved locally while listening. You will consume more data if you listen to the same songs again. Are you sure?</string>
+    <string name="silent_cache_warning_message">Songs will no longer be cached automatically during playback. Listening again may use more data.</string>
 
     
     <string name="title">Title</string>
@@ -168,7 +169,7 @@
     <string name="create_playlist">Create Playlist</string>
     <string name="playlist_name">Playlist Name</string>
     <string name="delete_playlist">Delete Playlist</string>
-    <string name="confirm_delete_playlist">Are you sure you want to delete this playlist?</string>
+    <string name="confirm_delete_playlist">Delete this playlist?</string>
     <string name="playlist_not_found">Playlist not found on server or has been deleted.</string>
     <string name="back_to_playlists">Back to Playlists</string>
 
@@ -203,8 +204,8 @@
     <string name="identify_car_bluetooth_description">Enable enhanced compatibility and sync features when connected to a car stereo.</string>
     <string name="sync_playback_state">Sync Playback State</string>
     <string name="sync_playback_state_description">Force sync song info to the car screen when connected, even if the app is paused.</string>
-    <string name="bluetooth_lyrics_hide_progress_bar">Hide Progress Bar</string>
-    <string name="bluetooth_lyrics_hide_progress_bar_description">Avoid screen flickering caused by frequent progress changes on some car media systems. Enabling this option will disguise the player engine as playing a live radio stream, making the progress bar unavailable for viewing or seeking.</string>
+    <string name="bluetooth_lyrics_hide_progress_bar">Hide Car Progress Bar</string>
+    <string name="bluetooth_lyrics_hide_progress_bar_description">May reduce flicker on some car displays. You won’t be able to view or scrub through playback progress on the car display.</string>
     <string name="add_device_name">Add Device Name</string>
     <string name="device_name_placeholder">e.g., My Car BT</string>
 
@@ -220,21 +221,20 @@
     
     <string name="error_invalid_url">URL must start with http:// or https://</string>
     <string name="allow_insecure_connections">Allow Insecure Connections</string>
-    <string name="allow_insecure_connections_description">Allow unencrypted HTTP connections and bypass SSL verification for untrusted certificates. Use only for trusted local servers.</string>
+    <string name="allow_insecure_connections_description">Allow unencrypted HTTP and skip HTTPS certificate and hostname checks.</string>
     <string name="warning_title">Warning</string>
-    <string name="allow_insecure_connections_warning_message">Enabling this option allows unencrypted HTTP traffic and disables SSL/TLS certificate verification, making your connection susceptible to man-in-the-middle attacks. Only use this if you are connecting to a trusted home network or self-hosted server. Do you want to continue?</string>
+    <string name="allow_insecure_connections_warning_message">Allowing unencrypted HTTP and skipping HTTPS certificate and hostname checks exposes the connection to man-in-the-middle attacks. Use only with servers you trust on a trusted network. Continue?</string>
     <string name="server_offline_toast">Offline: Server unreachable</string>
-    <string name="pref_show_offline_toast_title">Offline Notification</string>
-    <string name="pref_show_offline_toast_summary">Show a toast when the server is unreachable due to continuous connection failures</string>
+    <string name="pref_show_offline_toast_title">Server Connection Alerts</string>
+    <string name="pref_show_offline_toast_summary">Notify me after repeated failures to connect to the server.</string>
     <string name="cancel_downloads">Cancel All</string>
     <string name="confirm_cancel_all_downloads_title">Cancel Downloads</string>
-    <string name="confirm_cancel_all_downloads_message">Are you sure you want to cancel all queued downloads?</string>
+    <string name="confirm_cancel_all_downloads_message">Cancel all pending and in-progress downloads you started?</string>
     <string name="confirm_download_all_title">Download All</string>
-    <string name="confirm_download_all_message">Are you sure you want to add all songs in this list to offline downloads?</string>
-    <string name="confirm_force_sync_title">Confirm Force Full Sync</string>
-    <string name="confirm_force_sync_message">Force full sync will ignore the current state of local data and fetch all metadata from scratch. This may take a long time and consume a lot of data. Are you sure you want to continue?</string>
+    <string name="confirm_download_all_message">Download all songs in this list for offline playback?</string>
+    <string name="confirm_force_sync_title">Force Full Sync</string>
+    <string name="confirm_force_sync_message">Fetches all metadata again. This may take a while and use a lot of data.</string>
 
-    <string name="delete_server_warning">This action will also permanently destroy all synchronized music data and cache locally (SAF exported files will not be affected). This action is irreversible!</string>
     <string name="sync_cover_art_preparing">Preparing to sync album covers…</string>
 
     <string name="song_info">Song Info</string>
@@ -265,7 +265,7 @@
     <string name="suffix_label">Suffix</string>
     <string name="container_format_and_version">Container Format and Version</string>
     <string name="inconsistency_dialog_title">Verification Result</string>
-    <string name="inconsistency_dialog_success">Verification complete. All cached files match the server.</string>
+    <string name="inconsistency_dialog_success">Verification complete. No cache issues found.</string>
     <string name="inconsistency_dialog_hint">If remote server data was indeed modified, you can try forcing a full sync first.</string>
     <plurals name="inconsistency_dialog_found">
         <item quantity="one">Found %1$d inconsistent file. Please select an action:</item>
@@ -361,8 +361,8 @@
     <string name="healing_cover_art">Healing album covers…</string>
     <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
     <string name="export_failed">Export failed: %1$s</string>
-    <string name="transcode_incompatible_formats">Transcode Incompatible Formats on Server</string>
-    <string name="transcode_incompatible_formats_description">Transcode formats not natively supported by Android (such as APE, WV) into a compatible format on the server. Note: This breaks the app\'s 1:1 bit-perfect mirror design.</string>
+    <string name="transcode_incompatible_formats">Server Transcoding (Experimental)</string>
+    <string name="transcode_incompatible_formats_description">Convert unsupported formats such as APE and WV on the server. Enabling this breaks the app’s 1:1 bit-perfect mirror design.</string>
     <string name="target_transcode_format">Target Transcode Format</string>
     <string name="unsupported_format_hint">Format %1$s is not natively supported. You can enable transcoding in Settings.</string>
     <string name="unsupported_format_skipped">Skipped unsupported format: %1$s</string>
@@ -429,11 +429,11 @@
     <string name="widget_preview_subtitle">Now Playing</string>
     <string name="action_save">Save</string>
     <string name="clear_cover_art_cache_title">Clear Cover Art Cache</string>
-    <string name="clear_cover_art_cache_confirm">Are you sure you want to clear all cached album and artist cover images?</string>
+    <string name="clear_cover_art_cache_confirm">Clear all cached album and artist images?</string>
     <string name="clear_playback_cache_title">Clear Playback Buffer</string>
-    <string name="clear_playback_cache_confirm">Are you sure you want to clear the streaming playback buffer? Offline downloads will be kept.</string>
+    <string name="clear_playback_cache_confirm">Clear the streaming playback buffer? Offline downloads will be kept.</string>
     <string name="clear_song_downloads_title">Clear Cached Songs</string>
-    <string name="clear_song_downloads_confirm">Are you sure you want to delete all internal offline cached songs? Files stored in SAF directory will remain untouched.</string>
+    <string name="clear_song_downloads_confirm">Delete all downloaded songs in internal storage? Files in the external SAF directory will be kept.</string>
     <string name="credentials_reset_warning_title">Server Credentials Need Re-verification</string>
     <string name="server_save_retry">Couldn’t save server settings. Please try again. %1$s</string>
     <string name="credentials_reset_warning_message">Encrypted credentials could not be unlocked and have been cleared. Please re-enter your server address and login details to reconnect and sync your library.</string>

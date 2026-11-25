@@ -61,14 +61,14 @@
     <string name="download_channel_name">下载服务</string>
     <string name="download_channel_description">后台下载服务</string>
     <string name="unlimited">不限制</string>
-    <string name="download_server_limit_toast">当前播放歌曲的下载将在播放完毕后自动开始。</string>
+    <string name="download_server_limit_toast">切歌或播完后，将开始下载这首歌。</string>
     <string name="mobile_play_allowed">允许计费网络播放</string>
     <string name="auto_offline_disabled_toast">自动离线模式已自动关闭</string>
     <string name="offline_mode_enabled_toast">离线模式已开启</string>
     <string name="offline_mode_disabled_toast">离线模式已关闭</string>
     <string name="pref_auto_offline_on_metered_title">自动离线模式</string>
     <string name="pref_auto_offline_on_metered_summary">当检测到计费网络时自动切入离线模式，连接非计费网络时恢复</string>
-    <string name="network_restricted_error">播放已暂停：当前未允许使用移动网络播放。请连接 Wi-Fi 或在设置中开启移动数据播放。</string>
+    <string name="network_restricted_error">播放已暂停。请连接非计费网络，或在设置中允许通过计费网络播放。</string>
     <string name="view_logs">查看日志</string>
     <string name="logs">日志</string>
     <string name="clear_logs">清除</string>
@@ -86,7 +86,7 @@
     <string name="setup_server">配置服务器</string>
     <string name="test_connection">测试连接</string>
     <string name="delete_server">删除服务器</string>
-    <string name="confirm_delete_server">您确定要删除此服务器配置吗？</string>
+    <string name="confirm_delete_server">删除此服务器配置及其本地曲库数据和缓存？已导出的文件会保留。</string>
     <string name="cancel">取消</string>
     <string name="delete">删除</string>
     <string name="confirm">确认</string>
@@ -115,14 +115,14 @@
     <string name="external_usage">外部占用: %1$s</string>
     <string name="scan_local_files">扫描本地文件</string>
     <string name="verify_cache">校验缓存一致性</string>
-    <string name="verify_description">深度比对本地文件与服务器元数据。</string>
+    <string name="verify_description">检查歌曲缓存是否缺失或异常。</string>
     <string name="max_cover_cache">最大专辑封面缓存</string>
     <string name="cover_cache_restart_hint">封面缓存限制修改将在应用下次启动时生效。</string>
-    <string name="clear_internal_cache">清除所有缓存</string>
+    <string name="clear_internal_cache">清除内部缓存</string>
     <string name="mobile_data_warning">计费网络警告</string>
     <string name="mobile_verify_confirm">当前处于计费网络。校验过程可能会消耗流量，是否继续？</string>
     <string name="verify_anyway">坚持校验</string>
-    <string name="clear_cache_confirm">确定要清除内部缓存吗？SAF 目录中的文件和元数据将被保留。</string>
+    <string name="clear_cache_confirm">清除内部缓存？外部 SAF 目录中的文件和曲库元数据会保留。</string>
     <string name="clear">清除</string>
 
     
@@ -134,17 +134,18 @@
     <string name="no_content_available">暂无内容。</string>
 
     
-    <string name="safety_guard_title">安全保护</string>
-    <string name="safety_guard_message">安全保护已触发：服务器返回的歌曲数量远低于本地基数，同步已中止以防止误删。如果您确实在服务器端删除了大量歌曲，请点击“强制同步”。</string>
+    <string name="safety_guard_title">同步已停止</string>
+    <string name="safety_guard_message">服务器返回的曲库条目过少。已停止同步，以免误删本地数据。</string>
+    <string name="safety_guard_details">服务器返回的%1$s数量（%2$d）远少于本地（%3$d）。已停止同步，以免误删本地数据。</string>
     <string name="force_sync">强制同步</string>
     <string name="background_sync">后台自动同步</string>
-    <string name="background_sync_description">即使 APP 未打开也执行同步（需要充电且处于 WIFI 环境）。</string>
+    <string name="background_sync_description">充电且连接非计费网络时，自动同步元数据。</string>
     <string name="force_full_sync">强制全量同步</string>
     <string name="force_full_sync_description">忽略服务器时间戳，执行完整的元数据重建。</string>
     <string name="silent_cache">静默缓存</string>
     <string name="silent_cache_description">播放 5 秒后自动下载歌曲。</string>
     <string name="silent_cache_warning_title">关闭静默缓存？</string>
-    <string name="silent_cache_warning_message">关闭后，收听过的歌曲将不会自动保存到本地，下次收听相同歌曲时将重新消耗网络流量。是否确认关闭？</string>
+    <string name="silent_cache_warning_message">关闭后，播放时将停止自动缓存歌曲，重听时可能再次消耗流量。</string>
 
     
     <string name="title">标题</string>
@@ -167,7 +168,7 @@
     <string name="create_playlist">创建歌单</string>
     <string name="playlist_name">歌单名称</string>
     <string name="delete_playlist">删除歌单</string>
-    <string name="confirm_delete_playlist">确定要删除这个歌单吗？</string>
+    <string name="confirm_delete_playlist">删除此歌单？</string>
     <string name="playlist_not_found">歌单在服务器上不存在或已被删除。</string>
     <string name="back_to_playlists">返回歌单列表</string>
 
@@ -199,8 +200,8 @@
     <string name="identify_car_bluetooth_description">连接到车载蓝牙时，启用增强的兼容性和同步功能。</string>
     <string name="sync_playback_state">主动同步播放状态</string>
     <string name="sync_playback_state_description">在车机连接时，即使应用处于后台或暂停状态，也会唤醒并向车机同步歌曲信息。</string>
-    <string name="bluetooth_lyrics_hide_progress_bar">隐藏进度条以避免闪烁</string>
-    <string name="bluetooth_lyrics_hide_progress_bar_description">避免部分车机进度条频繁变化导致闪烁。开启这个选项会将播放器引擎伪装为播放电台直播流，此时无法查看和拖拽进度条。</string>
+    <string name="bluetooth_lyrics_hide_progress_bar">隐藏车机进度条</string>
+    <string name="bluetooth_lyrics_hide_progress_bar_description">可减少部分车机的画面闪烁。开启后，无法在车机上查看或拖动进度条。</string>
     <string name="add_device_name">添加设备名称</string>
     <string name="device_name_placeholder">例如: My Car BT</string>
 
@@ -216,22 +217,21 @@
     
     <string name="error_invalid_url">URL 必须以 http:// 或 https:// 开头</string>
     <string name="allow_insecure_connections">允许不安全连接</string>
-    <string name="allow_insecure_connections_description">允许使用未加密的 HTTP 明文连接服务器，并信任所有自签名的 HTTPS 证书。请仅在信任您的服务器时启用。</string>
+    <string name="allow_insecure_connections_description">允许明文 HTTP，并跳过 HTTPS 证书和主机名校验。</string>
     <string name="warning_title">警告</string>
-    <string name="allow_insecure_connections_warning_message">开启此选项后，将允许明文 HTTP 传输，并且不再验证服务器的 SSL/TLS 证书，容易受到中间人攻击。请仅在连接信任的家用网络或自建服务器时使用。是否继续？</string>
+    <string name="allow_insecure_connections_warning_message">允许明文 HTTP 并跳过 HTTPS 证书和主机名校验，会使连接面临中间人攻击风险。请仅在可信网络中连接可信服务器时启用。是否继续？</string>
 
     <string name="server_offline_toast">已离线：服务器无法连接</string>
-    <string name="pref_show_offline_toast_title">断网提示</string>
-    <string name="pref_show_offline_toast_summary">当检测到服务器连续连接失败时，弹出断网提示</string>
+    <string name="pref_show_offline_toast_title">服务器连接提醒</string>
+    <string name="pref_show_offline_toast_summary">连续连接服务器失败时提醒。</string>
     <string name="cancel_downloads">取消全部</string>
     <string name="confirm_cancel_all_downloads_title">取消下载</string>
-    <string name="confirm_cancel_all_downloads_message">确定要取消所有排队中的下载任务吗？</string>
+    <string name="confirm_cancel_all_downloads_message">取消所有手动添加且尚未完成的下载任务？</string>
     <string name="confirm_download_all_title">全部下载</string>
-    <string name="confirm_download_all_message">确定要将列表中的全部歌曲加入离线下载吗？</string>
-    <string name="confirm_force_sync_title">确认强制全量同步</string>
-    <string name="confirm_force_sync_message">强制全量同步将无视本地数据的新旧状态，重新拉取所有元数据，可能需要较长时间并消耗较多流量。确定要继续吗？</string>
+    <string name="confirm_download_all_message">下载列表中的所有歌曲供离线播放？</string>
+    <string name="confirm_force_sync_title">强制全量同步</string>
+    <string name="confirm_force_sync_message">将重新获取全部元数据，可能耗时较长并消耗较多流量。</string>
 
-    <string name="delete_server_warning">此操作将同时彻底销毁本地所有已同步的音乐数据和缓存（SAF 导出的文件不会被影响）。此操作不可逆！</string>
     <string name="sync_cover_art_preparing">正在准备同步专辑封面…</string>
 
     <string name="song_info">歌曲信息</string>
@@ -262,7 +262,7 @@
     <string name="suffix_label">文件格式后缀</string>
     <string name="container_format_and_version">底层容器格式与版本</string>
     <string name="inconsistency_dialog_title">校验结果</string>
-    <string name="inconsistency_dialog_success">校验完成，所有缓存文件均与服务器保持一致。</string>
+    <string name="inconsistency_dialog_success">校验完成，未发现缓存异常。</string>
     <string name="inconsistency_dialog_hint">如确实修改了远程服务器数据, 可以尝试先进行一次全量同步。</string>
     <plurals name="inconsistency_dialog_found">
         <item quantity="other">发现 %1$d 个不一致的文件，请选择处理方式：</item>
@@ -357,8 +357,8 @@
     <string name="healing_cover_art">正在补全专辑封面…</string>
     <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
     <string name="export_failed">导出失败: %1$s</string>
-    <string name="transcode_incompatible_formats">服务端转码不兼容格式</string>
-    <string name="transcode_incompatible_formats_description">在服务端将 Android 原生无法直接解码的音频格式（如 APE、WV 等）实时转码为兼容格式。注意：此选项会破坏本 APP 对服务器的 1:1 完全镜像设计。</string>
+    <string name="transcode_incompatible_formats">服务端转码不兼容格式（实验性）</string>
+    <string name="transcode_incompatible_formats_description">由服务器将 APE、WV 等不兼容格式转为可播放的格式。开启后会破坏应用对服务器的 1:1 完全镜像设计。</string>
     <string name="target_transcode_format">转码目标格式</string>
     <string name="unsupported_format_hint">当前格式(%1$s)暂不支持直接播放，可在设置中开启转码</string>
     <string name="unsupported_format_skipped">已跳过不支持的音频格式: %1$s</string>
@@ -425,11 +425,11 @@
     <string name="widget_preview_subtitle">正在播放</string>
     <string name="action_save">保存</string>
     <string name="clear_cover_art_cache_title">清除封面缓存</string>
-    <string name="clear_cover_art_cache_confirm">确定要清除全部已缓存的专辑与艺术家封面图片吗？</string>
+    <string name="clear_cover_art_cache_confirm">清除所有已缓存的专辑和艺术家图片？</string>
     <string name="clear_playback_cache_title">清除播放缓冲</string>
-    <string name="clear_playback_cache_confirm">确定要清除在线播放临时缓冲吗？离线下载的歌曲不会被删除。</string>
+    <string name="clear_playback_cache_confirm">清除在线播放缓冲？离线下载的歌曲会保留。</string>
     <string name="clear_song_downloads_title">清除已缓存歌曲</string>
-    <string name="clear_song_downloads_confirm">确定要删除所有内部存储中的离线缓存歌曲吗？外部 SAF 目录中的文件将被保留。</string>
+    <string name="clear_song_downloads_confirm">删除内部存储中所有已下载的歌曲？外部 SAF 目录中的文件会保留。</string>
     <string name="credentials_reset_warning_title">服务器凭据需要重新验证</string>
     <string name="server_save_retry">保存服务器设置失败，请重试。%1$s</string>
     <string name="credentials_reset_warning_message">加密凭据无法解锁，已清除。请重新输入服务器地址与账号密码，以重新连接并同步曲库。</string>

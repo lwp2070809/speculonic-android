@@ -291,19 +291,21 @@ class SyncManager(
         isLegacy: Boolean = false
     ) {
         if (ignoreSafetyGuard) return
-        val modePrefix = if (isLegacy) "传统模式" else "全量同步"
-        checkDimensionThreshold(local.songs, remote.songs, "歌曲", modePrefix)
-        checkDimensionThreshold(local.albums, remote.albums, "专辑", modePrefix)
-        checkDimensionThreshold(local.artists, remote.artists, "艺术家", modePrefix)
+        checkDimensionThreshold(local.songs, remote.songs, SafetyGuardException.Entity.SONGS, isLegacy)
+        checkDimensionThreshold(local.albums, remote.albums, SafetyGuardException.Entity.ALBUMS, isLegacy)
+        checkDimensionThreshold(local.artists, remote.artists, SafetyGuardException.Entity.ARTISTS, isLegacy)
     }
 
-    private fun checkDimensionThreshold(localCount: Int, remoteCount: Int, label: String, modePrefix: String) {
+    private fun checkDimensionThreshold(
+        localCount: Int,
+        remoteCount: Int,
+        entity: SafetyGuardException.Entity,
+        isLegacy: Boolean
+    ) {
         if (localCount < MIN_ENTITIES_FOR_SAFETY) return
         val dropThreshold = localCount * SAFETY_GUARD_DROP_RATIO
         if (remoteCount < dropThreshold) {
-            throw SafetyGuardException(
-                "安全保护触发：${modePrefix}返回${label}数 ($remoteCount) 远低于本地基数 ($localCount)。同步已中止以防止误删。"
-            )
+            throw SafetyGuardException(entity, remoteCount, localCount, isLegacy)
         }
     }
 

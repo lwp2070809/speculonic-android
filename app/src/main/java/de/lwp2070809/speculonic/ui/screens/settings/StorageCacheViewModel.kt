@@ -293,7 +293,7 @@ class StorageCacheViewModel @Inject constructor(
                 it.copy(
                     isInteractiveScanning = false,
                     showSafetyGuardConfirm = true,
-                    safetyGuardMessage = e.message
+                    safetyGuardMessage = e.toUserMessage(context)
                 )
             }
             false

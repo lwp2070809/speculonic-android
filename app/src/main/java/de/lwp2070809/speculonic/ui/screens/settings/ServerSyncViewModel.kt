@@ -42,6 +42,15 @@ import javax.inject.Inject
 private const val COVER_PROGRESS_THROTTLE_MS = 300L
 private const val SYNC_STOP_TIMEOUT_MS = 5000L
 
+internal fun SafetyGuardException.toUserMessage(context: Context): String {
+    val entityLabel = when (entity) {
+        SafetyGuardException.Entity.SONGS -> R.string.songs
+        SafetyGuardException.Entity.ALBUMS -> R.string.albums
+        SafetyGuardException.Entity.ARTISTS -> R.string.artists
+    }
+    return context.getString(R.string.safety_guard_details, context.getString(entityLabel), remoteCount, localCount)
+}
+
 data class ServerSyncUiState(
     val serverUrl: String = "",
     val username: String = "",
@@ -470,7 +479,7 @@ class ServerSyncViewModel @Inject constructor(
                 throw e
             } catch (e: SafetyGuardException) {
                 withContext(Dispatchers.Main) {
-                    _uiState.update { it.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.message) }
+                    _uiState.update { it.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.toUserMessage(context)) }
                 }
             } catch (e: Exception) {
                 LogManager.e("ServerSyncViewModel: Initial sync failed", e)
