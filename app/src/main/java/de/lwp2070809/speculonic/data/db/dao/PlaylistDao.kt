@@ -108,7 +108,4 @@ interface PlaylistDao {
 
     @Query("DELETE FROM playlist_song_cross_ref WHERE playlistId = :playlistId")
     suspend fun deletePlaylistSongs(playlistId: String)
-
-    @Query("SELECT COUNT(*) FROM playlists")
-    fun getPlaylistsCountFlow(): Flow<Int>
 }

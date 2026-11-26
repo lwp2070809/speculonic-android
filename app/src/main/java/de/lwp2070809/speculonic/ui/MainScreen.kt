@@ -222,6 +222,8 @@ private fun MainContent(
     }
     val listPaneWidth = directive.defaultPanePreferredWidth
     val isDualPane = directive.maxHorizontalPartitions > 1
+    val downloadPageVisible = currentRoute == AppRoute.DownloadManager &&
+        !showNowPlaying && (!showSearch || isDualPane)
     navigationState.isDualPane = isDualPane
 
     // 保持底层导航栏稳态计算，避免全屏浮层展开/折叠动画期间底层布局尺寸重算与导航栏闪烁抖动
@@ -318,6 +320,7 @@ private fun MainContent(
                                     isStreamingAllowed = isStreamingAllowed,
                                     serverSyncViewModel = serverSyncViewModel,
                                     directive = directive,
+                                    downloadPageVisible = downloadPageVisible,
                                     modifier = Modifier.fillMaxSize()
                                 )
 
@@ -355,6 +358,7 @@ private fun MainContent(
                                     isStreamingAllowed = isStreamingAllowed,
                                     serverSyncViewModel = serverSyncViewModel,
                                     directive = directive,
+                                    downloadPageVisible = downloadPageVisible,
                                     modifier = Modifier.weight(1f)
                                 )
 

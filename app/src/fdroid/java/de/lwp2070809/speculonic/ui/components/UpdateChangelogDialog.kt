@@ -7,7 +7,6 @@ import androidx.compose.runtime.Composable
 @Composable
 fun UpdateChangelogDialog(
     version: String,
-    releaseNotes: String,
     onUpdateNow: () -> Unit,
     onDismiss: () -> Unit
 ) = Unit

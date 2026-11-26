@@ -63,14 +63,13 @@ class UpdateManager(
             }
             val tagName = release["tag_name"]?.jsonPrimitive?.content ?: ""
             val releaseUrl = release["html_url"]?.jsonPrimitive?.content ?: ""
-            val releaseNotes = normalizeReleaseNotes(release["body"]?.jsonPrimitive?.content.orEmpty())
 
             preferencesManager.saveLastUpdateCheckTime(System.currentTimeMillis())
 
             val currentVersion = BuildConfig.VERSION_NAME
             if (isNewerVersion(currentVersion, tagName)) {
                 LogManager.i("UpdateCheck: Found new version $tagName (current: $currentVersion)")
-                UpdateResult.UpdateAvailable(tagName, releaseUrl, releaseNotes)
+                UpdateResult.UpdateAvailable(tagName, releaseUrl)
             } else {
                 LogManager.i("UpdateCheck: Already up to date (current: $currentVersion, latest: $tagName)")
                 UpdateResult.NoUpdate
@@ -113,11 +112,9 @@ class UpdateManager(
     }
 
     sealed class UpdateResult {
-        data class UpdateAvailable(val version: String, val url: String, val releaseNotes: String) : UpdateResult()
+        data class UpdateAvailable(val version: String, val url: String) : UpdateResult()
         data object NoUpdate : UpdateResult()
         data object NotConfigured : UpdateResult()
         data class Error(val message: String) : UpdateResult()
     }
 }
-
-internal fun normalizeReleaseNotes(notes: String): String = notes.replace("\r\n", "\n").replace('\r', '\n')

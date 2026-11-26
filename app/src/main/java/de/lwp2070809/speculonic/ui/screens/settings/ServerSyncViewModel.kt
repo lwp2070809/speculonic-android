@@ -68,10 +68,6 @@ data class ServerSyncUiState(
     val syncProgress: String? = null,
     val syncError: String? = null,
     val lastSyncTime: Long = 0L,
-    val artistsCount: Int = 0,
-    val albumsCount: Int = 0,
-    val songsCount: Int = 0,
-    val playlistsCount: Int = 0,
     val showFirstSyncConfirm: Boolean = false,
     val showSafetyGuardConfirm: Boolean = false,
     val safetyGuardMessage: String? = null,
@@ -104,7 +100,6 @@ class ServerSyncViewModel @Inject constructor(
     init {
         observeServerConnectionPrefs()
         observeSyncPrefs()
-        observeLibraryCounts()
     }
 
     private fun observeServerConnectionPrefs() {
@@ -169,25 +164,7 @@ class ServerSyncViewModel @Inject constructor(
         }
     }
 
-    private fun observeLibraryCounts() {
-        viewModelScope.launch {
-            combine(
-                database.musicDao().getArtistsCountFlow(),
-                database.musicDao().getAlbumsCountFlow(),
-                database.musicDao().getSongsCountFlow(),
-                database.musicDao().getPlaylistsCountFlow()
-            ) { artists, albums, songs, playlists ->
-                _uiState.update { current ->
-                    current.copy(
-                        artistsCount = artists,
-                        albumsCount = albums,
-                        songsCount = songs,
-                        playlistsCount = playlists
-                    )
-                }
-            }.collect()
-        }
-    }
+    suspend fun getLibraryCounts() = database.musicDao().getLibraryCounts()
 
     fun clearServerConfigTransientState() {
         testConnectionJob?.cancel()

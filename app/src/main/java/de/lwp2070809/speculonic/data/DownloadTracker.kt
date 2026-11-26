@@ -25,11 +25,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
@@ -43,7 +46,6 @@ import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.atomic.AtomicReference
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -75,20 +77,26 @@ class DownloadTracker @Inject constructor(
     private val _allDownloads = MutableStateFlow<List<DownloadTaskInfo>>(emptyList())
     val allDownloadsFlow = _allDownloads.asStateFlow()
 
-    // 仅向下游发布非静默活动下载数量，避免 1Hz 进度变化触发外层 Scaffold 整页重组
-    val activeNonSilentCountFlow: Flow<Int> = _allDownloads
-        .map { list ->
-            list.count { info ->
-                !info.isSilent && (info.state == Download.STATE_DOWNLOADING || info.state == Download.STATE_QUEUED)
-            }
-        }
+    val activeNonSilentCountFlow: Flow<Int> = activeDownloadIds
+        .map { it.size }
         .distinctUntilChanged()
 
     private val tracking = DownloadTrackingSession(::startTracking)
     private val exportJobs = ConcurrentHashMap<String, Job>()
     private val pendingFileDeletionIds = ConcurrentHashMap.newKeySet<String>()
     private val redownloadingIds = ConcurrentHashMap.newKeySet<String>()
-    private val pollJob = AtomicReference<Job?>(null)
+    private val visibleDownloadPages = MutableStateFlow(0)
+    // Main-looper changes take precedence over the index snapshot being read on IO.
+    private var changedDuringRestore: MutableSet<String>? = null
+
+    suspend fun requestProgressWhileVisible(): Nothing {
+        visibleDownloadPages.update { it + 1 }
+        try {
+            awaitCancellation()
+        } finally {
+            visibleDownloadPages.update { it - 1 }
+        }
+    }
 
     fun markForFileDeletion(songId: String) {
         pendingFileDeletionIds.add(songId)
@@ -117,6 +125,7 @@ class DownloadTracker @Inject constructor(
             redownloadingIds.add(songId)
         }
         withContext(Dispatchers.Main.immediate) {
+            changedDuringRestore?.add(songId)
             _downloadedSongIds.update { it - songId }
             _activeDownloadIds.update { it - songId }
             _allDownloads.update { current -> current.filter { it.task.request.id != songId } }
@@ -230,7 +239,6 @@ class DownloadTracker @Inject constructor(
             _downloadedSongIds.value = emptySet()
             _activeDownloadIds.value = emptySet()
             _allDownloads.value = emptyList()
-            pollJob.set(null)
             if (clearDownloads) {
                 pendingFileDeletionIds.clear()
                 redownloadingIds.clear()
@@ -245,9 +253,17 @@ class DownloadTracker @Inject constructor(
         scope.launch {
             val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
             val listener = DownloadManagerListener(scope)
-            downloadManager.addListener(listener)
-            scope.coroutineContext.job.invokeOnCompletion { downloadManager.removeListener(listener) }
-            refreshDownloads(downloadManager, scope)
+            withContext(Dispatchers.Main.immediate) {
+                changedDuringRestore = mutableSetOf()
+                downloadManager.addListener(listener)
+                scope.coroutineContext.job.invokeOnCompletion { downloadManager.removeListener(listener) }
+            }
+            try {
+                refreshDownloads(downloadManager)
+            } finally {
+                withContext(NonCancellable + Dispatchers.Main.immediate) { changedDuringRestore = null }
+            }
+            launch { observeProgressDemand(downloadManager) }
             recoverPendingExports(listener)
         }
     }
@@ -318,23 +334,36 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    private suspend fun refreshDownloads(downloadManager: DownloadManager, scope: CoroutineScope) {
+    private suspend fun refreshDownloads(downloadManager: DownloadManager) {
         val all = mutableListOf<DownloadTaskInfo>()
         val downloaded = mutableSetOf<String>()
         val active = mutableSetOf<String>()
-        val currentActiveMap = getCurrentDownloadsSafe(downloadManager).associateBy { it.request.id }
+        val currentById = getCurrentDownloadsSafe(downloadManager).associateByTo(mutableMapOf()) { it.request.id }
+        fun add(download: Download) {
+            all.add(DownloadTaskInfo(download))
+            classifyDownloadStatus(download, downloaded, active)
+        }
         downloadManager.downloadIndex.getDownloads().use { cursor ->
             while (cursor.moveToNext()) {
                 val dbDownload = cursor.download
-                val download = currentActiveMap[dbDownload.request.id] ?: dbDownload
-                all.add(DownloadTaskInfo(download))
-                classifyDownloadStatus(download, downloaded, active)
+                add(currentById.remove(dbDownload.request.id) ?: dbDownload)
             }
         }
-        _downloadedSongIds.value = downloaded
-        _activeDownloadIds.value = active
-        _allDownloads.value = all
-        checkAndStartPolling(downloadManager, scope)
+        currentById.values.forEach(::add)
+        withContext(Dispatchers.Main.immediate) {
+            val changed = checkNotNull(changedDuringRestore)
+            if (changed.isNotEmpty()) {
+                all.removeAll { it.task.request.id in changed }
+                downloaded.removeAll(changed)
+                active.removeAll(changed)
+                all.addAll(_allDownloads.value)
+                downloaded.addAll(_downloadedSongIds.value)
+                active.addAll(_activeDownloadIds.value)
+            }
+            _downloadedSongIds.value = downloaded
+            _activeDownloadIds.value = active
+            _allDownloads.value = all
+        }
     }
 
     private fun classifyDownloadStatus(
@@ -353,41 +382,29 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    private suspend fun pollActiveDownloadsProgress(downloadManager: DownloadManager, scope: CoroutineScope) {
-        val currentActiveDownloads = getCurrentDownloadsSafe(downloadManager)
-        if (currentActiveDownloads.isEmpty()) {
-            pollJob.getAndSet(null)?.cancel()
-            return
+    private suspend fun sampleDownloadProgress(downloadManager: DownloadManager) {
+        val beforeSample = _allDownloads.value
+        val currentActiveMap = getCurrentDownloadsSafe(downloadManager).associateBy { it.request.id }
+        val sampled = beforeSample.map { item ->
+            val active = currentActiveMap[item.task.request.id]
+            if (item.state == Download.STATE_DOWNLOADING && active?.state == Download.STATE_DOWNLOADING) {
+                item.copy(progress = active.percentDownloaded)
+            } else item
         }
-
-        val currentActiveMap = currentActiveDownloads.associateBy { it.request.id }
-        _allDownloads.update { list ->
-            list.map { item ->
-                val active = currentActiveMap[item.task.request.id]
-                if (active != null) DownloadTaskInfo(active) else item
-            }
-        }
-        checkAndStartPolling(downloadManager, scope)
+        // A listener may have paused, removed or replaced the task during sampling.
+        _allDownloads.compareAndSet(beforeSample, sampled)
     }
 
-    private fun checkAndStartPolling(downloadManager: DownloadManager, scope: CoroutineScope) {
-        // 仅存在真正下载中的任务时以 1Hz 轮询进度；QUEUED 等待状态转换由 Listener 事件驱动唤醒
-        val hasDownloading = _allDownloads.value.any { it.state == Download.STATE_DOWNLOADING }
-        if (hasDownloading) {
-            val currentJob = pollJob.get()
-            if (currentJob == null || !currentJob.isActive) {
-                val newJob = scope.launch {
-                    while (true) {
-                        delay(POLL_INTERVAL_MS)
-                        pollActiveDownloadsProgress(downloadManager, scope)
-                    }
-                }
-                if (!pollJob.compareAndSet(currentJob, newJob)) {
-                    newJob.cancel()
+    private suspend fun observeProgressDemand(downloadManager: DownloadManager) {
+        combine(visibleDownloadPages, allDownloadsFlow) { visible, tasks ->
+            visible > 0 && tasks.any { it.state == Download.STATE_DOWNLOADING }
+        }.distinctUntilChanged().collectLatest { shouldSample ->
+            if (shouldSample) {
+                while (true) {
+                    sampleDownloadProgress(downloadManager)
+                    delay(POLL_INTERVAL_MS)
                 }
             }
-        } else {
-            pollJob.getAndSet(null)?.cancel()
         }
     }
 
@@ -415,6 +432,7 @@ class DownloadTracker @Inject constructor(
 
         override fun onDownloadChanged(downloadManager: DownloadManager, download: Download, finalException: Exception?) {
             if (!scope.isActive) return
+            changedDuringRestore?.add(download.request.id)
             val isSilent = isSilentDownload(download)
 
             when (download.state) {
@@ -452,19 +470,18 @@ class DownloadTracker @Inject constructor(
                 }
                 updated
             }
-            checkAndStartPolling(downloadManager, scope)
         }
 
         @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             if (!scope.isActive) return
+            changedDuringRestore?.add(download.request.id)
             if (redownloadingIds.remove(download.request.id)) {
                 // STATE_REMOVING was published after discard cleared the list. Remove that
                 // old row, but preserve a replacement that has already reached a new state.
                 _allDownloads.update { current ->
                     current.filterNot { it.task.request.id == download.request.id && it.state == Download.STATE_REMOVING }
                 }
-                checkAndStartPolling(downloadManager, scope)
                 LogManager.i("DownloadTracker: Skipped resolver-owned file cleanup for ${download.request.id}")
                 return
             }
@@ -475,7 +492,6 @@ class DownloadTracker @Inject constructor(
             _allDownloads.update { current ->
                 current.filter { it.task.request.id != download.request.id }
             }
-            checkAndStartPolling(downloadManager, scope)
 
             val isExplicitlyDeleted = consumePendingFileDeletion(download.request.id)
 

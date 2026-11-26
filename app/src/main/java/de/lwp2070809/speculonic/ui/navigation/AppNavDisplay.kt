@@ -96,6 +96,7 @@ fun AppNavDisplay(
     isEffectivelyOnline: Boolean,
     isStreamingAllowed: Boolean,
     serverSyncViewModel: ServerSyncViewModel,
+    downloadPageVisible: Boolean,
     directive: androidx.compose.material3.adaptive.layout.PaneScaffoldDirective,
     modifier: Modifier = Modifier
 ) {
@@ -327,6 +328,7 @@ fun AppNavDisplay(
         entry<AppRoute.DownloadManager>(metadata = ListDetailSceneStrategy.detailPane()) {
             val viewModel: DownloadManagerViewModel = hiltViewModel()
             DownloadManagerScreen(
+                isVisible = downloadPageVisible,
                 topBarState = topBarState,
                 viewModel = viewModel
             )

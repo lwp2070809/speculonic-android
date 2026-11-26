@@ -1,12 +1,15 @@
 package de.lwp2070809.speculonic.data.db.dao
 
 import androidx.room.Dao
+import androidx.room.Query
 import androidx.room.Transaction
 import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistSongCrossRef
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
+
+data class LibraryCounts(val artists: Int, val albums: Int, val songs: Int, val playlists: Int)
 
 /**
  * 集中继承各领域数据访问接口，对现有代码保持完全向后兼容。
@@ -19,6 +22,14 @@ interface MusicDao :
     PlaylistDao,
     PlaybackQueueDao,
     SyncTempDao {
+
+    @Query("""
+        SELECT (SELECT COUNT(*) FROM artists) AS artists,
+               (SELECT COUNT(*) FROM albums) AS albums,
+               (SELECT COUNT(*) FROM songs) AS songs,
+               (SELECT COUNT(*) FROM playlists) AS playlists
+    """)
+    suspend fun getLibraryCounts(): LibraryCounts
 
     @Transaction
     suspend fun repairAndCount() {

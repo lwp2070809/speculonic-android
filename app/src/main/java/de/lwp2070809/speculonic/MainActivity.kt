@@ -202,7 +202,6 @@ class MainActivity : AppCompatActivity() {
             updateResult?.let { result ->
                 UpdateChangelogDialog(
                     version = result.version,
-                    releaseNotes = result.releaseNotes,
                     onUpdateNow = { mainViewModel.openUpdateBrowser(result.url) },
                     onDismiss = { mainViewModel.dismissUpdateDialog() }
                 )

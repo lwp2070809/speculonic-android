@@ -32,11 +32,15 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -61,6 +65,7 @@ import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBa
 @Composable
 fun DownloadManagerScreen(
     topBarState: TopBarState,
+    isVisible: Boolean,
     viewModel: DownloadManagerViewModel
 ) {
     val title = stringResource(R.string.download_manager)
@@ -69,6 +74,14 @@ fun DownloadManagerScreen(
     val downloadController = LocalDownloadController.current
 
     val allDownloads by viewModel.allDownloadsFlow.collectAsStateWithLifecycle()
+    if (isVisible) {
+        val lifecycleOwner = LocalLifecycleOwner.current
+        LaunchedEffect(lifecycleOwner, viewModel) {
+            lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                viewModel.requestProgressWhileVisible()
+            }
+        }
+    }
 
     var selectedTabIndex by remember { mutableIntStateOf(0) }
 

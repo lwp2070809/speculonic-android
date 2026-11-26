@@ -14,7 +14,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,6 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.data.db.dao.LibraryCounts
 import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
@@ -39,6 +40,9 @@ fun SyncDetailDialog(
     viewModel: ServerSyncViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    val counts by produceState<LibraryCounts?>(null, viewModel) {
+        value = viewModel.getLibraryCounts()
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -131,16 +135,16 @@ fun SyncDetailDialog(
                             horizontalArrangement = Arrangement.SpaceEvenly,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                             StatItem(
-                                 icon = rememberVectorPainter(Icons.Default.Person),
-                                 label = stringResource(R.string.artists),
-                                 value = uiState.artistsCount.toString(),
-                                 modifier = Modifier.weight(1f)
-                             )
+                            StatItem(
+                                icon = rememberVectorPainter(Icons.Default.Person),
+                                label = stringResource(R.string.artists),
+                                value = counts?.artists?.toString() ?: "—",
+                                modifier = Modifier.weight(1f)
+                            )
                             StatItem(
                                 icon = androidx.compose.ui.res.painterResource(id = de.lwp2070809.speculonic.R.drawable.ic_symbol_album),
                                 label = stringResource(R.string.albums),
-                                value = uiState.albumsCount.toString(),
+                                value = counts?.albums?.toString() ?: "—",
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
@@ -148,7 +152,7 @@ fun SyncDetailDialog(
                                     id = de.lwp2070809.speculonic.R.drawable.ic_symbol_music_note
                                 ),
                                 label = stringResource(R.string.songs),
-                                value = uiState.songsCount.toString(),
+                                value = counts?.songs?.toString() ?: "—",
                                 modifier = Modifier.weight(1f)
                             )
                             StatItem(
@@ -156,7 +160,7 @@ fun SyncDetailDialog(
                                     id = de.lwp2070809.speculonic.R.drawable.ic_symbol_playlist_play
                                 ),
                                 label = stringResource(R.string.playlists),
-                                value = uiState.playlistsCount.toString(),
+                                value = counts?.playlists?.toString() ?: "—",
                                 modifier = Modifier.weight(1f)
                             )
                         }

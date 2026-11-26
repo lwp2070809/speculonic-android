@@ -180,7 +180,6 @@ fun AboutSettings(
     uiState.manualUpdateResult?.let { result ->
         UpdateChangelogDialog(
             version = result.version,
-            releaseNotes = result.releaseNotes,
             onUpdateNow = {
                 viewModel.openBrowser(result.url)
                 viewModel.dismissManualUpdateDialog()

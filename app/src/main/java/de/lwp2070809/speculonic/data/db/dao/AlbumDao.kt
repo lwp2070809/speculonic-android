@@ -19,9 +19,6 @@ interface AlbumDao {
     @Query("SELECT COUNT(*) FROM albums")
     suspend fun getAlbumsCount(): Int
 
-    @Query("SELECT COUNT(*) FROM albums")
-    fun getAlbumsCountFlow(): Flow<Int>
-
     @Query("SELECT * FROM albums ORDER BY name ASC")
     fun getAllAlbumsFlow(): Flow<List<AlbumEntity>>
 

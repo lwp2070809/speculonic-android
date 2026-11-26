@@ -11,7 +11,9 @@ import javax.inject.Inject
 @HiltViewModel
 @androidx.annotation.OptIn(UnstableApi::class)
 class DownloadManagerViewModel @Inject constructor(
-    downloadTracker: DownloadTracker
+    private val downloadTracker: DownloadTracker
 ) : ViewModel() {
     val allDownloadsFlow: StateFlow<List<DownloadTaskInfo>> = downloadTracker.allDownloadsFlow
+
+    suspend fun requestProgressWhileVisible(): Nothing = downloadTracker.requestProgressWhileVisible()
 }

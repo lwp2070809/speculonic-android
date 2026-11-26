@@ -34,6 +34,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
@@ -99,6 +101,7 @@ class PlaybackService : MediaSessionService() {
     private var pendingConfig: Pair<String, String>? = null
 
     private var silentCacheJob: Job? = null
+    private val silentCacheEnabled = MutableStateFlow<Boolean?>(null)
     private var currentQueueTitle: String? = null
 
     private var isMetered = false
@@ -296,6 +299,7 @@ class PlaybackService : MediaSessionService() {
                 }
 
                 cacheStrategyManager = injectedCacheStrategyManager
+                silentCacheEnabled.filterNotNull().first()
                 val realPlayer = buildConfiguredExoPlayer(config)?.also { createdRealPlayer = it } ?: return@launch
                 val sessionPlayer = carAudioManager.CarDisguisePlayer(realPlayer)
                 persistence.restorePlaybackState(realPlayer, repository)
@@ -436,6 +440,12 @@ class PlaybackService : MediaSessionService() {
             launch { networkMonitor.isMetered.collect { isMetered = it } }
             launch { prefs.mobilePlayAllowed.collect { mobilePlayAllowed = it } }
             launch { prefs.pauseOnVolumeZero.collect { pauseOnVolumeZero = it } }
+            launch {
+                prefs.silentCacheEnabled.collect { enabled ->
+                    silentCacheEnabled.value = enabled
+                    if (!enabled) silentCacheJob?.cancel()
+                }
+            }
             launch { observeServerConfigChanges(prefs) }
             launch { observeCarBluetoothPreferences(prefs) }
             launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
@@ -544,13 +554,14 @@ class PlaybackService : MediaSessionService() {
 
     private fun triggerSilentCacheWithDelay(mediaItem: MediaItem) {
         silentCacheJob?.cancel()
+        if (silentCacheEnabled.value != true) return
         silentCacheJob = serviceScope.launch {
             delay(SILENT_CACHE_START_DELAY_MS)
-            val player = mediaSession?.player
-            if (!isActivelyPlayingItem(player) || !isActive) return@launch
+            val player = mediaSession?.player ?: return@launch
+            if (!isActivelyPlayingItem(player, mediaItem.mediaId)) return@launch
 
-            waitForBufferSufficiency(player!!)
-            if (!isActive || !isActivelyPlayingItem(player)) return@launch
+            waitForBufferSufficiency(player)
+            if (!isActive || !isActivelyPlayingItem(player, mediaItem.mediaId)) return@launch
 
             val manager = cacheStrategyManager ?: return@launch
             manager.triggerSilentCache(
@@ -560,8 +571,9 @@ class PlaybackService : MediaSessionService() {
         }
     }
 
-    private fun isActivelyPlayingItem(player: Player?): Boolean {
-        return player != null && player.playWhenReady && player.playbackState != Player.STATE_IDLE
+    private fun isActivelyPlayingItem(player: Player, mediaId: String): Boolean {
+        return player.currentMediaItem?.mediaId == mediaId && player.playWhenReady &&
+            player.playbackState != Player.STATE_IDLE
     }
 
     private suspend fun waitForBufferSufficiency(player: Player) {

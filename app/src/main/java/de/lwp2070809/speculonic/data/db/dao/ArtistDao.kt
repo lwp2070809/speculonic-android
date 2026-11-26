@@ -35,9 +35,6 @@ interface ArtistDao {
     @Query("SELECT COUNT(*) FROM artists")
     suspend fun getArtistsCount(): Int
 
-    @Query("SELECT COUNT(*) FROM artists")
-    fun getArtistsCountFlow(): Flow<Int>
-
     @Query("SELECT EXISTS(SELECT 1 FROM artists LIMIT 1) OR EXISTS(SELECT 1 FROM albums LIMIT 1)")
     suspend fun hasLocalData(): Boolean
 
