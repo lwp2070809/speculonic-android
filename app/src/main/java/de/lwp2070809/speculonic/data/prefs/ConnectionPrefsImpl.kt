@@ -59,7 +59,7 @@ class ConnectionPrefsImpl(
     private val initScope = CoroutineScope(SupervisorJob() + ioDispatcher)
     private val credentialsMutex = Mutex()
 
-    // 以 null 表示凭据尚未在后台完成解密或迁移，避免主线程 Flow 收集触发同步阻塞或发出伪空值
+    // 以 null 表示凭据尚未在后台完成解密，避免主线程 Flow 收集触发同步阻塞或发出伪空值
     private val credentialsState = MutableStateFlow<DecryptedCredentials?>(null)
     private val _credentialsResetWarning = MutableStateFlow(false)
     override val credentialsResetWarning: StateFlow<Boolean> = _credentialsResetWarning.asStateFlow()
@@ -95,7 +95,7 @@ class ConnectionPrefsImpl(
         // The cache reset can cancel and drain playback initialization, which also reads credentials.
         return initScope.async {
             credentialsMutex.withLock {
-                credentialsState.value ?: loadOrMigrateCredentials().also { credentialsState.value = it }
+                credentialsState.value ?: loadStoredCredentials().also { credentialsState.value = it }
             }
         }.await()
     }
@@ -112,7 +112,7 @@ class ConnectionPrefsImpl(
         emitAll(credentialsState.filterNotNull().map(selector))
     }.distinctUntilChanged()
 
-    private suspend fun loadOrMigrateCredentials(): DecryptedCredentials {
+    private suspend fun loadStoredCredentials(): DecryptedCredentials {
         if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
             finishLegacyAccountReset()
             return DecryptedCredentials()
@@ -124,7 +124,8 @@ class ConnectionPrefsImpl(
         if (encUrl != null || encUser != null || encPass != null) {
             return decryptStoredCredentials(encUrl, encUser, encPass)
         }
-        return migrateFromLegacySources()
+        _credentialsResetWarning.value = settingsStore.data.first()[CREDENTIALS_RESET_PENDING] == true
+        return DecryptedCredentials()
     }
 
     private suspend fun decryptStoredCredentials(
@@ -143,7 +144,6 @@ class ConnectionPrefsImpl(
             wipeCorruptedCredentials()
             return DecryptedCredentials()
         }
-        cleanupAnyLeftoverLegacyStorage()
         ensureAccountFingerprintStored(credentials.serverUrl, credentials.username)
         clearCredentialsResetPendingIfPresent()
         return credentials
@@ -164,30 +164,6 @@ class ConnectionPrefsImpl(
         }
     }
 
-    private suspend fun migrateFromLegacySources(): DecryptedCredentials {
-        val legacy = LegacyEncryptedPrefsMigrator.readLegacyCredentials(appContext)
-        if (legacy is LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Migrated) {
-            return persistAndCleanupLegacy(legacy.serverUrl, legacy.username, legacy.password)
-        }
-        val legacyMainPrefs = settingsStore.data.first()
-        val plainDsUrl = legacyMainPrefs[SERVER_URL] ?: ""
-        val plainDsUser = legacyMainPrefs[USERNAME] ?: ""
-        val plainDsPass = legacyMainPrefs[PASSWORD] ?: ""
-        val hasPlainDs = plainDsUrl.isNotEmpty() || plainDsUser.isNotEmpty() || plainDsPass.isNotEmpty()
-
-        if (hasPlainDs) return persistAndCleanupLegacy(plainDsUrl, plainDsUser, plainDsPass)
-        if (legacy == LegacyEncryptedPrefsMigrator.LegacyMigrationResult.Corrupted) {
-            settingsStore.edit { it[LEGACY_ACCOUNT_RESET_PENDING] = true }
-            finishLegacyAccountReset()
-        } else {
-            LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
-            if (legacyMainPrefs[CREDENTIALS_RESET_PENDING] == true) {
-                _credentialsResetWarning.value = true
-            }
-        }
-        return DecryptedCredentials()
-    }
-
     private suspend fun finishLegacyAccountReset() {
         settingsStore.edit { prefs ->
             PlaybackPrefsImpl.clearStoredPlaybackState(prefs)
@@ -199,43 +175,11 @@ class ConnectionPrefsImpl(
         setServerCapabilitiesSync(null)
         setLastPingTimeSync(0L)
         clearLegacyAccountData()
-        LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
         settingsStore.edit {
             it.remove(LEGACY_ACCOUNT_RESET_PENDING)
             it[CREDENTIALS_RESET_PENDING] = true
         }
         _credentialsResetWarning.value = true
-    }
-
-    private suspend fun persistAndCleanupLegacy(
-        url: String,
-        user: String,
-        pass: String
-    ): DecryptedCredentials {
-        try {
-            writeEncryptedToDataStore(url, user, pass)
-            ensureAccountFingerprintStored(url, user)
-            clearCredentialsResetPendingIfPresent()
-            cleanupAnyLeftoverLegacyStorage()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            LogManager.w("ConnectionPrefs: Keeping legacy credentials for migration on next startup", e)
-        }
-        return DecryptedCredentials(url, user, pass)
-    }
-
-    private suspend fun cleanupAnyLeftoverLegacyStorage() {
-        try {
-            settingsStore.edit { prefs ->
-                prefs.remove(SERVER_URL)
-                prefs.remove(USERNAME)
-                prefs.remove(PASSWORD)
-            }
-            LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
-        } catch (e: java.io.IOException) {
-            LogManager.w("ConnectionPrefs: Legacy settings cleanup deferred", e)
-        }
     }
 
     private suspend fun wipeCorruptedCredentials() {
@@ -280,7 +224,6 @@ class ConnectionPrefsImpl(
                 if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
                     throw java.io.IOException("Legacy account cleanup is still pending")
                 }
-                // Empty entries also record an explicit logout across restarts during legacy cleanup.
                 writeEncryptedToDataStore(url, user, pass)
                 credentialsState.value = DecryptedCredentials(url, user, pass)
                 _credentialsResetWarning.value = false
@@ -299,7 +242,9 @@ class ConnectionPrefsImpl(
                     val currentVer = preferences[SERVER_CONFIG_VERSION] ?: 0
                     preferences[SERVER_CONFIG_VERSION] = currentVer + 1
                 }
-                LegacyEncryptedPrefsMigrator.cleanupLegacyStorage(appContext)
+                // Discard retired credential files only after the replacement settings are committed.
+                appContext.deleteSharedPreferences("speculonic_secure_prefs_fallback")
+                appContext.deleteSharedPreferences("speculonic_secure_prefs")
             }
         }
     }

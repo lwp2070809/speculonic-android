@@ -66,6 +66,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -193,6 +194,8 @@ fun NowPlayingScreen(
 
     
     if (showSleepTimerSheet) {
+        val context = LocalContext.current
+        val resources = LocalResources.current
         ModalBottomSheet(
             onDismissRequest = { showSleepTimerSheet = false },
             sheetState = sleepTimerSheetState
@@ -205,7 +208,14 @@ fun NowPlayingScreen(
                 remainingMillis = playbackState.sleepTimerRemainingMillis,
                 songsRemaining = playbackState.sleepTimerSongsRemaining,
                 onModeSelected = { mode, minutes, songCount ->
+                    val message = when (mode) {
+                        SleepTimerMode.TIME -> resources.getQuantityString(R.plurals.timer_stops_after_minutes, minutes, minutes)
+                        SleepTimerMode.SONG_COUNT -> resources.getQuantityString(R.plurals.timer_stops_after_songs, songCount, songCount)
+                        SleepTimerMode.END_OF_PLAYLIST -> resources.getString(R.string.timer_stops_at_queue_end)
+                        SleepTimerMode.OFF -> return@SleepTimerOptionsView
+                    }
                     playbackController.setSleepTimer(mode, minutes, songCount)
+                    android.widget.Toast.makeText(context, message, android.widget.Toast.LENGTH_SHORT).show()
                     if (mode == SleepTimerMode.TIME) {
                         viewModel.updateSleepTimerPreferences(minutes = minutes)
                     } else if (mode == SleepTimerMode.SONG_COUNT) {

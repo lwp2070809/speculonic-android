@@ -185,6 +185,13 @@
     <plurals name="after_songs">
         <item quantity="other">在 %1$d 首歌曲之后</item>
     </plurals>
+    <plurals name="timer_stops_after_minutes">
+        <item quantity="other">将在 %1$d 分钟后停止播放</item>
+    </plurals>
+    <plurals name="timer_stops_after_songs">
+        <item quantity="other">再播放 %1$d 首后停止播放</item>
+    </plurals>
+    <string name="timer_stops_at_queue_end">将在播放队列结束时停止播放</string>
     <string name="end_of_playlist">在播放列表末尾</string>
     <string name="all_songs">所有歌曲</string>
     <string name="set_countdown">设置倒计时</string>
@@ -407,7 +414,9 @@
     <string name="disc">光盘</string>
     <string name="disc_format">光盘 %1$d</string>
     <string name="disc_named_format">光盘 %1$d：%2$s</string>
-    <string name="disc_summary_format">%1$d 首歌曲 • %2$s</string>
+    <plurals name="disc_summary_format">
+        <item quantity="other">%1$d 首歌曲 • %2$s</item>
+    </plurals>
     <string name="cd_play_disc">播放此光盘</string>
 
     <!-- 微件文案 -->

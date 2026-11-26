@@ -5,9 +5,16 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInHorizontally
+import androidx.activity.compose.PredictiveBackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.foundation.layout.ime
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.launch
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -363,10 +370,10 @@ private fun MainContent(
                         }
                     }
 
-                    AnimatedVisibility(
+                    SearchOverlay(
                         visible = showSearch,
-                        enter = if (isDualPane) slideInHorizontally { -it } + fadeIn() else slideInVertically { it } + fadeIn(),
-                        exit = if (isDualPane) slideOutHorizontally { -it } + fadeOut() else slideOutVertically { it } + fadeOut(),
+                        isDualPane = isDualPane,
+                        onClose = { showSearch = false },
                         modifier = if (isDualPane) Modifier.width(listPaneWidth + 1.dp).fillMaxHeight() else Modifier.fillMaxSize()
                     ) {
                         Row(modifier = Modifier.fillMaxSize()) {
@@ -387,9 +394,6 @@ private fun MainContent(
                                 },
                                 color = MaterialTheme.colorScheme.background
                             ) {
-                                val lastBackStackEntry = navigationState.getCurrentBackStack().lastOrNull()
-                                val hasActiveDetailInDualPane = isDualPane &&
-                                    (lastBackStackEntry as? AppRoute)?.isDetailPane == true
                                 SearchScreen(
                                     viewModel = hiltViewModel<SearchViewModel>(key = "search_${serverUrl ?: ""}"),
                                     isEffectivelyOnline = isEffectivelyOnline,
@@ -406,8 +410,7 @@ private fun MainContent(
                                             showSearch = false
                                         }
                                     },
-                                    onClose = { showSearch = false },
-                                    backHandlerEnabled = !hasActiveDetailInDualPane
+                                    onClose = { showSearch = false }
                                 )
                             }
                             if (isDualPane) {
@@ -520,5 +523,44 @@ private fun MainContent(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SearchOverlay(
+    visible: Boolean,
+    isDualPane: Boolean,
+    onClose: () -> Unit,
+    modifier: Modifier,
+    content: @Composable () -> Unit
+) {
+    // Both the back gesture and the enter/exit animation use the same distance from the open position.
+    val closedFraction = remember { Animatable(1f) }
+    val scope = rememberCoroutineScope()
+    LaunchedEffect(visible) {
+        closedFraction.animateTo(if (visible) 0f else 1f, tween(220))
+    }
+
+    val keyboardVisible = WindowInsets.ime.getBottom(LocalDensity.current) > 0
+    PredictiveBackHandler(enabled = visible && !keyboardVisible) { events ->
+        try {
+            closedFraction.stop()
+            val start = closedFraction.value
+            events.collect { event ->
+                closedFraction.snapTo(start + (1f - start) * event.progress)
+            }
+            onClose()
+        } catch (cancelled: CancellationException) {
+            scope.launch { closedFraction.animateTo(0f, tween(180)) }
+            throw cancelled
+        }
+    }
+
+    if (visible || closedFraction.value < 1f) {
+        Box(modifier.graphicsLayer {
+            translationX = if (isDualPane) -size.width * closedFraction.value else 0f
+            translationY = if (isDualPane) 0f else size.height * closedFraction.value
+            alpha = 1f - closedFraction.value
+        }) { content() }
     }
 }

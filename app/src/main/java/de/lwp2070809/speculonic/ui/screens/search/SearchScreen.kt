@@ -1,6 +1,5 @@
 package de.lwp2070809.speculonic.ui.screens.search
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -15,9 +14,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.ime
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -73,8 +69,7 @@ fun SearchScreen(
     isStreamingAllowed: Boolean,
     onAlbumClick: (String) -> Unit,
     onArtistClick: (String) -> Unit,
-    onClose: () -> Unit,
-    backHandlerEnabled: Boolean = true
+    onClose: () -> Unit
 ) {
     val mediaItemConverter = LocalMediaItemConverter.current
     val downloadController = LocalDownloadController.current
@@ -91,18 +86,6 @@ fun SearchScreen(
     }
     val transcodeIncompatible = uiState.transcodeIncompatible
     
-    var searchBackProgress by remember { mutableFloatStateOf(0f) }
-    androidx.activity.compose.PredictiveBackHandler(enabled = backHandlerEnabled) { progressFlow ->
-        try {
-            progressFlow.collect { event ->
-                searchBackProgress = event.progress
-            }
-            onClose()
-        } finally {
-            searchBackProgress = 0f
-        }
-    }
-
     LaunchedEffect(uiState.error) {
         val error = uiState.error
         if (error != null) {
@@ -114,12 +97,6 @@ fun SearchScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .graphicsLayer {
-                val scale = 1f - (searchBackProgress * 0.08f)
-                scaleX = scale
-                scaleY = scale
-                translationX = -searchBackProgress * 48.dp.toPx()
-            }
             .background(MaterialTheme.colorScheme.background)
     ) {
         Row(

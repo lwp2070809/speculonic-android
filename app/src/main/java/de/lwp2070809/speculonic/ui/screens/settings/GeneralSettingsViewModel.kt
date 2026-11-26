@@ -30,7 +30,7 @@ import javax.inject.Inject
 enum class LanguageOption(val tag: String) {
     SYSTEM("system"),
     EN("en"),
-    ZH("zh")
+    ZH("zh-Hans")
 }
 
 data class GeneralSettingsUiState(
@@ -92,8 +92,7 @@ class GeneralSettingsViewModel @Inject constructor(
                         showOfflineToast = showToast,
                         updateCheckInterval = interval,
                         autoOfflineOnMetered = autoOffline,
-                        playerBackgroundMode = bgMode,
-                        language = getCurrentLanguageOption()
+                        playerBackgroundMode = bgMode
                     )
                 }
             }.collect()
@@ -120,6 +119,10 @@ class GeneralSettingsViewModel @Inject constructor(
         }
         AppCompatDelegate.setApplicationLocales(appLocale)
         _uiState.update { it.copy(language = option) }
+    }
+
+    fun refreshLanguage() {
+        _uiState.update { it.copy(language = getCurrentLanguageOption()) }
     }
 
     private fun getCurrentLanguageOption(): LanguageOption {

@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Modifier
+import androidx.lifecycle.compose.LifecycleEventEffect
+import androidx.lifecycle.Lifecycle
 import androidx.compose.ui.res.stringResource
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.ColorMode
@@ -37,6 +39,7 @@ import de.lwp2070809.speculonic.ui.screens.settings.components.BindSettingsTopBa
 @Composable
 fun AppearanceSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarState) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+    LifecycleEventEffect(Lifecycle.Event.ON_RESUME) { viewModel.refreshLanguage() }
     val title = stringResource(R.string.appearance)
 
     BindSettingsTopBar(topBarState = topBarState, title = title)

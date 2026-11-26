@@ -19,7 +19,6 @@ appcompat = "1.8.0"
 workManager = "2.12.0"
 room = "2.8.5"
 ksp = "2.3.6"
-tink = "1.24.0"
 paging = "3.5.3"
 pagingCompose = "3.5.3"
 hilt = "2.60.1"
@@ -27,8 +26,6 @@ hiltWork = "1.4.0"
 jaudiotagger = "3.0.1"
 glance = "1.1.1"
 markdownRenderer = "0.45.0"
-junit = "4.13.2"
-coroutinesTest = "1.11.0"
 
 [libraries]
 androidx-paging-runtime = { group = "androidx.paging", name = "paging-runtime", version.ref = "paging" }
@@ -70,7 +67,6 @@ work-ktx = { group = "androidx.work", name = "work-runtime-ktx", version.ref = "
 androidx-room-runtime = { group = "androidx.room", name = "room-runtime", version.ref = "room" }
 androidx-room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 androidx-room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
-tink-android = { group = "com.google.crypto.tink", name = "tink-android", version.ref = "tink" }
 androidx-documentfile = { group = "androidx.documentfile", name = "documentfile", version = "1.1.0" }
 jaudiotagger = { group = "net.jthink", name = "jaudiotagger", version.ref = "jaudiotagger" }
 
@@ -83,8 +79,6 @@ androidx-glance-appwidget = { group = "androidx.glance", name = "glance-appwidge
 androidx-glance-material3 = { group = "androidx.glance", name = "glance-material3", version.ref = "glance" }
 multiplatform-markdown-renderer = { group = "com.mikepenz", name = "multiplatform-markdown-renderer", version.ref = "markdownRenderer" }
 multiplatform-markdown-renderer-m3 = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3", version.ref = "markdownRenderer" }
-junit = { group = "junit", name = "junit", version.ref = "junit" }
-kotlinx-coroutines-test = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-test", version.ref = "coroutinesTest" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

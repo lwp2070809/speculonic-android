@@ -102,7 +102,7 @@ android {
 
     androidResources {
         generateLocaleConfig = true
-        localeFilters += listOf("en", "zh", "zh-rCN")
+        localeFilters += listOf("en", "b+zh+Hans", "zh-rCN")
     }
 
     sourceSets {
@@ -187,7 +187,6 @@ dependencies {
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
     // 短期仅用于历史 EncryptedSharedPreferences XML 的一次性只读兼容迁移，后续版本可直接移除
-    implementation(libs.tink.android)
     implementation(libs.androidx.documentfile)
     ksp(libs.androidx.room.compiler)
     
@@ -207,9 +206,6 @@ dependencies {
     implementation(libs.androidx.glance.material3)
     implementation(libs.multiplatform.markdown.renderer)
     implementation(libs.multiplatform.markdown.renderer.m3)
-
-    testImplementation(libs.junit)
-    testImplementation(libs.kotlinx.coroutines.test)
 }
 
 detekt {

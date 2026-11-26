@@ -343,8 +343,9 @@ fun DiscSectionHeader(
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = stringResource(
-                    R.string.disc_summary_format,
+                text = pluralStringResource(
+                    R.plurals.disc_summary_format,
+                    songs.size,
                     songs.size,
                     FormatUtils.formatDuration(totalDuration)
                 ),

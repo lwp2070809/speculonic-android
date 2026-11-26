@@ -40,10 +40,17 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.activity.compose.LocalActivity
+import androidx.compose.material3.OutlinedSecureTextField
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.autofill.ContentType
+import androidx.compose.ui.semantics.contentType
+import androidx.compose.ui.semantics.semantics
+import kotlinx.coroutines.flow.drop
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.ui.screens.settings.ServerConfigDraftViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.ServerSyncViewModel
 import de.lwp2070809.speculonic.ui.screens.settings.SettingsConstants
 import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
@@ -62,7 +69,9 @@ fun ServerConfigDialog(
 ) {
     var url by rememberSaveable { mutableStateOf(initialUrl) }
     var user by rememberSaveable { mutableStateOf(initialUser) }
-    var pass by rememberSaveable { mutableStateOf(initialPass) }
+    val draftViewModel: ServerConfigDraftViewModel = androidx.lifecycle.viewmodel.compose.viewModel()
+    val password = remember(draftViewModel) { draftViewModel.password(initialPass) }
+    val activity = LocalActivity.current
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     var allowInsecureConnections by rememberSaveable { mutableStateOf(initialAllowInsecure) }
     var showInsecureWarning by rememberSaveable { mutableStateOf(false) }
@@ -79,9 +88,20 @@ fun ServerConfigDialog(
         viewModel.clearServerConfigTransientState()
     }
 
-    DisposableEffect(Unit) {
+    LaunchedEffect(password) {
+        snapshotFlow { password.text.toString() }.drop(1).collect {
+            viewModel.clearServerConfigTransientState()
+        }
+    }
+
+    DisposableEffect(activity, draftViewModel, viewModel) {
         onDispose {
             viewModel.clearServerConfigTransientState()
+            // A rotation disposes this composition too; only a real close ends the draft.
+            // Rejected saves and ignored dismiss requests leave the dialog (and draft) open.
+            if (activity?.isChangingConfigurations != true) {
+                draftViewModel.discardDraft()
+            }
         }
     }
     var pendingLocalNetworkAction by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -180,20 +200,14 @@ fun ServerConfigDialog(
                         clearTransientFeedback()
                     },
                     label = { Text(stringResource(R.string.username)) },
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Username },
                     singleLine = true
                 )
                 Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_MEDIUM))
-                OutlinedTextField(
-                    value = pass,
-                    onValueChange = {
-                        pass = it
-                        clearTransientFeedback()
-                    },
+                OutlinedSecureTextField(
+                    state = password,
                     label = { Text(stringResource(R.string.password)) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
+                    modifier = Modifier.fillMaxWidth().semantics { contentType = ContentType.Password }
                 )
                 
                 Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
@@ -260,7 +274,7 @@ fun ServerConfigDialog(
                     Button(
                         onClick = {
                             executeWithLocalNetworkCheck {
-                                viewModel.testConnection(url, user, pass, allowInsecureConnections)
+                                viewModel.testConnection(url, user, password.text.toString(), allowInsecureConnections)
                             }
                         },
                         enabled = !uiState.isTestingConnection && url.isNotBlank(),
@@ -310,8 +324,8 @@ fun ServerConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { executeWithLocalNetworkCheck { onSave(url, user, pass, syncCoverArt, allowInsecureConnections) } },
-                enabled = url.isNotBlank() && user.isNotBlank() && pass.isNotBlank()
+                onClick = { executeWithLocalNetworkCheck { onSave(url, user, password.text.toString(), syncCoverArt, allowInsecureConnections) } },
+                enabled = url.isNotBlank() && user.isNotBlank() && password.text.isNotBlank()
             ) {
                 Text(stringResource(R.string.save_configuration))
             }
