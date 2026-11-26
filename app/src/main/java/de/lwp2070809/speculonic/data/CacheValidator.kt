@@ -91,6 +91,17 @@ class CacheValidator(private val context: Context) {
         } else null
     }
 
+    internal fun fileExists(uri: Uri): Boolean = fileDetails(uri) != null
+
+    internal fun isRegularSafFile(uri: Uri): Boolean {
+        val column = DocumentsContract.Document.COLUMN_MIME_TYPE
+        return queryFile(uri, arrayOf(column))?.use { cursor ->
+            checkFileQuery(cursor)
+            val index = cursor.getColumnIndex(column)
+            cursor.moveToFirst() && index >= 0 && isRegularSafFileType(cursor.getString(index))
+        } == true
+    }
+
     private fun fileDetails(uri: Uri): FileDetails? {
         if (uri.scheme == "file") {
             return try {
@@ -99,7 +110,7 @@ class CacheValidator(private val context: Context) {
                 null
             }
         }
-        return querySize(uri)?.use { cursor ->
+        return queryFile(uri, arrayOf(OpenableColumns.SIZE))?.use { cursor ->
             checkFileQuery(cursor)
             if (!cursor.moveToFirst()) return@use null
             val index = cursor.getColumnIndex(OpenableColumns.SIZE)
@@ -108,8 +119,8 @@ class CacheValidator(private val context: Context) {
         }
     }
 
-    private fun querySize(uri: Uri): Cursor? = try {
-        context.contentResolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)
+    private fun queryFile(uri: Uri, projection: Array<String>): Cursor? = try {
+        context.contentResolver.query(uri, projection, null, null, null)
             ?: throw IOException("Document provider did not return file details")
     } catch (e: IllegalArgumentException) {
         val root = directExternalTreeRoot(uri) ?: throw e

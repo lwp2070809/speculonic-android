@@ -39,12 +39,13 @@ class MetadataSyncWorker @AssistedInject constructor(
         val isQuickOnly = inputData.getBoolean("is_quick_only", false)
         val isBackground = inputData.getBoolean("is_background", true)
 
-        if (!shouldProceedWithSync(isBackground, forceRefresh, isQuickOnly)) {
+        val retryCleanup = !isQuickOnly && preferencesManager.cleanupRetryPending.first()
+        if (!shouldProceedWithSync(isBackground, forceRefresh || retryCleanup, isQuickOnly)) {
             return Result.success()
         }
 
         val lastFullSync = preferencesManager.lastFullSyncTime.first()
-        val needsFullSync = forceRefresh ||
+        val needsFullSync = forceRefresh || retryCleanup ||
             (!isQuickOnly && (System.currentTimeMillis() - lastFullSync >= TimeUnit.DAYS.toMillis(FULL_SYNC_INTERVAL_DAYS)))
 
         LogManager.i(

@@ -20,6 +20,7 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
         private val AUTO_EXPORT_SILENT_CACHE = booleanPreferencesKey("auto_export_silent_cache")
         private val LAST_SYNC_TIME = longPreferencesKey("last_sync_time")
         private val LAST_FULL_SYNC_TIME = longPreferencesKey("last_full_sync_time")
+        private val CLEANUP_RETRY_PENDING = booleanPreferencesKey("cleanup_retry_pending")
         private val SERVER_LAST_MODIFIED = longPreferencesKey("server_last_modified")
         private val IS_SYNCING = booleanPreferencesKey("is_syncing")
         private val SYNC_PROGRESS = stringPreferencesKey("sync_progress")
@@ -37,6 +38,7 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
             prefs.remove(LAST_SYNC_TIME)
             prefs.remove(LAST_FULL_SYNC_TIME)
             prefs.remove(SERVER_LAST_MODIFIED)
+            prefs.remove(CLEANUP_RETRY_PENDING)
             prefs.remove(IS_SYNCING)
             prefs.remove(SYNC_PROGRESS)
             prefs.remove(SYNC_ERROR)
@@ -68,6 +70,8 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override val lastSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_SYNC_TIME] ?: 0L }.distinctUntilChanged()
     override val lastFullSyncTime: Flow<Long> = context.dataStore.data.map { it[LAST_FULL_SYNC_TIME] ?: 0L }.distinctUntilChanged()
     override val serverLastModified: Flow<Long> = context.dataStore.data.map { it[SERVER_LAST_MODIFIED] ?: 0L }.distinctUntilChanged()
+    override val cleanupRetryPending: Flow<Boolean> =
+        context.dataStore.data.map { it[CLEANUP_RETRY_PENDING] ?: false }.distinctUntilChanged()
     override val isSyncing: Flow<Boolean> = context.dataStore.data.map { it[IS_SYNCING] ?: false }.distinctUntilChanged()
     override val syncProgress: Flow<String?> = context.dataStore.data.map { it[SYNC_PROGRESS] }.distinctUntilChanged()
     override val syncError: Flow<String?> = context.dataStore.data.map { it[SYNC_ERROR] }.distinctUntilChanged()
@@ -113,6 +117,14 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override suspend fun saveLastFullSyncTime(time: Long) {
         context.dataStore.edit { preferences ->
             preferences[LAST_FULL_SYNC_TIME] = time
+        }
+    }
+
+    override suspend fun recordLibrarySync(time: Long, serverLastModified: Long, cleanupPending: Boolean) {
+        context.dataStore.edit { prefs ->
+            prefs[LAST_SYNC_TIME] = time
+            prefs[SERVER_LAST_MODIFIED] = serverLastModified
+            prefs[CLEANUP_RETRY_PENDING] = cleanupPending
         }
     }
 

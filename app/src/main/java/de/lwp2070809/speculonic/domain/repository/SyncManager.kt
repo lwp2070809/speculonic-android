@@ -35,8 +35,7 @@ enum class SyncOutcome {
 data class SyncOptions(
     val forceRefresh: Boolean = false,
     val ignoreLastModified: Boolean = false,
-    val ignoreDropRatioGuard: Boolean = false,
-    val skipRemoteVerification: Boolean = false,
+    val confirmedGuards: Set<SafetyGuardException.Reason> = emptySet(),
     val hasLocalData: Boolean,
     val keepSyncingState: Boolean = false
 )
@@ -60,10 +59,7 @@ internal data class CleanupResult(
 internal data class SyncExecutionParams(
     val ignoreDropRatioGuard: Boolean,
     val skipRemoteVerification: Boolean,
-    val currentTime: Long,
-    val serverLastModified: Long,
-    val onProgress: (suspend (String) -> Unit)?,
-    val onSyncComplete: suspend (Long, Long) -> Unit
+    val onProgress: (suspend (String) -> Unit)?
 )
 
 class SyncManager(
@@ -95,6 +91,7 @@ class SyncManager(
         musicDao = musicDao,
         pref = pref,
         entityMapper = entityMapper,
+        albumListHelper = albumListHelper,
         json = json,
         runInTransaction = runInTransaction
     )
@@ -113,7 +110,7 @@ class SyncManager(
         serverCapabilities: ServerCapabilities,
         options: SyncOptions,
         onProgress: (suspend (String) -> Unit)? = null,
-        onSyncComplete: suspend (Long, Long) -> Unit
+        onSyncComplete: suspend (SyncOutcome) -> Unit
     ): SyncOutcome {
         if (!syncMutex.tryLock()) {
             LogManager.i("SyncManager: sync is already running, skipping duplicate request.")
@@ -124,7 +121,9 @@ class SyncManager(
             val lastServerModified = pref.serverLastModified.first()
             val currentTime = System.currentTimeMillis()
 
-            val hitRateLimit = !options.forceRefresh &&
+            val retryCleanup = pref.cleanupRetryPending.first()
+            val bypassSyncSkips = retryCleanup || options.confirmedGuards.isNotEmpty()
+            val hitRateLimit = !options.forceRefresh && !bypassSyncSkips &&
                 (currentTime - lastSync < SYNC_DEBOUNCE_MILLIS) &&
                 options.hasLocalData
             if (hitRateLimit) {
@@ -134,7 +133,7 @@ class SyncManager(
 
             return executeLockedSync(
                 serverCapabilities = serverCapabilities,
-                options = options,
+                options = if (bypassSyncSkips) options.copy(ignoreLastModified = true) else options,
                 lastServerModified = lastServerModified,
                 currentTime = currentTime,
                 onProgress = onProgress,
@@ -151,7 +150,7 @@ class SyncManager(
         lastServerModified: Long,
         currentTime: Long,
         onProgress: (suspend (String) -> Unit)?,
-        onSyncComplete: suspend (Long, Long) -> Unit
+        onSyncComplete: suspend (SyncOutcome) -> Unit
     ): SyncOutcome {
         try {
             pref.saveIsSyncing(true)
@@ -181,18 +180,21 @@ class SyncManager(
             }
 
             val executionParams = SyncExecutionParams(
-                ignoreDropRatioGuard = options.ignoreDropRatioGuard,
-                skipRemoteVerification = options.skipRemoteVerification,
-                currentTime = currentTime,
-                serverLastModified = serverLastModified,
-                onProgress = onProgress,
-                onSyncComplete = onSyncComplete
+                ignoreDropRatioGuard = SafetyGuardException.Reason.DROP_RATIO_EXCEEDED in options.confirmedGuards,
+                skipRemoteVerification = SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED in options.confirmedGuards,
+                onProgress = onProgress
             )
-            return if (serverCapabilities.isOpenSubsonic) {
+            val outcome = if (serverCapabilities.isOpenSubsonic) {
                 executeSearch3WithId3Fallback(authParams, executionParams)
             } else {
                 id3Executor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
             }
+            val partial = outcome == SyncOutcome.SYNCED_PARTIAL_CLEANUP
+            if (partial) pref.recordLibrarySync(currentTime, 0L, cleanupPending = true)
+            onSyncComplete(outcome)
+            if (!partial) pref.recordLibrarySync(currentTime, serverLastModified, cleanupPending = false)
+            pref.saveSyncProgress(null)
+            return outcome
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

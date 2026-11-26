@@ -64,9 +64,8 @@ class SongDetailViewModel @Inject constructor(
 
     fun loadSha1(songId: String, uri: String) {
         val current = _uiState.value
-        if (current.songId != songId || current.localUri != uri ||
-            current.sha1 == Sha1State.Reading || current.sha1 is Sha1State.Digest
-        ) return
+        if (current.songId != songId || current.localUri != uri) return
+        if (current.sha1 == Sha1State.Reading || current.sha1 is Sha1State.Digest) return
         _uiState.value = current.copy(sha1 = Sha1State.Reading)
         sha1Job = viewModelScope.launch {
             val digest = metadataExtractor.calculateSha1(uri)
@@ -80,9 +79,8 @@ class SongDetailViewModel @Inject constructor(
 
     fun loadId3Metadata(songId: String, uri: String, suffix: String?, isTranscoded: Boolean) {
         val current = _uiState.value
-        if (current.songId != songId || current.localUri != uri || current.id3Metadata != null ||
-            current.id3Limit != null || id3Job?.isActive == true
-        ) return
+        if (current.songId != songId || current.localUri != uri) return
+        if (current.id3Metadata != null || current.id3Limit != null || id3Job?.isActive == true) return
         id3Job = viewModelScope.launch {
             try {
                 val metadata = metadataExtractor.extractId3(uri, suffix, isTranscoded)

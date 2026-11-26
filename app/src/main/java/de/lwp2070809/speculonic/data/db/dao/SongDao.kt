@@ -76,14 +76,32 @@ interface SongDao {
     @Query("UPDATE songs SET starred = 0")
     suspend fun clearAllSongStarredFlags()
 
-    @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached WHERE id = :songId")
-    suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean)
+    @Query("UPDATE songs SET localUri = NULL, isFullyCached = 0, isTranscoded = 0 WHERE isFullyCached = 1 AND localUri LIKE 'content://%'")
+    suspend fun unlinkSafCaches()
 
     @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached, isTranscoded = :isTranscoded WHERE id = :songId")
     suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean, isTranscoded: Boolean): Int
 
-    @Query("UPDATE songs SET localUri = :localUri WHERE id = :songId")
-    suspend fun updateSongLocalUri(songId: String, localUri: String?)
+    @Query(
+        "UPDATE songs SET localUri = NULL, isFullyCached = 0, isTranscoded = 0 " +
+            "WHERE id = :songId AND localUri IS :scannedUri AND isFullyCached = 1"
+    )
+    suspend fun unlinkMissingCache(songId: String, scannedUri: String?): Int
+
+    @Query(
+        "UPDATE songs SET localUri = :localUri, isFullyCached = 1, isTranscoded = :isTranscoded " +
+            "WHERE id = :songId AND localUri IS :scannedUri AND isFullyCached = :wasCached"
+    )
+    suspend fun linkScannedCache(
+        songId: String,
+        scannedUri: String?,
+        wasCached: Boolean,
+        localUri: String,
+        isTranscoded: Boolean
+    ): Int
+
+    @Query("UPDATE songs SET localUri = :target WHERE id = :songId AND isFullyCached = 1 AND localUri = :source")
+    suspend fun moveCachedFile(songId: String, source: String, target: String): Int
 
     @Query("UPDATE songs SET isFullyCached = 0, localUri = NULL, isTranscoded = 0")
     suspend fun resetAllCacheStatus()
@@ -94,8 +112,8 @@ interface SongDao {
     )
     suspend fun resetNonSafCacheStatus()
 
-    @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred, lastUpdated FROM songs")
-    suspend fun getAllSongsMetadata(): List<SongMetadata>
+    @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred, lastUpdated FROM songs WHERE id IN (:ids)")
+    suspend fun getSongsMetadataByIds(ids: List<String>): List<SongMetadata>
 
     @Query("SELECT id, localUri, isFullyCached, isTranscoded, starred FROM songs WHERE id IN (:ids)")
     fun observeSearchSongMetadata(ids: List<String>): Flow<List<SearchSongState>>
@@ -137,6 +155,9 @@ interface SongDao {
 
     @Query("SELECT * FROM songs WHERE isFullyCached = 1")
     suspend fun getAllCachedSongs(): List<SongEntity>
+
+    @Query("SELECT localUri FROM songs WHERE isFullyCached = 1 AND localUri IS NOT NULL")
+    suspend fun getCachedFileUris(): List<String>
 
     @Query("SELECT EXISTS(SELECT 1 FROM songs WHERE localUri = :uri)")
     suspend fun hasSongAtUri(uri: String): Boolean

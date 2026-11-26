@@ -468,7 +468,7 @@ fun StorageCacheSettings(
         )
     }
 
-    if (uiState.showSafetyGuardConfirm) {
+    if (uiState.safetyGuardConfirmations.isNotEmpty()) {
         AlertDialog(
             onDismissRequest = { viewModel.cancelSafetyGuard() },
             title = { Text(stringResource(R.string.safety_guard_title)) },

@@ -11,6 +11,7 @@ interface CacheSyncPrefs {
     val lastSyncTime: Flow<Long>
     val lastFullSyncTime: Flow<Long>
     val serverLastModified: Flow<Long>
+    val cleanupRetryPending: Flow<Boolean>
     val isSyncing: Flow<Boolean>
     val syncProgress: Flow<String?>
     val syncError: Flow<String?>
@@ -25,6 +26,7 @@ interface CacheSyncPrefs {
     suspend fun saveLastSyncTime(time: Long)
     suspend fun saveLastFullSyncTime(time: Long)
     suspend fun saveServerLastModified(time: Long)
+    suspend fun recordLibrarySync(time: Long, serverLastModified: Long, cleanupPending: Boolean)
     suspend fun saveIsSyncing(syncing: Boolean)
     suspend fun saveSyncProgress(progress: String?)
     suspend fun saveSyncError(error: String?)

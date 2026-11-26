@@ -180,13 +180,12 @@ class DownloadTracker @Inject constructor(
 
     @Suppress("TooGenericExceptionCaught")
     suspend fun deleteExportedSongAndCache(songId: String) = withContext(Dispatchers.IO) {
-        val song = database.musicDao().getSongById(songId)
-        song?.localUri?.let { uriString ->
-            deleteExportedFiles(songId, uriString)
+        cacheExporter.withSongExport(songId) {
+            val dao = database.musicDao()
+            dao.getSongById(songId)?.localUri?.let { deleteExportedFiles(songId, it) }
+            dao.updateSongCacheStatus(songId, null, false, false)
+            clearInternalAudioCaches(songId)
         }
-        database.musicDao().updateSongLocalUri(songId, null)
-        database.musicDao().updateSongCacheStatus(songId, null, false)
-        clearInternalAudioCaches(songId)
     }
 
     @Suppress("TooGenericExceptionCaught")
@@ -200,7 +199,7 @@ class DownloadTracker @Inject constructor(
             null
         }
         if (docFile?.exists() == true) {
-            deleteSafAudioAndCompanionLrc(songId, uriString, docFile)
+            deleteSafAudioAndCompanionLrc(songId, docFile)
         } else if (uriString.startsWith("file:")) {
             deletePrivateAudioAndCompanionLrc(songId, uri)
         }
@@ -208,28 +207,22 @@ class DownloadTracker @Inject constructor(
 
     private fun deleteSafAudioAndCompanionLrc(
         songId: String,
-        uriString: String,
         docFile: DocumentFile
     ) {
+        if (!docFile.isFile) return
         val fileName = docFile.name
-        val parentDir = docFile.parentFile
-        val audioDeleted = docFile.delete()
-        if (fileName != null && FormatUtils.isSupportedAudioFile(fileName)) {
-            val lrcName = FormatUtils.replaceExtensionWithLrc(fileName)
-            val lrcFile = parentDir?.findFile(lrcName)
-            if (lrcFile?.exists() == true) {
-                lrcFile.delete()
-            } else {
-                try {
-                    val lrcUri = FormatUtils.replaceExtensionWithLrc(uriString).toUri()
-                    DocumentFile.fromSingleUri(appContext, lrcUri)?.takeIf { it.exists() }?.delete()
-                } catch (e: Exception) {
-                    LogManager.w("DownloadTracker: Fallback LRC deletion failed", e)
-                }
+        if (!docFile.delete()) return
+        LogManager.i("DownloadTracker: Successfully deleted SAF file for $songId")
+        if (fileName == null || !FormatUtils.isSupportedAudioFile(fileName)) return
+        val name = FormatUtils.replaceExtensionWithLrc(fileName)
+        try {
+            val sibling = SafDirectoryHelper.listChildEntries(appContext, docFile.uri).singleOrNull { it.name == name }
+            if (sibling != null && isRegularSafFileType(sibling.mimeType)) {
+                DocumentFile.fromSingleUri(appContext, sibling.uri)?.takeIf { it.isFile }?.delete()
             }
-        }
-        if (audioDeleted) {
-            LogManager.i("DownloadTracker: Successfully deleted SAF file for $songId")
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            LogManager.w("DownloadTracker: Unable to remove companion lyrics for $songId", e)
         }
     }
 
@@ -238,10 +231,10 @@ class DownloadTracker @Inject constructor(
         try {
             val path = uri.path ?: return
             val file = File(path)
-            if (!file.exists()) return
+            if (!file.isFile) return
             file.delete()
             val lrcFile = File(FormatUtils.replaceExtensionWithLrc(file.absolutePath))
-            if (lrcFile.exists()) lrcFile.delete()
+            if (lrcFile.isFile) lrcFile.delete()
         } catch (e: Exception) {
             LogManager.e("DownloadTracker: Failed to delete private file for $songId", e)
         }
@@ -293,15 +286,9 @@ class DownloadTracker @Inject constructor(
         }
         if (candidates.isEmpty()) return
 
-        val cacheLocation = preferencesManager.cacheLocation.first()
-        if (cacheLocation.isNotBlank()) {
-            val hasSafPermission = appContext.contentResolver.persistedUriPermissions.any {
-                it.uri.toString() == cacheLocation && it.isReadPermission && it.isWritePermission
-            }
-            if (!hasSafPermission) {
-                LogManager.w("DownloadTracker: Skipping startup export recovery because SAF permission expired")
-                return
-            }
+        if (!canRecoverExports()) {
+            LogManager.w("DownloadTracker: Skipping startup export recovery because SAF permission expired")
+            return
         }
 
         candidates.forEach { info ->
@@ -321,6 +308,13 @@ class DownloadTracker @Inject constructor(
             } else {
                 listener.scheduleExport(info.task).join()
             }
+        }
+    }
+
+    private suspend fun canRecoverExports(): Boolean {
+        val location = preferencesManager.cacheLocation.first()
+        return location.isBlank() || appContext.contentResolver.persistedUriPermissions.any {
+            it.uri.toString() == location && it.isReadPermission && it.isWritePermission
         }
     }
 
@@ -437,15 +431,20 @@ class DownloadTracker @Inject constructor(
                 }.first { it }
                 withContext(Dispatchers.Main.immediate) {
                     val id = download.request.id
-                    if ((!retry && changedDuringRestore?.contains(id) == true) || exportJobs.containsKey(id) ||
-                        _allDownloads.value.none { it.task === download } ||
-                        (download.state == Download.STATE_FAILED && !isPendingRawExport(download))
-                    ) return@withContext
+                    if (!retry && changedDuringRestore?.contains(id) == true) return@withContext
+                    if (exportJobs.containsKey(id) || _allDownloads.value.none { it.task === download }) return@withContext
+                    if (download.state == Download.STATE_FAILED && !isPendingRawExport(download)) return@withContext
                     pendingRawExports.edit { putString(id, recoveryKey(download)) }
                     manager.addDownload(download.request)
                 }
             }
         }
+
+        private fun isRetryableExportFailure(error: Throwable?): Boolean =
+            generateSequence(error) { it.cause }.any {
+                it is ServerUnavailableException || it is SocketException || it is SocketTimeoutException ||
+                    it is UnknownHostException || it is EOFException
+            }
 
         fun scheduleExport(download: Download): Job {
             val id = download.request.id
@@ -495,11 +494,7 @@ class DownloadTracker @Inject constructor(
                     _activeDownloadIds.update { it - download.request.id }
                     _downloadedSongIds.update { it - download.request.id }
                     if (download.state == Download.STATE_FAILED && isPendingRawExport(download)) {
-                        val temporary = generateSequence<Throwable>(finalException) { it.cause }.any {
-                            it is ServerUnavailableException || it is SocketException || it is SocketTimeoutException ||
-                                it is UnknownHostException || it is EOFException
-                        }
-                        if (temporary) {
+                        if (isRetryableExportFailure(finalException)) {
                             resumeRawExport(downloadManager, download, retry = true)
                         } else {
                             pendingRawExports.edit { remove(download.request.id) }
@@ -565,6 +560,10 @@ class DownloadTracker @Inject constructor(
 
         @Suppress("TooGenericExceptionCaught")
         private suspend fun exportDownloadedSong(download: Download) {
+            cacheExporter.withSongExport(download.request.id) { exportAndRegisterDownloadedSong(download) }
+        }
+
+        private suspend fun exportAndRegisterDownloadedSong(download: Download) {
             val cacheLocation = preferencesManager.cacheLocation.first()
             val isSafEnabled = cacheLocation.isNotBlank()
             val isSilent = isSilentDownload(download)

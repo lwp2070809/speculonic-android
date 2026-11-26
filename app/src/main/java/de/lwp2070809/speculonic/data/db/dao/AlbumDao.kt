@@ -13,9 +13,6 @@ interface AlbumDao {
     @Upsert
     suspend fun insertAlbums(albums: List<AlbumEntity>)
 
-    @Query("SELECT * FROM albums ORDER BY lastUpdated DESC")
-    suspend fun getAlbums(): List<AlbumEntity>
-
     @Query("SELECT COUNT(*) FROM albums")
     suspend fun getAlbumsCount(): Int
 

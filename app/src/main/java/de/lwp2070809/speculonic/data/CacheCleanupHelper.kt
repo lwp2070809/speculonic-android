@@ -67,6 +67,10 @@ class CacheCleanupHelper @Inject constructor(
             activeIds
         }
 
+        removeDownloadTasks(managerRemovalIds)
+    }
+
+    private suspend fun removeDownloadTasks(managerRemovalIds: List<String>) {
         if (managerRemovalIds.isNotEmpty() && !cacheManager.isReleasing) {
             val downloadManager = runCatching { downloadManagerHelper.getDownloadManagerSuspend() }.getOrNull()
             if (downloadManager != null) {

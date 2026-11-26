@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic.data
 
 import android.content.Context
 import android.net.Uri
+import android.os.ParcelFileDescriptor
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.documentfile.provider.DocumentFile
@@ -11,7 +12,10 @@ import androidx.media3.datasource.DataSpec
 import androidx.media3.datasource.FileDataSource
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.cache.ContentMetadata
+import androidx.room.withTransaction
 import dagger.hilt.android.qualifiers.ApplicationContext
+import de.lwp2070809.speculonic.R
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.util.FormatUtils
@@ -30,6 +34,7 @@ import java.nio.file.AtomicMoveNotSupportedException
 import java.nio.file.Files
 import java.nio.file.StandardCopyOption
 import java.util.Arrays
+import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -44,6 +49,11 @@ class CacheExporter @Inject constructor(
 
     private val privateFilesMutex = Mutex()
     private val activeStagingFiles = mutableSetOf<File>()
+
+    // Bounded locks keep concurrent publication, deletion and source cleanup ordered for each song.
+    private val exportLocks = Array(32) { Mutex() }
+    internal suspend fun <T> withSongExport(songId: String, block: suspend () -> T): T =
+        exportLocks[Math.floorMod(songId.hashCode(), exportLocks.size)].withLock { block() }
 
     private fun isAbandonedStagingFile(file: File): Boolean =
         file.name.startsWith("export-") && file.extension == "part" && file !in activeStagingFiles
@@ -167,7 +177,7 @@ class CacheExporter @Inject constructor(
         val lrcFileName = FormatUtils.replaceExtensionWithLrc(finalAudioFileName)
         val targetLrcUri = existingLrcUri ?: rootDoc.createFile("application/octet-stream", lrcFileName)?.uri
         targetLrcUri?.let { uri ->
-            openTruncatedOutputStream(context, uri)?.use { out ->
+            openTruncatedOutputStream(context, uri, newFile = existingLrcUri == null)?.use { out ->
                 out.write(lyrics.toByteArray())
             }
         }
@@ -242,7 +252,7 @@ class CacheExporter @Inject constructor(
                 createdDoc.uri
             }
             LogManager.d("CacheExporter: Streaming ${song.id} directly to SAF: $targetDocUri")
-            openTruncatedOutputStream(context, targetDocUri)?.use { outputStream ->
+            openTruncatedOutputStream(context, targetDocUri, newFile = cleanupDocFile != null)?.use { outputStream ->
                 streamCacheToOutput(cache, song.id, contentLength, outputStream)
             } ?: throw IOException("Failed to open SAF output stream")
 
@@ -404,10 +414,11 @@ class CacheExporter @Inject constructor(
         }
     }
 
-    suspend fun exportPrivateFileToSaf(
+    internal suspend fun migratePrivateFileToSaf(
         song: Song,
-        privateFileUriString: String
-    ): Result<String> = withContext(Dispatchers.IO) {
+        privateFileUriString: String,
+        database: AppDatabase
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
         val targetSafUriString = preferencesManager.cacheLocation.first().takeIf { it.isNotBlank() }
             ?: return@withContext Result.failure(IllegalStateException("SAF未配置"))
 
@@ -418,91 +429,109 @@ class CacheExporter @Inject constructor(
             return@withContext Result.failure(MissingPrivateAudioException())
         }
 
-        val outcome = copyPrivateAudioToSafTarget(song, sourceFile, targetSafUriString)
-        outcome.mapCatching { exported ->
-            copyOptionalPrivateLrcToSaf(sourceFile, exported)
-            LogManager.i("CacheExporter: Exported private file to SAF: ${exported.docUri}")
-            exported.docUri.toString()
-        }.onFailure { if (it is CancellationException) throw it }
-    }
-
-    private suspend fun copyPrivateAudioToSafTarget(
-        song: Song,
-        sourceFile: File,
-        targetSafUriString: String
-    ): Result<SafExportedTarget> {
-        var cleanupDocFile: DocumentFile? = null
-        return try {
+        var staging: DocumentFile? = null
+        try {
             val resolvedRootDoc = getCachedOrCreateRootDoc(targetSafUriString)
-                ?: return Result.failure(IOException("无法访问目标文件夹"))
+                ?: throw IOException("无法访问目标文件夹")
             val suffix = sourceFile.extension.takeIf { it.isNotBlank() }?.lowercase()
                 ?: resolveExtension(song, null, preferencesManager.targetTranscodeFormat.first())
             val resolvedFileName = buildExportFileName(song, suffix)
             val lrcFileName = FormatUtils.replaceExtensionWithLrc(resolvedFileName)
-            val preScanned = SafDirectoryHelper.findChildrenByName(
-                context = context,
-                treeUri = targetSafUriString.toUri(),
-                targetNames = setOf(resolvedFileName, lrcFileName)
-            )
-            val targetDocUri = resolveOrCreateSafAudioUri(
-                rootDoc = resolvedRootDoc,
-                existingAudio = preScanned[resolvedFileName],
-                sourceFile = sourceFile,
-                fileName = resolvedFileName,
-                suffix = suffix,
-                onDocCreated = { cleanupDocFile = it }
-            ) ?: return Result.failure(IOException("无法创建目标文件"))
-
-            Result.success(
-                SafExportedTarget(resolvedRootDoc, targetDocUri, resolvedFileName, preScanned[lrcFileName]?.uri)
-            )
-        } catch (e: Exception) {
-            if (e !is CancellationException) {
-                LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
+            val treeUri = targetSafUriString.toUri()
+            val targetNames = setOf(resolvedFileName, lrcFileName)
+            val preScanned = SafDirectoryHelper.findMigrationTargets(context, treeUri, targetNames)
+            val existing = preScanned[resolvedFileName]
+            val matches = existing != null && safFileMatchesSource(existing, sourceFile)
+            val mime = FormatUtils.getMimeTypeFromExtension(suffix)
+            if (!matches) {
+                // No [songId] in this name: even an interrupted/conflicting copy cannot be auto-linked.
+                staging = resolvedRootDoc.createFile(mime, "migration-${UUID.randomUUID()}.part")
+                    ?: throw IOException("无法创建临时文件")
+                copyPrivateAudio(sourceFile, staging.uri)
             }
-            cleanupHalfWrittenDoc(cleanupDocFile)
-            if (e is CancellationException) throw e
+            val dao = database.musicDao()
+            val committed = database.withTransaction {
+                if (!canCommitMigration(dao, song.id, privateFileUriString, treeUri, targetNames, preScanned, existing)) {
+                    return@withTransaction false
+                }
+                copyOptionalPrivateLrcToSaf(sourceFile, resolvedRootDoc, lrcFileName, preScanned[lrcFileName]?.uri)
+                val temporary = staging
+                val targetUri = if (temporary == null) checkNotNull(existing).uri else {
+                    val published = publishMigrationAudio(temporary, sourceFile, resolvedRootDoc, resolvedFileName, mime, existing)
+                    if (published === temporary) staging = null
+                    published.uri
+                }
+                check(dao.moveCachedFile(song.id, privateFileUriString, targetUri.toString()) == 1)
+                true
+            }
+            Result.success(committed)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogManager.e("CacheExporter: Failed to export private file to SAF for ${song.id}", e)
             Result.failure(e)
+        } finally {
+            cleanupHalfWrittenDoc(staging)
         }
     }
 
-    private fun resolveOrCreateSafAudioUri(
-        rootDoc: DocumentFile,
-        existingAudio: SafChildEntry?,
-        sourceFile: File,
-        fileName: String,
-        suffix: String,
-        onDocCreated: (DocumentFile) -> Unit
-    ): Uri? {
-        if (existingAudio != null && existingAudio.size == sourceFile.length()) {
-            if (safFileMatchesSource(existingAudio.uri, sourceFile)) {
-                LogManager.i(
-                    "CacheExporter: File already exists in SAF with matching content, skipping write: $fileName"
-                )
-                return existingAudio.uri
-            }
-            LogManager.w(
-                "CacheExporter: SAF file size matches (${existingAudio.size}) but content differs, replacing: $fileName"
-            )
+    private suspend fun canCommitMigration(
+        dao: MusicDao,
+        songId: String,
+        source: String,
+        treeUri: Uri,
+        names: Set<String>,
+        scanned: Map<String, SafChildEntry>,
+        audio: SafChildEntry?
+    ): Boolean {
+        val current = dao.getSongById(songId)
+        if (current?.isFullyCached != true || current.localUri != source) return false
+        val targets = SafDirectoryHelper.findMigrationTargets(context, treeUri, names)
+        names.firstOrNull { scanned[it] != targets[it] }?.let { name ->
+            throw IOException(context.getString(R.string.saf_name_conflict, name))
         }
-        if (existingAudio != null) {
-            DocumentFile.fromSingleUri(context, existingAudio.uri)?.delete()
+        if (audio != null && dao.hasSongAtUri(audio.uri.toString())) {
+            throw IOException("Migration target already belongs to a cached song")
         }
-        val createdDoc = rootDoc.createFile(FormatUtils.getMimeTypeFromExtension(suffix), fileName)
-            ?: return null
-        onDocCreated(createdDoc)
-        val copiedBytes = openTruncatedOutputStream(context, createdDoc.uri)?.use { outputStream ->
+        return true
+    }
+
+    private fun publishMigrationAudio(
+        staging: DocumentFile,
+        source: File,
+        root: DocumentFile,
+        name: String,
+        mime: String,
+        existing: SafChildEntry?
+    ): DocumentFile {
+        if (existing != null && DocumentFile.fromSingleUri(context, existing.uri)?.delete() != true) {
+            throw IOException("Unable to replace SAF migration target")
+        }
+        if (staging.renameTo(name)) return staging
+        // Providers without rename support can still publish a regular document.
+        val target = root.createFile(mime, name) ?: throw IOException("无法创建目标文件")
+        try {
+            copyPrivateAudio(source, target.uri)
+            return target
+        } catch (e: Exception) {
+            cleanupHalfWrittenDoc(target)
+            throw e
+        }
+    }
+
+    private fun copyPrivateAudio(sourceFile: File, target: Uri) {
+        val copiedBytes = openTruncatedOutputStream(context, target, newFile = true)?.use { outputStream ->
             sourceFile.inputStream().use { inputStream -> inputStream.copyTo(outputStream) }
         } ?: throw IOException("Failed to open SAF output stream")
         if (copiedBytes != sourceFile.length()) {
-            throw IOException("Incomplete SAF audio export for $fileName: wrote $copiedBytes of ${sourceFile.length()}")
+            throw IOException("Incomplete SAF audio export: wrote $copiedBytes of ${sourceFile.length()}")
         }
-        return createdDoc.uri
     }
 
-    private fun safFileMatchesSource(safUri: Uri, sourceFile: File): Boolean {
+    private fun safFileMatchesSource(entry: SafChildEntry, sourceFile: File): Boolean {
+        if (entry.size != sourceFile.length()) return false
         return try {
-            val safStream = context.contentResolver.openInputStream(safUri) ?: return false
+            val safStream = context.contentResolver.openInputStream(entry.uri) ?: return false
             safStream.use { existingStream ->
                 sourceFile.inputStream().use { sourceStream ->
                     streamsHaveIdenticalContent(existingStream, sourceStream)
@@ -517,20 +546,21 @@ class CacheExporter @Inject constructor(
 
     private fun copyOptionalPrivateLrcToSaf(
         sourceFile: File,
-        exported: SafExportedTarget
+        root: DocumentFile,
+        lrcFileName: String,
+        existingLrcUri: Uri?
     ) {
         val sourceLrcFile = File(FormatUtils.replaceExtensionWithLrc(sourceFile.absolutePath))
         if (!sourceLrcFile.exists()) return
-        val lrcFileName = FormatUtils.replaceExtensionWithLrc(exported.fileName)
-        val createdDoc = if (exported.existingLrcUri == null) {
-            exported.rootDoc.createFile("application/octet-stream", lrcFileName)
+        val createdDoc = if (existingLrcUri == null) {
+            root.createFile("application/octet-stream", lrcFileName)
                 ?: throw IOException("Unable to create lyrics file")
         } else {
             null
         }
-        val targetLrcUri = exported.existingLrcUri ?: checkNotNull(createdDoc).uri
+        val targetLrcUri = existingLrcUri ?: checkNotNull(createdDoc).uri
         runCatching {
-            openTruncatedOutputStream(context, targetLrcUri)?.use { out ->
+            openTruncatedOutputStream(context, targetLrcUri, newFile = createdDoc != null)?.use { out ->
                 sourceLrcFile.inputStream().use { input -> input.copyTo(out) }
             } ?: throw IOException("Unable to open lyrics file")
         }.onFailure { cleanupHalfWrittenDoc(createdDoc) }.getOrThrow()
@@ -582,15 +612,25 @@ class CacheExporter @Inject constructor(
             return totalRead
         }
 
-        internal fun openTruncatedOutputStream(context: Context, uri: Uri): OutputStream? {
-            return try {
-                context.contentResolver.openOutputStream(uri, "wt")
+        internal fun openTruncatedOutputStream(context: Context, uri: Uri, newFile: Boolean): OutputStream? {
+            val resolver = context.contentResolver
+            if (newFile) return resolver.openOutputStream(uri, "w")
+            try {
+                return resolver.openOutputStream(uri, "wt")
             } catch (e: IllegalArgumentException) {
-                LogManager.w("CacheExporter: DocumentProvider rejected mode 'wt', falling back to 'w': ${e.message}")
-                context.contentResolver.openOutputStream(uri, "w")
+                LogManager.w("CacheExporter: Provider rejected truncate mode: ${e.message}")
             } catch (e: UnsupportedOperationException) {
-                LogManager.w("CacheExporter: DocumentProvider unsupported mode 'wt', falling back to 'w': ${e.message}")
-                context.contentResolver.openOutputStream(uri, "w")
+                LogManager.w("CacheExporter: Provider does not support truncate mode: ${e.message}")
+            }
+            // Providers can open an existing document in "w" without truncating it.
+            val descriptor = resolver.openFileDescriptor(uri, "w") ?: return null
+            val stream = ParcelFileDescriptor.AutoCloseOutputStream(descriptor)
+            try {
+                stream.channel.truncate(0L)
+                return stream
+            } catch (e: IOException) {
+                stream.close()
+                throw e
             }
         }
     }

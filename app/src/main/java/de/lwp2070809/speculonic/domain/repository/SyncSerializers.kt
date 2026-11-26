@@ -1,9 +1,6 @@
 package de.lwp2070809.speculonic.domain.repository
 
-import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
-import de.lwp2070809.speculonic.data.db.entities.SongEntity
-import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
@@ -64,8 +61,8 @@ class StreamingListSerializer<T>(
 
 data class Search3Channels(
     val artist: Channel<List<ArtistEntity>> = Channel(capacity = Channel.BUFFERED),
-    val album: Channel<List<AlbumEntity>> = Channel(capacity = Channel.BUFFERED),
-    val song: Channel<List<SongEntity>> = Channel(capacity = Channel.BUFFERED),
+    val album: Channel<List<Album>> = Channel(capacity = Channel.BUFFERED),
+    val song: Channel<List<Song>> = Channel(capacity = Channel.BUFFERED),
     val tempId: Channel<List<SyncTempIdEntity>> = Channel(capacity = Channel.BUFFERED)
 ) {
     fun closeAll(cause: Throwable? = null) {
@@ -77,9 +74,6 @@ data class Search3Channels(
 }
 
 class Search3StreamState(
-    val existingAlbumsMap: Map<String, AlbumEntity>,
-    val existingSongsMetadata: Map<String, SongMetadata>,
-    val entityMapper: EntityMapper,
     val seenArtistIds: MutableSet<String> = mutableSetOf(),
     val seenAlbumIds: MutableSet<String> = mutableSetOf(),
     val seenSongIds: MutableSet<String> = mutableSetOf()
@@ -157,39 +151,16 @@ class SearchResult3StreamingSerializer(
     private fun processAlbumsChunk(albums: List<Album>): Int {
         val newAlbums = albums.filter { state.seenAlbumIds.add(it.id) }
         if (newAlbums.isEmpty()) return 0
-        val entities = newAlbums.map { album ->
-            state.entityMapper.albumToEntity(
-                album = album,
-                existing = state.existingAlbumsMap[album.id],
-                isStarred = album.starred != null
-            )
-        }
-        channels.album.sendSafe(entities)
-        channels.tempId.sendSafe(entities.map { SyncTempIdEntity(it.id, "album") })
+        channels.album.sendSafe(newAlbums)
+        channels.tempId.sendSafe(newAlbums.map { SyncTempIdEntity(it.id, "album") })
         return newAlbums.size
     }
 
     private fun processSongsChunk(songs: List<Song>): Int {
         val newSongs = songs.filter { state.seenSongIds.add(it.id) }
         if (newSongs.isEmpty()) return 0
-        val entities = newSongs.map { song ->
-            val meta = state.existingSongsMetadata[song.id]
-            val isStarred = song.starred != null
-            val lastUpdated = if (isStarred && meta?.starred != true) null else meta?.lastUpdated
-            state.entityMapper.songToEntity(
-                song = song,
-                overrides = SongEntityOverrides(
-                    albumId = song.albumId,
-                    localUri = meta?.localUri,
-                    isCached = meta?.isFullyCached ?: false,
-                    isTranscoded = meta?.isTranscoded ?: false,
-                    isStarred = isStarred,
-                    lastUpdated = lastUpdated
-                )
-            )
-        }
-        channels.song.sendSafe(entities)
-        channels.tempId.sendSafe(entities.map { SyncTempIdEntity(it.id, "song") })
+        channels.song.sendSafe(newSongs)
+        channels.tempId.sendSafe(newSongs.map { SyncTempIdEntity(it.id, "song") })
         return newSongs.size
     }
 

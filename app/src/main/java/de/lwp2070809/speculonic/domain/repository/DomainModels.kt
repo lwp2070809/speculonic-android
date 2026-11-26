@@ -20,6 +20,8 @@ class SafetyGuardException(
 ) : Exception(
     "Sync stopped for $entity (reason=$reason, remote=$remoteCount, local=$localCount, candidates=$candidateCount)"
 ) {
+    fun confirmationsForRetry(previous: Set<Reason>): Set<Reason> = previous + reason
+
     enum class Entity { SONGS, ALBUMS, ARTISTS }
     enum class Reason { DROP_RATIO_EXCEEDED, VERIFY_CANDIDATES_EXCEEDED }
 }

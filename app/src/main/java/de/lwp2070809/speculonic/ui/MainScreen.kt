@@ -480,7 +480,7 @@ private fun MainContent(
                 )
             }
 
-            if (serverSyncUiState.showSafetyGuardConfirm) {
+            if (serverSyncUiState.safetyGuardConfirmations.isNotEmpty()) {
                 AlertDialog(
                     onDismissRequest = { serverSyncViewModel.cancelSafetyGuard() },
                     title = { Text(androidx.compose.ui.res.stringResource(R.string.safety_guard_title)) },

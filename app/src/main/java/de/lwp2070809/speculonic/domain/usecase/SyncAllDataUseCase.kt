@@ -1,5 +1,6 @@
 package de.lwp2070809.speculonic.domain.usecase
 
+import de.lwp2070809.speculonic.domain.repository.SafetyGuardException
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.repository.SyncOutcome
 import de.lwp2070809.speculonic.network.ServerReachableManager
@@ -13,8 +14,7 @@ class SyncAllDataUseCase @Inject constructor(
     suspend operator fun invoke(
         forceRefresh: Boolean = false,
         ignoreLastModified: Boolean = false,
-        ignoreDropRatioGuard: Boolean = false,
-        skipRemoteVerification: Boolean = false,
+        confirmedGuards: Set<SafetyGuardException.Reason> = emptySet(),
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ): SyncOutcome {
@@ -38,8 +38,7 @@ class SyncAllDataUseCase @Inject constructor(
         return repository.syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
-            ignoreDropRatioGuard = ignoreDropRatioGuard,
-            skipRemoteVerification = skipRemoteVerification,
+            confirmedGuards = confirmedGuards,
             keepSyncingState = keepSyncingState,
             onProgress = onProgress
         )

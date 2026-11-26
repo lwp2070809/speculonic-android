@@ -50,7 +50,6 @@ object ServerReachableManager {
     private var hasFailureWave: Boolean = false
     private var lastFailureWaveNanos: Long = 0L
     private var trippedAtNanos: Long = 0L
-    private var probeInFlight: Boolean = false
     private var probeStartedAtNanos: Long = 0L
     private var activeProbeId: Long = NO_PROBE_ID
 
@@ -70,40 +69,35 @@ object ServerReachableManager {
         if (now - trippedAtNanos < PROBE_COOLDOWN_NS) {
             return RequestGateResult.Blocked(BlockReason.COOLDOWN)
         }
-        if (probeInFlight && (now - probeStartedAtNanos) < PROBE_TIMEOUT_NS) {
-            return RequestGateResult.Blocked(BlockReason.PROBE_IN_PROGRESS)
-        }
-        if (probeInFlight) {
+        if (activeProbeId != NO_PROBE_ID) {
+            if (now - probeStartedAtNanos < PROBE_TIMEOUT_NS) {
+                return RequestGateResult.Blocked(BlockReason.PROBE_IN_PROGRESS)
+            }
             LogManager.w("ServerReachableManager: Existing probe timed out, reclaiming probe slot")
         }
         val nextProbeId = ++probeSequence
-        probeInFlight = true
         probeStartedAtNanos = now
         activeProbeId = nextProbeId
         return RequestGateResult.Allowed(epoch = epoch, isProbe = true, probeId = nextProbeId)
     }
 
-    private fun isActiveProbePermit(permit: RequestGateResult.Allowed): Boolean {
-        return permit.isProbe && permit.probeId != NO_PROBE_ID && permit.probeId == activeProbeId
+    @Synchronized
+    fun releaseProbeIfNeeded(permit: RequestGateResult.Allowed): Boolean {
+        if (permit.epoch != epoch || !permit.isProbe) return false
+        if (permit.probeId == NO_PROBE_ID || permit.probeId != activeProbeId) return false
+        activeProbeId = NO_PROBE_ID
+        return true
     }
 
-    @Synchronized
-    fun releaseProbeIfNeeded(permit: RequestGateResult.Allowed) {
-        if (isActiveProbePermit(permit)) {
-            probeInFlight = false
-            activeProbeId = NO_PROBE_ID
-        }
-    }
+    private fun acceptResult(permit: RequestGateResult.Allowed): Boolean =
+        if (permit.isProbe) releaseProbeIfNeeded(permit) else permit.epoch == epoch && isServerReachable
 
     @Synchronized
     fun reportSuccess(permit: RequestGateResult.Allowed) {
-        releaseProbeIfNeeded(permit)
-        if (permit.epoch != epoch) return
+        if (!acceptResult(permit)) return
 
         failureCount = 0
         hasFailureWave = false
-        probeInFlight = false
-        activeProbeId = NO_PROBE_ID
         if (!isServerReachable) {
             isServerReachable = true
             LogManager.i("ServerReachableManager: REACHABLE")
@@ -112,13 +106,10 @@ object ServerReachableManager {
 
     @Synchronized
     fun reportFailure(permit: RequestGateResult.Allowed) {
-        val isActiveProbe = isActiveProbePermit(permit)
-        releaseProbeIfNeeded(permit)
-        if (permit.epoch != epoch) return
+        if (!acceptResult(permit)) return
 
         val now = System.nanoTime()
-        if (!isServerReachable) {
-            if (!isActiveProbe) return
+        if (permit.isProbe) {
             trippedAtNanos = now
             failureCount = MAX_FAILURE_THRESHOLD
             LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE")
@@ -150,7 +141,6 @@ object ServerReachableManager {
     @Synchronized
     fun reset() {
         epoch++
-        probeInFlight = false
         activeProbeId = NO_PROBE_ID
         failureCount = 0
         hasFailureWave = false
@@ -183,7 +173,6 @@ object ServerReachableManager {
     fun onPhysicalNetworkLost() {
         isPhysicallyConnected = false
         epoch++
-        probeInFlight = false
         activeProbeId = NO_PROBE_ID
         failureCount = 0
         hasFailureWave = false

@@ -37,6 +37,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.sync.withPermit
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.UUID
 import java.util.concurrent.TimeUnit
@@ -57,8 +58,7 @@ internal class MigrationOutcome {
 private data class VerifySongsConfig(
     val context: Context,
     val musicDao: MusicDao,
-    val isSafEnabled: Boolean,
-    val existingSafSongIds: Set<String>,
+    val listedUris: Set<String>,
     val downloadCache: Cache,
     val downloadManager: DownloadManager
 )
@@ -89,17 +89,24 @@ class CacheSyncWorker @AssistedInject constructor(
         if (preferencesManager.serverUrl.first().isBlank()) return Result.failure()
 
         val musicDao = database.musicDao()
+        cacheExporter.cleanupOrphanedPrivateFiles(musicDao)
         val migrationOutcome = if (isSafEnabled) migratePrivateCacheToSaf(context, musicDao) else MigrationOutcome()
         if (migrationOutcome.firstFailure is SecurityException) {
             return failureResult(context.getString(R.string.saf_permission_expired), needsSaf = true)
         }
-        cacheExporter.cleanupOrphanedPrivateFiles(musicDao)
 
-        val (safEntries, existingSafIds) = preloadSafIfEnabled(context, cacheLocation).getOrElse { error ->
-            return failureResult(error.localizedMessage ?: error.javaClass.simpleName, needsSaf = true)
+        try {
+            val safEntries = if (isSafEnabled) SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri()) else emptyList()
+            verifyAndHeal(context, musicDao, cacheLocation, safEntries)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: SecurityException) {
+            LogManager.e("CacheSync: Cache scan permission denied", e)
+            return failureResult(context.getString(R.string.saf_permission_expired), needsSaf = isSafEnabled)
+        } catch (e: Exception) {
+            LogManager.e("CacheSync: Incomplete cache scan", e)
+            return failureResult(e.localizedMessage ?: e.javaClass.simpleName)
         }
-
-        verifyAndHeal(context, musicDao, cacheLocation, safEntries, existingSafIds)
         migrationOutcome.firstFailure?.let { error ->
             val detail = error.localizedMessage ?: error.javaClass.simpleName
             return failureResult(context.getString(R.string.export_failed, detail))
@@ -114,23 +121,11 @@ class CacheSyncWorker @AssistedInject constructor(
     private fun failureResult(status: String?, needsSaf: Boolean = false): Result =
         Result.failure(workDataOf(STATUS to status, KEY_ERROR_NEEDS_SAF to needsSaf))
 
-    private fun preloadSafIfEnabled(
-        context: Context,
-        cacheLocation: String
-    ): kotlin.Result<Pair<List<SafChildEntry>?, Set<String>>> {
-        if (cacheLocation.isBlank()) return kotlin.Result.success(null to emptySet())
-        return runCatching { preloadSafAudioFiles(context, cacheLocation) }.onFailure {
-            if (it is CancellationException) throw it
-            LogManager.e("CacheSync: Unable to read SAF directory", it)
-        }
-    }
-
     private suspend fun verifyAndHeal(
         context: Context,
         musicDao: MusicDao,
         cacheLocation: String,
-        safEntries: List<SafChildEntry>?,
-        existingSafIds: Set<String>
+        safEntries: List<SafChildEntry>
     ) {
         val isSafEnabled = cacheLocation.isNotBlank()
         val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
@@ -142,20 +137,14 @@ class CacheSyncWorker @AssistedInject constructor(
                 config = VerifySongsConfig(
                     context = context,
                     musicDao = musicDao,
-                    isSafEnabled = isSafEnabled,
-                    existingSafSongIds = existingSafIds,
+                    listedUris = safEntries.mapTo(HashSet()) { it.uri.toString() },
                     downloadCache = downloadCache,
                     downloadManager = downloadManager
                 )
             )
         }
-        val updatedSafEntries = if (isSafEnabled) {
-            scanOrphanedSafEntries(context, musicDao, cacheLocation, safEntries)
-        } else {
-            safEntries
-        }
-        if (updatedSafEntries != null) {
-            LogManager.d("CacheSync: SAF entries processed (${updatedSafEntries.size}).")
+        if (isSafEnabled) {
+            scanOrphanedSafEntries(context, musicDao, safEntries)
         }
     }
 
@@ -185,13 +174,6 @@ class CacheSyncWorker @AssistedInject constructor(
             )
         }
         return hasPermission
-    }
-
-    private fun preloadSafAudioFiles(context: Context, cacheLocation: String): Pair<List<SafChildEntry>, Set<String>> {
-        val entries = SafDirectoryHelper.listChildEntries(context, cacheLocation.toUri())
-        val ids = entries.asSequence().filter { MediaFormatUtils.isSupportedAudioFile(it.name) }
-            .mapNotNull { MediaFormatUtils.extractSongIdFromFileName(it.name) }.toSet()
-        return entries to ids
     }
 
     private suspend fun verifyCachedSongs(
@@ -232,12 +214,12 @@ class CacheSyncWorker @AssistedInject constructor(
         song: SongEntity,
         config: VerifySongsConfig
     ) {
-        val physicalExists = checkPhysicalFileExists(
-            song = song,
-            isSafEnabled = config.isSafEnabled,
-            existingSafSongIds = config.existingSafSongIds,
-            downloadCache = config.downloadCache
-        )
+        val uri = song.localUri
+        val physicalExists = if (uri == null) {
+            song.id in config.downloadCache.keys
+        } else {
+            uri in config.listedUris || CacheValidator(config.context).fileExists(uri.toUri())
+        }
         if (!physicalExists) {
             unlinkMissingSong(
                 musicDao = config.musicDao,
@@ -247,43 +229,21 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-    private fun checkPhysicalFileExists(
-        song: SongEntity,
-        isSafEnabled: Boolean,
-        existingSafSongIds: Set<String>,
-        downloadCache: Cache
-    ): Boolean {
-        val localUri = song.localUri
-        return when {
-            isSafEnabled && localUri != null -> {
-                if (localUri.startsWith("file:")) {
-                    val path = localUri.toUri().path
-                    path != null && File(path).exists()
-                } else {
-                    existingSafSongIds.contains(song.id)
-                }
-            }
-            !isSafEnabled && localUri != null && localUri.startsWith("file:") -> {
-                val path = localUri.toUri().path
-                path != null && File(path).exists()
-            }
-            else -> downloadCache.keys.contains(song.id)
-        }
-    }
-
     private suspend fun unlinkMissingSong(
         musicDao: MusicDao,
         song: SongEntity,
         downloadManager: DownloadManager
     ) {
-        LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
-        musicDao.updateSongCacheStatus(song.id, null, false)
+        if (musicDao.unlinkMissingCache(song.id, song.localUri) == 0) return
+        LogManager.w("CacheSync: Unlinked missing file for ${song.title}.")
         try {
-            downloadManager.removeDownload(song.id)
+            withContext(Dispatchers.Main.immediate) { downloadManager.removeDownload(song.id) }
             LogManager.i(
                 "CacheSync: Successfully removed missing download task for " +
                     "${song.title} from DownloadManager."
             )
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
         }
@@ -292,45 +252,26 @@ class CacheSyncWorker @AssistedInject constructor(
     private suspend fun scanOrphanedSafEntries(
         context: Context,
         musicDao: MusicDao,
-        cacheLocation: String,
-        initialSafEntries: List<SafChildEntry>?
-    ): List<SafChildEntry>? {
+        entries: List<SafChildEntry>
+    ) {
         setProgress(
             workDataOf(
                 PROGRESS to ORPHAN_SCAN_PROGRESS,
                 STATUS to context.getString(R.string.sync_scanning_orphans)
             )
         )
-        var resolvedEntries = initialSafEntries
-        try {
-            val entries = initialSafEntries ?: SafDirectoryHelper.listChildEntries(
-                context,
-                cacheLocation.toUri()
-            ).also { resolvedEntries = it }
-            val audioEntries = entries.mapNotNull { entry ->
-                val songId = MediaFormatUtils.extractSongIdFromFileName(entry.name)
-                if (songId != null) songId to entry else null
-            }
-            val songsById = if (audioEntries.isNotEmpty()) {
-                musicDao.getSongsByIds(audioEntries.map { it.first }.distinct())
-                    .associateBy { it.id }
-            } else {
-                emptyMap()
-            }
-
-            audioEntries.forEach { (songId, entry) ->
-                linkOrLogOrphanSafEntry(musicDao, songId, entry, songsById[songId])
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.e("CacheSync: Failed to scan SAF directory", e)
+        val audioEntries = entries.mapNotNull { entry ->
+            if (!isRegularSafFileType(entry.mimeType) || !MediaFormatUtils.isSupportedAudioFile(entry.name)) return@mapNotNull null
+            MediaFormatUtils.extractSongIdFromFileName(entry.name)?.let { it to entry }
         }
-        return resolvedEntries
+        val songsById = musicDao.getSongsByIds(audioEntries.map { it.first }.distinct()).associateBy { it.id }
+        for ((songId, entry) in audioEntries) {
+            linkOrLogOrphanSafEntry(musicDao, entry, songsById[songId])
+        }
     }
 
     private suspend fun linkOrLogOrphanSafEntry(
         musicDao: MusicDao,
-        songId: String,
         entry: SafChildEntry,
         songInDb: SongEntity?
     ) {
@@ -342,15 +283,19 @@ class CacheSyncWorker @AssistedInject constructor(
             )
             return
         }
-        if (!MediaFormatUtils.isSupportedAudioFile(fileName)) return
         if (songInDb.isFullyCached && songInDb.localUri != null) return
+        if (!CacheValidator(applicationContext).isRegularSafFile(entry.uri)) return
 
         val fileExt = fileName.substringAfterLast('.', "").lowercase()
         val isTranscoded = fileExt != (songInDb.suffix ?: "").lowercase()
-        LogManager.i(
-            "CacheSync: Linked file by ID for ${songInDb.title} ($songId, isTranscoded: $isTranscoded)"
+        val linked = musicDao.linkScannedCache(
+            songId = songInDb.id,
+            scannedUri = songInDb.localUri,
+            wasCached = songInDb.isFullyCached,
+            localUri = entry.uri.toString(),
+            isTranscoded = isTranscoded
         )
-        musicDao.updateSongCacheStatus(songId, entry.uri.toString(), true, isTranscoded)
+        if (linked > 0) LogManager.i("CacheSync: Linked $fileName to song ${songInDb.id}")
     }
 
     private suspend fun migratePrivateCacheToSaf(
@@ -381,34 +326,22 @@ class CacheSyncWorker @AssistedInject constructor(
                     )
                 )
             )
-            val error = migrateSingleSongToSaf(musicDao, song) ?: continue
+            val error = migrateSingleSongToSaf(song) ?: continue
             outcome.recordFailure(error)
             if (error is SecurityException) return outcome
         }
         return outcome
     }
 
-    private suspend fun migrateSingleSongToSaf(
-        musicDao: MusicDao,
-        song: SongEntity
-    ): Throwable? {
-        val existingUri = song.localUri ?: return IllegalStateException("Not a private file")
-        val localUriResult = try {
-            cacheExporter.exportPrivateFileToSaf(EntityMapper.toSong(song), existingUri)
-        } catch (e: SecurityException) {
-            LogManager.e("CacheSync: SAF permission expired during migration", e)
-            return e
-        }
-
-        localUriResult.onSuccess { localUri ->
-            musicDao.updateSongLocalUri(song.id, localUri)
-            LogManager.i("CacheSync: Migrated ${song.title} to SAF successfully.")
+    private suspend fun migrateSingleSongToSaf(song: SongEntity): Throwable? = cacheExporter.withSongExport(song.id) {
+        val existingUri = requireNotNull(song.localUri)
+        val result = cacheExporter.migratePrivateFileToSaf(EntityMapper.toSong(song), existingUri, database)
+        if (result.getOrNull() == true) {
             cleanupMigratedPrivateFiles(song, existingUri)
         }
-        val error = localUriResult.exceptionOrNull()
-        if (error is CancellationException) throw error
+        val error = result.exceptionOrNull()
         if (error != null) LogManager.e("CacheSync: Migration failed for ${song.title}", error)
-        return error
+        error
     }
 
     private suspend fun cleanupMigratedPrivateFiles(song: SongEntity, oldLocalUri: String?) {

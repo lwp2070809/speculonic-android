@@ -92,9 +92,8 @@ data class StorageCacheUiState(
     val pendingClearCacheTarget: CacheClearTarget? = null,
     val showSilentCacheConfirm: Boolean = false,
     val showMobileSyncConfirm: Boolean = false,
-    val showSafetyGuardConfirm: Boolean = false,
     val safetyGuardMessage: String? = null,
-    val safetyGuardReason: SafetyGuardException.Reason? = null
+    val safetyGuardConfirmations: Set<SafetyGuardException.Reason> = emptySet()
 )
 
 @HiltViewModel
@@ -142,12 +141,7 @@ class StorageCacheViewModel @Inject constructor(
             if (location.isNotEmpty()) {
                 scanLocalFiles(replaceExisting = true)
             } else {
-                val cachedSongs = database.musicDao().getAllCachedSongs()
-                cachedSongs.forEach { song ->
-                    if (song.localUri != null && song.localUri.startsWith("content://")) {
-                        database.musicDao().updateSongCacheStatus(song.id, null, false)
-                    }
-                }
+                database.musicDao().unlinkSafCaches()
             }
             refreshCacheSize()
         }
@@ -244,21 +238,19 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     fun confirmSafetyGuard() {
-        val reason = _uiState.value.safetyGuardReason
-        val ignoreDropRatio = reason != SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED
-        syncWithServer(ignoreDropRatioGuard = ignoreDropRatio, skipRemoteVerification = true)
+        val confirmations = _uiState.value.safetyGuardConfirmations
+        if (confirmations.isNotEmpty()) syncWithServer(confirmations)
     }
 
     fun cancelSafetyGuard() {
-        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null, safetyGuardReason = null) }
+        _uiState.update { it.copy(safetyGuardMessage = null, safetyGuardConfirmations = emptySet()) }
     }
 
     fun syncWithServer(
-        ignoreDropRatioGuard: Boolean = false,
-        skipRemoteVerification: Boolean = false
+        confirmedGuards: Set<SafetyGuardException.Reason> = emptySet()
     ) {
         if (_uiState.value.isInteractiveScanning || _uiState.value.isResolving) return
-        _uiState.update { it.copy(showMobileSyncConfirm = false, showSafetyGuardConfirm = false, safetyGuardReason = null) }
+        _uiState.update { it.copy(showMobileSyncConfirm = false, safetyGuardConfirmations = emptySet()) }
         if (playbackController.playbackState.value.showPauseButton) {
             playbackController.togglePlayPause()
         }
@@ -276,7 +268,7 @@ class StorageCacheViewModel @Inject constructor(
                 )
             }
 
-            if (!runLightweightServerSync(ignoreDropRatioGuard, skipRemoteVerification)) {
+            if (!runLightweightServerSync(confirmedGuards)) {
                 return@launch
             }
             collectCacheConsistencyCheck()
@@ -284,16 +276,14 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     private suspend fun runLightweightServerSync(
-        ignoreDropRatioGuard: Boolean,
-        skipRemoteVerification: Boolean
+        confirmedGuards: Set<SafetyGuardException.Reason>
     ): Boolean {
         return try {
             withContext(Dispatchers.IO) {
                 syncAllDataUseCase(
                     forceRefresh = false,
                     ignoreLastModified = false,
-                    ignoreDropRatioGuard = ignoreDropRatioGuard,
-                    skipRemoteVerification = skipRemoteVerification,
+                    confirmedGuards = confirmedGuards,
                     onProgress = { status ->
                         _uiState.update { it.copy(interactiveScanStatus = status) }
                     }
@@ -306,9 +296,8 @@ class StorageCacheViewModel @Inject constructor(
             _uiState.update {
                 it.copy(
                     isInteractiveScanning = false,
-                    showSafetyGuardConfirm = true,
                     safetyGuardMessage = e.toUserMessage(context),
-                    safetyGuardReason = e.reason
+                    safetyGuardConfirmations = e.confirmationsForRetry(confirmedGuards)
                 )
             }
             false
@@ -375,43 +364,50 @@ class StorageCacheViewModel @Inject constructor(
     fun resolveInconsistencies(action: ResolveInconsistencyUseCase.Action, item: InconsistentItem? = null) {
         val state = _uiState.value
         if (!state.showInconsistencyDialog || state.isResolving) return
-        val redownload = action == ResolveInconsistencyUseCase.Action.REDOWNLOAD
         val targets = state.inconsistentItems.filter {
-            (item == null || it.key == item.key) && (!redownload || it.canRedownload)
+            (item == null || it.key == item.key) && action.canResolve(it)
         }
         if (targets.isEmpty()) return
         _uiState.update { it.copy(isResolving = true, resolutionMessage = null) }
-        viewModelScope.launch {
-            val resolved = mutableSetOf<String>()
-            var firstError: String? = null
-            try {
-                resolveInconsistencyUseCase.resolveAll(targets, action, onProgress = { processed ->
-                    _uiState.update { it.copy(resolutionMessage = context.getString(R.string.cache_resolving, processed, targets.size)) }
-                }) { target, result ->
-                    result
-                        .onSuccess { resolved.add(target.key) }
-                        .onFailure { error ->
-                            if (firstError == null) {
-                                val reason = error.localizedMessage ?: error.javaClass.simpleName
-                                firstError = "${target.displayTitle} — $reason"
-                            }
+        viewModelScope.launch { resolveTargets(targets, action) }
+    }
+
+    private suspend fun resolveTargets(targets: List<InconsistentItem>, action: ResolveInconsistencyUseCase.Action) {
+        val redownload = action == ResolveInconsistencyUseCase.Action.REDOWNLOAD
+        val resolved = mutableSetOf<String>()
+        val awaitingRedownload = mutableMapOf<String, InconsistentItem>()
+        var firstError: String? = null
+        try {
+            resolveInconsistencyUseCase.resolveAll(targets, action, onProgress = { processed ->
+                _uiState.update { it.copy(resolutionMessage = context.getString(R.string.cache_resolving, processed, targets.size)) }
+            }) { target, result ->
+                result
+                    .onSuccess { resolved.add(target.key) }
+                    .onFailure { error ->
+                        if (target.type == InconsistentItem.Type.AWAITING_REDOWNLOAD) {
+                            awaitingRedownload[target.key] = target
                         }
-                }
-            } finally {
-                val resultRes = if (redownload) R.string.cache_requeued_count else R.string.cache_deleted_count
-                val summary = context.getString(resultRes, resolved.size)
-                val message = firstError?.let {
-                    context.getString(R.string.cache_resolution_failed, summary, targets.size - resolved.size, it)
-                } ?: summary
-                _uiState.update { current ->
-                    current.copy(
-                        inconsistentItems = current.inconsistentItems.filterNot { it.key in resolved },
-                        isResolving = false,
-                        resolutionMessage = message
-                    )
-                }
-                if (resolved.isNotEmpty()) refreshCacheSize()
+                        if (firstError == null) {
+                            val reason = error.localizedMessage ?: error.javaClass.simpleName
+                            firstError = "${target.displayTitle} — $reason"
+                        }
+                    }
             }
+        } finally {
+            val resultRes = if (redownload) R.string.cache_requeued_count else R.string.cache_deleted_count
+            val summary = context.getString(resultRes, resolved.size)
+            val message = firstError?.let {
+                context.getString(R.string.cache_resolution_failed, summary, targets.size - resolved.size, it)
+            } ?: summary
+            _uiState.update { current ->
+                current.copy(
+                    inconsistentItems = current.inconsistentItems.filterNot { it.key in resolved }
+                        .map { awaitingRedownload[it.key] ?: it },
+                    isResolving = false,
+                    resolutionMessage = message
+                )
+            }
+            if (resolved.isNotEmpty() || awaitingRedownload.isNotEmpty()) refreshCacheSize()
         }
     }
 

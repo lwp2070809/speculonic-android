@@ -2,11 +2,11 @@ package de.lwp2070809.speculonic.domain.repository
 
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
-import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
-import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
+import de.lwp2070809.speculonic.network.model.Album
+import de.lwp2070809.speculonic.network.model.Song
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -47,8 +47,8 @@ private class Search3PaginationState {
 
 private class Search3ChannelBuffers {
     val artists = ArrayList<ArtistEntity>()
-    val albums = ArrayList<AlbumEntity>()
-    val songs = ArrayList<SongEntity>()
+    val albums = ArrayList<Album>()
+    val songs = ArrayList<Song>()
     val tempIds = ArrayList<SyncTempIdEntity>()
 
     fun isEmpty(): Boolean =
@@ -70,6 +70,7 @@ internal class Search3SyncExecutor(
     private val musicDao: MusicDao,
     private val pref: PreferencesManager,
     private val entityMapper: EntityMapper,
+    private val albumListHelper: AlbumListSyncHelper,
     private val json: Json,
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit
 ) {
@@ -89,8 +90,6 @@ internal class Search3SyncExecutor(
             pref.saveSyncProgress(statusMsg)
             LogManager.i("SyncManager: Syncing all data via paginated search3Stream(\"\")")
 
-            val existingSongsMetadata = musicDao.getAllSongsMetadata().associateBy { it.id }
-            val existingAlbumsMap = musicDao.getAlbums().associateBy { it.id }
             val localSnapshot = EntityCountSnapshot(
                 artists = musicDao.getArtistsCount(),
                 albums = musicDao.getAlbumsCount(),
@@ -98,12 +97,7 @@ internal class Search3SyncExecutor(
             )
             musicDao.clearSyncTempIds()
 
-            val streamState = Search3StreamState(
-                existingAlbumsMap = existingAlbumsMap,
-                existingSongsMetadata = existingSongsMetadata,
-                entityMapper = entityMapper
-            )
-            streamSearch3Pages(authParams, streamState)
+            streamSearch3Pages(authParams)
 
             val remoteCounts = EntityCountSnapshot(
                 artists = musicDao.getSyncTempIdCountByType("artist"),
@@ -118,16 +112,7 @@ internal class Search3SyncExecutor(
                 remoteCounts = remoteCounts
             )
             val cleanupResult = finalizeSearch3Sync(params, cleanupContext, performSurgicalCleanup)
-            return if (cleanupResult.hasVerificationFailures) {
-                LogManager.w("SyncManager: search3 finished with partial cleanup failures; holding sync cursor.")
-                params.onSyncComplete(params.currentTime, 0L)
-                pref.saveSyncProgress(null)
-                SyncOutcome.SYNCED_PARTIAL_CLEANUP
-            } else {
-                params.onSyncComplete(params.currentTime, params.serverLastModified)
-                pref.saveSyncProgress(null)
-                SyncOutcome.SYNCED_FULL
-            }
+            return if (cleanupResult.hasVerificationFailures) SyncOutcome.SYNCED_PARTIAL_CLEANUP else SyncOutcome.SYNCED_FULL
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -160,10 +145,8 @@ internal class Search3SyncExecutor(
         )
     }
 
-    private suspend fun streamSearch3Pages(
-        authParams: Triple<String, String, String>,
-        streamState: Search3StreamState
-    ): Unit = coroutineScope {
+    private suspend fun streamSearch3Pages(authParams: Triple<String, String, String>): Unit = coroutineScope {
+        val streamState = Search3StreamState()
         val channels = Search3Channels()
         val writerJob = launchWriterJob(channels)
         val pagination = Search3PaginationState()
@@ -299,8 +282,13 @@ internal class Search3SyncExecutor(
         // 分批事务提交可显著抑制全量同步期间 InvalidationTracker 的高频 UI 失效刷新
         runInTransaction {
             buffers.artists.chunked(BATCH_SIZE).forEach { musicDao.insertArtists(it) }
-            buffers.albums.chunked(BATCH_SIZE).forEach { musicDao.insertAlbums(it) }
-            buffers.songs.chunked(BATCH_SIZE).forEach { musicDao.insertSongs(it) }
+            for (batch in buffers.albums.chunked(BATCH_SIZE)) {
+                musicDao.insertAlbums(albumListHelper.mergeAlbums(batch))
+            }
+            for (batch in buffers.songs.chunked(BATCH_SIZE)) {
+                val localById = musicDao.getSongsMetadataByIds(batch.map { it.id }).associateBy { it.id }
+                musicDao.insertSongs(batch.map { song -> entityMapper.mergeSyncSong(song, localById[song.id]) })
+            }
             buffers.tempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
         }
         buffers.clear()

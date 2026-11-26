@@ -73,9 +73,8 @@ data class ServerSyncUiState(
     val syncError: String? = null,
     val lastSyncTime: Long = 0L,
     val showFirstSyncConfirm: Boolean = false,
-    val showSafetyGuardConfirm: Boolean = false,
     val safetyGuardMessage: String? = null,
-    val safetyGuardReason: SafetyGuardException.Reason? = null,
+    val safetyGuardConfirmations: Set<SafetyGuardException.Reason> = emptySet(),
     val showForceSyncConfirm: Boolean = false
 )
 
@@ -347,8 +346,7 @@ class ServerSyncViewModel @Inject constructor(
             repeatMode = preferencesManager.repeatMode.first(),
             shuffleMode = preferencesManager.shuffleMode.first()
         )
-        preferencesManager.saveServerLastModified(0L)
-        preferencesManager.saveLastSyncTime(0L)
+        preferencesManager.recordLibrarySync(0L, 0L, cleanupPending = false)
         preferencesManager.saveLastFullSyncTime(0L)
     }
 
@@ -400,17 +398,12 @@ class ServerSyncViewModel @Inject constructor(
     }
 
     fun confirmSafetyGuard() {
-        val reason = _uiState.value.safetyGuardReason
-        val ignoreDropRatio = reason != SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED
-        performFullSync(
-            ignoreDropRatioGuard = ignoreDropRatio,
-            skipRemoteVerification = true,
-            isForced = true
-        )
+        val confirmations = _uiState.value.safetyGuardConfirmations
+        if (confirmations.isNotEmpty()) performFullSync(confirmedGuards = confirmations, isForced = true)
     }
 
     fun cancelSafetyGuard() {
-        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null, safetyGuardReason = null) }
+        _uiState.update { it.copy(safetyGuardMessage = null, safetyGuardConfirmations = emptySet()) }
     }
 
     private suspend fun performCoverArtSyncInternal() {
@@ -441,12 +434,11 @@ class ServerSyncViewModel @Inject constructor(
     }
 
     fun performFullSync(
-        ignoreDropRatioGuard: Boolean = false,
-        skipRemoteVerification: Boolean = false,
+        confirmedGuards: Set<SafetyGuardException.Reason> = emptySet(),
         isForced: Boolean = false,
         syncCoverArt: Boolean = false
     ) {
-        _uiState.update { it.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false, safetyGuardReason = null) }
+        _uiState.update { it.copy(showFirstSyncConfirm = false, safetyGuardConfirmations = emptySet()) }
         val previousSyncJob = syncJob
         syncJob = viewModelScope.launch(Dispatchers.IO) {
             previousSyncJob?.cancelAndJoin()
@@ -460,8 +452,7 @@ class ServerSyncViewModel @Inject constructor(
                 syncAllDataUseCase(
                     forceRefresh = isForced,
                     ignoreLastModified = isForced,
-                    ignoreDropRatioGuard = ignoreDropRatioGuard,
-                    skipRemoteVerification = skipRemoteVerification,
+                    confirmedGuards = confirmedGuards,
                     keepSyncingState = shouldKeepSyncStateForCovers,
                     onProgress = { status ->
                         preferencesManager.saveSyncProgress(status)
@@ -474,9 +465,8 @@ class ServerSyncViewModel @Inject constructor(
                 withContext(Dispatchers.Main) {
                     _uiState.update {
                         it.copy(
-                            showSafetyGuardConfirm = true,
                             safetyGuardMessage = e.toUserMessage(context),
-                            safetyGuardReason = e.reason
+                            safetyGuardConfirmations = e.confirmationsForRetry(confirmedGuards)
                         )
                     }
                 }

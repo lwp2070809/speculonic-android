@@ -1,7 +1,6 @@
 package de.lwp2070809.speculonic.domain.usecase
 
 import android.content.Context
-import android.provider.DocumentsContract
 import android.os.SystemClock
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
@@ -13,6 +12,7 @@ import de.lwp2070809.speculonic.data.CacheManager
 import de.lwp2070809.speculonic.data.CacheValidator
 import de.lwp2070809.speculonic.data.SafChildEntry
 import de.lwp2070809.speculonic.data.SafDirectoryHelper
+import de.lwp2070809.speculonic.data.isRegularSafFileType
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.domain.model.InconsistentItem
@@ -70,7 +70,7 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
 
             if (isSafEnabled && safEntries.isNotEmpty()) {
                 emit(VerifyCacheState.Progress(ORPHAN_SCAN_PROGRESS, context.getString(R.string.sync_scanning_orphans)))
-                scanOrphanedSafEntries(cachedSongs, safEntries, inconsistentList)
+                inconsistentList += findOrphanedSafEntries(cachedSongs.mapNotNull { it.localUri }.toSet(), safEntries)
             }
 
             emit(VerifyCacheState.Success(inconsistentList))
@@ -130,17 +130,16 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
         }
     }
 
-    private suspend fun scanOrphanedSafEntries(
-        cachedSongs: List<SongEntity>,
+    internal suspend fun findOrphanedSafEntries(
+        validSafUris: Set<String>,
         safEntries: List<SafChildEntry>,
-        inconsistentList: MutableList<InconsistentItem>
-    ) {
-        val validSafUris = cachedSongs.mapNotNull { it.localUri }.toSet()
+        candidates: List<SafChildEntry> = safEntries
+    ): List<InconsistentItem> {
         val lyricNames = safEntries.filter { it.uri.toString() in validSafUris }
             .mapTo(hashSetOf()) { FormatUtils.replaceExtensionWithLrc(it.name) }
-        val unknownEntries = safEntries.filter { entry ->
+        val unknownEntries = candidates.filter { entry ->
             val uriStr = entry.uri.toString()
-            entry.mimeType != DocumentsContract.Document.MIME_TYPE_DIR && uriStr !in validSafUris && entry.name !in lyricNames
+            isRegularSafFileType(entry.mimeType) && uriStr !in validSafUris && entry.name !in lyricNames
         }
         val extractedIds = unknownEntries.mapNotNull {
             MediaFormatUtils.extractSongIdFromFileName(it.name)
@@ -152,9 +151,7 @@ class VerifyCacheConsistencyUseCase @Inject constructor(
         }
         val supportedExtensions = MediaFormatUtils.ALL_SUPPORTED_AUDIO_EXTENSIONS + MediaFormatUtils.EXTENSION_LRC
 
-        unknownEntries.forEach { entry ->
-            classifyOrphanedEntry(entry, dbSongsMap, supportedExtensions)?.let { inconsistentList.add(it) }
-        }
+        return unknownEntries.mapNotNull { classifyOrphanedEntry(it, dbSongsMap, supportedExtensions) }
     }
 
     private suspend fun classifyOrphanedEntry(

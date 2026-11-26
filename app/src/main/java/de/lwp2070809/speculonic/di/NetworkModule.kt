@@ -25,6 +25,10 @@ import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.NetworkMonitor
 import kotlinx.serialization.json.Json
 import okhttp3.Dns
+import okhttp3.Request
+import okhttp3.Response
+import java.net.HttpURLConnection.HTTP_PRECON_FAILED
+import java.net.HttpURLConnection.HTTP_CLIENT_TIMEOUT
 import okhttp3.ConnectionPool
 import okhttp3.OkHttpClient
 import java.io.IOException
@@ -53,6 +57,8 @@ interface RepositoryEntryPoint {
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
+    private const val HTTP_TOO_MANY_REQUESTS = 429
+    private val serverErrors = 500..599
     private const val DEFAULT_TIMEOUT = 30L
     private const val ERROR_BODY_PREVIEW_LENGTH = 200
 
@@ -210,58 +216,49 @@ object NetworkModule {
 
             val verifiedDownload = request.tag(OriginalDownloadRequest::class.java) != null
             val finalRequest = if (verifiedDownload || (isMediaRequest && url.queryParameter("u") == null)) {
-                val entryPoint = EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
-                val repo = entryPoint.subsonicRepository()
-                if (verifiedDownload && !repo.isConfigured) kotlinx.coroutines.runBlocking { repo.ensureConfigured() }
-                val authParams = repo.getMediaAuthParams(url)
-                if (verifiedDownload && authParams == null) throw IOException("Download does not belong to the configured server")
-                if (authParams != null) {
-                    val (u, t, s) = authParams
-                    val newUrl = url.newBuilder().removeAllQueryParameters("p")
-                        .setQueryParameter("u", u)
-                        .setQueryParameter("t", t)
-                        .setQueryParameter("s", s)
-                        .setQueryParameter("v", AppConstants.SUBSONIC_API_VERSION)
-                        .setQueryParameter("c", AppConstants.SUBSONIC_CLIENT_ID)
-                        .build()
-                    request.newBuilder().url(newUrl).build()
-                } else {
-                    request
-                }
-            } else {
-                request
-            }
-
+                authorizeMediaRequest(context, request, verifiedDownload)
+            } else request
             val response = chain.proceed(finalRequest)
-
-            if (isMediaRequest) {
-                val contentType = response.body.contentType()?.toString()?.lowercase() ?: ""
-                val isSuccessful = response.isSuccessful
-                val isExplicitTextOrError = contentType.contains("json") ||
-                        contentType.contains("xml") ||
-                        contentType.contains("text/")
-
-                // The conditional downloader handles this response by restarting with a clean file.
-                if (verifiedDownload && (response.code == 412 || response.code == 416)) return@addInterceptor response
-                if (!isSuccessful || isExplicitTextOrError) {
-                    val bodyString = try {
-                        response.use { it.peekBody(10240).string() }
-                    } catch (e: Exception) {
-                        "Failed to read body: ${e.message}"
-                    }
-                    val errorMessage = extractErrorMessage(bodyString)
-                    LogManager.e(
-                        "Stream/Download request returned non-audio response: code=${response.code}, " +
-                            "contentType=$contentType, detail=$errorMessage"
-                    )
-                    if (verifiedDownload && (response.code in 500..599 || response.code == 408 || response.code == 429)) {
-                        throw ServerUnavailableException("Download temporarily unavailable (HTTP ${response.code})")
-                    }
-                    throw IOException("Subsonic server returned error (code ${response.code}): $errorMessage")
-                }
-            }
+            if (isMediaRequest) validateMediaResponse(response, verifiedDownload)
             RawResourceIdentity.attach(response, finalRequest.url.takeIf { finalRequest !== request })
         }.build()
+    }
+
+    private fun authorizeMediaRequest(context: Context, request: Request, verifiedDownload: Boolean): Request {
+        val repo = EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java).subsonicRepository()
+        if (verifiedDownload && !repo.isConfigured) kotlinx.coroutines.runBlocking { repo.ensureConfigured() }
+        val auth = repo.getMediaAuthParams(request.url)
+        if (auth == null) {
+            if (verifiedDownload) throw IOException("Download does not belong to the configured server")
+            return request
+        }
+        val (u, t, s) = auth
+        val url = request.url.newBuilder().removeAllQueryParameters("p")
+            .setQueryParameter("u", u)
+            .setQueryParameter("t", t)
+            .setQueryParameter("s", s)
+            .setQueryParameter("v", AppConstants.SUBSONIC_API_VERSION)
+            .setQueryParameter("c", AppConstants.SUBSONIC_CLIENT_ID)
+            .build()
+        return request.newBuilder().url(url).build()
+    }
+
+    private fun validateMediaResponse(response: Response, verifiedDownload: Boolean) {
+        val code = response.code
+        if (verifiedDownload && (code == HTTP_PRECON_FAILED || code == OriginalDownloadRequest.RANGE_NOT_SATISFIABLE)) return
+        val contentType = response.body.contentType()?.toString()?.lowercase().orEmpty()
+        val errorBody = contentType.contains("json") || contentType.contains("xml") || contentType.contains("text/")
+        if (response.isSuccessful && !errorBody) return
+        val body = try {
+            response.use { it.peekBody(10240).string() }
+        } catch (e: Exception) {
+            "Failed to read body: ${e.message}"
+        }
+        val message = extractErrorMessage(body)
+        LogManager.e("Stream/Download request returned non-audio response: code=$code, contentType=$contentType, detail=$message")
+        val retryable = code in serverErrors || code == HTTP_CLIENT_TIMEOUT || code == HTTP_TOO_MANY_REQUESTS
+        if (verifiedDownload && retryable) throw ServerUnavailableException("Download temporarily unavailable (HTTP $code)")
+        throw IOException("Subsonic server returned error (code $code): $message")
     }
 
     @Provides

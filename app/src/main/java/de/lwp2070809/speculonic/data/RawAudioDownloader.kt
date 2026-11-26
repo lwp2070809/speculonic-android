@@ -15,6 +15,9 @@ import okhttp3.Call
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.Response
+import java.net.HttpURLConnection.HTTP_OK
+import java.net.HttpURLConnection.HTTP_PARTIAL
+import java.net.HttpURLConnection.HTTP_PRECON_FAILED
 import java.io.EOFException
 import java.io.FileInputStream
 import java.io.IOException
@@ -22,7 +25,9 @@ import java.io.InputStream
 import java.security.MessageDigest
 
 /** Marker for the authenticated original-file endpoint on the configured server. */
-internal object OriginalDownloadRequest
+internal object OriginalDownloadRequest {
+    const val RANGE_NOT_SATISFIABLE = 416
+}
 
 /** One Media3 download attempt. Only completed, validated content is handed to the exporter. */
 @UnstableApi
@@ -45,7 +50,7 @@ internal class RawAudioDownloader(
             request.uri.getQueryParameter("format") == "raw" && request.uri.getQueryParameter("id") == request.id &&
             (request.customCacheKey == null || request.customCacheKey == request.id)
 
-        private val CONTENT_RANGE = Regex("bytes (\\d+)-(\\d+)/(\\d+)", RegexOption.IGNORE_CASE)
+        private val CONTENT_RANGE = Regex("bytes (\\d+)-(\\d+)/(\\d+|\\*)", RegexOption.IGNORE_CASE)
         private val MD5 = Regex("[0-9a-fA-F]{32}")
     }
 
@@ -57,18 +62,19 @@ internal class RawAudioDownloader(
         val transfer = if (cached) {
             try {
                 reuseOrFetch(digest, progressListener)
-            } catch (_: RepresentationChanged) {
+            } catch (_: FullDownloadRequired) {
                 Transfer(fetchWhole(progressListener))
             }
         } else {
             Transfer(fetchWhole(progressListener))
         }
-        if (digest == null || matchesDigest(transfer.length, digest)) return
+        if (digest == null) return
+        val actual = cachedMd5(transfer.length)
+        if (actual.equals(digest, ignoreCase = true)) return
 
-        if (transfer.reused) {
-            val length = fetchWhole(progressListener)
-            if (matchesDigest(length, currentMd5()?.takeIf(MD5::matches) ?: digest)) return
-        }
+        val fresh = if (transfer.reused) cachedMd5(fetchWhole(progressListener)) else actual
+        val expected = currentMd5()?.takeIf(MD5::matches) ?: digest
+        if (fresh.equals(expected, ignoreCase = true)) return
         persistent.removeResource(id)
         throw IOException("Original audio checksum mismatch after fresh download").also { integrityFailure = it }
     }
@@ -77,7 +83,7 @@ internal class RawAudioDownloader(
 
     private fun reuseOrFetch(digest: String?, progressListener: Downloader.ProgressListener?): Transfer {
         val authorized = exchange("bytes=0-0") { probe ->
-            if (probe.code == 200) return Transfer(replaceWith(probe, progressListener))
+            if (probe.code == HTTP_OK) return Transfer(replaceWith(probe, progressListener))
             val length = responseLength(probe, 0, 0)
             if (probe.body.byteStream().read() < 0) throw EOFException("Empty authorization response")
             AuthorizedRange(length, probe.header("ETag"), PlaybackBuffer.proof(probe))
@@ -113,37 +119,19 @@ internal class RawAudioDownloader(
                 continue
             }
             val hole = -cached
-            var gap = hole
-            val local = synchronized(playback) {
-                val eligible = hasDigest || (proof != null && playback.getContentMetadata(playKey)
-                    .get(PlaybackBuffer.PROOF, null as String?) == proof)
-                if (!eligible) return@synchronized null
-                val span = playback.startReadWriteNonBlocking(playKey, position, hole) ?: return@synchronized null
-                if (span.isHoleSpan) {
-                    gap = if (span.isOpenEnded) hole else minOf(hole, span.length)
-                    playback.releaseHoleSpan(span)
-                    return@synchronized null
-                }
-                val offset = position - span.position
-                val file = try { FileInputStream(requireNotNull(span.file)) } catch (_: java.io.FileNotFoundException) {
-                    return@synchronized null
-                }
-                file.channel.position(offset)
-                file to minOf(hole, span.length - offset)
-            }
+            val (local, gap) = playbackSegment(position, hole, hasDigest, proof)
             if (local != null) {
                 reused = true
-                local.first.use { write(it, position, local.second, length, listener) }
-                position += local.second
+                local.use { write(it, position, gap, length, listener) }
+                position += gap
             } else {
                 val end = position + gap - 1
                 val replacementLength = exchange("bytes=$position-$end", if (hasDigest) null else tag) { response ->
-                    if (response.code == 200) {
+                    if (response.code == HTTP_OK) {
                         replaceWith(response, listener)
                     } else {
-                        if (responseLength(response, position, end) != length ||
-                            (!hasDigest && PlaybackBuffer.proof(response) != proof)
-                        ) throw RepresentationChanged()
+                        responseLength(response, position, end, expectedTotal = length)
+                        if (!hasDigest && PlaybackBuffer.proof(response) != proof) throw FullDownloadRequired()
                         write(response.body.byteStream(), position, gap, length, listener)
                         null
                     }
@@ -157,9 +145,33 @@ internal class RawAudioDownloader(
         return Transfer(length, reused)
     }
 
+    private fun playbackSegment(position: Long, hole: Long, hasDigest: Boolean, proof: String?): Pair<FileInputStream?, Long> =
+        synchronized(playback) {
+            val hasProof = proof != null && playback.getContentMetadata(playKey).get(PlaybackBuffer.PROOF, null as String?) == proof
+            if (!hasDigest && !hasProof) return@synchronized null to hole
+            val span = playback.startReadWriteNonBlocking(playKey, position, hole) ?: return@synchronized null to hole
+            if (span.isHoleSpan) {
+                playback.releaseHoleSpan(span)
+                return@synchronized null to if (span.isOpenEnded) hole else minOf(hole, span.length)
+            }
+            val offset = position - span.position
+            val file = try {
+                FileInputStream(requireNotNull(span.file))
+            } catch (_: java.io.FileNotFoundException) {
+                return@synchronized null to hole
+            }
+            try {
+                file.channel.position(offset)
+            } catch (e: IOException) {
+                file.close()
+                throw e
+            }
+            file to minOf(hole, span.length - offset)
+        }
+
     private fun fetchWhole(listener: Downloader.ProgressListener?): Long =
         exchange(null) { response ->
-            if (response.code != 200) throw IOException("Expected complete audio response")
+            if (response.code != HTTP_OK) throw IOException("Expected complete audio response")
             replaceWith(response, listener)
         }
 
@@ -190,37 +202,44 @@ internal class RawAudioDownloader(
         if (count == 0L) throw EOFException("Empty audio")
         val lock = persistent.startReadWrite(id, start, count)
         if (!lock.isHoleSpan) throw IOException("Download cache changed during transfer")
-        var copied = 0L
         try {
             val sink = CacheDataSink(persistent, CacheDataSink.DEFAULT_FRAGMENT_SIZE)
             val spec = DataSpec.Builder().setUri(request.uri).setKey(id).setPosition(start).setLength(count)
                 .setFlags(DataSpec.FLAG_ALLOW_CACHE_FRAGMENTATION).build()
             try {
                 sink.open(spec)
-                while (count == C.LENGTH_UNSET.toLong() || copied < count) {
-                    ensureRunning()
-                    val wanted = if (count < 0) buffer.size else minOf(buffer.size.toLong(), count - copied).toInt()
-                    val n = input.read(buffer, 0, wanted)
-                    ensureRunning()
-                    if (n < 0) {
-                        if (count >= 0) throw EOFException("Short audio response")
-                        break
-                    }
-                    sink.write(buffer, 0, n)
-                    copied += n
-                    val done = start + copied
-                    listener?.onProgress(total, done, if (total > 0) 100f * done / total else C.PERCENTAGE_UNSET.toFloat())
-                }
+                return copyToSink(input, sink, spec, total, listener)
             } finally {
                 sink.close()
             }
         } finally {
             persistent.releaseHoleSpan(lock)
         }
+    }
+
+    private fun copyToSink(
+        input: InputStream, sink: CacheDataSink, spec: DataSpec, total: Long, listener: Downloader.ProgressListener?
+    ): Long {
+        var copied = 0L
+        val count = spec.length
+        while (count == C.LENGTH_UNSET.toLong() || copied < count) {
+            ensureRunning()
+            val wanted = if (count < 0) buffer.size else minOf(buffer.size.toLong(), count - copied).toInt()
+            val n = input.read(buffer, 0, wanted)
+            ensureRunning()
+            if (n < 0) {
+                if (count >= 0) throw EOFException("Short audio response")
+                break
+            }
+            sink.write(buffer, 0, n)
+            copied += n
+            val done = spec.position + copied
+            listener?.onProgress(total, done, if (total > 0) 100f * done / total else C.PERCENTAGE_UNSET.toFloat())
+        }
         return copied
     }
 
-    private fun matchesDigest(length: Long, expected: String): Boolean {
+    private fun cachedMd5(length: Long): String {
         val digest = MessageDigest.getInstance("MD5")
         val spec = DataSpec.Builder().setUri(Uri.EMPTY).setKey(id).setLength(length).build()
         DataSourceInputStream(CacheDataSource(persistent, null), spec).use { input ->
@@ -231,23 +250,32 @@ internal class RawAudioDownloader(
                 digest.update(buffer, 0, n)
             }
         }
-        return digest.digest().joinToString("") { "%02x".format(it) }.equals(expected, true)
+        return digest.digest().joinToString("") { "%02x".format(it) }
     }
 
-    private fun responseLength(response: Response, start: Long, end: Long): Long {
-        val range = CONTENT_RANGE.matchEntire(response.header("Content-Range").orEmpty())?.groupValues
-        val total = range?.get(3)?.toLongOrNull()
-        if (response.code == 206 && total != null && total <= end) throw RepresentationChanged()
-        if (response.code != 206 || total == null ||
-            range[1].toLongOrNull() != start || range[2].toLongOrNull() != end
-        ) throw IOException("Invalid audio Content-Range")
+    private fun responseLength(response: Response, start: Long, end: Long, expectedTotal: Long? = null): Long {
+        val range = CONTENT_RANGE.matchEntire(response.header("Content-Range").orEmpty())?.groupValues ?: invalidRange()
+        if (response.code != HTTP_PARTIAL || range[1].toLongOrNull() != start) invalidRange()
+        val last = range[2].toLongOrNull() ?: invalidRange()
+        if (last !in start..end) invalidRange()
+        if (range[3] == "*" && last == end) throw FullDownloadRequired()
+        return validateRangeTotal(range[3], last, end, expectedTotal)
+    }
+
+    private fun validateRangeTotal(value: String, last: Long, end: Long, expected: Long?): Long {
+        val total = value.toLongOrNull() ?: invalidRange()
+        if (last >= total || (last < end && total != expected)) invalidRange()
+        if (last < end || (expected != null && total != expected)) throw FullDownloadRequired()
         return total
     }
 
-    private class RepresentationChanged : IOException()
+    private fun invalidRange(): Nothing = throw IOException("Invalid audio Content-Range")
+
+    private class FullDownloadRequired : IOException()
 
     private inline fun <T> exchange(range: String?, ifMatch: String? = null, consume: (Response) -> T): T {
-        val builder = Request.Builder().tag(OriginalDownloadRequest::class.java, OriginalDownloadRequest).url(request.uri.toString()).header("Accept-Encoding", "identity")
+        val builder = Request.Builder().tag(OriginalDownloadRequest::class.java, OriginalDownloadRequest).url(request.uri.toString())
+            .header("Accept-Encoding", "identity")
             .header("Cache-Control", "no-cache")
         if (range != null) builder.header("Range", range)
         if (ifMatch != null) builder.header("If-Match", ifMatch)
@@ -256,11 +284,15 @@ internal class RawAudioDownloader(
         try {
             ensureRunning()
             return transfer.execute().use { response ->
-                if ((ifMatch != null && response.code == 412) || (range != null && response.code == 416)) {
-                    throw RepresentationChanged()
+                val restart = when (response.code) {
+                    HTTP_PRECON_FAILED -> ifMatch != null
+                    OriginalDownloadRequest.RANGE_NOT_SATISFIABLE -> range != null
+                    else -> false
                 }
+                if (restart) throw FullDownloadRequired()
                 val mime = response.body.contentType()?.toString().orEmpty().lowercase()
-                if (!response.isSuccessful || mime.contains("json") || mime.contains("xml") || mime.startsWith("text/"))
+                val errorBody = mime.contains("json") || mime.contains("xml") || mime.startsWith("text/")
+                if (!response.isSuccessful || errorBody)
                     throw IOException("Download endpoint rejected audio (HTTP ${response.code})")
                 consume(response)
             }

@@ -47,6 +47,7 @@ fun InconsistencyDialog(
     onResolve: (Action, InconsistentItem?) -> Unit
 ) {
     var confirmDeleteAll by rememberSaveable { mutableStateOf(false) }
+    val deletableCount = inconsistentItems.count { it.canDelete }
     Dialog(
         onDismissRequest = { if (!isResolving) onDismissRequest() },
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -124,12 +125,15 @@ fun InconsistencyDialog(
                                         InconsistentItem.Type.MISSING_FILE -> stringResource(R.string.inconsistency_reason_missing)
                                         InconsistentItem.Type.BINARY_MISMATCH -> stringResource(R.string.inconsistency_reason_mismatch)
                                         InconsistentItem.Type.ORPHANED_FILE -> stringResource(R.string.inconsistency_reason_orphaned)
+                                        InconsistentItem.Type.AWAITING_REDOWNLOAD -> stringResource(R.string.cache_awaiting_redownload)
                                     }
                                     Column {
                                         Text(text = reason, color = MaterialTheme.colorScheme.error)
                                         FlowRow {
-                                            TextButton(enabled = !isResolving, onClick = { onResolve(Action.DELETE, item) }) {
-                                                Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                                            if (item.canDelete) {
+                                                TextButton(enabled = !isResolving, onClick = { onResolve(Action.DELETE, item) }) {
+                                                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
+                                                }
                                             }
                                             if (item.canRedownload) {
                                                 TextButton(enabled = !isResolving, onClick = { onResolve(Action.REDOWNLOAD, item) }) {
@@ -155,7 +159,7 @@ fun InconsistencyDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     if (inconsistentItems.isNotEmpty()) {
-                        TextButton(enabled = !isResolving, onClick = { confirmDeleteAll = true }) {
+                        TextButton(enabled = !isResolving && deletableCount > 0, onClick = { confirmDeleteAll = true }) {
                             Text(stringResource(R.string.cache_delete_all))
                         }
                         TextButton(enabled = !isResolving && inconsistentItems.any { it.canRedownload },
@@ -173,7 +177,7 @@ fun InconsistencyDialog(
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             title = { Text(stringResource(R.string.cache_delete_all)) },
-            text = { Text(stringResource(R.string.cache_confirm_delete_all, inconsistentItems.size)) },
+            text = { Text(stringResource(R.string.cache_confirm_delete_all, deletableCount)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteAll = false

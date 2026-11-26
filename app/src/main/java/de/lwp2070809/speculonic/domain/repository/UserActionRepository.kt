@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.domain.repository
 
-import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import androidx.room.withTransaction
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
@@ -14,10 +15,12 @@ import kotlinx.coroutines.sync.withLock
 
 class UserActionRepository(
     private val api: SubsonicService,
-    private val musicDao: MusicDao,
+    private val database: AppDatabase,
     private val authManager: AuthManager,
     private val entityMapper: EntityMapper
 ) {
+    private val musicDao = database.musicDao()
+
     // 对同曲目的收藏/取消收藏请求按 songId 分片串行化，防止快速双击时慢请求反向覆盖最新状态
     private val songStarMutexes = Array(64) { Mutex() }
 
@@ -67,9 +70,11 @@ class UserActionRepository(
             val starred2 = response.response.starred2 ?: Starred2Response()
             if (skipInsert) return starred2
 
-            val songEntities = mapStarredSongsToEntities(starred2.song)
-            val (albumEntities, listItems) = buildStarredAlbumsPayload(starred2.album)
-            musicDao.syncStarredData(songEntities, albumEntities, listItems)
+            database.withTransaction {
+                val songEntities = mapStarredSongsToEntities(starred2.song)
+                val (albumEntities, listItems) = buildStarredAlbumsPayload(starred2.album)
+                musicDao.syncStarredData(songEntities, albumEntities, listItems)
+            }
 
             Starred2Response(
                 song = musicDao.getStarredSongs().map { entityMapper.toSong(it) },

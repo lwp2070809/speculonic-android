@@ -98,7 +98,7 @@ class LocalLyricsProvider @Inject constructor(
         val existingLrc = rootDoc.findFile(lrcFileName)
         val lrcFile = existingLrc ?: rootDoc.createFile("application/octet-stream", lrcFileName) ?: return false
 
-        CacheExporter.openTruncatedOutputStream(context, lrcFile.uri)?.use { out ->
+        CacheExporter.openTruncatedOutputStream(context, lrcFile.uri, newFile = existingLrc == null)?.use { out ->
             out.write(lrcContent.toByteArray())
             LogManager.i("LocalLyricsProvider: Successfully created and saved companion .lrc file")
             return true

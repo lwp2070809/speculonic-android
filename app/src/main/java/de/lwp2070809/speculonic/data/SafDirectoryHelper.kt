@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.Uri
 import android.provider.DocumentsContract
 import androidx.documentfile.provider.DocumentFile
+import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.util.LogManager
 import java.io.IOException
 import kotlinx.coroutines.CancellationException
@@ -15,6 +16,9 @@ data class SafChildEntry(
     val size: Long,
     val mimeType: String?
 )
+
+internal fun isRegularSafFileType(mimeType: String?): Boolean =
+    !mimeType.isNullOrBlank() && mimeType != DocumentsContract.Document.MIME_TYPE_DIR
 
 /**
  * 通过单次 DocumentsContract 树形目录游标批量读取 SAF 子项，替代 DocumentFile.listFiles/findFile 的 O(N) 逐条 Binder IPC。
@@ -66,6 +70,27 @@ object SafDirectoryHelper {
         if (targetNames.isEmpty()) return emptyMap()
         return scanChildren(context, treeUri, targetNames = targetNames).associateBy { it.name }
     }
+
+    fun findMigrationTargets(context: Context, treeUri: Uri, names: Set<String>): Map<String, SafChildEntry> =
+        withChildCursor(context, treeUri, CHILD_PROJECTION) { cursor ->
+            val nameIndex = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DISPLAY_NAME)
+            val idIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            val mimeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_MIME_TYPE)
+            val sizeIndex = cursor.getColumnIndex(DocumentsContract.Document.COLUMN_SIZE)
+            buildMap {
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameIndex) ?: throw IOException("Incomplete directory listing")
+                    if (name !in names) continue
+                    val id = if (idIndex >= 0) cursor.getString(idIndex) else null
+                    val mime = if (mimeIndex >= 0) cursor.getString(mimeIndex) else null
+                    if (id.isNullOrBlank() || !isRegularSafFileType(mime) || containsKey(name)) {
+                        throw IOException(context.getString(R.string.saf_name_conflict, name))
+                    }
+                    val size = if (sizeIndex >= 0 && !cursor.isNull(sizeIndex)) cursor.getLong(sizeIndex) else -1L
+                    put(name, SafChildEntry(id, name, DocumentsContract.buildDocumentUriUsingTree(treeUri, id), size, mime))
+                }
+            }
+        }
 
     private fun scanChildren(context: Context, treeUri: Uri, targetNames: Set<String>?): List<SafChildEntry> {
         val childrenUri = resolveChildrenUri(treeUri)

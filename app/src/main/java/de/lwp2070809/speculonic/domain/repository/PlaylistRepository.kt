@@ -1,6 +1,7 @@
 package de.lwp2070809.speculonic.domain.repository
 
-import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import androidx.room.withTransaction
+import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistSongCrossRef
 import de.lwp2070809.speculonic.network.api.SubsonicService
@@ -15,10 +16,12 @@ import kotlinx.coroutines.sync.withLock
 
 class PlaylistRepository(
     private val api: SubsonicService,
-    private val musicDao: MusicDao,
+    private val database: AppDatabase,
     private val authManager: AuthManager,
     private val entityMapper: EntityMapper
 ) {
+    private val musicDao = database.musicDao()
+
     enum class PlaylistRemovalOutcome {
         REMOVED,
         CONFLICT_REFRESHED,
@@ -127,7 +130,7 @@ class PlaylistRepository(
     private suspend fun persistRemotePlaylist(
         id: String,
         playlistInfo: Playlist
-    ): List<Song> {
+    ): List<Song> = database.withTransaction {
         val finalPlaylistEntity = buildPlaylistEntity(id, playlistInfo)
         val entities = buildPlaylistSongEntities(playlistInfo.entry)
         val refs = playlistInfo.entry.mapIndexed { index, song ->
@@ -138,7 +141,7 @@ class PlaylistRepository(
             songs = entities,
             refs = refs
         )
-        return entities.map { entityMapper.toSong(it) }
+        entities.map { entityMapper.toSong(it) }
     }
 
     private suspend fun fetchRemotePlaylist(

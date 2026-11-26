@@ -163,8 +163,8 @@ class SubsonicRepository(
                 database.withTransaction { block() }
             }
         )
-        val newPlaylistRepository = PlaylistRepository(newApi, musicDao, newAuthManager, entityMapper)
-        val newUserActionRepository = UserActionRepository(newApi, musicDao, newAuthManager, entityMapper)
+        val newPlaylistRepository = PlaylistRepository(newApi, database, newAuthManager, entityMapper)
+        val newUserActionRepository = UserActionRepository(newApi, database, newAuthManager, entityMapper)
         val newLyricsRepository = LyricsRepository(newApi, musicDao, newAuthManager, localLyricsProvider)
         val newMediaRepository = MediaRepository(newApi, musicDao, newAuthManager, entityMapper, database)
         val newCoverArtSyncManager = CoverArtSyncManager(context, url, musicDao, newUrlBuilder)
@@ -220,8 +220,7 @@ class SubsonicRepository(
     suspend fun syncAllData(
         forceRefresh: Boolean = false,
         ignoreLastModified: Boolean = false,
-        ignoreDropRatioGuard: Boolean = false,
-        skipRemoteVerification: Boolean = false,
+        confirmedGuards: Set<SafetyGuardException.Reason> = emptySet(),
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ): SyncOutcome {
@@ -233,13 +232,12 @@ class SubsonicRepository(
             options = SyncOptions(
                 forceRefresh = forceRefresh,
                 ignoreLastModified = ignoreLastModified,
-                ignoreDropRatioGuard = ignoreDropRatioGuard,
-                skipRemoteVerification = skipRemoteVerification,
+                confirmedGuards = confirmedGuards,
                 hasLocalData = hasLocal,
                 keepSyncingState = keepSyncingState
             ),
             onProgress = onProgress,
-            onSyncComplete = { currentTime, serverLastModified ->
+            onSyncComplete = { result ->
                 runCatching { getStarred(forceRefresh = true) }
                     .onFailure { LogManager.w("SubsonicRepository: Failed to sync starred data in onSyncComplete: ${it.message}") }
                 
@@ -250,11 +248,7 @@ class SubsonicRepository(
                 runCatching { refreshAlbumList("random") }
                     .onFailure { LogManager.w("SubsonicRepository: Failed to sync random albums in onSyncComplete: ${it.message}") }
                 
-                musicDao.deleteOrphanedAlbums()
-                preferencesManager.saveLastSyncTime(currentTime)
-                if (serverLastModified != 0L) {
-                    preferencesManager.saveServerLastModified(serverLastModified)
-                }
+                if (result == SyncOutcome.SYNCED_FULL) musicDao.deleteOrphanedAlbums()
             }
         )
 

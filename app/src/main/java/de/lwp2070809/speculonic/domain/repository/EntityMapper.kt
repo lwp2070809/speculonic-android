@@ -3,6 +3,7 @@ package de.lwp2070809.speculonic.domain.repository
 import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.PlaylistEntity
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
+import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.DiscTitle
 import de.lwp2070809.speculonic.network.model.Playlist
@@ -68,6 +69,18 @@ object EntityMapper {
             lastUpdated = overrides.lastUpdated ?: serverStarredTime ?: System.currentTimeMillis()
         )
     }
+
+    internal fun mergeSyncSong(song: Song, local: SongMetadata?, fallbackAlbumId: String? = null): SongEntity =
+        songToEntity(
+            song,
+            SongEntityOverrides(
+                albumId = song.albumId ?: fallbackAlbumId,
+                localUri = local?.localUri,
+                isCached = local?.isFullyCached ?: false,
+                isTranscoded = local?.isTranscoded ?: false,
+                lastUpdated = if (song.starred != null && local?.starred != true) null else local?.lastUpdated
+            )
+        )
 
     fun toSong(entity: SongEntity): Song {
         return Song(

@@ -40,8 +40,11 @@ fun SyncDetailDialog(
     viewModel: ServerSyncViewModel
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-    val counts by produceState<LibraryCounts?>(null, viewModel) {
-        value = viewModel.getLibraryCounts()
+    val isSyncing = uiState.isSyncing
+    val counts by produceState<LibraryCounts?>(null, viewModel, isSyncing) {
+        if (value == null || !isSyncing) {
+            value = viewModel.getLibraryCounts()
+        }
     }
 
     AlertDialog(

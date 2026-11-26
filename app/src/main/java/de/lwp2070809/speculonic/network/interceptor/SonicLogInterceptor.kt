@@ -63,25 +63,25 @@ class SonicLogInterceptor(
         val blockReason = when {
             host == "unconfigured.local" || host == "invalid-url-no-protocol" -> {
                 LogManager.i(LogTag.NETWORK, "OfflineInterceptor: App is not configured, aborting dummy request: $safeUrl")
-                "Unconfigured: Server is not configured yet"
+                IOException("Unconfigured: Server is not configured yet")
             }
             ServerReachableManager.isManualOffline -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: manual offline: $safeUrl")
-                throw ServerUnavailableException("Offline: Manual offline mode is enabled")
+                ServerUnavailableException("Offline: Manual offline mode is enabled")
             }
             !ServerReachableManager.isPhysicallyConnected -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: disconnected: $safeUrl")
-                throw ServerUnavailableException("Offline: No active network connection available")
+                ServerUnavailableException("Offline: No active network connection available")
             }
             !request.url.isHttps && !allowInsecureProvider() -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: Insecure connection blocked: $safeUrl")
-                "Insecure connection blocked: HTTP is not allowed by default. " +
-                    "Please use HTTPS or enable 'Allow insecure connections' in settings."
+                IOException("Insecure connection blocked: HTTP is not allowed by default. " +
+                    "Please use HTTPS or enable 'Allow insecure connections' in settings.")
             }
             else -> null
         }
         if (blockReason != null) {
-            throw IOException(blockReason)
+            throw blockReason
         }
     }
 

@@ -283,6 +283,7 @@
         <item quantity="other">Found %1$d inconsistent files. Please select an action:</item>
     </plurals>
     <string name="inconsistency_reason_missing">File missing</string>
+    <string name="cache_awaiting_redownload">Cache cleared. Retry to queue the download.</string>
     <string name="inconsistency_reason_mismatch">Binary mismatch</string>
     <string name="inconsistency_reason_orphaned">Unknown orphaned file</string>
     <string name="redownload">Redownload</string>
@@ -380,6 +381,7 @@
     <string name="healing_cover_art">Healing album covers…</string>
     <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
     <string name="export_failed">Export failed: %1$s</string>
+    <string name="saf_name_conflict">Name conflict in the destination folder: %1$s</string>
     <string name="transcode_incompatible_formats">Server Transcoding (Experimental)</string>
     <string name="transcode_incompatible_formats_description">Convert unsupported formats such as APE and WV on the server. Enabling this breaks the app’s 1:1 bit-perfect mirror design.</string>
     <string name="target_transcode_format">Target Transcode Format</string>

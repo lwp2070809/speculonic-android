@@ -33,65 +33,50 @@ internal class AlbumListSyncHelper(
 
     suspend fun syncAllAlbums(
         type: String = "alphabeticalByName",
-        existingAlbumsMap: Map<String, AlbumEntity>? = null,
         recordTempIds: Boolean = false
     ): List<String> {
         var offset = 0
-        var hasMore = true
         val seenAlbumIds = LinkedHashSet<String>()
-        while (hasMore) {
+        while (true) {
             val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
             val response = api.getAlbumList2(u, t, s, type = type, size = ALBUM_PAGE_SIZE, offset = offset)
             val albums = checkNotNull(response.response.ensureOk().albumList2) {
                 "Missing albumList2 in response"
             }.album
-            if (albums.isEmpty()) {
-                hasMore = false
+            if (albums.isEmpty()) return seenAlbumIds.toList()
+            val hasPaginationIssue = if (recordTempIds) {
+                albums.any { !seenAlbumIds.add(it.id) }
             } else {
-                val hasPaginationIssue = if (recordTempIds) {
-                    albums.any { !seenAlbumIds.add(it.id) }
-                } else {
-                    !seenAlbumIds.addAll(albums.map { it.id })
-                }
-                if (hasPaginationIssue) {
-                    throw IncompletePaginationException("Overlapping album page at offset $offset")
-                }
-                saveAlbumListChunk(
-                    listType = type,
-                    albums = albums,
-                    offset = offset,
-                    existingAlbumsMap = existingAlbumsMap,
-                    recordTempIds = recordTempIds
-                )
-                offset += albums.size
-                hasMore = albums.size >= ALBUM_PAGE_SIZE
+                !seenAlbumIds.addAll(albums.map { it.id })
             }
+            if (hasPaginationIssue) {
+                throw IncompletePaginationException("Overlapping album page at offset $offset")
+            }
+            saveAlbumListChunk(
+                listType = type,
+                albums = albums,
+                offset = offset,
+                recordTempIds = recordTempIds
+            )
+            offset += albums.size
         }
-        return seenAlbumIds.toList()
     }
 
-    suspend fun saveAlbumListChunk(
+    suspend fun mergeAlbums(albums: List<Album>): List<AlbumEntity> {
+        val existing = musicDao.getAlbumsByIds(albums.map { it.id }).associateBy { it.id }
+        return albums.map { album -> entityMapper.albumToEntity(album, existing[album.id]) }
+    }
+
+    private suspend fun saveAlbumListChunk(
         listType: String,
         albums: List<Album>,
         offset: Int = 0,
-        existingAlbumsMap: Map<String, AlbumEntity>? = null,
         recordTempIds: Boolean = false
     ) {
-        if (albums.isEmpty()) return
-        val resolvedExistingMap = existingAlbumsMap ?: albums.map { it.id }
-            .chunked(BATCH_SIZE)
-            .flatMap { musicDao.getAlbumsByIds(it) }
-            .associateBy { it.id }
-
-        val albumEntities = ArrayList<AlbumEntity>(albums.size)
-        val listItems = ArrayList<AlbumListItemEntity>(albums.size)
-        albums.forEachIndexed { index, album ->
-            val existing = resolvedExistingMap[album.id]
-            albumEntities.add(entityMapper.albumToEntity(album, existing = existing, isStarred = album.starred != null))
-            listItems.add(AlbumListItemEntity(listType, album.id, index + offset))
-        }
+        val listItems = albums.mapIndexed { index, album -> AlbumListItemEntity(listType, album.id, index + offset) }
 
         runInTransaction {
+            val albumEntities = mergeAlbums(albums)
             if (recordTempIds) {
                 albums.chunked(BATCH_SIZE).forEach { chunk ->
                     musicDao.insertSyncTempIds(chunk.map { SyncTempIdEntity(it.id, "album") })

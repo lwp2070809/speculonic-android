@@ -2,10 +2,7 @@ package de.lwp2070809.speculonic.domain.repository
 
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
-import de.lwp2070809.speculonic.data.db.entities.AlbumEntity
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
-import de.lwp2070809.speculonic.data.db.entities.SongEntity
-import de.lwp2070809.speculonic.data.db.entities.SongMetadata
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
@@ -52,22 +49,11 @@ internal class Id3SyncExecutor(
             albums = musicDao.getAlbumsCount(),
             songs = musicDao.getSongsCount()
         )
-        val existingAlbumsMap = musicDao.getAlbums().associateBy { it.id }
-        val existingSongsMetadata = musicDao.getAllSongsMetadata().associateBy { it.id }
         musicDao.clearSyncTempIds()
 
         syncAllArtists()
-        val albumIds = albumListHelper.syncAllAlbums(
-            type = "alphabeticalByName",
-            existingAlbumsMap = existingAlbumsMap,
-            recordTempIds = true
-        )
-        val failedAlbums = syncSongsByAlbums(
-            albumIds = albumIds,
-            existingAlbumsMap = existingAlbumsMap,
-            existingSongsMetadata = existingSongsMetadata,
-            onProgress = params.onProgress
-        )
+        val albumIds = albumListHelper.syncAllAlbums(recordTempIds = true)
+        val failedAlbums = syncSongsByAlbums(albumIds, params.onProgress)
         if (failedAlbums > 0) {
             throw IOException("ID3 sync incomplete: $failedAlbums/${albumIds.size} albums failed")
         }
@@ -107,16 +93,7 @@ internal class Id3SyncExecutor(
             },
             params.onProgress
         )
-        return if (cleanupResult.hasVerificationFailures) {
-            LogManager.w("SyncManager: ID3 sync finished with partial cleanup failures; holding sync cursor.")
-            params.onSyncComplete(params.currentTime, 0L)
-            pref.saveSyncProgress(null)
-            SyncOutcome.SYNCED_PARTIAL_CLEANUP
-        } else {
-            params.onSyncComplete(params.currentTime, params.serverLastModified)
-            pref.saveSyncProgress(null)
-            SyncOutcome.SYNCED_FULL
-        }
+        return if (cleanupResult.hasVerificationFailures) SyncOutcome.SYNCED_PARTIAL_CLEANUP else SyncOutcome.SYNCED_FULL
     }
 
     private suspend fun syncAllArtists() {
@@ -147,8 +124,6 @@ internal class Id3SyncExecutor(
 
     private suspend fun syncSongsByAlbums(
         albumIds: List<String>,
-        existingAlbumsMap: Map<String, AlbumEntity>,
-        existingSongsMetadata: Map<String, SongMetadata>,
         onProgress: (suspend (String) -> Unit)?
     ): Int {
         if (albumIds.isEmpty()) return 0
@@ -173,7 +148,7 @@ internal class Id3SyncExecutor(
                 }
             }
             if (resolvedAlbums.isNotEmpty()) {
-                persistAlbumsAndSongs(resolvedAlbums, existingAlbumsMap, existingSongsMetadata, seenSongIds)
+                persistAlbumsAndSongs(resolvedAlbums, seenSongIds)
             }
             processedCount += batchIds.size
             val progressMsg = "正在拉取元数据 (ID3: $processedCount/${albumIds.size})..."
@@ -227,48 +202,21 @@ internal class Id3SyncExecutor(
 
     private suspend fun persistAlbumsAndSongs(
         albums: List<Album>,
-        existingAlbumsMap: Map<String, AlbumEntity>,
-        existingSongsMetadata: Map<String, SongMetadata>,
         seenSongIds: MutableSet<String>
     ) {
-        val albumEntities = albums.map { album ->
-            entityMapper.albumToEntity(
-                album = album,
-                existing = existingAlbumsMap[album.id],
-                isStarred = album.starred != null
-            )
+        val songs = albums.flatMap { album ->
+            album.song.filter { seenSongIds.add(it.id) }.map { song -> album.id to song }
         }
-        val songEntities = ArrayList<SongEntity>()
-        val tempIds = ArrayList<SyncTempIdEntity>()
-
-        albums.forEach { album ->
-            album.song.forEach { song ->
-                if (!seenSongIds.add(song.id)) return@forEach
-                val meta = existingSongsMetadata[song.id]
-                val isStarred = song.starred != null
-                val lastUpdated = if (isStarred && meta?.starred != true) null else meta?.lastUpdated
-                songEntities.add(
-                    entityMapper.songToEntity(
-                        song = song,
-                        overrides = SongEntityOverrides(
-                            albumId = song.albumId ?: album.id,
-                            localUri = meta?.localUri,
-                            isCached = meta?.isFullyCached ?: false,
-                            isTranscoded = meta?.isTranscoded ?: false,
-                            isStarred = isStarred,
-                            lastUpdated = lastUpdated
-                        )
-                    )
-                )
-                tempIds.add(SyncTempIdEntity(song.id, "song"))
-            }
-        }
-
         runInTransaction {
-            albumEntities.chunked(BATCH_SIZE).forEach { musicDao.insertAlbums(it) }
-            if (songEntities.isNotEmpty()) {
-                songEntities.chunked(BATCH_SIZE).forEach { musicDao.insertSongs(it) }
-                tempIds.chunked(BATCH_SIZE).forEach { musicDao.insertSyncTempIds(it) }
+            musicDao.insertAlbums(albumListHelper.mergeAlbums(albums))
+            for (batch in songs.chunked(BATCH_SIZE)) {
+                val ids = batch.map { (_, song) -> song.id }
+                val localById = musicDao.getSongsMetadataByIds(ids).associateBy { it.id }
+                val entities = batch.map { (albumId, song) ->
+                    entityMapper.mergeSyncSong(song, localById[song.id], fallbackAlbumId = albumId)
+                }
+                musicDao.insertSongs(entities)
+                musicDao.insertSyncTempIds(ids.map { SyncTempIdEntity(it, "song") })
             }
         }
     }

@@ -15,6 +15,11 @@
     public <init>(...);
 }
 
+# ID3Tags.copyObject looks up each frame field's public copy constructor by its runtime type.
+-keepclassmembers,allowobfuscation class * extends org.jaudiotagger.tag.datatype.AbstractDataType {
+    public <init>(org.jaudiotagger.tag.datatype.**);
+}
+
 # 忽略第三方库警告
 -dontwarn org.jaudiotagger.**
 

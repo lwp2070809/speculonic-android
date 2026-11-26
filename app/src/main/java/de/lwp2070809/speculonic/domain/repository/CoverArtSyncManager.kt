@@ -75,6 +75,8 @@ class CoverArtSyncManager(
     private val prefetchMutex = Mutex()
 
     companion object {
+        private const val PREFETCH_CONCURRENCY = 4
+        private const val DISK_RESERVE_DIVISOR = 10
         private val lifecycle = Mutex()
         private val pending = mutableSetOf<Job>()
 
@@ -108,8 +110,8 @@ class CoverArtSyncManager(
         var processed = 0
         var failed = 0
         var embedded = 0
-        for (batch in ids.asSequence().chunked(4)) {
-            if (diskCache.size >= diskCache.maxSize - diskCache.maxSize / 10) {
+        for (batch in ids.asSequence().chunked(PREFETCH_CONCURRENCY)) {
+            if (diskCache.size >= diskCache.maxSize - diskCache.maxSize / DISK_RESERVE_DIVISOR) {
                 val reason = context.getString(R.string.cover_sync_quota, processed, ids.size)
                 LogManager.i("CoverArtSync: $reason")
                 onProgress?.invoke(reason)
@@ -129,6 +131,12 @@ class CoverArtSyncManager(
 
     private enum class PrefetchResult { DISK, EMBEDDED, FAILED }
 
+    private fun classifyPrefetchResult(disk: coil3.disk.DiskCache, key: String, result: SuccessResult) = when {
+        disk.openSnapshot(key)?.use { true } == true -> PrefetchResult.DISK
+        result.dataSource == DataSource.MEMORY -> PrefetchResult.EMBEDDED
+        else -> PrefetchResult.FAILED
+    }
+
     @OptIn(ExperimentalCoilApi::class)
     private suspend fun prefetch(loader: ImageLoader, id: String): PrefetchResult {
         val key = getCoverArtCacheKey(id)
@@ -143,11 +151,7 @@ class CoverArtSyncManager(
             .build()
         return try {
             when (val result = withTimeoutOrNull(30_000L) { loader.execute(request) }) {
-                is SuccessResult -> when {
-                    disk.openSnapshot(key)?.use { true } == true -> PrefetchResult.DISK
-                    result.dataSource == DataSource.MEMORY -> PrefetchResult.EMBEDDED
-                    else -> PrefetchResult.FAILED
-                }
+                is SuccessResult -> classifyPrefetchResult(disk, key, result)
                 else -> {
                     val reason = (result as? ErrorResult)?.throwable?.message ?: "timeout"
                     LogManager.w("CoverArtSync: failed to fetch $id: $reason")

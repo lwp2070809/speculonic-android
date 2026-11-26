@@ -277,6 +277,7 @@
         <item quantity="other">发现 %1$d 个不一致的文件，请选择处理方式：</item>
     </plurals>
     <string name="inconsistency_reason_missing">文件丢失</string>
+    <string name="cache_awaiting_redownload">缓存已清理，点“重新下载”可重试入队。</string>
     <string name="inconsistency_reason_mismatch">文件内容不一致</string>
     <string name="inconsistency_reason_orphaned">未知的孤立文件</string>
     <string name="redownload">重新下载</string>
@@ -374,6 +375,7 @@
     <string name="healing_cover_art">正在补全专辑封面…</string>
     <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
     <string name="export_failed">导出失败: %1$s</string>
+    <string name="saf_name_conflict">目标目录中存在名称冲突：%1$s</string>
     <string name="transcode_incompatible_formats">服务端转码不兼容格式（实验性）</string>
     <string name="transcode_incompatible_formats_description">由服务器将 APE、WV 等不兼容格式转为可播放的格式。开启后会破坏应用对服务器的 1:1 完全镜像设计。</string>
     <string name="target_transcode_format">转码目标格式</string>

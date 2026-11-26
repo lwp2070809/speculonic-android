@@ -80,16 +80,19 @@ class SongAudioMetadataExtractor @Inject constructor(
         try {
             TagOptionSingleton.getInstance().isAndroid = true
             val audioFile = resolveAudioFile(uriString, suffix, isTranscoded) { tempFile = it }
-                ?: return@withContext emptyMap()
+                ?: throw IOException("Audio file is unavailable for metadata extraction")
 
             val metadataMap = mutableMapOf<String, String>()
             appendAudioHeaderMetadata(audioFile, metadataMap)
             appendAudioTagMetadata(audioFile, metadataMap)
+            // ID3 text frames can include NUL separators that are invalid in accessibility XML.
+            metadataMap.replaceAll { _, value -> value.replace('\u0000', ' ').trimEnd() }
             metadataMap.filterValues { it.isNotEmpty() }
         } catch (e: CopyLimitException) {
             throw e
         } catch (e: Exception) {
             if (e is CancellationException) throw e
+            LogManager.w("SongAudioMetadataExtractor: Unable to read audio metadata", e)
             emptyMap()
         } finally {
             tempFile?.delete()
