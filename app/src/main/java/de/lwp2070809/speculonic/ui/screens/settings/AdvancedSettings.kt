@@ -11,7 +11,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.core.content.FileProvider
 import de.lwp2070809.speculonic.util.LogTag
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.foundation.background
@@ -36,6 +36,7 @@ import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -63,7 +64,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import kotlinx.coroutines.isActive
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -109,29 +109,30 @@ fun AdvancedSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarSta
 
     BindSettingsTopBar(topBarState = topBarState, title = title)
 
-    // 在内嵌展示第三栏日志面板时，返回键优先关闭日志面板（支持预测性返回缩放动效）
     var logBackProgress by remember { mutableFloatStateOf(0f) }
-    androidx.activity.compose.PredictiveBackHandler(enabled = isDualPane && showLogViewer) { progressFlow ->
-        try {
-            progressFlow.collect { event ->
-                logBackProgress = event.progress
-            }
-            showLogViewer = false
-        } finally {
-            logBackProgress = 0f
-        }
-    }
 
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val canShowInlineThirdPane = isDualPane && maxWidth >= 580.dp
+        val canShowInlineThirdPane = isDualPane && maxWidth >= 640.dp
         val isInlineLogOpen = canShowInlineThirdPane && showLogViewer
 
+        // 仅在内嵌展示第三栏日志面板时拦截预测性返回，避免与降级弹窗返回键冲突
+        PredictiveBackHandler(enabled = isInlineLogOpen) { progressFlow ->
+            try {
+                progressFlow.collect { event ->
+                    logBackProgress = event.progress
+                }
+                showLogViewer = false
+            } finally {
+                logBackProgress = 0f
+            }
+        }
+
         Row(modifier = Modifier.fillMaxSize()) {
-            // 高级设置二级菜单（点击查看日志时调整宽度为 380.dp，为右侧第三栏腾出空间）
+            // 高级设置二级菜单（点击查看日志时调整宽度为 320.dp，为右侧第三栏腾出空间）
             Column(
                 modifier = Modifier
                     .then(
-                        if (isInlineLogOpen) Modifier.width(380.dp)
+                        if (isInlineLogOpen) Modifier.width(320.dp)
                         else Modifier.fillMaxWidth()
                     )
                     .fillMaxHeight()
@@ -209,10 +210,11 @@ fun AdvancedSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarSta
             }
         }
 
-        // 窄屏（手机）或空间不足模式下，使用全屏 Dialog 呈现与窄屏完全一致的日志界面
+        // 窄屏（手机）或双栏详情区宽度不足时，使用自适应 LogViewerDialog 呈现日志界面
         if (showLogViewer && !canShowInlineThirdPane) {
             LogViewerDialog(
                 currentLogLevel = uiState.logLevel,
+                isExpandedDialog = isDualPane,
                 onDismiss = { showLogViewer = false }
             )
         }
@@ -220,15 +222,16 @@ fun AdvancedSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarSta
 }
 
 /**
- * 统一的查看日志面板组件，在大屏第三栏与窄屏全屏 Dialog 中共享完全一致的 UI 与交互逻辑。
+ * 统一的查看日志面板组件，在大屏第三栏与弹窗中共享完全一致的 UI 与交互逻辑。
  */
 @Composable
 fun LogViewerPane(
     currentLogLevel: LogLevel,
     onClose: () -> Unit,
     modifier: Modifier = Modifier,
-    // 仅在全屏 Dialog 模式下避让系统栏；大屏三栏内嵌时顶部已有 MainTopBar，不应重复叠加状态栏边距
-    applySystemBarInsets: Boolean = false
+    // 仅在全屏 Dialog 模式下避让系统栏；大屏三栏内嵌与居中卡片弹窗不应重复叠加状态栏边距
+    applySystemBarInsets: Boolean = false,
+    applyMiniPlayerBottomInset: Boolean = !applySystemBarInsets
 ) {
     val logs by LogManager.logs.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -537,7 +540,9 @@ fun LogViewerPane(
                         start = 8.dp + listSafeInsets.calculateStartPadding(layoutDirection),
                         top = 8.dp,
                         end = 8.dp + listSafeInsets.calculateEndPadding(layoutDirection),
-                        bottom = 8.dp + LocalMiniPlayerBottomInset.current + listSafeInsets.calculateBottomPadding()
+                        bottom = 8.dp +
+                            (if (applyMiniPlayerBottomInset) LocalMiniPlayerBottomInset.current else 0.dp) +
+                            listSafeInsets.calculateBottomPadding()
                     )
                 ) {
                     items(
@@ -568,7 +573,36 @@ fun LogViewerPane(
 }
 
 @Composable
-fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
+fun LogViewerDialog(
+    currentLogLevel: LogLevel,
+    onDismiss: () -> Unit,
+    isExpandedDialog: Boolean = false
+) {
+    if (isExpandedDialog) {
+        Dialog(
+            onDismissRequest = onDismiss,
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .widthIn(max = 600.dp)
+                    .fillMaxHeight(0.88f),
+                shape = MaterialTheme.shapes.extraLarge,
+                tonalElevation = SettingsConstants.DIALOG_TONAL_ELEVATION
+            ) {
+                LogViewerPane(
+                    currentLogLevel = currentLogLevel,
+                    onClose = onDismiss,
+                    applySystemBarInsets = false,
+                    applyMiniPlayerBottomInset = false,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+        return
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(
@@ -600,6 +634,7 @@ fun LogViewerDialog(currentLogLevel: LogLevel, onDismiss: () -> Unit) {
             currentLogLevel = currentLogLevel,
             onClose = onDismiss,
             applySystemBarInsets = true,
+            applyMiniPlayerBottomInset = false,
             modifier = Modifier.fillMaxSize()
         )
     }

@@ -82,6 +82,7 @@ object LogManager {
     private const val MAX_LOGS = 2000
     private const val CRASH_RECENT_LOGS_LIMIT = 200
     private const val EASTER_EGG_PROBABILITY = 0.2
+    private const val SCHEME_SEPARATOR = "://"
 
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs = _logs.asStateFlow()
@@ -213,20 +214,46 @@ object LogManager {
         addLogAndPrint(LogLevel.ERROR, finalTag, finalMsg, throwable)
     }
 
-    private val tagRegex = Regex("^([A-Za-z0-9_]+):\\s*(.*)", RegexOption.DOT_MATCHES_ALL)
-
     private fun parseTagAndMessage(tag: String, message: String): Pair<String, String> {
         if (tag != LogTag.APP) {
             return LogTag.resolve(tag) to message
         }
-        val match = tagRegex.matchEntire(message)
-        return if (match != null) {
-            val rawPrefix = match.groupValues[1]
-            val content = match.groupValues[2]
-            LogTag.resolve(rawPrefix) to "$rawPrefix: $content"
-        } else {
-            LogTag.APP to message
+        val colonIndex = findValidTagPrefixEnd(message)
+        if (colonIndex <= 0) {
+            return LogTag.APP to message
         }
+        val rawPrefix = message.substring(0, colonIndex)
+        val resolvedTag = LogTag.resolve(rawPrefix)
+        var contentStart = colonIndex + 1
+        while (contentStart < message.length && isRegexWhitespace(message[contentStart])) {
+            contentStart++
+        }
+        val alreadyNormalized = contentStart == colonIndex + 2 && message[colonIndex + 1] == ' '
+        val formattedMsg = if (alreadyNormalized) {
+            message
+        } else {
+            "$rawPrefix: ${message.substring(contentStart)}"
+        }
+        return resolvedTag to formattedMsg
+    }
+
+    private fun findValidTagPrefixEnd(message: String): Int {
+        for (index in message.indices) {
+            val ch = message[index]
+            if (ch == ':') return index
+            if (!isTagPrefixChar(ch)) return -1
+        }
+        return -1
+    }
+
+    private fun isTagPrefixChar(ch: Char): Boolean = when (ch) {
+        in 'A'..'Z', in 'a'..'z', in '0'..'9', '_' -> true
+        else -> false
+    }
+
+    private fun isRegexWhitespace(ch: Char): Boolean = when (ch) {
+        ' ', '\t', '\n', '\r', '\u000B', '\u000C' -> true
+        else -> false
     }
 
     private val sensitiveQueryRegex = Regex(
@@ -242,13 +269,30 @@ object LogManager {
 
     private fun sanitizeSensitiveText(text: String): String {
         if (text.isEmpty()) return text
-        val redactedUserInfo = userInfoUrlRegex.replace(text, "$1***:***@")
-        return sensitiveQueryRegex.replace(redactedUserInfo, "$1***")
+        val afterUserInfo = if (mightContainUserInfoUrl(text)) {
+            userInfoUrlRegex.replace(text, "$1***:***@")
+        } else {
+            text
+        }
+        return if (mightContainSensitiveQuery(afterUserInfo)) {
+            sensitiveQueryRegex.replace(afterUserInfo, "$1***")
+        } else {
+            afterUserInfo
+        }
+    }
+
+    private fun mightContainUserInfoUrl(text: String): Boolean {
+        val schemeIndex = text.indexOf(SCHEME_SEPARATOR)
+        return schemeIndex >= 0 && text.indexOf('@', startIndex = schemeIndex + SCHEME_SEPARATOR.length) >= 0
+    }
+
+    private fun mightContainSensitiveQuery(text: String): Boolean {
+        if (text.indexOf('=') < 0) return false
+        return text.indexOf('?') >= 0 || text.indexOf('&') >= 0
     }
 
     private val buffer = java.util.ArrayDeque<LogEntry>(MAX_LOGS)
 
-    @Synchronized
     private fun addLogAndPrint(
         level: LogLevel,
         tag: String,
@@ -275,14 +319,16 @@ object LogManager {
             }
         }
 
-        val timestamp = dateFormat.format(Date())
-        val entry = LogEntry(timestamp, level, tag, msg, isEasterEgg)
+        synchronized(this) {
+            val timestamp = dateFormat.format(Date())
+            val entry = LogEntry(timestamp, level, tag, msg, isEasterEgg)
 
-        if (buffer.size >= MAX_LOGS) {
-            buffer.removeFirst()
+            if (buffer.size >= MAX_LOGS) {
+                buffer.removeFirst()
+            }
+            buffer.addLast(entry)
+            isDirty.set(true)
         }
-        buffer.addLast(entry)
-        isDirty.set(true)
 
         if (!isEasterEgg && minLevel == LogLevel.KAGUYA && Math.random() < EASTER_EGG_PROBABILITY) {
             triggerRandomEasterEgg()

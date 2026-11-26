@@ -1,8 +1,6 @@
 package de.lwp2070809.speculonic.di
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.EntryPoint
@@ -10,12 +8,9 @@ import dagger.hilt.EntryPoints
 import dagger.hilt.InstallIn
 import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
-import de.lwp2070809.speculonic.SpeculonicApp
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.UpdateManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.network.NetworkEvent
-import de.lwp2070809.speculonic.network.ServerReachableManager as NetworkServerReachableManager
 import de.lwp2070809.speculonic.network.SubsonicServiceFactory
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.interceptor.CacheOverrideInterceptor
@@ -58,9 +53,6 @@ object NetworkModule {
     private const val DEFAULT_TIMEOUT = 30L
     private const val ERROR_BODY_PREVIEW_LENGTH = 200
 
-    // 向后兼容旧引用
-    val ServerReachableManager = NetworkServerReachableManager
-
     private val json = Json {
         ignoreUnknownKeys = true
         coerceInputValues = true
@@ -72,59 +64,6 @@ object NetworkModule {
         addresses.sortedWith(compareBy { if (it is Inet4Address) 0 else 1 })
     }
 
-    private fun registerNetworkChangeObserver() {
-        val app = try {
-            SpeculonicApp.instance
-        } catch (e: Exception) {
-            LogManager.w("NetworkModule: Failed to acquire SpeculonicApp instance", e)
-            null
-        } ?: return
-
-        val connectivityManager = app.getSystemService(ConnectivityManager::class.java) ?: return
-        ServerReachableManager.isPhysicallyConnected = connectivityManager.activeNetwork != null
-
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            private var wasInternetAvailable = false
-            private var wasVpn = false
-
-            override fun onAvailable(network: android.net.Network) {
-                ServerReachableManager.isPhysicallyConnected = true
-                wasInternetAvailable = true
-                ServerReachableManager.reset()
-            }
-
-            override fun onCapabilitiesChanged(network: android.net.Network, capabilities: NetworkCapabilities) {
-                val hasInternet = capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                ServerReachableManager.isPhysicallyConnected = hasInternet
-                val isVpn = capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)
-
-                val internetRestored = hasInternet && !wasInternetAvailable
-                val vpnToggled = isVpn != wasVpn
-
-                if (internetRestored || vpnToggled) {
-                    ServerReachableManager.reset()
-                    LogManager.i("NetworkModule: Network state changed. Resetting Reachable status.")
-                }
-
-                wasInternetAvailable = hasInternet
-                wasVpn = isVpn
-            }
-
-            override fun onLost(network: android.net.Network) {
-                ServerReachableManager.isPhysicallyConnected = false
-                wasInternetAvailable = false
-                wasVpn = false
-                ServerReachableManager.handleNetworkLost()
-            }
-        }
-        try {
-            connectivityManager.registerDefaultNetworkCallback(callback)
-            LogManager.i("NetworkModule: Successfully registered default network callback.")
-        } catch (e: Exception) {
-            LogManager.w("NetworkModule: Failed to register default network callback: ${e.message}")
-        }
-    }
-
     @Volatile
     private var isClientInitialized = false
 
@@ -132,7 +71,6 @@ object NetworkModule {
     private var isServiceFactoryInitialized = false
 
     private val okHttpClientInstance: OkHttpClient by lazy {
-        registerNetworkChangeObserver()
         buildServerClientBuilder(
             trustManager = DynamicSslTrustManager,
             hostnameVerifier = DynamicSslTrustManager.createHostnameVerifier {

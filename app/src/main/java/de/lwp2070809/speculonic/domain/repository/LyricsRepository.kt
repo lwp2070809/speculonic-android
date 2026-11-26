@@ -2,7 +2,7 @@ package de.lwp2070809.speculonic.domain.repository
 
 import android.util.LruCache
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
-import de.lwp2070809.speculonic.di.NetworkModule
+import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.util.LocalLyricsProvider
 import de.lwp2070809.speculonic.util.LogManager
@@ -71,7 +71,7 @@ class LyricsRepository(
             return Pair(null, emptyList())
         }
 
-        if (NetworkModule.ServerReachableManager.isOfflineOrUnreachable()) {
+        if (ServerReachableManager.isOfflineOrUnreachable()) {
             LogManager.d(
                 "LyricsRepository: Device is offline or server is unreachable. " +
                     "Blocking network lyrics request for $songId"

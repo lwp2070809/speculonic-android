@@ -4,24 +4,33 @@ import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
-import java.util.concurrent.atomic.AtomicReference
 
 sealed interface NetworkEvent {
     object ServerOffline : NetworkEvent
     object NetworkRestricted : NetworkEvent
 }
 
-private data class ProbeLock(
-    val token: Long,
-    val acquiredAtNanos: Long
-)
+enum class BlockReason {
+    COOLDOWN,
+    PROBE_IN_PROGRESS
+}
+
+private const val NO_PROBE_ID = 0L
+
+sealed interface RequestGateResult {
+    data class Allowed(
+        val epoch: Long,
+        val isProbe: Boolean,
+        val probeId: Long = NO_PROBE_ID
+    ) : RequestGateResult
+    data class Blocked(val reason: BlockReason) : RequestGateResult
+}
 
 object ServerReachableManager {
-    private const val PROBE_LOCK_TIMEOUT_NS = 35_000_000_000L
-    private const val FAILURE_WAVE_DEBOUNCE_MS = 2000L
-    private const val FAILURE_COUNT_RESET_WINDOW_MS = 60_000L
+    private const val PROBE_COOLDOWN_NS = 12_000_000_000L
+    private const val PROBE_TIMEOUT_NS = 35_000_000_000L
+    private const val FAILURE_WAVE_DEBOUNCE_NS = 2_000_000_000L
+    private const val FAILURE_COUNT_RESET_WINDOW_NS = 60_000_000_000L
     private const val MAX_FAILURE_THRESHOLD = 3
 
     @Volatile
@@ -33,43 +42,17 @@ object ServerReachableManager {
 
     @Volatile
     var isPhysicallyConnected: Boolean = true
-        internal set
-
-    @Volatile
-    var lastFailureTimestamp: Long = 0L
         private set
 
-    @Volatile
-    private var lastFailureLogTime: Long = 0L
-
-    private val failureCount = AtomicInteger(0)
-    private val probeSequence = AtomicLong(0L)
-    private val probeLock = AtomicReference<ProbeLock?>(null)
-
-    fun tryAcquireProbe(): Long? {
-        while (true) {
-            val current = probeLock.get()
-            val nowNanos = System.nanoTime()
-            if (current != null && (nowNanos - current.acquiredAtNanos) < PROBE_LOCK_TIMEOUT_NS) {
-                return null
-            }
-            if (current != null) {
-                LogManager.w("ServerReachableManager: Existing probe lock expired, reclaiming lock safely")
-            }
-            val next = ProbeLock(token = probeSequence.incrementAndGet(), acquiredAtNanos = nowNanos)
-            if (probeLock.compareAndSet(current, next)) {
-                return next.token
-            }
-        }
-    }
-
-    fun releaseProbe(token: Long) {
-        while (true) {
-            val current = probeLock.get() ?: return
-            if (current.token != token) return
-            if (probeLock.compareAndSet(current, null)) return
-        }
-    }
+    private var epoch: Long = 0L
+    private var probeSequence: Long = 0L
+    private var failureCount: Int = 0
+    private var hasFailureWave: Boolean = false
+    private var lastFailureWaveNanos: Long = 0L
+    private var trippedAtNanos: Long = 0L
+    private var probeInFlight: Boolean = false
+    private var probeStartedAtNanos: Long = 0L
+    private var activeProbeId: Long = NO_PROBE_ID
 
     private val _networkEventFlow = MutableSharedFlow<NetworkEvent>(extraBufferCapacity = 10)
     val networkEventFlow: SharedFlow<NetworkEvent> = _networkEventFlow.asSharedFlow()
@@ -79,9 +62,48 @@ object ServerReachableManager {
     }
 
     @Synchronized
-    fun handleSuccess() {
-        probeLock.set(null)
-        failureCount.set(0)
+    fun acquireRequestPermit(): RequestGateResult {
+        if (isServerReachable) {
+            return RequestGateResult.Allowed(epoch = epoch, isProbe = false)
+        }
+        val now = System.nanoTime()
+        if (now - trippedAtNanos < PROBE_COOLDOWN_NS) {
+            return RequestGateResult.Blocked(BlockReason.COOLDOWN)
+        }
+        if (probeInFlight && (now - probeStartedAtNanos) < PROBE_TIMEOUT_NS) {
+            return RequestGateResult.Blocked(BlockReason.PROBE_IN_PROGRESS)
+        }
+        if (probeInFlight) {
+            LogManager.w("ServerReachableManager: Existing probe timed out, reclaiming probe slot")
+        }
+        val nextProbeId = ++probeSequence
+        probeInFlight = true
+        probeStartedAtNanos = now
+        activeProbeId = nextProbeId
+        return RequestGateResult.Allowed(epoch = epoch, isProbe = true, probeId = nextProbeId)
+    }
+
+    private fun isActiveProbePermit(permit: RequestGateResult.Allowed): Boolean {
+        return permit.isProbe && permit.probeId != NO_PROBE_ID && permit.probeId == activeProbeId
+    }
+
+    @Synchronized
+    fun releaseProbeIfNeeded(permit: RequestGateResult.Allowed) {
+        if (isActiveProbePermit(permit)) {
+            probeInFlight = false
+            activeProbeId = NO_PROBE_ID
+        }
+    }
+
+    @Synchronized
+    fun reportSuccess(permit: RequestGateResult.Allowed) {
+        releaseProbeIfNeeded(permit)
+        if (permit.epoch != epoch) return
+
+        failureCount = 0
+        hasFailureWave = false
+        probeInFlight = false
+        activeProbeId = NO_PROBE_ID
         if (!isServerReachable) {
             isServerReachable = true
             LogManager.i("ServerReachableManager: REACHABLE")
@@ -89,50 +111,51 @@ object ServerReachableManager {
     }
 
     @Synchronized
-    fun handleFailure() {
-        val now = System.currentTimeMillis()
+    fun reportFailure(permit: RequestGateResult.Allowed) {
+        val isActiveProbe = isActiveProbePermit(permit)
+        releaseProbeIfNeeded(permit)
+        if (permit.epoch != epoch) return
+
+        val now = System.nanoTime()
         if (!isServerReachable) {
-            // 当前处于熔断离线状态，半开探测再次失败：立即刷新冷却时间戳，保持熔断状态，重置探测标记
-            lastFailureTimestamp = now
-            failureCount.set(MAX_FAILURE_THRESHOLD)
-            probeLock.set(null)
-            LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE, updated lastFailureTimestamp")
+            if (!isActiveProbe) return
+            trippedAtNanos = now
+            failureCount = MAX_FAILURE_THRESHOLD
+            LogManager.w("ServerReachableManager: Probe failed, still UNREACHABLE")
             return
         }
 
-        probeLock.set(null)
-        // 2秒防抖窗口：将同一时间段内的密集并发失败（如页面加载时多个API/图片并发超时）归为单次故障波次，避免瞬间误判离线触发全网熔断
-        if (now - lastFailureLogTime > FAILURE_WAVE_DEBOUNCE_MS) {
-            // 若距离上次故障波次已超过 60 秒，重置陈旧的历史故障计数，防止跨长时间偶发错误累积误判
-            if (now - lastFailureLogTime > FAILURE_COUNT_RESET_WINDOW_MS) {
-                failureCount.set(0)
-            }
-            lastFailureLogTime = now
-            val current = failureCount.incrementAndGet()
-            if (current >= MAX_FAILURE_THRESHOLD) {
-                val wasReachable = isServerReachable
-                isServerReachable = false
-                lastFailureTimestamp = now
-                if (wasReachable) {
-                    LogManager.w("ServerReachableManager: UNREACHABLE")
-                    _networkEventFlow.tryEmit(NetworkEvent.ServerOffline)
-                } else {
-                    LogManager.w("ServerReachableManager: still UNREACHABLE, updated lastFailureTimestamp")
-                }
-            } else {
-                LogManager.d("ServerReachableManager: failure count $current/3")
-            }
-        } else {
+        // 2秒防抖窗口：将同一时间段内的密集并发失败归为单次故障波次，避免瞬间误判离线
+        if (hasFailureWave && now - lastFailureWaveNanos <= FAILURE_WAVE_DEBOUNCE_NS) {
             LogManager.d("ServerReachableManager: debounce")
+            return
+        }
+        if (hasFailureWave && now - lastFailureWaveNanos > FAILURE_COUNT_RESET_WINDOW_NS) {
+            failureCount = 0
+        }
+        hasFailureWave = true
+        lastFailureWaveNanos = now
+
+        val current = ++failureCount
+        if (current >= MAX_FAILURE_THRESHOLD) {
+            isServerReachable = false
+            trippedAtNanos = now
+            LogManager.w("ServerReachableManager: UNREACHABLE")
+            _networkEventFlow.tryEmit(NetworkEvent.ServerOffline)
+        } else {
+            LogManager.d("ServerReachableManager: failure count $current/$MAX_FAILURE_THRESHOLD")
         }
     }
 
     @Synchronized
     fun reset() {
-        probeLock.set(null)
-        failureCount.set(0)
-        lastFailureTimestamp = 0L
-        lastFailureLogTime = 0L
+        epoch++
+        probeInFlight = false
+        activeProbeId = NO_PROBE_ID
+        failureCount = 0
+        hasFailureWave = false
+        lastFailureWaveNanos = 0L
+        trippedAtNanos = 0L
         if (!isServerReachable) {
             isServerReachable = true
             LogManager.i("ServerReachableManager: reset")
@@ -140,8 +163,30 @@ object ServerReachableManager {
     }
 
     @Synchronized
-    fun handleNetworkLost() {
-        failureCount.set(0)
+    fun updatePhysicalConnectivity(isConnected: Boolean) {
+        isPhysicallyConnected = isConnected
+        if (!isConnected) {
+            isServerReachable = false
+        }
+    }
+
+    @Synchronized
+    fun onPhysicalNetworkAvailable() {
+        val shouldReset = !isPhysicallyConnected || !isServerReachable || failureCount > 0
+        isPhysicallyConnected = true
+        if (shouldReset) {
+            reset()
+        }
+    }
+
+    @Synchronized
+    fun onPhysicalNetworkLost() {
+        isPhysicallyConnected = false
+        epoch++
+        probeInFlight = false
+        activeProbeId = NO_PROBE_ID
+        failureCount = 0
+        hasFailureWave = false
         if (isServerReachable) {
             isServerReachable = false
             LogManager.w("ServerReachableManager: lost")

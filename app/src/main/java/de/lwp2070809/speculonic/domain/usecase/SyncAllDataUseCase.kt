@@ -2,6 +2,7 @@ package de.lwp2070809.speculonic.domain.usecase
 
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.repository.SyncOutcome
+import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.util.LogManager
 import javax.inject.Inject
 
@@ -22,7 +23,7 @@ class SyncAllDataUseCase @Inject constructor(
         }
         
         if (forceRefresh) {
-            de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.reset()
+            ServerReachableManager.reset()
         }
         
         

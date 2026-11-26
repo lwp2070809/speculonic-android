@@ -16,6 +16,7 @@ import de.lwp2070809.speculonic.domain.repository.ServerCapabilities
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
 import de.lwp2070809.speculonic.domain.usecase.TestConnectionUseCase
+import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.network.ssl.DynamicSslTrustManager
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
@@ -289,7 +290,7 @@ class ServerSyncViewModel @Inject constructor(
             withContext(Dispatchers.IO) {
                 preferencesManager.saveAllowInsecureConnections(allowInsecureConnections)
                 applyNetworkTransition(isServerChanged, allowInsecureConnections)
-                NetworkModule.ServerReachableManager.reset()
+                ServerReachableManager.reset()
             }
 
             preferencesManager.saveServerSettings(url, user, pass)
@@ -492,7 +493,7 @@ class ServerSyncViewModel @Inject constructor(
                 clearAccountScopedData(allowInsecureConnections = false)
                 preferencesManager.saveAllowInsecureConnections(false)
                 preferencesManager.saveServerSettings("", "", "")
-                NetworkModule.ServerReachableManager.reset()
+                ServerReachableManager.reset()
 
                 _uiState.update {
                     it.copy(

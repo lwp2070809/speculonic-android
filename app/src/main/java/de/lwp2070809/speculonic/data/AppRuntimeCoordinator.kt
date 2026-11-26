@@ -2,7 +2,7 @@ package de.lwp2070809.speculonic.data
 
 import android.content.Context
 import dagger.hilt.android.qualifiers.ApplicationContext
-import de.lwp2070809.speculonic.di.NetworkModule
+import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 import de.lwp2070809.speculonic.util.NetworkMonitor
@@ -54,6 +54,8 @@ class AppRuntimeCoordinator(
     fun start() {
         if (!started.compareAndSet(false, true)) return
 
+        ServerReachableManager.updatePhysicalConnectivity(networkMonitor.physicalOnline.value)
+
         scope.launch {
             preferencesManager.logLevel.collectLatest { level ->
                 LogManager.setMinLevel(level)
@@ -62,8 +64,25 @@ class AppRuntimeCoordinator(
 
         scope.launch {
             preferencesManager.offlineModeEnabled.collectLatest { offline ->
-                NetworkModule.ServerReachableManager.isManualOffline = offline
+                ServerReachableManager.isManualOffline = offline
                 LogManager.i(LogTag.APP, "AppRuntimeCoordinator: Offline mode state updated -> $offline")
+            }
+        }
+
+        scope.launch {
+            networkMonitor.physicalOnline.collect { isOnline ->
+                if (isOnline) {
+                    ServerReachableManager.onPhysicalNetworkAvailable()
+                } else {
+                    ServerReachableManager.onPhysicalNetworkLost()
+                }
+            }
+        }
+
+        scope.launch {
+            networkMonitor.networkRouteChanged.collect {
+                ServerReachableManager.reset()
+                LogManager.i(LogTag.NETWORK, "AppRuntimeCoordinator: Network route changed, resetting server reachability")
             }
         }
 

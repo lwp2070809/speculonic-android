@@ -1,6 +1,8 @@
 package de.lwp2070809.speculonic.network.interceptor
 
 import de.lwp2070809.speculonic.BuildConfig
+import de.lwp2070809.speculonic.network.BlockReason
+import de.lwp2070809.speculonic.network.RequestGateResult
 import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.network.ssl.DynamicSslTrustManager
 import de.lwp2070809.speculonic.util.LogManager
@@ -22,8 +24,6 @@ class SonicLogInterceptor(
     private val trackReachability: Boolean = true
 ) : Interceptor {
     companion object {
-        private const val PROBE_COOLDOWN_MS = 30_000L
-
         /**
          * 敏感参数脱敏正则：利用正向后行断言 (?<=[?&]) 精确匹配作为独立参数的 [utps]，
          * 避免误伤如 offset, format, songCount, albumCount 等包含上述字符作为子串的业务参数。
@@ -40,17 +40,19 @@ class SonicLogInterceptor(
         val safeUrl = maskSensitiveUrl(request.url.toString())
         validateRequestPreconditions(request, safeUrl)
 
-        val probeToken = acquireProbeTokenIfNeeded(safeUrl)
+        val permit = acquirePermitIfTracked(safeUrl)
         val startTime = System.currentTimeMillis()
         try {
             val response = chain.proceed(request)
-            recordResponseOutcome(request, response, probeToken, startTime)
+            recordResponseOutcome(request, response, permit, startTime)
             return response
         } catch (e: Exception) {
-            handleRequestException(request, probeToken, startTime, e)
+            handleRequestException(request, permit, startTime, e)
             throw e
         } finally {
-            probeToken?.let { ServerReachableManager.releaseProbe(it) }
+            if (permit != null && permit.isProbe) {
+                ServerReachableManager.releaseProbeIfNeeded(permit)
+            }
         }
     }
 
@@ -81,34 +83,42 @@ class SonicLogInterceptor(
         }
     }
 
-    private fun acquireProbeTokenIfNeeded(safeUrl: String): Long? {
-        if (!trackReachability || ServerReachableManager.isServerReachable) return null
-
-        val timeSinceLastFailure = System.currentTimeMillis() - ServerReachableManager.lastFailureTimestamp
-        if (timeSinceLastFailure <= PROBE_COOLDOWN_MS) {
-            LogManager.w(LogTag.NETWORK, "OfflineInterceptor: unreachable: $safeUrl")
-            throw IOException("Offline: Server is unreachable due to network blocking or previous failures")
-        }
-        val acquiredToken = ServerReachableManager.tryAcquireProbe()
-            ?: run {
-                LogManager.w(LogTag.NETWORK, "OfflineInterceptor: probing in progress, blocking: $safeUrl")
-                throw IOException("Offline: Server is unreachable and another probe is in progress")
+    private fun acquirePermitIfTracked(safeUrl: String): RequestGateResult.Allowed? {
+        if (!trackReachability) return null
+        return when (val gate = ServerReachableManager.acquireRequestPermit()) {
+            is RequestGateResult.Allowed -> {
+                if (gate.isProbe) {
+                    LogManager.i(LogTag.NETWORK, "OfflineInterceptor: probe: $safeUrl")
+                }
+                gate
             }
-        LogManager.i(LogTag.NETWORK, "OfflineInterceptor: probe: $safeUrl")
-        return acquiredToken
+            is RequestGateResult.Blocked -> {
+                val message = when (gate.reason) {
+                    BlockReason.COOLDOWN -> {
+                        LogManager.w(LogTag.NETWORK, "OfflineInterceptor: unreachable: $safeUrl")
+                        "Offline: Server is unreachable due to network blocking or previous failures"
+                    }
+                    BlockReason.PROBE_IN_PROGRESS -> {
+                        LogManager.w(LogTag.NETWORK, "OfflineInterceptor: probing in progress, blocking: $safeUrl")
+                        "Offline: Server is unreachable and another probe is in progress"
+                    }
+                }
+                throw IOException(message)
+            }
+        }
     }
 
     private fun recordResponseOutcome(
         request: Request,
         response: Response,
-        probeToken: Long?,
+        permit: RequestGateResult.Allowed?,
         startTime: Long
     ) {
         val path = request.url.encodedPath
         val costMs = System.currentTimeMillis() - startTime
         if (!response.isSuccessful) {
-            if (trackReachability && probeToken != null) {
-                ServerReachableManager.handleFailure()
+            if (permit != null && permit.isProbe) {
+                ServerReachableManager.reportFailure(permit)
             }
             LogManager.w(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
             return
@@ -122,14 +132,14 @@ class SonicLogInterceptor(
         } else if (BuildConfig.DEBUG) {
             LogManager.d(LogTag.NETWORK, "HTTP ${request.method} $path -> ${response.code} (${costMs}ms)")
         }
-        if (trackReachability) {
-            ServerReachableManager.handleSuccess()
+        if (permit != null) {
+            ServerReachableManager.reportSuccess(permit)
         }
     }
 
     private fun handleRequestException(
         request: Request,
-        probeToken: Long?,
+        permit: RequestGateResult.Allowed?,
         startTime: Long,
         e: Exception
     ) {
@@ -144,13 +154,13 @@ class SonicLogInterceptor(
             e is SocketException ||
             e is SSLException
 
-        if (trackReachability && (probeToken != null || isNetworkFailure)) {
+        if (permit != null && (permit.isProbe || isNetworkFailure)) {
             LogManager.w(
                 LogTag.NETWORK,
                 "Network Connection Error (${costMs}ms): ${e.message} for host $requestHost. " +
-                    "Recording failure (probe=${probeToken != null})."
+                    "Recording failure (probe=${permit.isProbe})."
             )
-            ServerReachableManager.handleFailure()
+            ServerReachableManager.reportFailure(permit)
         }
 
         val errorMsg = buildDiagnosticMessage(requestHost, e)

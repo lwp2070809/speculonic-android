@@ -6,6 +6,7 @@ import coil3.request.ImageRequest
 import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
+import de.lwp2070809.speculonic.network.ServerReachableManager
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Artist
@@ -345,17 +346,17 @@ class SubsonicRepository(
 
     private fun resetReachableIfForced(forceRefresh: Boolean) {
         if (forceRefresh) {
-            de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.reset()
+            ServerReachableManager.reset()
         }
     }
 
     suspend fun refreshAlbumList(type: String = "newest", size: Int = 20, offset: Int = 0) {
-        de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.reset()
+        ServerReachableManager.reset()
         mediaRepository.refreshAlbumList(type, size, offset)
     }
 
     suspend fun refreshArtists() {
-        de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.reset()
+        ServerReachableManager.reset()
         mediaRepository.refreshArtists()
     }
 
@@ -381,7 +382,7 @@ class SubsonicRepository(
     
     suspend fun quickSync(onProgress: (suspend (String) -> Unit)? = null) {
         if (!isConfigured) return
-        de.lwp2070809.speculonic.di.NetworkModule.ServerReachableManager.reset()
+        ServerReachableManager.reset()
         syncManager.quickSync(
             onProgress = onProgress,
             onComplete = { currentTime ->
