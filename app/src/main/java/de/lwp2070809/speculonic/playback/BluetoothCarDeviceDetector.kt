@@ -12,31 +12,41 @@ import android.media.AudioManager
 import androidx.core.content.ContextCompat
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 class BluetoothCarDeviceDetector(
     private val context: Context,
     private val serviceScope: CoroutineScope,
-    private val onCarConnected: () -> Unit
+    private val onCarConnected: () -> Unit,
+    private val onCarDisconnected: () -> Unit = {}
 ) {
+    @Volatile
     var carBluetoothEnabled = false
+
+    @Volatile
     var bluetoothCarDeviceNames: Set<String> = emptySet()
         set(value) {
             if (field == value) return
             field = value
-            connectionDebounceJob?.cancel()
-            connectionDebounceJob = null
-            _carConnectionState.value = if (carBluetoothEnabled) probeCarBluetoothConnected() else false
+            serviceScope.launch {
+                reconcileConnectionOnNamesChanged()
+            }
         }
 
     private val _carConnectionState = MutableStateFlow(false)
     val carConnectionState = _carConnectionState.asStateFlow()
 
     private val isInitialized = java.util.concurrent.atomic.AtomicBoolean(false)
+
+    @Volatile
     private var bluetoothA2dp: BluetoothA2dp? = null
     
     private val bluetoothProfileListener = object : BluetoothProfile.ServiceListener {
@@ -44,7 +54,7 @@ class BluetoothCarDeviceDetector(
             if (profile == BluetoothProfile.A2DP) {
                 bluetoothA2dp = proxy as BluetoothA2dp
                 LogManager.d("BluetoothCarDeviceDetector: A2DP Profile connected.")
-                checkConnectionState()
+                checkConnectionState(notifyOnConnect = true)
             }
         }
         override fun onServiceDisconnected(profile: Int) {
@@ -57,12 +67,13 @@ class BluetoothCarDeviceDetector(
     }
 
     private var audioDeviceCallback: AudioDeviceCallback? = null
+    private var audioSettleJob: Job? = null
     private var connectionDebounceJob: Job? = null
-    private val debounceMutex = kotlinx.coroutines.sync.Mutex()
+    private val stateMutex = Mutex()
 
     private fun hasBluetoothConnectPermission(): Boolean {
         return ContextCompat.checkSelfPermission(
-            context, 
+            context,
             android.Manifest.permission.BLUETOOTH_CONNECT
         ) == android.content.pm.PackageManager.PERMISSION_GRANTED
     }
@@ -83,14 +94,10 @@ class BluetoothCarDeviceDetector(
                     checkConnectionState()
                     val hasBluetoothAdded = addedDevices?.any(::isSupportedBluetoothOutput) == true
                     if (!hasBluetoothAdded) return
-                    serviceScope.launch {
+                    audioSettleJob?.cancel()
+                    audioSettleJob = serviceScope.launch {
                         delay(AUDIO_DEVICE_SETTLE_DELAY_MS)
-                        val connected = probeCarBluetoothConnected()
-                        _carConnectionState.value = connected
-                        if (carBluetoothEnabled && connected) {
-                            LogManager.i("BluetoothCarDeviceDetector: Car Bluetooth audio device mounted.")
-                            onCarConnected()
-                        }
+                        handleAudioDeviceSettle()
                     }
                 }
 
@@ -106,8 +113,12 @@ class BluetoothCarDeviceDetector(
         }
     }
 
-    fun release() {
-        if (!isInitialized.get()) return
+    fun release(notifyDisconnect: Boolean = true) {
+        if (!isInitialized.getAndSet(false)) return
+        audioSettleJob?.cancel()
+        audioSettleJob = null
+        connectionDebounceJob?.cancel()
+        connectionDebounceJob = null
         try {
             audioDeviceCallback?.let {
                 val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
@@ -119,47 +130,109 @@ class BluetoothCarDeviceDetector(
                 bluetoothManager.adapter?.closeProfileProxy(BluetoothProfile.A2DP, bluetoothA2dp)
             }
         } catch (_: Exception) {
-            
         }
         bluetoothA2dp = null
-        connectionDebounceJob?.cancel()
-        connectionDebounceJob = null
+        val wasConnected = _carConnectionState.value
         _carConnectionState.value = false
-        isInitialized.set(false)
+        if (notifyDisconnect && wasConnected) {
+            onCarDisconnected()
+        }
     }
 
-    fun checkConnectionState() {
-        serviceScope.launch {
-            debounceMutex.lock()
-            try {
-                connectionDebounceJob?.cancel()
-                val isConnected = probeCarBluetoothConnected()
-                if (isConnected) {
-                    _carConnectionState.value = true
-                } else {
-                    connectionDebounceJob = serviceScope.launch {
-                        delay(500)
-                        _carConnectionState.value = probeCarBluetoothConnected()
-                    }
-                }
-            } finally {
-                debounceMutex.unlock()
+    private suspend fun reconcileConnectionOnNamesChanged() {
+        stateMutex.withLock {
+            audioSettleJob?.cancel()
+            audioSettleJob = null
+            connectionDebounceJob?.cancel()
+            connectionDebounceJob = null
+            val wasConnected = _carConnectionState.value
+            val isNowConnected = if (carBluetoothEnabled && isInitialized.get()) {
+                probeCarBluetoothConnected()
+            } else {
+                false
+            }
+            if (!isInitialized.get()) return
+            _carConnectionState.value = isNowConnected
+            if (carBluetoothEnabled && !wasConnected && isNowConnected) {
+                onCarConnected()
+            } else if (wasConnected && !isNowConnected) {
+                onCarDisconnected()
             }
         }
+    }
+
+    private suspend fun handleAudioDeviceSettle() {
+        stateMutex.withLock {
+            if (!isInitialized.get()) return
+            val wasConnected = _carConnectionState.value
+            val connected = probeCarBluetoothConnected()
+            if (!isInitialized.get()) return
+            _carConnectionState.value = connected
+            if (carBluetoothEnabled && connected) {
+                LogManager.i("BluetoothCarDeviceDetector: Car Bluetooth audio device mounted.")
+                onCarConnected()
+            } else if (wasConnected && !connected) {
+                onCarDisconnected()
+            }
+        }
+    }
+
+    fun checkConnectionState(notifyOnConnect: Boolean = false) {
+        serviceScope.launch {
+            stateMutex.withLock {
+                if (!isInitialized.get()) return@withLock
+                connectionDebounceJob?.cancel()
+                val wasConnected = _carConnectionState.value
+                val isConnected = probeCarBluetoothConnected()
+                if (!isInitialized.get()) return@withLock
+                if (isConnected) {
+                    _carConnectionState.value = true
+                    if (shouldNotifyColdStartConnect(notifyOnConnect, wasConnected)) {
+                        onCarConnected()
+                    }
+                } else {
+                    scheduleDisconnectDebounce()
+                }
+            }
+        }
+    }
+
+    private fun scheduleDisconnectDebounce() {
+        connectionDebounceJob = serviceScope.launch {
+            delay(DISCONNECT_DEBOUNCE_MS)
+            stateMutex.withLock {
+                if (!isInitialized.get()) return@withLock
+                val prevConnected = _carConnectionState.value
+                val stillConnected = probeCarBluetoothConnected()
+                if (!isInitialized.get()) return@withLock
+                _carConnectionState.value = stillConnected
+                if (prevConnected && !stillConnected) {
+                    onCarDisconnected()
+                }
+            }
+        }
+    }
+
+    private fun shouldNotifyColdStartConnect(notifyOnConnect: Boolean, wasConnected: Boolean): Boolean {
+        if (!notifyOnConnect || wasConnected || !carBluetoothEnabled) return false
+        return audioSettleJob?.isActive != true
     }
 
     // 热路径统一读取内存状态缓存，避免高频切歌与歌词推送触发跨进程蓝牙 Binder IPC
     fun isCarBluetoothConnected(): Boolean = _carConnectionState.value
 
-    private fun probeCarBluetoothConnected(): Boolean {
+    private suspend fun probeCarBluetoothConnected(): Boolean = withContext(Dispatchers.IO) {
+        if (!carBluetoothEnabled) return@withContext false
+        val a2dp = bluetoothA2dp ?: return@withContext false
         val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
         val hasBluetoothOutput = audioManager.getDevices(AudioManager.GET_DEVICES_OUTPUTS)
             .any(::isSupportedBluetoothOutput)
-        if (!hasBluetoothOutput) return false
+        if (!hasBluetoothOutput) return@withContext false
 
-        return try {
-            val connectedDevices = bluetoothA2dp?.connectedDevices.orEmpty()
-            connectedDevices.any { device -> device != null && isCarAudioDevice(device) }
+        val customNames = bluetoothCarDeviceNames
+        try {
+            val connectedDevices = a2dp.connectedDevices.orEmpty()
+            connectedDevices.any { device -> device != null && isCarAudioDevice(device, customNames) }
         } catch (_: SecurityException) {
             LogManager.w(
                 "BluetoothCarDeviceDetector: SecurityException - Missing " +
@@ -179,13 +252,16 @@ class BluetoothCarDeviceDetector(
     }
 
     @androidx.annotation.RequiresPermission(android.Manifest.permission.BLUETOOTH_CONNECT)
-    private fun isCarAudioDevice(device: android.bluetooth.BluetoothDevice): Boolean {
+    private fun isCarAudioDevice(
+        device: android.bluetooth.BluetoothDevice,
+        customNames: Set<String>
+    ): Boolean {
         val name = try {
             device.name ?: ""
         } catch (_: Exception) {
             ""
         }
-        if (bluetoothCarDeviceNames.contains(name)) return true
+        if (customNames.contains(name)) return true
 
         val deviceClass = device.bluetoothClass
         val classInt = deviceClass?.deviceClass ?: -1
@@ -199,6 +275,7 @@ class BluetoothCarDeviceDetector(
 
     private companion object {
         const val AUDIO_DEVICE_SETTLE_DELAY_MS = 1500L
+        const val DISCONNECT_DEBOUNCE_MS = 500L
         val AMBIGUOUS_AUDIO_DEVICE_CLASSES = setOf(1052, 1032)
     }
 }

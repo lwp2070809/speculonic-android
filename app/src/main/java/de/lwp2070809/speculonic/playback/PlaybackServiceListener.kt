@@ -7,6 +7,7 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.Timeline
 import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
+import de.lwp2070809.speculonic.util.CoverArtKeyUtils
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 
@@ -50,7 +51,9 @@ class PlaybackServiceListener(
         val artist = extras?.getString("realArtist")
             ?: mediaItem?.mediaMetadata?.artist?.toString()
             ?: ""
-        val artworkUri = mediaItem?.mediaMetadata?.artworkUri?.toString() ?: ""
+        val artworkUri = CoverArtKeyUtils.stripVolatileParams(
+            mediaItem?.mediaMetadata?.artworkUri?.toString() ?: ""
+        )
         SpeculonicWidgetUpdater.updateFromService(
             context = appContext,
             songId = mediaItem?.mediaId ?: "",

@@ -3,6 +3,7 @@
 package de.lwp2070809.speculonic.playback
 
 import android.content.Context
+import android.os.SystemClock
 import androidx.core.net.toUri
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -21,6 +22,7 @@ import androidx.media3.common.VideoSize
 import androidx.media3.common.text.CueGroup
 import androidx.media3.session.MediaSession
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CoroutineScope
 
 
@@ -32,25 +34,26 @@ class BluetoothCarManager(
 ) {
     private var isFullyInitialized = false
 
-    val deviceDetector: BluetoothCarDeviceDetector = BluetoothCarDeviceDetector(context, serviceScope) {
-        if (!isFullyInitialized) return@BluetoothCarDeviceDetector
-        
-        if (deviceDetector.isCarBluetoothConnected()) {
-            (mediaSessionProvider()?.player as? CarDisguisePlayer)?.triggerCoverSync()
-        }
-
-        if (syncPlaybackState && deviceDetector.isCarBluetoothConnected()) {
-            syncPlaybackStateToBluetooth()
-        }
-        
-        if (bluetoothLyricsEnabled && deviceDetector.isCarBluetoothConnected()) {
-            mediaSessionProvider()?.player?.currentMediaItem?.let {
-                loadLyricsForBluetooth(it)
+    val deviceDetector: BluetoothCarDeviceDetector = BluetoothCarDeviceDetector(
+        context = context,
+        serviceScope = serviceScope,
+        onCarConnected = {
+            if (!isFullyInitialized) return@BluetoothCarDeviceDetector
+            syncCarStateOnConnect()
+            if (bluetoothLyricsEnabled && deviceDetector.isCarBluetoothConnected()) {
+                mediaSessionProvider()?.player?.currentMediaItem?.let {
+                    loadLyricsForBluetooth(it)
+                }
             }
+        },
+        onCarDisconnected = {
+            if (!isFullyInitialized) return@BluetoothCarDeviceDetector
+            lyricsManager.release()
+            updateMediaSessionMetadata(null)
+            (mediaSessionProvider()?.player as? CarDisguisePlayer)?.clearCarSyncState()
         }
-    }
+    )
 
-    
     val lyricsManager = BluetoothLyricsManager(
         context = context,
         serviceScope = serviceScope,
@@ -61,21 +64,11 @@ class BluetoothCarManager(
         isLyricsEnabled = { bluetoothLyricsEnabled }
     )
 
-    val stateSynchronizer = BluetoothStateSynchronizer(
-        deviceDetector = deviceDetector,
-        serviceScope = serviceScope,
-        mediaSessionProvider = mediaSessionProvider
-    )
-
-    
-
     var carBluetoothEnabled: Boolean
         get() = deviceDetector.carBluetoothEnabled
         set(value) { deviceDetector.carBluetoothEnabled = value }
 
-    var syncPlaybackState: Boolean
-        get() = stateSynchronizer.syncPlaybackState
-        set(value) { stateSynchronizer.syncPlaybackState = value }
+    var syncPlaybackState: Boolean = false
 
     var bluetoothCarDeviceNames: Set<String>
         get() = deviceDetector.bluetoothCarDeviceNames
@@ -83,10 +76,6 @@ class BluetoothCarManager(
 
     var bluetoothLyricsEnabled = false
     var bluetoothLyricsHideProgressBar = false
-
-
-
-    
 
     init {
         isFullyInitialized = true
@@ -96,9 +85,12 @@ class BluetoothCarManager(
         deviceDetector.init()
     }
 
-    fun release() {
+    fun release(notifyDisconnect: Boolean = true) {
         try {
-            deviceDetector.release()
+            deviceDetector.release(notifyDisconnect)
+            if (!notifyDisconnect) {
+                (mediaSessionProvider()?.player as? CarDisguisePlayer)?.clearCarSyncState(notifyListeners = false)
+            }
         } finally {
             lyricsManager.release()
         }
@@ -108,8 +100,11 @@ class BluetoothCarManager(
         return deviceDetector.isCarBluetoothConnected()
     }
 
-    fun syncPlaybackStateToBluetooth() {
-        stateSynchronizer.syncPlaybackStateToBluetooth()
+    fun syncCarStateOnConnect() {
+        if (!carBluetoothEnabled || !deviceDetector.isCarBluetoothConnected()) return
+        val sessionPlayer = mediaSessionProvider()?.player as? CarDisguisePlayer ?: return
+        if (!sessionPlayer.playWhenReady && !syncPlaybackState) return
+        sessionPlayer.syncCarState()
     }
 
     fun loadLyricsForBluetooth(mediaItem: MediaItem) {
@@ -128,26 +123,72 @@ class BluetoothCarManager(
         lyricsManager.updateMediaSessionMetadata(lyricLine)
     }
 
-    
     inner class CarDisguisePlayer(player: Player) : ForwardingPlayer(player) {
         private val listenerMap = java.util.concurrent.ConcurrentHashMap<Player.Listener, Player.Listener>()
         private val stateLock = Any()
         private var currentLyricTitle: String? = null
         private var currentLyricArtist: String? = null
-        private var syncTimestamp: Long = 0L
-        private var coverSyncTimestamp: Long = 0L
+        private var carSyncTimestamp: Long = 0L
+        private var lastSyncedMediaId: String? = null
+        private var lastSyncElapsedRealtime: Long = 0L
 
         val isLyricsDisguiseActive: Boolean
             get() = synchronized(stateLock) { currentLyricTitle != null }
 
+        private fun isCarConnectedAndEnabled(): Boolean {
+            return carBluetoothEnabled && deviceDetector.carConnectionState.value
+        }
+
         private fun resolveDisguisedArtworkUri(originalUri: android.net.Uri?): android.net.Uri? {
             if (originalUri == null) return null
-            if (coverSyncTimestamp > 0) {
-                val uriStr = originalUri.toString()
-                val separator = if (uriStr.contains("?")) "&" else "?"
-                return "$uriStr${separator}bt_sync_ts=$coverSyncTimestamp".toUri()
+            if (!isCarConnectedAndEnabled() || carSyncTimestamp <= 0L) return originalUri
+            val uriStr = originalUri.toString()
+            val separator = if (uriStr.contains("?")) "&" else "?"
+            return "$uriStr${separator}bt_sync_ts=$carSyncTimestamp".toUri()
+        }
+
+        private fun resolveDisguisedStation(original: MediaMetadata): CharSequence? {
+            if (original.artworkUri != null) return original.station
+            if (!isCarConnectedAndEnabled() || carSyncTimestamp <= 0L) return original.station
+            return "bt_sync_$carSyncTimestamp"
+        }
+
+        private fun buildDisguisedMetadata(original: MediaMetadata): MediaMetadata {
+            synchronized(stateLock) {
+                val consistentArtworkUri = resolveDisguisedArtworkUri(original.artworkUri)
+                val disguisedStation = resolveDisguisedStation(original)
+                if (currentLyricTitle != null) {
+                    return original.buildUpon()
+                        .setTitle(currentLyricTitle)
+                        .setArtist(currentLyricArtist ?: original.artist)
+                        // 显式剥离音频流内嵌的 ID3 原始封面字节数组，强制复用已缓存的 URI 位图
+                        .setArtworkData(null, null)
+                        .setArtworkUri(consistentArtworkUri)
+                        .setStation(disguisedStation)
+                        .build()
+                }
+
+                var builder = original.buildUpon()
+                var changed = false
+
+                // 仅当存在可用的封面 URI 时才剥离内嵌字节数组，兼顾服务端无 coverArt ID 但音频流内嵌封面的极端曲目
+                if (original.artworkData != null && consistentArtworkUri != null) {
+                    builder = builder.setArtworkData(null, null)
+                    changed = true
+                }
+
+                if (consistentArtworkUri != original.artworkUri) {
+                    builder = builder.setArtworkUri(consistentArtworkUri)
+                    changed = true
+                }
+
+                if (disguisedStation != original.station) {
+                    builder = builder.setStation(disguisedStation)
+                    changed = true
+                }
+
+                return if (changed) builder.build() else original
             }
-            return originalUri
         }
 
         override fun addListener(listener: Player.Listener) {
@@ -161,86 +202,15 @@ class BluetoothCarManager(
             super.removeListener(wrapped)
         }
 
-        override fun getMediaMetadata(): androidx.media3.common.MediaMetadata {
-            val original = super.getMediaMetadata()
-            synchronized(stateLock) {
-                val consistentArtworkUri = resolveDisguisedArtworkUri(original.artworkUri)
-                if (currentLyricTitle != null) {
-                    return original.buildUpon()
-                        .setTitle(currentLyricTitle)
-                        .setArtist(currentLyricArtist ?: original.artist)
-                        // 显式剥离音频流内嵌的 ID3 原始封面字节数组，强制复用已缓存的 URI 位图
-                        .setArtworkData(null, null)
-                        .setArtworkUri(consistentArtworkUri)
-                        .build()
-                }
+        override fun getMediaMetadata(): MediaMetadata = buildDisguisedMetadata(super.getMediaMetadata())
 
-                var builder = original.buildUpon()
-                var changed = false
-
-                // 仅当存在可用的封面 URI 时才剥离内嵌字节数组，兼顾服务端无 coverArt ID 但音频流内嵌封面的极端曲目
-                if (original.artworkData != null && consistentArtworkUri != null) {
-                    builder = builder.setArtworkData(null, null)
-                    changed = true
-                }
-
-                if (syncTimestamp > 0) {
-                    val extras = android.os.Bundle(original.extras ?: android.os.Bundle.EMPTY).apply {
-                        putLong("_sync_timestamp", syncTimestamp)
-                    }
-                    builder = builder.setExtras(extras)
-                    changed = true
-                }
-
-                if (consistentArtworkUri != original.artworkUri) {
-                    builder = builder.setArtworkUri(consistentArtworkUri)
-                    changed = true
-                }
-
-                return if (changed) builder.build() else original
-            }
-        }
-
-        override fun getCurrentMediaItem(): androidx.media3.common.MediaItem? {
+        override fun getCurrentMediaItem(): MediaItem? {
             val original = super.getCurrentMediaItem() ?: return null
-            synchronized(stateLock) {
-                val consistentArtworkUri = resolveDisguisedArtworkUri(original.mediaMetadata.artworkUri)
-                if (currentLyricTitle != null) {
-                    val lightMeta = original.mediaMetadata.buildUpon()
-                        .setTitle(currentLyricTitle)
-                        .setArtist(currentLyricArtist ?: original.mediaMetadata.artist)
-                        .setArtworkData(null, null)
-                        .setArtworkUri(consistentArtworkUri)
-                        .build()
-                    return original.buildUpon().setMediaMetadata(lightMeta).build()
-                }
-
-                var metaBuilder = original.mediaMetadata.buildUpon()
-                var changed = false
-
-                if (original.mediaMetadata.artworkData != null && consistentArtworkUri != null) {
-                    metaBuilder = metaBuilder.setArtworkData(null, null)
-                    changed = true
-                }
-
-                if (syncTimestamp > 0) {
-                    val extras = android.os.Bundle(original.mediaMetadata.extras ?: android.os.Bundle.EMPTY).apply {
-                        putLong("_sync_timestamp", syncTimestamp)
-                    }
-                    metaBuilder = metaBuilder.setExtras(extras)
-                    changed = true
-                }
-
-                if (consistentArtworkUri != original.mediaMetadata.artworkUri) {
-                    metaBuilder = metaBuilder.setArtworkUri(consistentArtworkUri)
-                    changed = true
-                }
-
-                return if (changed) {
-                    original.buildUpon().setMediaMetadata(metaBuilder.build()).build()
-                } else {
-                    original
-                }
+            val disguisedMeta = buildDisguisedMetadata(original.mediaMetadata)
+            return if (disguisedMeta === original.mediaMetadata) {
+                original
+            } else {
+                original.buildUpon().setMediaMetadata(disguisedMeta).build()
             }
         }
 
@@ -253,29 +223,52 @@ class BluetoothCarManager(
             listenerMap.keys.forEach { it.onMediaMetadataChanged(newMetadata) }
         }
 
-        fun triggerCoverSync() {
+        fun syncCarState() {
+            if (!isCarConnectedAndEnabled() || playbackState == Player.STATE_IDLE) return
+            val currentMediaId = super.getCurrentMediaItem()?.mediaId
+            val now = SystemClock.elapsedRealtime()
+            val hasArtworkUri: Boolean
             synchronized(stateLock) {
-                coverSyncTimestamp = System.currentTimeMillis()
+                if (currentMediaId == lastSyncedMediaId &&
+                    lastSyncElapsedRealtime > 0L &&
+                    now - lastSyncElapsedRealtime < MIN_CAR_SYNC_INTERVAL_MS
+                ) {
+                    return
+                }
+                lastSyncedMediaId = currentMediaId
+                lastSyncElapsedRealtime = now
+                carSyncTimestamp = System.currentTimeMillis()
+                hasArtworkUri = super.getMediaMetadata().artworkUri != null
             }
             val meta = mediaMetadata
             listenerMap.keys.forEach { it.onMediaMetadataChanged(meta) }
+            if (!hasArtworkUri) {
+                val state = playbackState
+                listenerMap.keys
+                    .filter { it !is PlaybackServiceListener }
+                    .forEach { it.onPlaybackStateChanged(state) }
+            }
+            LogManager.i("BluetoothCarManager: Synced MediaSession state to connected car Bluetooth.")
         }
 
-        fun forceStateSync() {
-            synchronized(stateLock) {
-                syncTimestamp = System.currentTimeMillis()
+        fun clearCarSyncState(notifyListeners: Boolean = true) {
+            val hadSync = synchronized(stateLock) {
+                val prev = carSyncTimestamp > 0L
+                carSyncTimestamp = 0L
+                lastSyncedMediaId = null
+                lastSyncElapsedRealtime = 0L
+                prev
             }
-            val meta = mediaMetadata
-            listenerMap.keys.forEach {
-                it.onMediaMetadataChanged(meta)
+            if (notifyListeners && hadSync && playbackState != Player.STATE_IDLE) {
+                val meta = mediaMetadata
+                listenerMap.keys.forEach { it.onMediaMetadataChanged(meta) }
             }
         }
 
         private fun isHideProgressBarActive(): Boolean {
-            return carBluetoothEnabled &&
+            return isCarConnectedAndEnabled() &&
                 bluetoothLyricsEnabled &&
-                bluetoothLyricsHideProgressBar &&
-                deviceDetector.carConnectionState.value
+                bluetoothLyricsHideProgressBar
         }
 
         override fun getDuration(): Long {
@@ -312,6 +305,10 @@ class BluetoothCarManager(
         override fun isCurrentMediaItemDynamic(): Boolean {
             return if (isHideProgressBarActive()) true else super.isCurrentMediaItemDynamic()
         }
+    }
+
+    private companion object {
+        const val MIN_CAR_SYNC_INTERVAL_MS = 2000L
     }
 }
 

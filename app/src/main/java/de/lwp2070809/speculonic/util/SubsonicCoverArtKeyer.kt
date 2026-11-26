@@ -11,12 +11,20 @@ object CoverArtKeyUtils {
     fun normalizeBaseUrl(url: String): String = url.trim().lowercase().trimEnd('/')
 
     fun stripVolatileParams(uriString: String): String {
+        if (!uriString.contains("bt_sync_ts=")) return uriString
         val stripped = uriString.replace(BT_SYNC_TS_REGEX, "")
         return if (!stripped.contains('?') && stripped.contains('&')) {
             stripped.replaceFirst('&', '?')
         } else {
             stripped
         }
+    }
+
+    fun stripVolatileParams(uri: Uri?): Uri? {
+        if (uri == null) return null
+        val uriString = uri.toString()
+        val stripped = stripVolatileParams(uriString)
+        return if (stripped != uriString) stripped.toUri() else uri
     }
 
     fun buildStableKey(baseUrl: String, id: String): String {

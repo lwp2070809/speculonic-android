@@ -207,7 +207,7 @@
     <string name="identify_car_bluetooth">识别车载设备蓝牙</string>
     <string name="identify_car_bluetooth_description">连接到车载蓝牙时，启用增强的兼容性和同步功能。</string>
     <string name="sync_playback_state">主动同步播放状态</string>
-    <string name="sync_playback_state_description">在车机连接时，即使应用处于后台或暂停状态，也会唤醒并向车机同步歌曲信息。</string>
+    <string name="sync_playback_state_description">在连接车机时，即使处于暂停状态也会向车机同步当前歌曲信息与封面。</string>
     <string name="bluetooth_lyrics_hide_progress_bar">隐藏车机进度条</string>
     <string name="bluetooth_lyrics_hide_progress_bar_description">可减少部分车机的画面闪烁。开启后，无法在车机上查看或拖动进度条。</string>
     <string name="add_device_name">添加设备名称</string>

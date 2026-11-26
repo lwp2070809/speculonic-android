@@ -78,7 +78,7 @@ object SpeculonicWidgetUpdater {
             songId = songId,
             title = title,
             artist = artist,
-            artworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(artworkUri),
+            artworkUri = artworkUri,
             isPlaying = isPlaying
         )
         enqueueUpdate(context)
@@ -202,10 +202,9 @@ object SpeculonicWidgetUpdater {
             null
         }
         val initialSongId = activeOverride?.songId ?: playbackState.currentSongId
-        val rawArtworkUri = activeOverride?.artworkUri?.takeIf { it.isNotEmpty() }
+        val cleanedArtworkUri = activeOverride?.artworkUri?.takeIf { it.isNotEmpty() }
             ?: playbackState.artworkUri?.toString()
             ?: ""
-        val cleanedArtworkUri = de.lwp2070809.speculonic.util.CoverArtKeyUtils.stripVolatileParams(rawArtworkUri)
         val isPlaying = PlaybackService.isServiceActive &&
             (activeOverride?.isPlaying ?: PlaybackService.isPlaybackIntended)
 

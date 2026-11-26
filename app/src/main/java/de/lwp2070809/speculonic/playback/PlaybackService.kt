@@ -405,9 +405,7 @@ class PlaybackService : MediaSessionService() {
         if (carAudioManager.bluetoothLyricsEnabled) {
             sessionPlayer.currentMediaItem?.let { carAudioManager.loadLyricsForBluetooth(it) }
         }
-        if (carAudioManager.syncPlaybackState) {
-            carAudioManager.syncPlaybackStateToBluetooth()
-        }
+        carAudioManager.syncCarStateOnConnect()
     }
 
     private suspend fun cleanupAfterPlayerInit(
@@ -447,7 +445,15 @@ class PlaybackService : MediaSessionService() {
             }
             launch { observeServerConfigChanges(prefs) }
             launch { observeCarBluetoothPreferences(prefs) }
-            launch { prefs.syncPlaybackState.collect { carAudioManager.syncPlaybackState = it } }
+            launch {
+                prefs.syncPlaybackState.collect { enabled ->
+                    val wasEnabled = carAudioManager.syncPlaybackState
+                    carAudioManager.syncPlaybackState = enabled
+                    if (!wasEnabled && enabled) {
+                        carAudioManager.syncCarStateOnConnect()
+                    }
+                }
+            }
             launch { observeSkipSilencePreference(prefs) }
             launch { observeAudioFocusPreferences(prefs) }
             launch { observeBluetoothLyricsEnabled(prefs) }
@@ -459,16 +465,7 @@ class PlaybackService : MediaSessionService() {
             }
             launch {
                 prefs.bluetoothCarDeviceNames.collect {
-                    val wasConnected = carAudioManager.isCarBluetoothConnected()
                     carAudioManager.bluetoothCarDeviceNames = it
-                    val isNowConnected = carAudioManager.isCarBluetoothConnected()
-                    if (carAudioManager.carBluetoothEnabled && !wasConnected && isNowConnected) {
-                        (mediaSession?.player as? BluetoothCarManager.CarDisguisePlayer)?.triggerCoverSync()
-                        if (carAudioManager.syncPlaybackState) {
-                            carAudioManager.syncPlaybackStateToBluetooth()
-                        }
-                    }
-                    syncBluetoothLyricsAvailability()
                 }
             }
         }
@@ -687,18 +684,6 @@ class PlaybackService : MediaSessionService() {
         ) {
             super.onPostConnect(session, controller)
             sleepTimerManager.broadcastSleepTimerState()
-            
-            if (carAudioManager.carBluetoothEnabled) {
-                (session.player as? BluetoothCarManager.CarDisguisePlayer)?.triggerCoverSync()
-            }
-            
-            if (carAudioManager.carBluetoothEnabled && carAudioManager.syncPlaybackState) {
-                LogManager.i(
-                    "PlaybackService: Controller ${controller.packageName} connected. " +
-                        "Triggering active playback state sync for bluetooth."
-                )
-                carAudioManager.syncPlaybackStateToBluetooth()
-            }
         }
 
         override fun onCustomCommand(
@@ -797,7 +782,7 @@ class PlaybackService : MediaSessionService() {
         unregisterReceiver(noisyReceiver)
         sleepTimerManager.release()
 
-        carAudioManager.release()
+        carAudioManager.release(notifyDisconnect = false)
         playerBinding.detach()?.let { persistence.savePlaybackState(it, immediate = true) }
         // 服务销毁时立即重置微件为暂停态，使用应用级非取消作用域避开 serviceScope 取消及 300ms 防抖延迟
         de.lwp2070809.speculonic.SpeculonicApp.applicationScope.launch(Dispatchers.IO + kotlinx.coroutines.NonCancellable) {

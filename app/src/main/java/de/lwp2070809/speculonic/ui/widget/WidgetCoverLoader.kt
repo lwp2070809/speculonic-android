@@ -92,11 +92,10 @@ object WidgetCoverLoader {
     }
 
     private fun buildCacheKey(songId: String, uriString: String): String {
-        val cleanUri = CoverArtKeyUtils.stripVolatileParams(uriString)
         return when {
-            songId.isNotEmpty() && cleanUri.isNotEmpty() -> "${songId}_${cleanUri.hashCode()}"
+            songId.isNotEmpty() && uriString.isNotEmpty() -> "${songId}_${uriString.hashCode()}"
             songId.isNotEmpty() -> songId
-            cleanUri.isNotEmpty() -> cleanUri.hashCode().toString()
+            uriString.isNotEmpty() -> uriString.hashCode().toString()
             else -> ""
         }
     }

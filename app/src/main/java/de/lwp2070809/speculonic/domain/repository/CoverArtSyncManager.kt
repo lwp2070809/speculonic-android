@@ -31,7 +31,7 @@ class CoverArtSyncManager(
         crossfade: Boolean = true,
         fallbackUri: android.net.Uri? = null
     ): ImageRequest {
-        val cleanedFallback = fallbackUri?.toString()?.let { CoverArtKeyUtils.stripVolatileParams(it) }
+        val cleanedFallback = fallbackUri?.toString()
         val requestData: Any? = id?.let { urlBuilder.buildCoverArtUrl(it) } ?: cleanedFallback
 
         val requestBuilder = ImageRequest.Builder(context)

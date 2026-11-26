@@ -35,7 +35,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.core.net.toUri
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -50,7 +49,6 @@ import de.lwp2070809.speculonic.ui.MainScreen
 import de.lwp2070809.speculonic.ui.MainViewModel
 import de.lwp2070809.speculonic.ui.components.UpdateChangelogDialog
 import de.lwp2070809.speculonic.ui.theme.SpeculonicTheme
-import de.lwp2070809.speculonic.util.CoverArtKeyUtils
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.LogTag
 import de.lwp2070809.speculonic.util.NetworkUtils
@@ -131,14 +129,6 @@ class MainActivity : AppCompatActivity() {
             onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
         }
 
-        val normalizedArtworkUri by remember {
-            derivedStateOf {
-                val uri = playbackState.artworkUri ?: return@derivedStateOf null
-                val uriStr = uri.toString()
-                val cleaned = CoverArtKeyUtils.stripVolatileParams(uriStr)
-                if (cleaned != uriStr) cleaned.toUri() else uri
-            }
-        }
         val hasCurrentSong by remember { derivedStateOf { playbackState.currentSongId.isNotEmpty() } }
 
         val darkTheme = when (themeMode) {
@@ -156,9 +146,9 @@ class MainActivity : AppCompatActivity() {
         SpeculonicTheme(darkTheme = darkTheme, seedColor = seedColor) {
             val currentSurfaceColor = MaterialTheme.colorScheme.surface.toArgb()
 
-            LaunchedEffect(normalizedArtworkUri, hasCurrentSong, colorMode, darkTheme) {
+            LaunchedEffect(playbackState.artworkUri, hasCurrentSong, colorMode, darkTheme) {
                 mainViewModel.evaluateSeedColor(
-                    artworkUri = normalizedArtworkUri,
+                    artworkUri = playbackState.artworkUri,
                     hasCurrentSong = hasCurrentSong,
                     colorMode = colorMode,
                     darkTheme = darkTheme,

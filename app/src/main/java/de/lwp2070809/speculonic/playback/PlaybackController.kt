@@ -13,6 +13,7 @@ import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.ui.widget.SpeculonicWidgetUpdater
+import de.lwp2070809.speculonic.util.CoverArtKeyUtils
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.toMediaItem
 import kotlinx.coroutines.CancellationException
@@ -407,7 +408,7 @@ class PlaybackController @Inject constructor(
             currentSongId = currentMediaItem?.mediaId ?: "",
             currentSongTitle = realTitle,
             currentArtist = realArtist,
-            artworkUri = currentMediaItem?.mediaMetadata?.artworkUri,
+            artworkUri = CoverArtKeyUtils.stripVolatileParams(currentMediaItem?.mediaMetadata?.artworkUri),
             artworkId = artworkId,
             isPlaying = controller.isPlaying,
             showPauseButton = controller.showsPauseButton(),

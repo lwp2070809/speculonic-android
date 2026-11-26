@@ -213,7 +213,7 @@
     <string name="identify_car_bluetooth">Identify Car Bluetooth</string>
     <string name="identify_car_bluetooth_description">Enable enhanced compatibility and sync features when connected to a car stereo.</string>
     <string name="sync_playback_state">Sync Playback State</string>
-    <string name="sync_playback_state_description">Force sync song info to the car screen when connected, even if the app is paused.</string>
+    <string name="sync_playback_state_description">Push current song metadata and cover art to the car screen on connection, even while paused.</string>
     <string name="bluetooth_lyrics_hide_progress_bar">Hide Car Progress Bar</string>
     <string name="bluetooth_lyrics_hide_progress_bar_description">May reduce flicker on some car displays. You won’t be able to view or scrub through playback progress on the car display.</string>
     <string name="add_device_name">Add Device Name</string>
