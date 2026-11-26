@@ -365,18 +365,7 @@ fun ServerSettings(
             initialAllowInsecure = uiState.allowInsecureConnections,
             viewModel = viewModel,
             onDismiss = { showEditDialog = false },
-            onSave = { url, user, pass, syncCoverArt, allowInsecure ->
-                if (viewModel.saveSettings(
-                        rawUrl = url,
-                        rawUser = user,
-                        pass = pass,
-                        syncCoverArt = syncCoverArt,
-                        allowInsecureConnections = allowInsecure
-                    )
-                ) {
-                    showEditDialog = false
-                }
-            }
+            onSaved = { showEditDialog = false }
         )
     }
 

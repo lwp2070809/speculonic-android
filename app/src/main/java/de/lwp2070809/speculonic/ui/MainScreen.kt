@@ -512,18 +512,7 @@ private fun MainContent(
                     viewModel = serverSyncViewModel,
                     showCancelButton = false,
                     onDismiss = { if (!serverUrl.isNullOrBlank()) showServerSetupDialog = false },
-                    onSave = { url, user, pass, syncCoverArt, allowInsecure ->
-                        if (serverSyncViewModel.saveSettings(
-                                rawUrl = url,
-                                rawUser = user,
-                                pass = pass,
-                                syncCoverArt = syncCoverArt,
-                                allowInsecureConnections = allowInsecure
-                            )
-                        ) {
-                            showServerSetupDialog = false
-                        }
-                    }
+                    onSaved = { showServerSetupDialog = false }
                 )
             }
         }

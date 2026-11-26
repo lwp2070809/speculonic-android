@@ -65,7 +65,7 @@ fun ServerConfigDialog(
     viewModel: ServerSyncViewModel,
     showCancelButton: Boolean = true,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, Boolean, Boolean) -> Unit
+    onSaved: () -> Unit
 ) {
     var url by rememberSaveable { mutableStateOf(initialUrl) }
     var user by rememberSaveable { mutableStateOf(initialUser) }
@@ -324,7 +324,20 @@ fun ServerConfigDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { executeWithLocalNetworkCheck { onSave(url, user, password.text.toString(), syncCoverArt, allowInsecureConnections) } },
+                onClick = {
+                    executeWithLocalNetworkCheck {
+                        val saved = viewModel.saveSettings(
+                            rawUrl = url,
+                            rawUser = user,
+                            pass = password.text.toString(),
+                            syncCoverArt = syncCoverArt,
+                            allowInsecureConnections = allowInsecureConnections
+                        )
+                        if (saved) {
+                            onSaved()
+                        }
+                    }
+                },
                 enabled = url.isNotBlank() && user.isNotBlank() && password.text.isNotBlank()
             ) {
                 Text(stringResource(R.string.save_configuration))
