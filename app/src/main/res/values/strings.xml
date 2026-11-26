@@ -285,6 +285,15 @@
     <string name="inconsistency_reason_mismatch">Binary mismatch</string>
     <string name="inconsistency_reason_orphaned">Unknown orphaned file</string>
     <string name="redownload">Redownload</string>
+    <string name="cache_delete_all">Delete all</string>
+    <string name="cache_redownload_all">Redownload all</string>
+    <string name="cache_confirm_delete_all">Delete the local files and cache records for all %1$d listed issues? This also deletes listed orphan files from the selected folder.</string>
+    <string name="cache_resolving">Processing %1$d of %2$d…</string>
+    <string name="cache_requeued_count">Queued for redownload: %1$d</string>
+    <string name="cache_deleted_count">Deleted: %1$d</string>
+    <string name="cache_resolution_failed">%1$s. Failed: %2$d. %3$s</string>
+    <string name="cache_changed">The cache has changed. Run verification again.</string>
+    <string name="cache_delete_failed">Could not delete the file.</string>
     <string name="redownload_queued">Queued for redownload: %1$s</string>
 
     <!-- About -->

@@ -87,6 +87,8 @@ data class StorageCacheUiState(
     val storageError: StorageErrorDialogState? = null,
     val showInconsistencyDialog: Boolean = false,
     val inconsistentItems: List<InconsistentItem> = emptyList(),
+    val isResolving: Boolean = false,
+    val resolutionMessage: String? = null,
     val pendingClearCacheTarget: CacheClearTarget? = null,
     val showSilentCacheConfirm: Boolean = false,
     val showMobileSyncConfirm: Boolean = false,
@@ -249,6 +251,7 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     fun syncWithServer(ignoreSafetyGuard: Boolean = false) {
+        if (_uiState.value.isInteractiveScanning || _uiState.value.isResolving) return
         _uiState.update { it.copy(showMobileSyncConfirm = false, showSafetyGuardConfirm = false) }
         if (playbackController.playbackState.value.showPauseButton) {
             playbackController.togglePlayPause()
@@ -262,6 +265,7 @@ class StorageCacheViewModel @Inject constructor(
                     storageError = null,
                     interactiveScanStatus = context.getString(R.string.sync_preparing),
                     showInconsistencyDialog = false,
+                    resolutionMessage = null,
                     inconsistentItems = emptyList()
                 )
             }
@@ -351,30 +355,51 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     fun dismissInconsistencyDialog() {
-        _uiState.update { it.copy(showInconsistencyDialog = false, storageError = null, inconsistentItems = emptyList()) }
+        if (_uiState.value.isResolving) return
+        _uiState.update {
+            it.copy(showInconsistencyDialog = false, storageError = null, inconsistentItems = emptyList(), resolutionMessage = null)
+        }
     }
 
-    fun resolveInconsistentItem(item: InconsistentItem, action: String) {
+    fun resolveInconsistencies(action: ResolveInconsistencyUseCase.Action, item: InconsistentItem? = null) {
+        val state = _uiState.value
+        if (!state.showInconsistencyDialog || state.isResolving) return
+        val redownload = action == ResolveInconsistencyUseCase.Action.REDOWNLOAD
+        val targets = state.inconsistentItems.filter {
+            (item == null || it.key == item.key) && (!redownload || it.canRedownload)
+        }
+        if (targets.isEmpty()) return
+        _uiState.update { it.copy(isResolving = true, resolutionMessage = null) }
         viewModelScope.launch {
-            val useCaseAction = if (action == "DELETE") {
-                ResolveInconsistencyUseCase.Action.DELETE
-            } else {
-                ResolveInconsistencyUseCase.Action.REDOWNLOAD
-            }
-            val result = resolveInconsistencyUseCase(item, useCaseAction)
-            if (result.isSuccess) {
-                _uiState.update { state ->
-                    state.copy(inconsistentItems = state.inconsistentItems.filter { it.id != item.id })
+            val resolved = mutableSetOf<String>()
+            var firstError: String? = null
+            try {
+                resolveInconsistencyUseCase.resolveAll(targets, action, onProgress = { processed ->
+                    _uiState.update { it.copy(resolutionMessage = context.getString(R.string.cache_resolving, processed, targets.size)) }
+                }) { target, result ->
+                    result
+                        .onSuccess { resolved.add(target.key) }
+                        .onFailure { error ->
+                            if (firstError == null) {
+                                val reason = error.localizedMessage ?: error.javaClass.simpleName
+                                firstError = "${target.displayTitle} — $reason"
+                            }
+                        }
                 }
-                if (useCaseAction == ResolveInconsistencyUseCase.Action.REDOWNLOAD) {
-                    withContext(Dispatchers.Main) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.redownload_queued, item.displayTitle),
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
+            } finally {
+                val resultRes = if (redownload) R.string.cache_requeued_count else R.string.cache_deleted_count
+                val summary = context.getString(resultRes, resolved.size)
+                val message = firstError?.let {
+                    context.getString(R.string.cache_resolution_failed, summary, targets.size - resolved.size, it)
+                } ?: summary
+                _uiState.update { current ->
+                    current.copy(
+                        inconsistentItems = current.inconsistentItems.filterNot { it.key in resolved },
+                        isResolving = false,
+                        resolutionMessage = message
+                    )
                 }
+                if (resolved.isNotEmpty()) refreshCacheSize()
             }
         }
     }

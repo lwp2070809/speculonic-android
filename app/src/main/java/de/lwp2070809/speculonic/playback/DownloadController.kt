@@ -52,16 +52,19 @@ class DownloadController @Inject constructor(
             return
         }
         scheduleRecentRequestClear(song.id)
-        enqueueDownloadRequest(song, isSilent)
+        try {
+            enqueueDownloadRequest(song, isSilent)
+        } catch (e: Exception) {
+            recentlyRequested.remove(song.id)
+            LogManager.e("DownloadController: Failed to enqueue download", e)
+        }
     }
 
-    suspend fun redownloadSong(song: Song, isSilent: Boolean = false) {
+    fun enqueueReplacementDownload(song: Song, isSilent: Boolean = false) {
         ensureNotificationPermissionIfNeeded(isSilent)
-        recentlyRequested.remove(song.id)
-        downloadTracker.prepareForRedownload(song.id)
+        enqueueDownloadRequest(song, isSilent)
         recentlyRequested.add(song.id)
         scheduleRecentRequestClear(song.id)
-        enqueueDownloadRequest(song, isSilent)
     }
 
     private fun ensureNotificationPermissionIfNeeded(isSilent: Boolean) {
@@ -117,26 +120,22 @@ class DownloadController @Inject constructor(
             .setData(data)
             .build()
 
-        try {
-            if (isSilent) {
-                DownloadService.sendAddDownload(
-                    context,
-                    de.lwp2070809.speculonic.playback.SilentDownloadService::class.java,
-                    downloadRequest,
-                    false
-                )
-                LogManager.i("DownloadController: Silent download added via SilentDownloadService for ${song.id}")
-            } else {
-                DownloadService.sendAddDownload(
-                    context,
-                    de.lwp2070809.speculonic.playback.DownloadService::class.java,
-                    downloadRequest,
-                    false
-                )
-                LogManager.i("DownloadController: AddDownload intent sent for ${song.id}")
-            }
-        } catch (e: Exception) {
-            LogManager.e("DownloadController: Failed to send download intents", e)
+        if (isSilent) {
+            DownloadService.sendAddDownload(
+                context,
+                de.lwp2070809.speculonic.playback.SilentDownloadService::class.java,
+                downloadRequest,
+                false
+            )
+            LogManager.i("DownloadController: Silent download added via SilentDownloadService for ${song.id}")
+        } else {
+            DownloadService.sendAddDownload(
+                context,
+                de.lwp2070809.speculonic.playback.DownloadService::class.java,
+                downloadRequest,
+                false
+            )
+            LogManager.i("DownloadController: AddDownload intent sent for ${song.id}")
         }
     }
 

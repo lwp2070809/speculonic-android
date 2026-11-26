@@ -169,6 +169,9 @@ interface SongDao {
     @Query("SELECT * FROM songs WHERE isFullyCached = 1")
     suspend fun getAllCachedSongs(): List<SongEntity>
 
+    @Query("SELECT EXISTS(SELECT 1 FROM songs WHERE localUri = :uri)")
+    suspend fun hasSongAtUri(uri: String): Boolean
+
     @Query("SELECT COUNT(*) FROM songs WHERE isFullyCached = 1")
     suspend fun getCachedSongsCount(): Int
 

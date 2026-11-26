@@ -472,8 +472,10 @@ fun StorageCacheSettings(
     if (uiState.showInconsistencyDialog) {
         InconsistencyDialog(
             inconsistentItems = uiState.inconsistentItems,
-            onDismissRequest = { viewModel.dismissInconsistencyDialog() },
-            onResolveItem = { item, action -> viewModel.resolveInconsistentItem(item, action) }
+            isResolving = uiState.isResolving,
+            resolutionMessage = uiState.resolutionMessage,
+            onDismissRequest = viewModel::dismissInconsistencyDialog,
+            onResolve = viewModel::resolveInconsistencies
         )
     }
 

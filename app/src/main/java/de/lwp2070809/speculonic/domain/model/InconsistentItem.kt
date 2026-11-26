@@ -9,6 +9,9 @@ data class InconsistentItem(
     val localUri: String?,
     val dbSong: SongEntity?
 ) {
+    val key: String get() = if (type == Type.ORPHANED_FILE) "file:$localUri" else "song:$id"
+    val canRedownload: Boolean get() = type != Type.ORPHANED_FILE && dbSong != null
+
     enum class Type {
         MISSING_FILE,
         BINARY_MISMATCH,

@@ -102,16 +102,18 @@ class DownloadTracker @Inject constructor(
         return _allDownloads.value.any { it.task.request.id == songId }
     }
 
-    suspend fun prepareForRedownload(songId: String) = withContext(Dispatchers.IO) {
-        exportJobs.remove(songId)?.cancel()
+    suspend fun discardInconsistentDownload(songId: String) = withContext(Dispatchers.IO) {
+        exportJobs.remove(songId)?.cancelAndJoin()
         pendingFileDeletionIds.remove(songId)
         val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
         val hasExistingTask = withContext(Dispatchers.Main) {
             downloadManager.currentDownloads.any { it.request.id == songId }
-        } || runCatching { downloadManager.downloadIndex.getDownload(songId) != null }.getOrDefault(false)
+        } || (downloadManager.downloadIndex.getDownload(songId) != null)
 
+        cacheManager.acquirePlaybackCache().removeResource(songId)
+        cacheManager.acquireDownloadCache().removeResource(songId)
         if (hasExistingTask) {
-            // 标记正在重下，拦截随后到达的旧任务 onDownloadRemoved 避免误删紧随其后的新缓存
+            // The resolver owns file/DB cleanup, for both delete and redownload.
             redownloadingIds.add(songId)
         }
         withContext(Dispatchers.Main.immediate) {
@@ -119,7 +121,6 @@ class DownloadTracker @Inject constructor(
             _activeDownloadIds.update { it - songId }
             _allDownloads.update { current -> current.filter { it.task.request.id != songId } }
         }
-        clearInternalAudioCaches(songId)
         if (hasExistingTask) {
             try {
                 androidx.media3.exoplayer.offline.DownloadService.sendRemoveDownload(
@@ -130,7 +131,7 @@ class DownloadTracker @Inject constructor(
                 )
             } catch (e: Exception) {
                 redownloadingIds.remove(songId)
-                LogManager.e("DownloadTracker: Failed removing stale task before redownload for $songId", e)
+                throw e
             }
         }
     }
@@ -458,7 +459,13 @@ class DownloadTracker @Inject constructor(
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             if (!scope.isActive) return
             if (redownloadingIds.remove(download.request.id)) {
-                LogManager.i("DownloadTracker: Ignored stale removal callback during redownload of ${download.request.id}")
+                // STATE_REMOVING was published after discard cleared the list. Remove that
+                // old row, but preserve a replacement that has already reached a new state.
+                _allDownloads.update { current ->
+                    current.filterNot { it.task.request.id == download.request.id && it.state == Download.STATE_REMOVING }
+                }
+                checkAndStartPolling(downloadManager, scope)
+                LogManager.i("DownloadTracker: Skipped resolver-owned file cleanup for ${download.request.id}")
                 return
             }
             exportJobs.remove(download.request.id)?.cancel()

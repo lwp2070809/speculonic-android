@@ -279,6 +279,15 @@
     <string name="inconsistency_reason_mismatch">文件内容不一致</string>
     <string name="inconsistency_reason_orphaned">未知的孤立文件</string>
     <string name="redownload">重新下载</string>
+    <string name="cache_delete_all">一键删除</string>
+    <string name="cache_redownload_all">一键重新下载</string>
+    <string name="cache_confirm_delete_all">确定删除列表中全部 %1$d 项异常对应的本地文件和缓存记录吗？所选文件夹中列出的孤立文件也会被删除。</string>
+    <string name="cache_resolving">正在处理 %1$d/%2$d…</string>
+    <string name="cache_requeued_count">已加入重新下载队列：%1$d 项</string>
+    <string name="cache_deleted_count">已删除：%1$d 项</string>
+    <string name="cache_resolution_failed">%1$s；失败：%2$d 项。%3$s</string>
+    <string name="cache_changed">缓存已发生变化，请重新校验。</string>
+    <string name="cache_delete_failed">未能删除文件。</string>
     <string name="redownload_queued">已加入重新下载队列：%1$s</string>
 
     

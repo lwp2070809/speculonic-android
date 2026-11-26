@@ -30,15 +30,35 @@ object SafDirectoryHelper {
         DocumentsContract.Document.COLUMN_MIME_TYPE
     )
 
-    fun listChildEntries(context: Context, treeUri: Uri): List<SafChildEntry> {
+    fun listChildEntries(context: Context, treeUri: Uri): List<SafChildEntry> =
+        withChildCursor(context, treeUri, CHILD_PROJECTION) { readCursorEntries(it, treeUri, null) }
+
+    fun listChildDocumentIds(context: Context, treeUri: Uri): Set<String> =
+        withChildCursor(context, treeUri, arrayOf(DocumentsContract.Document.COLUMN_DOCUMENT_ID)) { cursor ->
+            val index = cursor.getColumnIndexOrThrow(DocumentsContract.Document.COLUMN_DOCUMENT_ID)
+            buildSet {
+                while (cursor.moveToNext()) {
+                    val id = cursor.getString(index)
+                    if (id.isNullOrBlank()) throw IOException("Incomplete directory listing")
+                    add(id)
+                }
+            }
+        }
+
+    private inline fun <T> withChildCursor(
+        context: Context,
+        treeUri: Uri,
+        projection: Array<String>,
+        read: (android.database.Cursor) -> T
+    ): T {
         val children = resolveChildrenUri(treeUri) ?: throw IOException("Invalid document tree")
-        val cursor = context.contentResolver.query(children, CHILD_PROJECTION, null, null, null)
+        val cursor = context.contentResolver.query(children, projection, null, null, null)
             ?: throw IOException("Document provider did not return a directory listing")
         return cursor.use {
             val extras = it.extras
             extras?.getString(DocumentsContract.EXTRA_ERROR)?.let { message -> throw IOException(message) }
             if (extras?.getBoolean(DocumentsContract.EXTRA_LOADING) == true) throw IOException("Directory is still loading")
-            readCursorEntries(it, treeUri, null)
+            read(it)
         }
     }
 
