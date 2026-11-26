@@ -15,7 +15,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
 
     companion object {
         private val CACHE_LOCATION = stringPreferencesKey("cache_location")
-        private val MAX_CACHE_SIZE = longPreferencesKey("max_cache_size")
         private val MAX_COVER_CACHE_SIZE = longPreferencesKey("max_cover_cache_size")
         private val SILENT_CACHE_ENABLED = booleanPreferencesKey("silent_cache_enabled")
         private val AUTO_EXPORT_SILENT_CACHE = booleanPreferencesKey("auto_export_silent_cache")
@@ -56,8 +55,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override fun getCachedMaxCoverCacheSize(): Long = cachedMaxCoverCacheSize.get()
 
     override val cacheLocation: Flow<String> = context.dataStore.data.map { it[CACHE_LOCATION] ?: "" }.distinctUntilChanged()
-    override val maxCacheSize: Flow<Long> =
-        context.dataStore.data.map { it[MAX_CACHE_SIZE] ?: (1024L * 1024 * 1024) }.distinctUntilChanged()
     override val maxCoverCacheSize: Flow<Long> = context.dataStore.data.map { 
         val size = it[MAX_COVER_CACHE_SIZE] ?: DEFAULT_MAX_COVER_CACHE_SIZE
         if (cachedMaxCoverCacheSize.getAndSet(size) != size) {
@@ -83,12 +80,6 @@ class CacheSyncPrefsImpl(private val context: Context) : CacheSyncPrefs {
     override suspend fun saveCacheLocation(location: String) {
         context.dataStore.edit { preferences ->
             preferences[CACHE_LOCATION] = location
-        }
-    }
-
-    override suspend fun saveMaxCacheSize(size: Long) {
-        context.dataStore.edit { preferences ->
-            preferences[MAX_CACHE_SIZE] = size
         }
     }
 

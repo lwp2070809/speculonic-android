@@ -167,8 +167,6 @@ dependencies {
     
     implementation(libs.io.coil.kt.coil.compose)
     implementation(libs.io.coil.kt.coil.network)
-    implementation(libs.io.coil.kt.coil.svg)
-    implementation(libs.io.coil.kt.coil.gif)
     
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.kotlinx.serialization)

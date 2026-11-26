@@ -8,11 +8,9 @@ import coil3.ImageLoader
 import coil3.SingletonImageLoader
 import coil3.disk.DiskCache
 import coil3.disk.directory
-import coil3.gif.AnimatedImageDecoder
 import coil3.memory.MemoryCache
 import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
-import coil3.svg.SvgDecoder
 import dagger.hilt.android.HiltAndroidApp
 import de.lwp2070809.speculonic.data.AppRuntimeCoordinator
 import de.lwp2070809.speculonic.data.CacheSyncWorker
@@ -105,8 +103,6 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
                 add(SubsonicCoverArtKeyer())
                 add(SubsonicCoverArtStringKeyer())
                 add(SubsonicCoverArtFetcher.Factory(context, musicDao))
-                add(SvgDecoder.Factory())
-                add(AnimatedImageDecoder.Factory())
             }
             .memoryCache {
                 MemoryCache.Builder()

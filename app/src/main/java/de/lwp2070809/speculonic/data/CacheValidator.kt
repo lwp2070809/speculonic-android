@@ -39,9 +39,6 @@ class CacheValidator(private val context: Context) {
         private val readSemaphore = Semaphore(2)
     }
 
-    suspend fun checkBinaryConsistency(uri: Uri, dbSong: SongEntity, deepCheck: Boolean = true): Boolean =
-        inspectFile(uri, dbSong, deepCheck) == null
-
     suspend fun inspectFile(uri: Uri, song: SongEntity, deepCheck: Boolean = true, listedSize: Long? = null): Type? =
         withContext(Dispatchers.IO) {
             val details = listedSize?.let(::FileDetails) ?: fileDetails(uri) ?: return@withContext Type.MISSING_FILE

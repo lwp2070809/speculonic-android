@@ -320,7 +320,6 @@ class PlaybackService : MediaSessionService() {
     private suspend fun loadPlayerInitConfig(): PlayerInitConfig = withContext(Dispatchers.IO) {
         val prefs = preferencesManager
         pauseOnVolumeZero = prefs.pauseOnVolumeZero.first()
-        prefs.maxCacheSize.first()
         PlayerInitConfig(
             identity = prefs.readServerIdentity(),
             skipSilence = prefs.skipSilenceEnabled.first(),
@@ -604,22 +603,6 @@ class PlaybackService : MediaSessionService() {
         }
         fallbackSession = null
         cacheStrategyManager = null
-    }
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent != null) {
-            val action = intent.action
-            if (action == "de.lwp2070809.speculonic.action.REFRESH_SAF_PERMISSION") {
-                val uri = intent.data
-                if (uri != null) {
-                    LogManager.i(
-                        "PlaybackService: Received SAF permission refresh intent for $uri. " +
-                            "Binder context permission cache synchronized."
-                    )
-                }
-            }
-        }
-        return super.onStartCommand(intent, flags, startId)
     }
 
     private var fallbackSession: MediaSession? = null

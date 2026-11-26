@@ -1,8 +1,6 @@
 package de.lwp2070809.speculonic.data
 
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.hilt.work.HiltWorker
@@ -27,7 +25,6 @@ import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
-import de.lwp2070809.speculonic.playback.DownloadController
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.MediaFormatUtils
@@ -64,8 +61,6 @@ private data class VerifySongsConfig(
     val isSafEnabled: Boolean,
     val existingSafSongIds: Set<String>,
     val downloadCache: Cache,
-    val validator: CacheValidator,
-    val isDeepSync: Boolean,
     val downloadManager: DownloadManager
 )
 
@@ -79,19 +74,16 @@ class CacheSyncWorker @AssistedInject constructor(
     private val database: AppDatabase,
     private val cacheManager: CacheManager,
     private val downloadManagerHelper: DownloadManagerHelper,
-    private val downloadController: DownloadController,
     private val cacheExporter: CacheExporter
 ) : CoroutineWorker(context, params) {
 
     override suspend fun doWork(): Result {
-        val isDeepSync = inputData.getBoolean(KEY_DEEP_SYNC, false)
         val isForceScan = inputData.getBoolean(KEY_FORCE_SCAN, false)
         val shouldHealCovers = inputData.getBoolean(KEY_HEAL_COVERS, false)
-        if (shouldSkipDueToCooldown(isDeepSync, isForceScan)) return Result.success()
+        if (shouldSkipDueToCooldown(isForceScan)) return Result.success()
 
         LogManager.i(
-            "CacheSync: Starting binary sync " +
-                "(Deep: $isDeepSync, Force: $isForceScan, HealCovers: $shouldHealCovers)..."
+            "CacheSync: Starting binary sync (Force: $isForceScan, HealCovers: $shouldHealCovers)..."
         )
         val context = applicationContext
         val cacheLocation = preferencesManager.cacheLocation.first()
@@ -112,7 +104,7 @@ class CacheSyncWorker @AssistedInject constructor(
             return failureResult(error.localizedMessage ?: error.javaClass.simpleName, needsSaf = true)
         }
 
-        verifyAndHeal(context, musicDao, cacheLocation, isDeepSync, shouldHealCovers, safEntries, existingSafIds)
+        verifyAndHeal(context, musicDao, cacheLocation, shouldHealCovers, safEntries, existingSafIds)
         migrationOutcome.firstFailure?.let { error ->
             val detail = error.localizedMessage ?: error.javaClass.simpleName
             return failureResult(context.getString(R.string.export_failed, detail))
@@ -142,7 +134,6 @@ class CacheSyncWorker @AssistedInject constructor(
         context: Context,
         musicDao: MusicDao,
         cacheLocation: String,
-        isDeepSync: Boolean,
         shouldHealCovers: Boolean,
         safEntries: List<SafChildEntry>?,
         existingSafIds: Set<String>
@@ -160,8 +151,6 @@ class CacheSyncWorker @AssistedInject constructor(
                     isSafEnabled = isSafEnabled,
                     existingSafSongIds = existingSafIds,
                     downloadCache = downloadCache,
-                    validator = CacheValidator(context),
-                    isDeepSync = isDeepSync,
                     downloadManager = downloadManager
                 )
             )
@@ -177,11 +166,8 @@ class CacheSyncWorker @AssistedInject constructor(
         healCoversIfRequested(context, shouldHealCovers)
     }
 
-    private suspend fun shouldSkipDueToCooldown(
-        isDeepSync: Boolean,
-        isForceScan: Boolean
-    ): Boolean {
-        if (isDeepSync || isForceScan) return false
+    private suspend fun shouldSkipDueToCooldown(isForceScan: Boolean): Boolean {
+        if (isForceScan) return false
         val lastScan = preferencesManager.lastCacheScanTime.first()
         val currentTime = System.currentTimeMillis()
         val cooldownMs = TimeUnit.HOURS.toMillis(CACHE_SCAN_COOLDOWN_HOURS)
@@ -235,15 +221,10 @@ class CacheSyncWorker @AssistedInject constructor(
                         progressMutex.withLock {
                             if (progressValue > lastReportedProgress) {
                                 lastReportedProgress = progressValue
-                                val statusRes = if (config.isDeepSync) {
-                                    R.string.verifying_binary_consistency
-                                } else {
-                                    R.string.scanning_local_files
-                                }
                                 setProgress(
                                     workDataOf(
                                         PROGRESS to progressValue,
-                                        STATUS to config.context.getString(statusRes, song.title)
+                                        STATUS to config.context.getString(R.string.scanning_local_files, song.title)
                                     )
                                 )
                             }
@@ -264,28 +245,10 @@ class CacheSyncWorker @AssistedInject constructor(
             existingSafSongIds = config.existingSafSongIds,
             downloadCache = config.downloadCache
         )
-        var needsRedownload = !physicalExists
-        if (physicalExists && config.isDeepSync && song.localUri != null) {
-            val isConsistent = config.validator.checkBinaryConsistency(
-                song.localUri.toUri(),
-                song,
-                deepCheck = true
-            )
-            if (!isConsistent) {
-                LogManager.i(
-                    "CacheSync: Binary inconsistency detected for ${song.title}. " +
-                        "Flagging for redownload."
-                )
-                needsRedownload = true
-            }
-        }
-        if (needsRedownload) {
-            handleMissingOrInconsistentSong(
-                context = config.context,
+        if (!physicalExists) {
+            unlinkMissingSong(
                 musicDao = config.musicDao,
                 song = song,
-                isDeepSync = config.isDeepSync,
-                downloadCache = config.downloadCache,
                 downloadManager = config.downloadManager
             )
         }
@@ -315,47 +278,22 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-    private suspend fun handleMissingOrInconsistentSong(
-        context: Context,
+    private suspend fun unlinkMissingSong(
         musicDao: MusicDao,
         song: SongEntity,
-        isDeepSync: Boolean,
-        downloadCache: Cache,
         downloadManager: DownloadManager
     ) {
-        if (!isDeepSync) {
-            LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
-            musicDao.updateSongCacheStatus(song.id, null, false)
-            try {
-                downloadManager.removeDownload(song.id)
-                LogManager.i(
-                    "CacheSync: Successfully removed missing download task for " +
-                        "${song.title} from DownloadManager."
-                )
-            } catch (e: Exception) {
-                LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
-            }
-            return
-        }
-
-        val mobilePlayAllowed = preferencesManager.mobilePlayAllowed.first()
-        if (isMeteredNetwork(context) && !mobilePlayAllowed) {
-            LogManager.w("CacheSync: Redownload skipped for ${song.title} due to metered network.")
-            return
-        }
-
-        LogManager.i(
-            "CacheSync: Triggering redownload for inconsistent/missing song: ${song.title}"
-        )
+        LogManager.w("CacheSync: Physical file missing for ${song.title}. Unlinking.")
         musicDao.updateSongCacheStatus(song.id, null, false)
         try {
-            downloadCache.removeResource(song.id)
-            cacheManager.acquirePlaybackCache().removeResource(song.id)
+            downloadManager.removeDownload(song.id)
+            LogManager.i(
+                "CacheSync: Successfully removed missing download task for " +
+                    "${song.title} from DownloadManager."
+            )
         } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.e("CacheSync: Failed to clean old cache before redownload", e)
+            LogManager.e("CacheSync: Failed to remove download task for ${song.title}", e)
         }
-        downloadController.downloadSong(EntityMapper.toSong(song), isSilent = true)
     }
 
     private suspend fun scanOrphanedSafEntries(
@@ -547,16 +485,8 @@ class CacheSyncWorker @AssistedInject constructor(
         }
     }
 
-    private fun isMeteredNetwork(context: Context): Boolean {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val network = cm.activeNetwork ?: return false
-        val capabilities = cm.getNetworkCapabilities(network) ?: return false
-        return !capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
-    }
-
     companion object {
         const val MANUAL_SCAN_WORK_NAME = "CacheSync_Once"
-        const val KEY_DEEP_SYNC = "deep_sync"
         const val KEY_FORCE_SCAN = "force_scan"
         const val KEY_HEAL_COVERS = "heal_covers"
         const val PROGRESS = "progress"
@@ -607,19 +537,6 @@ class CacheSyncWorker @AssistedInject constructor(
             WorkManager.getInstance(context)
                 .enqueueUniqueWork(MANUAL_SCAN_WORK_NAME, policy, request)
             return request.id
-        }
-
-        fun runDeepSync(context: Context) {
-            val data = Data.Builder()
-                .putBoolean(KEY_DEEP_SYNC, true)
-                .putBoolean(KEY_FORCE_SCAN, true)
-                .putBoolean(KEY_HEAL_COVERS, true)
-                .build()
-            val request = OneTimeWorkRequestBuilder<CacheSyncWorker>()
-                .setInputData(data)
-                .build()
-            WorkManager.getInstance(context)
-                .enqueueUniqueWork("CacheSync_Deep", ExistingWorkPolicy.REPLACE, request)
         }
     }
 }

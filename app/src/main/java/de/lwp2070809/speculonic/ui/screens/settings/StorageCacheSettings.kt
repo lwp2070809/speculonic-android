@@ -135,17 +135,6 @@ fun StorageCacheSettings(
                 de.lwp2070809.speculonic.util.LogManager.e("StorageCacheSettings: Failed to take persistable URI permission", e)
             }
 
-            try {
-                val refreshIntent = Intent(context, de.lwp2070809.speculonic.playback.PlaybackService::class.java).apply {
-                    action = "de.lwp2070809.speculonic.action.REFRESH_SAF_PERMISSION"
-                    data = it
-                    flags = Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_GRANT_WRITE_URI_PERMISSION
-                }
-                context.startService(refreshIntent)
-            } catch (e: Exception) {
-                de.lwp2070809.speculonic.util.LogManager.w("StorageCacheSettings: Failed to refresh SAF permission in PlaybackService", e)
-            }
-
             viewModel.updateCacheLocation(it.toString())
         }
     }

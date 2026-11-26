@@ -4,7 +4,6 @@ import kotlinx.coroutines.flow.Flow
 
 interface CacheSyncPrefs {
     val cacheLocation: Flow<String>
-    val maxCacheSize: Flow<Long>
     val maxCoverCacheSize: Flow<Long>
     fun getCachedMaxCoverCacheSize(): Long
     val silentCacheEnabled: Flow<Boolean>
@@ -20,7 +19,6 @@ interface CacheSyncPrefs {
     val syncCoverArtOnForce: Flow<Boolean>
 
     suspend fun saveCacheLocation(location: String)
-    suspend fun saveMaxCacheSize(size: Long)
     suspend fun saveMaxCoverCacheSize(size: Long)
     suspend fun saveSilentCacheEnabled(enabled: Boolean)
     suspend fun saveAutoExportSilentCache(enabled: Boolean)
