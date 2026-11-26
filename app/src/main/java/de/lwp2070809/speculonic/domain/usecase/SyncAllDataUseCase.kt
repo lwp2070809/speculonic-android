@@ -13,7 +13,8 @@ class SyncAllDataUseCase @Inject constructor(
     suspend operator fun invoke(
         forceRefresh: Boolean = false,
         ignoreLastModified: Boolean = false,
-        ignoreSafetyGuard: Boolean = false,
+        ignoreDropRatioGuard: Boolean = false,
+        skipRemoteVerification: Boolean = false,
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ): SyncOutcome {
@@ -37,7 +38,8 @@ class SyncAllDataUseCase @Inject constructor(
         return repository.syncAllData(
             forceRefresh = forceRefresh,
             ignoreLastModified = ignoreLastModified,
-            ignoreSafetyGuard = ignoreSafetyGuard,
+            ignoreDropRatioGuard = ignoreDropRatioGuard,
+            skipRemoteVerification = skipRemoteVerification,
             keepSyncingState = keepSyncingState,
             onProgress = onProgress
         )

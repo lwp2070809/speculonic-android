@@ -15,7 +15,6 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.IOException
 import java.text.DecimalFormat
 import kotlin.math.log10
 import kotlin.math.pow
@@ -64,20 +63,13 @@ class CacheOperations @javax.inject.Inject constructor(
     private suspend fun runCacheReset(operationName: String, clearDownloads: Boolean, reset: suspend () -> Unit): Result<Unit> =
         runCacheOp("CacheOperations: $operationName failed") { downloadTracker.resetWhileTrackingPaused(clearDownloads, reset) }
 
-    private fun deleteCacheDirectory(directory: File, required: Boolean) {
-        if (!directory.deleteRecursively() && required) {
-            throw IOException("Could not clear ${directory.name} before changing accounts")
-        }
-    }
-
     private suspend fun resetManagedCache(
         operationName: String,
         clearPlaybackBuffer: Boolean = false,
         clearCoverArt: Boolean = false,
         clearPersistent: Boolean = false,
         resetDb: Boolean = false,
-        preserveAccountData: Boolean = true,
-        clearAccountTables: Boolean = false
+        preserveAccountData: Boolean = true
     ): Result<Unit> = withContext(Dispatchers.IO) {
         runCacheReset(operationName, clearDownloads = clearPersistent) {
             runBestEffort("CacheOperations: Failed to stop DownloadServices", Unit) {
@@ -89,30 +81,21 @@ class CacheOperations @javax.inject.Inject constructor(
 
             if (clearCoverArt) CoverArtSyncManager.clear(SingletonImageLoader.get(context))
             cacheManager.executeWithCacheReleaseLock(preservePlayback = preserveAccountData) {
-                val requireCleanup = clearAccountTables
                 if (clearPlaybackBuffer) {
-                    deleteCacheDirectory(File(context.cacheDir, "media_playback_buffer"), requireCleanup)
+                    File(context.cacheDir, "media_playback_buffer").deleteRecursively()
                 }
                 if (clearPersistent) {
                     val baseExternalDir = context.getExternalFilesDir(null) ?: context.filesDir
-                    deleteCacheDirectory(File(baseExternalDir, "media_persistent_cache"), requireCleanup)
-                    deleteCacheDirectory(File(baseExternalDir, "media_exported_private"), requireCleanup)
+                    File(baseExternalDir, "media_persistent_cache").deleteRecursively()
+                    File(baseExternalDir, "media_exported_private").deleteRecursively()
                     val dbName = "exoplayer_internal.db"
-                    if (requireCleanup) {
-                        if (!context.deleteDatabase(dbName) && context.getDatabasePath(dbName).exists()) {
-                            throw IOException("Could not clear the download history before changing accounts")
-                        }
-                    } else {
-                        runBestEffort("CacheOperations: Failed to delete $dbName on $operationName", Unit) {
-                            context.deleteDatabase(dbName)
-                        }
+                    runBestEffort("CacheOperations: Failed to delete $dbName on $operationName", Unit) {
+                        context.deleteDatabase(dbName)
                     }
                 }
             }
 
-            if (clearAccountTables) {
-                database.clearAllTables()
-            } else if (resetDb) {
+            if (resetDb) {
                 runBestEffort("CacheOperations: Failed to reset database cache status on $operationName", Unit) {
                     if (preserveAccountData) {
                         database.musicDao().resetNonSafCacheStatus()
@@ -121,7 +104,6 @@ class CacheOperations @javax.inject.Inject constructor(
                     }
                 }
             }
-
         }
     }
 
@@ -132,15 +114,6 @@ class CacheOperations @javax.inject.Inject constructor(
         clearPersistent = true,
         resetDb = true,
         preserveAccountData = preserveAccountData
-    )
-
-    internal suspend fun clearLegacyAccountData(): Result<Unit> = resetManagedCache(
-        operationName = "clearLegacyAccountData",
-        clearPlaybackBuffer = true,
-        clearCoverArt = true,
-        clearPersistent = true,
-        preserveAccountData = false,
-        clearAccountTables = true
     )
 
     suspend fun clearPlaybackCache(): Result<Unit> = resetManagedCache(

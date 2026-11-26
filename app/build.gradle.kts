@@ -23,7 +23,7 @@ android {
         minSdk = 33
         targetSdk = 37
         versionCode = 2
-        versionName = "0.10.1"
+        versionName = "0.10.2"
 
         if (!injectedAbi.isNullOrBlank()) {
             ndk {
@@ -184,7 +184,6 @@ dependencies {
     implementation(libs.work.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.room.ktx)
-    // 短期仅用于历史 EncryptedSharedPreferences XML 的一次性只读兼容迁移，后续版本可直接移除
     implementation(libs.androidx.documentfile)
     ksp(libs.androidx.room.compiler)
     

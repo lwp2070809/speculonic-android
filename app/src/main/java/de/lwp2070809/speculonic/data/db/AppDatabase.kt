@@ -1,7 +1,10 @@
 package de.lwp2070809.speculonic.data.db
 
+import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.RoomDatabase
+import androidx.room.migration.AutoMigrationSpec
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
@@ -25,10 +28,19 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
         PlaybackQueueEntity::class,
         SyncTempIdEntity::class
     ],
-    version = 27,
-    exportSchema = true
+    version = 28,
+    exportSchema = true,
+    autoMigrations = [
+        AutoMigration(from = 27, to = 28, spec = AppDatabase.MigrationSpec27To28::class)
+    ]
 )
 abstract class AppDatabase : RoomDatabase() {
+    @DeleteColumn.Entries(
+        DeleteColumn(tableName = "songs", columnName = "parent"),
+        DeleteColumn(tableName = "songs", columnName = "isDir")
+    )
+    class MigrationSpec27To28 : AutoMigrationSpec
+
     abstract fun musicDao(): MusicDao
 
     companion object {

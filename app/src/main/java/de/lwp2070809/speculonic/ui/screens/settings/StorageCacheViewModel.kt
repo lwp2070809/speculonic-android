@@ -93,7 +93,8 @@ data class StorageCacheUiState(
     val showSilentCacheConfirm: Boolean = false,
     val showMobileSyncConfirm: Boolean = false,
     val showSafetyGuardConfirm: Boolean = false,
-    val safetyGuardMessage: String? = null
+    val safetyGuardMessage: String? = null,
+    val safetyGuardReason: SafetyGuardException.Reason? = null
 )
 
 @HiltViewModel
@@ -243,16 +244,21 @@ class StorageCacheViewModel @Inject constructor(
     }
 
     fun confirmSafetyGuard() {
-        syncWithServer(ignoreSafetyGuard = true)
+        val reason = _uiState.value.safetyGuardReason
+        val ignoreDropRatio = reason != SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED
+        syncWithServer(ignoreDropRatioGuard = ignoreDropRatio, skipRemoteVerification = true)
     }
 
     fun cancelSafetyGuard() {
-        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) }
+        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null, safetyGuardReason = null) }
     }
 
-    fun syncWithServer(ignoreSafetyGuard: Boolean = false) {
+    fun syncWithServer(
+        ignoreDropRatioGuard: Boolean = false,
+        skipRemoteVerification: Boolean = false
+    ) {
         if (_uiState.value.isInteractiveScanning || _uiState.value.isResolving) return
-        _uiState.update { it.copy(showMobileSyncConfirm = false, showSafetyGuardConfirm = false) }
+        _uiState.update { it.copy(showMobileSyncConfirm = false, showSafetyGuardConfirm = false, safetyGuardReason = null) }
         if (playbackController.playbackState.value.showPauseButton) {
             playbackController.togglePlayPause()
         }
@@ -270,20 +276,24 @@ class StorageCacheViewModel @Inject constructor(
                 )
             }
 
-            if (!runLightweightServerSync(ignoreSafetyGuard)) {
+            if (!runLightweightServerSync(ignoreDropRatioGuard, skipRemoteVerification)) {
                 return@launch
             }
             collectCacheConsistencyCheck()
         }
     }
 
-    private suspend fun runLightweightServerSync(ignoreSafetyGuard: Boolean): Boolean {
+    private suspend fun runLightweightServerSync(
+        ignoreDropRatioGuard: Boolean,
+        skipRemoteVerification: Boolean
+    ): Boolean {
         return try {
             withContext(Dispatchers.IO) {
                 syncAllDataUseCase(
                     forceRefresh = false,
                     ignoreLastModified = false,
-                    ignoreSafetyGuard = ignoreSafetyGuard,
+                    ignoreDropRatioGuard = ignoreDropRatioGuard,
+                    skipRemoteVerification = skipRemoteVerification,
                     onProgress = { status ->
                         _uiState.update { it.copy(interactiveScanStatus = status) }
                     }
@@ -297,7 +307,8 @@ class StorageCacheViewModel @Inject constructor(
                 it.copy(
                     isInteractiveScanning = false,
                     showSafetyGuardConfirm = true,
-                    safetyGuardMessage = e.toUserMessage(context)
+                    safetyGuardMessage = e.toUserMessage(context),
+                    safetyGuardReason = e.reason
                 )
             }
             false

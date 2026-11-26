@@ -62,14 +62,12 @@ data class AlbumListItemEntity(
         Index(value = ["artistId", "title"]),
         Index(value = ["starred"]),
         Index(value = ["coverArt"]),
-        Index(value = ["parent"]),
         Index(value = ["isFullyCached"]),
         Index(value = ["title"])
     ]
 )
 data class SongEntity(
     @PrimaryKey val id: String,
-    val parent: String? = null,
     val albumId: String? = null,
     val artistId: String? = null,
     val title: String,
@@ -87,7 +85,6 @@ data class SongEntity(
     val bitRate: Int? = null,
     val path: String? = null,
     val md5: String? = null,
-    val isDir: Boolean = false,
     val isVideo: Boolean = false,
     val starred: Boolean = false,
     val localUri: String? = null, 

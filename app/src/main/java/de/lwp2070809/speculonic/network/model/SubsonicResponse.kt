@@ -91,14 +91,14 @@ data class SubsonicArtistResponse(
 ) : BaseResponse
 
 @Serializable
-data class SubsonicArtistInfo2Response(
+data class SubsonicArtistsResponse(
     override val status: String,
     override val version: String,
     override val type: String? = null,
     override val serverVersion: String? = null,
     override val openSubsonic: Boolean? = null,
     override val error: Error? = null,
-    val artistInfo2: ArtistInfo2? = null
+    val artists: ArtistsResponse? = null
 ) : BaseResponse
 
 @Serializable
@@ -132,17 +132,6 @@ data class SubsonicStarred2Response(
     override val openSubsonic: Boolean? = null,
     override val error: Error? = null,
     val starred2: Starred2Response? = null
-) : BaseResponse
-
-@Serializable
-data class SubsonicDirectoryResponse(
-    override val status: String,
-    override val version: String,
-    override val type: String? = null,
-    override val serverVersion: String? = null,
-    override val openSubsonic: Boolean? = null,
-    override val error: Error? = null,
-    val directory: Directory? = null
 ) : BaseResponse
 
 @Serializable

@@ -641,7 +641,7 @@ class DownloadTracker @Inject constructor(
             return try {
                 val repo = repository.get()
                 if (repo.isConfigured) {
-                    repo.getLyricsData(songId, artist, title, true).first
+                    repo.getLyricsData(songId, artist, title).first
                 } else {
                     null
                 }

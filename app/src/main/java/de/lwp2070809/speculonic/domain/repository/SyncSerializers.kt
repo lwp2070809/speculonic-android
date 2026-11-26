@@ -179,7 +179,7 @@ class SearchResult3StreamingSerializer(
             state.entityMapper.songToEntity(
                 song = song,
                 overrides = SongEntityOverrides(
-                    albumId = song.albumId ?: song.parent,
+                    albumId = song.albumId,
                     localUri = meta?.localUri,
                     isCached = meta?.isFullyCached ?: false,
                     isTranscoded = meta?.isTranscoded ?: false,

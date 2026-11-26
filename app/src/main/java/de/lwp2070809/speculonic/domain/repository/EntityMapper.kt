@@ -18,7 +18,6 @@ import java.time.format.DateTimeFormatter
 data class SongEntityOverrides(
     val albumId: String? = null,
     val artistId: String? = null,
-    val parentId: String? = null,
     val localUri: String? = null,
     val isCached: Boolean = false,
     val isTranscoded: Boolean? = null,
@@ -44,8 +43,7 @@ object EntityMapper {
 
         return SongEntity(
             id = song.id,
-            parent = overrides.parentId ?: song.parent,
-            albumId = overrides.albumId ?: song.albumId ?: overrides.parentId ?: song.parent,
+            albumId = overrides.albumId ?: song.albumId,
             artistId = overrides.artistId ?: song.artistId,
             title = song.title,
             album = song.album,
@@ -62,7 +60,6 @@ object EntityMapper {
             bitRate = song.bitRate,
             path = song.path,
             md5 = song.md5,
-            isDir = song.isDir,
             isVideo = song.isVideo ?: false,
             starred = finalStarred,
             localUri = overrides.localUri,
@@ -75,7 +72,6 @@ object EntityMapper {
     fun toSong(entity: SongEntity): Song {
         return Song(
             id = entity.id,
-            parent = entity.parent,
             title = entity.title,
             album = entity.album,
             artist = entity.artist,
@@ -93,7 +89,6 @@ object EntityMapper {
             bitRate = entity.bitRate,
             path = entity.path,
             md5 = entity.md5,
-            isDir = entity.isDir,
             isVideo = entity.isVideo,
             starred = if (entity.starred) formatIsoTime(entity.lastUpdated) else null,
             localUri = entity.localUri,

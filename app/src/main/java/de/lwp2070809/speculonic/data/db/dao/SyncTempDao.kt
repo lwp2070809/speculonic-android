@@ -15,9 +15,6 @@ interface SyncTempDao {
     @Query("DELETE FROM sync_temp_ids")
     suspend fun clearSyncTempIds()
 
-    @Query("DELETE FROM sync_temp_ids WHERE type = :type")
-    suspend fun clearSyncTempIdsByType(type: String)
-
     @Query("SELECT COUNT(*) FROM sync_temp_ids WHERE type = :type")
     suspend fun getSyncTempIdCountByType(type: String): Int
 

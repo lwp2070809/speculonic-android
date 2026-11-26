@@ -6,6 +6,7 @@ import de.lwp2070809.speculonic.data.db.dao.SQLITE_IN_CHUNK_SIZE
 import de.lwp2070809.speculonic.data.db.entities.SongCleanupTarget
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
+import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
 import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
@@ -20,9 +21,11 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import retrofit2.HttpException
+import java.io.IOException
 
 enum class SyncOutcome {
     SYNCED_FULL,
+    SYNCED_PARTIAL_CLEANUP,
     SKIPPED_NOT_CONFIGURED,
     SKIPPED_LOCK,
     SKIPPED_RATE_LIMIT,
@@ -32,7 +35,8 @@ enum class SyncOutcome {
 data class SyncOptions(
     val forceRefresh: Boolean = false,
     val ignoreLastModified: Boolean = false,
-    val ignoreSafetyGuard: Boolean = false,
+    val ignoreDropRatioGuard: Boolean = false,
+    val skipRemoteVerification: Boolean = false,
     val hasLocalData: Boolean,
     val keepSyncingState: Boolean = false
 )
@@ -43,8 +47,19 @@ internal data class EntityCountSnapshot(
     val songs: Int
 )
 
+internal data class CleanupContext(
+    val skipRemoteVerification: Boolean,
+    val localSnapshot: EntityCountSnapshot,
+    val remoteCounts: EntityCountSnapshot
+)
+
+internal data class CleanupResult(
+    val hasVerificationFailures: Boolean
+)
+
 internal data class SyncExecutionParams(
-    val ignoreSafetyGuard: Boolean,
+    val ignoreDropRatioGuard: Boolean,
+    val skipRemoteVerification: Boolean,
     val currentTime: Long,
     val serverLastModified: Long,
     val onProgress: (suspend (String) -> Unit)?,
@@ -67,6 +82,14 @@ class SyncManager(
         isLenient = true
     }
 
+    private val albumListHelper = AlbumListSyncHelper(
+        api = api,
+        musicDao = musicDao,
+        authManager = authManager,
+        entityMapper = entityMapper,
+        runInTransaction = runInTransaction
+    )
+
     private val search3Executor = Search3SyncExecutor(
         api = api,
         musicDao = musicDao,
@@ -76,12 +99,13 @@ class SyncManager(
         runInTransaction = runInTransaction
     )
 
-    private val legacyExecutor = LegacySyncExecutor(
+    private val id3Executor = Id3SyncExecutor(
         api = api,
         musicDao = musicDao,
         authManager = authManager,
         pref = pref,
         entityMapper = entityMapper,
+        albumListHelper = albumListHelper,
         runInTransaction = runInTransaction
     )
 
@@ -157,18 +181,18 @@ class SyncManager(
             }
 
             val executionParams = SyncExecutionParams(
-                ignoreSafetyGuard = options.ignoreSafetyGuard,
+                ignoreDropRatioGuard = options.ignoreDropRatioGuard,
+                skipRemoteVerification = options.skipRemoteVerification,
                 currentTime = currentTime,
                 serverLastModified = serverLastModified,
                 onProgress = onProgress,
                 onSyncComplete = onSyncComplete
             )
-            if (serverCapabilities.isOpenSubsonic) {
-                executeSearch3WithLegacyFallback(authParams, executionParams)
+            return if (serverCapabilities.isOpenSubsonic) {
+                executeSearch3WithId3Fallback(authParams, executionParams)
             } else {
-                legacyExecutor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+                id3Executor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
             }
-            return SyncOutcome.SYNCED_FULL
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -185,25 +209,26 @@ class SyncManager(
         }
     }
 
-    private suspend fun executeSearch3WithLegacyFallback(
+    private suspend fun executeSearch3WithId3Fallback(
         authParams: Triple<String, String, String>,
         executionParams: SyncExecutionParams
-    ) {
-        try {
+    ): SyncOutcome {
+        return try {
             search3Executor.execute(authParams, executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
         } catch (e: Exception) {
             if (!shouldFallbackFromSearch3(e)) throw e
-            LogManager.w("SyncManager: search3Stream failed (${e.message}), falling back to legacy sync.")
-            legacyExecutor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+            LogManager.w("SyncManager: search3Stream failed (${e.message}), falling back to ID3 sync.")
+            id3Executor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
         }
     }
 
     private fun shouldFallbackFromSearch3(e: Exception): Boolean {
         return when (e) {
             is CancellationException,
-            is SafetyGuardException -> false
-            is HttpException -> e.code() !in AUTH_HTTP_CODES
-            is SubsonicApiException -> e.code !in AUTH_SUBSONIC_ERROR_CODES
+            is SafetyGuardException,
+            is ServerUnavailableException -> false
+            is HttpException,
+            is SubsonicApiException -> !isAuthError(e)
             is IncompletePaginationException,
             is SerializationException,
             is IllegalStateException -> true
@@ -211,13 +236,29 @@ class SyncManager(
         }
     }
 
+    private data class RemovalResolution(
+        val removals: List<SyncTempIdEntity>,
+        val hasVerificationFailures: Boolean
+    )
+
+    private sealed interface VerificationOutcome {
+        object ConfirmedRemoved : VerificationOutcome
+        object StillExists : VerificationOutcome
+        object TransientFailure : VerificationOutcome
+    }
+
     private suspend fun performSurgicalCleanup(
+        cleanupContext: CleanupContext,
         updateStatsProgress: suspend (String) -> Unit,
         onProgress: (suspend (String) -> Unit)?
-    ) {
-        // Offset-based enumeration can miss an existing item if the library changes between requests.
-        // Complete all independent lookups before committing any deletions or purging files.
-        val removedByType = confirmRemoteRemovals().groupBy({ it.type }, { it.id })
+    ): CleanupResult {
+        val candidates = musicDao.getUnseenEntities()
+        val resolution = if (candidates.isEmpty()) {
+            RemovalResolution(emptyList(), hasVerificationFailures = false)
+        } else {
+            resolveRemovals(candidates, cleanupContext)
+        }
+        val removedByType = resolution.removals.groupBy({ it.type }, { it.id })
         val removalTargets = mutableListOf<SongCleanupTarget>()
         runInTransaction {
             removedByType["song"].orEmpty().chunked(SQLITE_IN_CHUNK_SIZE).forEach { ids ->
@@ -234,30 +275,120 @@ class SyncManager(
             updateStatsProgress("正在更新统计信息...")
         }
         if (removalTargets.isNotEmpty()) onSongsRemoved(removalTargets)
+        return CleanupResult(hasVerificationFailures = resolution.hasVerificationFailures)
     }
 
-    private suspend fun confirmRemoteRemovals(): List<SyncTempIdEntity> {
-        val candidates = musicDao.getUnseenEntities()
-        if (candidates.isEmpty()) return emptyList()
+    private suspend fun resolveRemovals(
+        candidates: List<SyncTempIdEntity>,
+        cleanupContext: CleanupContext
+    ): RemovalResolution {
+        if (candidates.size > MAX_REMOTE_VERIFY_CANDIDATES) {
+            if (cleanupContext.skipRemoteVerification) {
+                LogManager.w(
+                    "SyncManager: Skipping remote verification for ${candidates.size} candidates " +
+                        "(skipRemoteVerification=true); purging diff directly."
+                )
+                return RemovalResolution(candidates, hasVerificationFailures = false)
+            }
+            val dominantType = candidates.groupingBy { it.type }.eachCount().maxByOrNull { it.value }?.key
+            val (entity, localCount, remoteCount) = when (dominantType) {
+                "album" -> Triple(
+                    SafetyGuardException.Entity.ALBUMS,
+                    cleanupContext.localSnapshot.albums,
+                    cleanupContext.remoteCounts.albums
+                )
+                "artist" -> Triple(
+                    SafetyGuardException.Entity.ARTISTS,
+                    cleanupContext.localSnapshot.artists,
+                    cleanupContext.remoteCounts.artists
+                )
+                else -> Triple(
+                    SafetyGuardException.Entity.SONGS,
+                    cleanupContext.localSnapshot.songs,
+                    cleanupContext.remoteCounts.songs
+                )
+            }
+            throw SafetyGuardException(
+                entity = entity,
+                remoteCount = remoteCount,
+                localCount = localCount,
+                reason = SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED,
+                candidateCount = candidates.size
+            )
+        }
+        return confirmRemoteRemovals(candidates)
+    }
+
+    private suspend fun confirmRemoteRemovals(candidates: List<SyncTempIdEntity>): RemovalResolution {
         val auth = authManager.getAuthParams()
-        return candidates.chunked(LOOKUP_CONCURRENCY).flatMap { batch ->
-            coroutineScope {
-                batch.map { async { confirmRemoteRemoval(it, auth) } }.awaitAll().filterNotNull()
+        val confirmed = mutableListOf<SyncTempIdEntity>()
+        var consecutiveFailures = 0
+        var hasFailures = false
+
+        for (batch in candidates.chunked(LOOKUP_CONCURRENCY)) {
+            val outcomes = coroutineScope {
+                batch.map { candidate ->
+                    async { candidate to confirmRemoteRemoval(candidate, auth) }
+                }.awaitAll()
+            }
+            for ((candidate, outcome) in outcomes) {
+                when (outcome) {
+                    VerificationOutcome.ConfirmedRemoved -> {
+                        consecutiveFailures = 0
+                        confirmed.add(candidate)
+                    }
+                    VerificationOutcome.StillExists -> consecutiveFailures = 0
+                    VerificationOutcome.TransientFailure -> {
+                        hasFailures = true
+                        consecutiveFailures++
+                    }
+                }
+                if (consecutiveFailures >= MAX_CONSECUTIVE_VERIFY_FAILURES) {
+                    throw IOException(
+                        "Remote removal verification aborted after $consecutiveFailures consecutive failures"
+                    )
+                }
             }
         }
+        return RemovalResolution(confirmed, hasVerificationFailures = hasFailures)
     }
 
-    private suspend fun confirmRemoteRemoval(candidate: SyncTempIdEntity, auth: Triple<String, String, String>): SyncTempIdEntity? {
+    private suspend fun confirmRemoteRemoval(
+        candidate: SyncTempIdEntity,
+        auth: Triple<String, String, String>
+    ): VerificationOutcome {
         val (user, token, salt) = auth
-        val response = when (candidate.type) {
-            "song" -> api.getSong(candidate.id, user, token, salt).response
-            "album" -> api.getAlbum(candidate.id, user, token, salt).response
-            "artist" -> api.getArtist(candidate.id, user, token, salt).response
+        val requestType = when (candidate.type) {
+            "song", "album", "artist" -> candidate.type
             else -> error("Unknown library entity: ${candidate.type}")
         }
-        if (response.status == "failed" && response.error?.code == RESOURCE_NOT_FOUND) return candidate
-        response.ensureOk()
-        return null
+        return try {
+            val response = when (requestType) {
+                "song" -> api.getSong(candidate.id, user, token, salt).response
+                "album" -> api.getAlbum(candidate.id, user, token, salt).response
+                else -> api.getArtist(candidate.id, user, token, salt).response
+            }
+            if (response.status == "failed" && response.error?.code == RESOURCE_NOT_FOUND) {
+                VerificationOutcome.ConfirmedRemoved
+            } else {
+                response.ensureOk()
+                VerificationOutcome.StillExists
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException || isAuthError(e) || e is ServerUnavailableException) throw e
+            LogManager.w(
+                "SyncManager: Verification failed for ${candidate.type}/${candidate.id}, preserving item: ${e.message}"
+            )
+            VerificationOutcome.TransientFailure
+        }
+    }
+
+    private fun isAuthError(e: Exception): Boolean {
+        return when (e) {
+            is HttpException -> e.code() in AUTH_HTTP_CODES
+            is SubsonicApiException -> e.code in AUTH_SUBSONIC_ERROR_CODES
+            else -> false
+        }
     }
 
     private suspend fun fetchServerLastModified(
@@ -287,25 +418,23 @@ class SyncManager(
     private fun verifySafetyGuard(
         local: EntityCountSnapshot,
         remote: EntityCountSnapshot,
-        ignoreSafetyGuard: Boolean,
-        isLegacy: Boolean = false
+        ignoreDropRatioGuard: Boolean
     ) {
-        if (ignoreSafetyGuard) return
-        checkDimensionThreshold(local.songs, remote.songs, SafetyGuardException.Entity.SONGS, isLegacy)
-        checkDimensionThreshold(local.albums, remote.albums, SafetyGuardException.Entity.ALBUMS, isLegacy)
-        checkDimensionThreshold(local.artists, remote.artists, SafetyGuardException.Entity.ARTISTS, isLegacy)
+        if (ignoreDropRatioGuard) return
+        checkDimensionThreshold(local.songs, remote.songs, SafetyGuardException.Entity.SONGS)
+        checkDimensionThreshold(local.albums, remote.albums, SafetyGuardException.Entity.ALBUMS)
+        checkDimensionThreshold(local.artists, remote.artists, SafetyGuardException.Entity.ARTISTS)
     }
 
     private fun checkDimensionThreshold(
         localCount: Int,
         remoteCount: Int,
-        entity: SafetyGuardException.Entity,
-        isLegacy: Boolean
+        entity: SafetyGuardException.Entity
     ) {
         if (localCount < MIN_ENTITIES_FOR_SAFETY) return
         val dropThreshold = localCount * SAFETY_GUARD_DROP_RATIO
         if (remoteCount < dropThreshold) {
-            throw SafetyGuardException(entity, remoteCount, localCount, isLegacy)
+            throw SafetyGuardException(entity, remoteCount, localCount)
         }
     }
 
@@ -321,7 +450,7 @@ class SyncManager(
             pref.saveIsSyncing(true)
             val currentTime = System.currentTimeMillis()
             onProgress?.invoke("正在执行轻量同步...")
-            legacyExecutor.syncAllAlbums(type = "newest")
+            albumListHelper.syncAllAlbums(type = "newest")
             musicDao.repairAndCount()
             onComplete(currentTime)
         } catch (e: CancellationException) {
@@ -348,6 +477,8 @@ class SyncManager(
         private const val SAFETY_GUARD_DROP_RATIO = 0.7
         private const val MIN_ENTITIES_FOR_SAFETY = 10
         private const val LOOKUP_CONCURRENCY = 8
+        private const val MAX_REMOTE_VERIFY_CANDIDATES = 250
+        private const val MAX_CONSECUTIVE_VERIFY_FAILURES = 16
         private const val RESOURCE_NOT_FOUND = 70
         private val AUTH_HTTP_CODES = setOf(401)
         private val AUTH_SUBSONIC_ERROR_CODES = setOf(40, 41, 50)

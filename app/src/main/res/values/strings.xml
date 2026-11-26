@@ -139,6 +139,7 @@
     <string name="safety_guard_title">Sync Stopped</string>
     <string name="safety_guard_message">The server returned fewer library entries than expected. Sync stopped to prevent accidental deletion.</string>
     <string name="safety_guard_details">The server returned far fewer entries for %1$s (%2$d) than are stored locally (%3$d). Sync stopped to prevent accidental deletion.</string>
+    <string name="safety_guard_verify_limit">Too many entries (%1$d) require remote removal verification. Sync stopped to avoid flooding your server. Choose Force Sync to remove missing local entries directly.</string>
     <string name="force_sync">Force Sync</string>
     <string name="background_sync">Background Auto-Sync</string>
     <string name="background_sync_description">Sync metadata while charging on an unmetered network.</string>

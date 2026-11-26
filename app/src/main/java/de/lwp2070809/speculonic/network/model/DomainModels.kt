@@ -10,11 +10,7 @@ data class Artist(
     val coverArt: String? = null,
     val albumCount: Int? = 0,
     val starred: String? = null,
-    val album: List<Album> = emptyList(),
-    val artistImageUrl: String? = null,
-    val musicBrainzId: String? = null,
-    val sortName: String? = null,
-    val roles: List<String> = emptyList()
+    val album: List<Album> = emptyList()
 )
 
 @Serializable
@@ -31,14 +27,6 @@ data class Album(
     val genre: String? = null,
     val starred: String? = null,
     val song: List<Song> = emptyList(),
-    val version: String? = null,
-    val userRating: Int? = null,
-    val musicBrainzId: String? = null,
-    val genres: List<ItemGenre> = emptyList(),
-    val artists: List<Artist> = emptyList(),
-    val displayArtist: String? = null,
-    val releaseDate: ItemDate? = null,
-    val isCompilation: Boolean? = null,
     val discTitles: List<DiscTitle> = emptyList()
 )
 
@@ -47,14 +35,11 @@ data class DiscTitle(
     val disc: Int,
     val title: String,
     val coverArt: String? = null
-
 )
 
 @Serializable
 data class Song(
     val id: String,
-    val parent: String? = null,
-    val isDir: Boolean = false,
     val title: String,
     val album: String? = null,
     val artist: String? = null,
@@ -72,16 +57,8 @@ data class Song(
     val path: String? = null,
     val isVideo: Boolean? = false,
     val starred: String? = null,
-    val userRating: Int? = null,
     val discNumber: Int? = null,
-    val musicBrainzId: String? = null,
     val md5: String? = null,
-    val genres: List<ItemGenre> = emptyList(),
-    val artists: List<Artist> = emptyList(),
-    val displayArtist: String? = null,
-    val bpm: Int? = null,
-    val comment: String? = null,
-    val replayGain: ReplayGain? = null,
     @kotlinx.serialization.Transient
     val localUri: String? = null,
     @kotlinx.serialization.Transient
@@ -102,33 +79,10 @@ data class Playlist(
     val created: String? = null,
     val coverArt: String? = null,
     val entry: List<Song> = emptyList(),
-    val readonly: Boolean? = null,
     @kotlinx.serialization.Transient
     val pinned: Boolean = false,
     @kotlinx.serialization.Transient
     val lastUpdated: Long = 0L
-)
-
-@Serializable
-data class ItemGenre(
-    val name: String
-)
-
-@Serializable
-data class ItemDate(
-    val year: Int? = null,
-    val month: Int? = null,
-    val day: Int? = null
-)
-
-@Serializable
-data class ReplayGain(
-    val trackGain: Float? = null,
-    val albumGain: Float? = null,
-    val trackPeak: Float? = null,
-    val albumPeak: Float? = null,
-    val baseGain: Float? = null,
-    val fallbackGain: Float? = null
 )
 
 @Serializable
@@ -144,7 +98,6 @@ data class StructuredLyrics(
     val lang: String,
     val synced: Boolean,
     val line: List<LyricsLine>,
-    val displayArtist: String? = null,
     val displayTitle: String? = null,
     val offset: Int? = null
 )
@@ -162,17 +115,6 @@ data class OpenSubsonicExtension(
 )
 
 @Serializable
-data class ArtistInfo2(
-    val biography: String? = null,
-    val musicBrainzId: String? = null,
-    val lastFmUrl: String? = null,
-    val smallImageUrl: String? = null,
-    val mediumImageUrl: String? = null,
-    val largeImageUrl: String? = null,
-    val similarArtist: List<Artist> = emptyList()
-)
-
-@Serializable
 data class SearchResult3(
     val artist: List<Artist> = emptyList(),
     val album: List<Album> = emptyList(),
@@ -183,11 +125,9 @@ enum class PlaylistAddResult {
     SUCCESS, ERROR, ALREADY_EXISTS
 }
 
-
-
 @Serializable
 data class AlbumList2Response(
-    val album: List<Album>
+    val album: List<Album> = emptyList()
 )
 
 @Serializable
@@ -203,11 +143,9 @@ data class Starred2Response(
 )
 
 @Serializable
-data class Directory(
-    val id: String,
-    val parent: String? = null,
-    val name: String,
-    val child: List<Song> = emptyList()
+data class ArtistsResponse(
+    val ignoredArticles: String? = null,
+    val index: List<Index> = emptyList()
 )
 
 @Serializable

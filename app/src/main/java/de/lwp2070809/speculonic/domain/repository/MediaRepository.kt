@@ -30,6 +30,14 @@ class MediaRepository(
     private val entityMapper: EntityMapper,
     private val database: AppDatabase
 ) {
+    private val albumListHelper = AlbumListSyncHelper(
+        api = api,
+        musicDao = musicDao,
+        authManager = authManager,
+        entityMapper = entityMapper,
+        runInTransaction = { block -> database.withTransaction { block() } }
+    )
+
     fun getArtistsFlow(): Flow<List<Artist>> {
         return musicDao.getAllArtistsFlow().map { list -> 
             list.map { Artist(id = it.id, name = it.name, coverArt = it.coverArt, albumCount = it.albumCount) }
@@ -129,20 +137,13 @@ class MediaRepository(
     }
 
     suspend fun refreshAlbumList(
-        type: String = "newest", 
-        size: Int = 20, 
+        type: String = "newest",
+        size: Int = 20,
         offset: Int = 0,
         skipInsert: Boolean = false
     ): List<Album> {
-        val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
-        try {
-            val response = api.getAlbumList2(u, t, s, type = type, size = size, offset = offset)
-            response.response.ensureOk()
-            val list = response.response.albumList2?.album ?: emptyList()
-            if (list.isNotEmpty() && !skipInsert) {
-                saveAlbumListChunk(type, list, offset)
-            }
-            return list
+        return try {
+            albumListHelper.fetchAndPersistPage(type, size, offset, skipInsert)
         } catch (e: Exception) {
             if (e is kotlinx.coroutines.CancellationException) throw e
             LogManager.e("MediaRepository: refreshAlbumList failed for $type", e)
@@ -152,29 +153,6 @@ class MediaRepository(
 
     suspend fun getAlbumsWithoutSongs(albumIds: List<String>): List<String> {
         return musicDao.getAlbumsWithoutSongs(albumIds)
-    }
-
-    private suspend fun saveAlbumListChunk(listType: String, albums: List<Album>, offset: Int) {
-        if (albums.isEmpty()) return
-        val albumIds = albums.map { it.id }
-        val existingAlbumsMap = albumIds.chunked(500)
-            .flatMap { musicDao.getAlbumsByIds(it) }
-            .associateBy { it.id }
-        
-        val entities = albums.map { album ->
-            val existing = existingAlbumsMap[album.id]
-            entityMapper.albumToEntity(album, existing = existing, isStarred = album.starred != null)
-        }
-        val listItems = albums.mapIndexed { index, album -> 
-            de.lwp2070809.speculonic.data.db.entities.AlbumListItemEntity(listType, album.id, index + offset)
-        }
-        
-        if (offset == 0) {
-            musicDao.updateAlbumList(listType, entities, listItems)
-        } else {
-            entities.chunked(500).forEach { musicDao.insertAlbums(it) }
-            listItems.chunked(500).forEach { musicDao.insertAlbumListItems(it) }
-        }
     }
 
     suspend fun getAlbum(
@@ -243,7 +221,6 @@ class MediaRepository(
                 song = song,
                 overrides = SongEntityOverrides(
                     albumId = albumId,
-                    parentId = song.parent ?: albumId,
                     localUri = local?.localUri,
                     isCached = local?.isFullyCached ?: false,
                     isTranscoded = local?.isTranscoded ?: false,
@@ -268,9 +245,9 @@ class MediaRepository(
     suspend fun refreshArtists() {
         val (u, t, s) = authManager.getAuthParams(forceRefresh = true)
         try {
-            val response = api.getIndexes(u, t, s)
-            val indexes = response.response.indexes ?: return
-            val allArtists = indexes.index.flatMap { it.artist }
+            val response = api.getArtists(u, t, s)
+            val artists = response.response.ensureOk().artists ?: return
+            val allArtists = artists.index.flatMap { it.artist }.distinctBy { it.id }
             if (allArtists.isNotEmpty()) {
                 allArtists.chunked(500).forEach { chunk ->
                     musicDao.insertArtists(

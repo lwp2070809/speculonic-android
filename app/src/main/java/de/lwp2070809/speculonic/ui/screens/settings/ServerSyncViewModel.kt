@@ -44,6 +44,9 @@ private const val COVER_PROGRESS_THROTTLE_MS = 300L
 private const val SYNC_STOP_TIMEOUT_MS = 5000L
 
 internal fun SafetyGuardException.toUserMessage(context: Context): String {
+    if (reason == SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED) {
+        return context.getString(R.string.safety_guard_verify_limit, candidateCount)
+    }
     val entityLabel = when (entity) {
         SafetyGuardException.Entity.SONGS -> R.string.songs
         SafetyGuardException.Entity.ALBUMS -> R.string.albums
@@ -72,6 +75,7 @@ data class ServerSyncUiState(
     val showFirstSyncConfirm: Boolean = false,
     val showSafetyGuardConfirm: Boolean = false,
     val safetyGuardMessage: String? = null,
+    val safetyGuardReason: SafetyGuardException.Reason? = null,
     val showForceSyncConfirm: Boolean = false
 )
 
@@ -396,11 +400,17 @@ class ServerSyncViewModel @Inject constructor(
     }
 
     fun confirmSafetyGuard() {
-        performFullSync(ignoreSafetyGuard = true, isForced = true)
+        val reason = _uiState.value.safetyGuardReason
+        val ignoreDropRatio = reason != SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED
+        performFullSync(
+            ignoreDropRatioGuard = ignoreDropRatio,
+            skipRemoteVerification = true,
+            isForced = true
+        )
     }
 
     fun cancelSafetyGuard() {
-        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null) }
+        _uiState.update { it.copy(showSafetyGuardConfirm = false, safetyGuardMessage = null, safetyGuardReason = null) }
     }
 
     private suspend fun performCoverArtSyncInternal() {
@@ -431,11 +441,12 @@ class ServerSyncViewModel @Inject constructor(
     }
 
     fun performFullSync(
-        ignoreSafetyGuard: Boolean = false,
+        ignoreDropRatioGuard: Boolean = false,
+        skipRemoteVerification: Boolean = false,
         isForced: Boolean = false,
         syncCoverArt: Boolean = false
     ) {
-        _uiState.update { it.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false) }
+        _uiState.update { it.copy(showFirstSyncConfirm = false, showSafetyGuardConfirm = false, safetyGuardReason = null) }
         val previousSyncJob = syncJob
         syncJob = viewModelScope.launch(Dispatchers.IO) {
             previousSyncJob?.cancelAndJoin()
@@ -449,7 +460,8 @@ class ServerSyncViewModel @Inject constructor(
                 syncAllDataUseCase(
                     forceRefresh = isForced,
                     ignoreLastModified = isForced,
-                    ignoreSafetyGuard = ignoreSafetyGuard,
+                    ignoreDropRatioGuard = ignoreDropRatioGuard,
+                    skipRemoteVerification = skipRemoteVerification,
                     keepSyncingState = shouldKeepSyncStateForCovers,
                     onProgress = { status ->
                         preferencesManager.saveSyncProgress(status)
@@ -460,7 +472,13 @@ class ServerSyncViewModel @Inject constructor(
                 throw e
             } catch (e: SafetyGuardException) {
                 withContext(Dispatchers.Main) {
-                    _uiState.update { it.copy(showSafetyGuardConfirm = true, safetyGuardMessage = e.toUserMessage(context)) }
+                    _uiState.update {
+                        it.copy(
+                            showSafetyGuardConfirm = true,
+                            safetyGuardMessage = e.toUserMessage(context),
+                            safetyGuardReason = e.reason
+                        )
+                    }
                 }
             } catch (e: Exception) {
                 LogManager.e("ServerSyncViewModel: Initial sync failed", e)

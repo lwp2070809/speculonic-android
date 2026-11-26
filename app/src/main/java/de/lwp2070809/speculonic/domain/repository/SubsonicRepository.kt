@@ -88,7 +88,7 @@ class SubsonicRepository(
         return current.authManager.getAuthParams()
     }
 
-    private var serverCapabilities = ServerCapabilities()
+    @Volatile private var serverCapabilities = ServerCapabilities()
     @Volatile private var transcodeIncompatible: Boolean = false
     @Volatile private var targetTranscodeFormat: String = "mp3"
     @Volatile private var lastConfiguredPassword: String = ""
@@ -106,10 +106,7 @@ class SubsonicRepository(
             val initialPass = preferencesManager.getPasswordSync()
             lastConfiguredPassword = String(initialPass)
 
-            val cachedCaps = preferencesManager.getServerCapabilitiesSync()
-            if (cachedCaps != null) {
-                serverCapabilities = cachedCaps
-            }
+            hydrateCachedServerCapabilities()
 
             if (initialUrl.isNotEmpty()) {
                 reconfigure(initialUrl, initialUser, initialPass)
@@ -191,6 +188,9 @@ class SubsonicRepository(
     val isConfigured: Boolean get() = baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")
 
     suspend fun ensureConfigured() = withContext(Dispatchers.IO) {
+        if (serverCapabilities.subsonicApiVersion == null) {
+            hydrateCachedServerCapabilities()
+        }
         if (components != null && baseUrl.isNotBlank() && !baseUrl.contains("unconfigured")) {
             return@withContext
         }
@@ -203,14 +203,14 @@ class SubsonicRepository(
         }
     }
 
-    val lyricsRepositoryGet: LyricsRepository get() = lyricsRepository
+    private fun hydrateCachedServerCapabilities() {
+        val cachedCaps = preferencesManager.getServerCapabilitiesSync()
+        if (cachedCaps != null) {
+            serverCapabilities = cachedCaps
+        }
+    }
 
-    suspend fun getLyricsData(
-        songId: String,
-        artist: String?,
-        title: String?,
-        hasSongLyricsExtension: Boolean = false
-    ): Pair<String?, List<LyricLine>> = lyricsRepository.getLyricsData(songId, artist, title, hasSongLyricsExtension)
+    val lyricsRepositoryGet: LyricsRepository get() = lyricsRepository
 
     val serverUrlFlow get() = preferencesManager.serverUrl
     val currentServerCapabilities get() = serverCapabilities
@@ -220,7 +220,8 @@ class SubsonicRepository(
     suspend fun syncAllData(
         forceRefresh: Boolean = false,
         ignoreLastModified: Boolean = false,
-        ignoreSafetyGuard: Boolean = false,
+        ignoreDropRatioGuard: Boolean = false,
+        skipRemoteVerification: Boolean = false,
         keepSyncingState: Boolean = false,
         onProgress: (suspend (String) -> Unit)? = null
     ): SyncOutcome {
@@ -232,7 +233,8 @@ class SubsonicRepository(
             options = SyncOptions(
                 forceRefresh = forceRefresh,
                 ignoreLastModified = ignoreLastModified,
-                ignoreSafetyGuard = ignoreSafetyGuard,
+                ignoreDropRatioGuard = ignoreDropRatioGuard,
+                skipRemoteVerification = skipRemoteVerification,
                 hasLocalData = hasLocal,
                 keepSyncingState = keepSyncingState
             ),
@@ -258,9 +260,10 @@ class SubsonicRepository(
 
         if (outcome == SyncOutcome.SYNCED_FULL) {
             preferencesManager.saveLastFullSyncTime(System.currentTimeMillis())
-            if (forceRefresh || !hasLocal) {
-                preloadPlaylistsAndSongs()
-            }
+        }
+        val didSyncLibrary = outcome == SyncOutcome.SYNCED_FULL || outcome == SyncOutcome.SYNCED_PARTIAL_CLEANUP
+        if (didSyncLibrary && (forceRefresh || !hasLocal)) {
+            preloadPlaylistsAndSongs()
         }
         return outcome
     }
@@ -359,26 +362,6 @@ class SubsonicRepository(
         mediaRepository.refreshArtists()
     }
 
-    @Deprecated(
-        message = "Use SyncAllDataUseCase instead to adhere to Clean Architecture",
-        replaceWith = ReplaceWith("syncAllDataUseCase.invoke(...)")
-    )
-    suspend fun syncAllData(
-        forceRefresh: Boolean = false,
-        ignoreLastModified: Boolean = false,
-        ignoreSafetyGuard: Boolean = false,
-        onProgress: (suspend (String) -> Unit)? = null
-    ): SyncOutcome {
-        return syncAllData(
-            forceRefresh = forceRefresh,
-            ignoreLastModified = ignoreLastModified,
-            ignoreSafetyGuard = ignoreSafetyGuard,
-            keepSyncingState = false,
-            onProgress = onProgress
-        )
-    }
-
-    
     suspend fun quickSync(onProgress: (suspend (String) -> Unit)? = null) {
         if (!isConfigured) return
         ServerReachableManager.reset()

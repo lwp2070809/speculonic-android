@@ -358,7 +358,6 @@ class PlaylistRepository(
                 overrides = SongEntityOverrides(
                     albumId = song.albumId ?: local?.albumId,
                     artistId = song.artistId ?: local?.artistId,
-                    parentId = song.parent ?: local?.parent,
                     localUri = local?.localUri,
                     isCached = local?.isFullyCached ?: false,
                     isTranscoded = local?.isTranscoded ?: false,

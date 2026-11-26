@@ -11,14 +11,17 @@ data class ServerCapabilities(
     val subsonicApiVersion: String? = null
 )
 
-
 class SafetyGuardException(
     val entity: Entity,
     val remoteCount: Int,
     val localCount: Int,
-    isLegacy: Boolean
-) : Exception("Sync stopped for $entity (remote=$remoteCount, local=$localCount, legacy=$isLegacy)") {
+    val reason: Reason = Reason.DROP_RATIO_EXCEEDED,
+    val candidateCount: Int = 0
+) : Exception(
+    "Sync stopped for $entity (reason=$reason, remote=$remoteCount, local=$localCount, candidates=$candidateCount)"
+) {
     enum class Entity { SONGS, ALBUMS, ARTISTS }
+    enum class Reason { DROP_RATIO_EXCEEDED, VERIFY_CANDIDATES_EXCEEDED }
 }
 
 internal class IncompletePaginationException(message: String) : Exception(message)
@@ -30,4 +33,3 @@ class PlaylistNotFoundException(
     val playlistId: String,
     message: String = "Playlist not found on server"
 ) : Exception(message)
-

@@ -2,10 +2,9 @@ package de.lwp2070809.speculonic.network.api
 
 import de.lwp2070809.speculonic.network.model.SubsonicAlbumListResponse
 import de.lwp2070809.speculonic.network.model.SubsonicAlbumResponse
-import de.lwp2070809.speculonic.network.model.SubsonicArtistInfo2Response
 import de.lwp2070809.speculonic.network.model.SubsonicArtistResponse
+import de.lwp2070809.speculonic.network.model.SubsonicArtistsResponse
 import de.lwp2070809.speculonic.network.model.SubsonicBaseResponse
-import de.lwp2070809.speculonic.network.model.SubsonicDirectoryResponse
 import de.lwp2070809.speculonic.network.model.SubsonicIndexesResponse
 import de.lwp2070809.speculonic.network.model.SubsonicLyricsListResponse
 import de.lwp2070809.speculonic.network.model.SubsonicLyricsResponse
@@ -78,16 +77,16 @@ interface SubsonicService {
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicArtistResponse>
 
-    @GET("rest/getArtistInfo2")
-    suspend fun getArtistInfo2(
-        @Query("id") id: String,
+    @GET("rest/getArtists")
+    suspend fun getArtists(
         @Query("u") u: String,
         @Query("t") t: String,
         @Query("s") s: String,
         @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
         @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
-        @Query("f") f: String = "json"
-    ): SubsonicResponse<SubsonicArtistInfo2Response>
+        @Query("f") f: String = "json",
+        @Query("musicFolderId") musicFolderId: String? = null
+    ): SubsonicResponse<SubsonicArtistsResponse>
 
     @GET("rest/getPlaylists")
     suspend fun getPlaylists(
@@ -141,17 +140,6 @@ interface SubsonicService {
         @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
         @Query("f") f: String = "json"
     ): SubsonicResponse<SubsonicBaseResponse>
-
-    @GET("rest/getMusicDirectory")
-    suspend fun getMusicDirectory(
-        @Query("id") id: String,
-        @Query("u") u: String,
-        @Query("t") t: String,
-        @Query("s") s: String,
-        @Query("v") v: String = AppConstants.SUBSONIC_API_VERSION,
-        @Query("c") c: String = AppConstants.SUBSONIC_CLIENT_ID,
-        @Query("f") f: String = "json"
-    ): SubsonicResponse<SubsonicDirectoryResponse>
 
     @GET("rest/getLyrics")
     suspend fun getLyrics(

@@ -33,33 +33,8 @@ interface SongDao {
     @Query("UPDATE songs SET albumId = NULL WHERE albumId = :albumId AND id IN (:ids)")
     suspend fun detachAlbumSongs(albumId: String, ids: List<String>)
 
-    @Query("SELECT id FROM songs WHERE parent = :parentId")
-    suspend fun getSongIdsByParent(parentId: String): List<String>
-
-    @Transaction
-    suspend fun deleteSongsByParentNotIn(parentId: String, ids: List<String>) {
-        if (ids.isEmpty()) {
-            deleteSongsByParent(parentId)
-        } else {
-            val localIds = getSongIdsByParent(parentId)
-            val toDelete = localIds.toSet() - ids.toSet()
-            if (toDelete.isNotEmpty()) {
-                deleteSongsByIds(toDelete.toList())
-            }
-        }
-    }
-
-    @Query("DELETE FROM songs WHERE parent = :parentId")
-    suspend fun deleteSongsByParent(parentId: String)
-
     @Query("SELECT * FROM songs WHERE albumId = :albumId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), id")
     suspend fun getSongsByAlbum(albumId: String): List<SongEntity>
-
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), title, id")
-    suspend fun getSongsByParent(parentId: String): List<SongEntity>
-
-    @Query("SELECT * FROM songs WHERE parent = :parentId ORDER BY COALESCE(discNumber, 1), COALESCE(track, 0), title, id")
-    fun getSongsByParentFlow(parentId: String): Flow<List<SongEntity>>
 
     @Query("SELECT * FROM songs WHERE starred = 1 ORDER BY lastUpdated DESC, id ASC")
     suspend fun getStarredSongs(): List<SongEntity>
@@ -106,9 +81,6 @@ interface SongDao {
 
     @Query("UPDATE songs SET localUri = :localUri, isFullyCached = :isCached, isTranscoded = :isTranscoded WHERE id = :songId")
     suspend fun updateSongCacheStatus(songId: String, localUri: String?, isCached: Boolean, isTranscoded: Boolean): Int
-
-    @Query("UPDATE songs SET isTranscoded = :isTranscoded WHERE id = :songId")
-    suspend fun updateSongTranscodedStatus(songId: String, isTranscoded: Boolean)
 
     @Query("UPDATE songs SET localUri = :localUri WHERE id = :songId")
     suspend fun updateSongLocalUri(songId: String, localUri: String?)

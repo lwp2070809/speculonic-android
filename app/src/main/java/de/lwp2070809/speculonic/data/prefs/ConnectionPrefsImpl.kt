@@ -48,7 +48,6 @@ private data class DecryptedCredentials(
 
 class ConnectionPrefsImpl(
     context: Context,
-    private val clearLegacyAccountData: suspend () -> Unit,
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO,
     private val settingsStore: DataStore<Preferences> = context.applicationContext.dataStore,
     private val secureDataStore: DataStore<Preferences> = getOrCreateSecureDataStore(context.applicationContext)
@@ -113,10 +112,6 @@ class ConnectionPrefsImpl(
     }.distinctUntilChanged()
 
     private suspend fun loadStoredCredentials(): DecryptedCredentials {
-        if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
-            finishLegacyAccountReset()
-            return DecryptedCredentials()
-        }
         val currentPrefs = secureDataStore.data.first()
         val encUrl = currentPrefs[SEC_SERVER_URL]
         val encUser = currentPrefs[SEC_USERNAME]
@@ -164,24 +159,6 @@ class ConnectionPrefsImpl(
         }
     }
 
-    private suspend fun finishLegacyAccountReset() {
-        settingsStore.edit { prefs ->
-            PlaybackPrefsImpl.clearStoredPlaybackState(prefs)
-            CacheSyncPrefsImpl.clearAccountState(prefs)
-            prefs.remove(LAST_ACCOUNT_FINGERPRINT)
-            prefs.remove(SERVER_CAPABILITIES_JSON)
-            prefs.remove(LAST_PING_TIME)
-        }
-        setServerCapabilitiesSync(null)
-        setLastPingTimeSync(0L)
-        clearLegacyAccountData()
-        settingsStore.edit {
-            it.remove(LEGACY_ACCOUNT_RESET_PENDING)
-            it[CREDENTIALS_RESET_PENDING] = true
-        }
-        _credentialsResetWarning.value = true
-    }
-
     private suspend fun wipeCorruptedCredentials() {
         secureDataStore.edit { it.clear() }
         KeystoreAesGcmCipher.deleteKeyQuietly()
@@ -221,18 +198,12 @@ class ConnectionPrefsImpl(
     override suspend fun saveServerSettings(url: String, user: String, pass: String) {
         credentialsMutex.withLock {
             withContext(ioDispatcher) {
-                if (settingsStore.data.first()[LEGACY_ACCOUNT_RESET_PENDING] == true) {
-                    throw java.io.IOException("Legacy account cleanup is still pending")
-                }
                 writeEncryptedToDataStore(url, user, pass)
                 credentialsState.value = DecryptedCredentials(url, user, pass)
                 _credentialsResetWarning.value = false
 
                 val fingerprint = computeAccountFingerprint(url, user)
                 settingsStore.edit { preferences ->
-                    preferences.remove(SERVER_URL)
-                    preferences.remove(USERNAME)
-                    preferences.remove(PASSWORD)
                     preferences.remove(CREDENTIALS_RESET_PENDING)
                     if (fingerprint.isEmpty()) {
                         preferences.remove(LAST_ACCOUNT_FINGERPRINT)
@@ -242,9 +213,6 @@ class ConnectionPrefsImpl(
                     val currentVer = preferences[SERVER_CONFIG_VERSION] ?: 0
                     preferences[SERVER_CONFIG_VERSION] = currentVer + 1
                 }
-                // Discard retired credential files only after the replacement settings are committed.
-                appContext.deleteSharedPreferences("speculonic_secure_prefs_fallback")
-                appContext.deleteSharedPreferences("speculonic_secure_prefs")
             }
         }
     }
@@ -368,12 +336,8 @@ class ConnectionPrefsImpl(
         private const val NETWORK_PREFS_NAME = "speculonic_network_prefs"
         private const val SECURE_DATASTORE_REL_PATH = "datastore/secure_connection.preferences_pb"
 
-        private val SERVER_URL = stringPreferencesKey("server_url")
-        private val USERNAME = stringPreferencesKey("username")
-        private val PASSWORD = stringPreferencesKey("password")
         private val LAST_ACCOUNT_FINGERPRINT = stringPreferencesKey("last_account_fingerprint")
         private val CREDENTIALS_RESET_PENDING = booleanPreferencesKey("credentials_reset_pending")
-        private val LEGACY_ACCOUNT_RESET_PENDING = booleanPreferencesKey("legacy_account_reset_pending")
         private val SERVER_CONFIG_VERSION = intPreferencesKey("server_config_version")
         private val TRUST_ALL_CERTIFICATES = booleanPreferencesKey("trust_all_certificates")
         private val SERVER_CAPABILITIES_JSON = stringPreferencesKey("server_capabilities_json")

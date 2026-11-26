@@ -138,6 +138,7 @@
     <string name="safety_guard_title">同步已停止</string>
     <string name="safety_guard_message">服务器返回的曲库条目过少。已停止同步，以免误删本地数据。</string>
     <string name="safety_guard_details">服务器返回的%1$s数量（%2$d）远少于本地（%3$d）。已停止同步，以免误删本地数据。</string>
+    <string name="safety_guard_verify_limit">待核验删除的本地条目过多（%1$d 项），已停止清理以免向服务器发送大量请求。若确认服务端已批量删除，可选择“强制同步”直接清理差集。</string>
     <string name="force_sync">强制同步</string>
     <string name="background_sync">后台自动同步</string>
     <string name="background_sync_description">充电且连接非计费网络时，自动同步元数据。</string>

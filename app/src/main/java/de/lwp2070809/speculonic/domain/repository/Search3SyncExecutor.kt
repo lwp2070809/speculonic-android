@@ -76,9 +76,13 @@ internal class Search3SyncExecutor(
     suspend fun execute(
         authParams: Triple<String, String, String>,
         params: SyncExecutionParams,
-        verifySafetyGuard: (EntityCountSnapshot, EntityCountSnapshot, Boolean, Boolean) -> Unit,
-        performSurgicalCleanup: suspend (suspend (String) -> Unit, (suspend (String) -> Unit)?) -> Unit
-    ) {
+        verifySafetyGuard: (EntityCountSnapshot, EntityCountSnapshot, Boolean) -> Unit,
+        performSurgicalCleanup: suspend (
+            CleanupContext,
+            suspend (String) -> Unit,
+            (suspend (String) -> Unit)?
+        ) -> CleanupResult
+    ): SyncOutcome {
         try {
             val statusMsg = "正在拉取元数据 (search3)..."
             params.onProgress?.invoke(statusMsg)
@@ -106,11 +110,24 @@ internal class Search3SyncExecutor(
                 albums = musicDao.getSyncTempIdCountByType("album"),
                 songs = musicDao.getSyncTempIdCountByType("song")
             )
-            verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreSafetyGuard, false)
+            verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreDropRatioGuard)
 
-            finalizeSearch3Sync(params, performSurgicalCleanup)
-            params.onSyncComplete(params.currentTime, params.serverLastModified)
-            pref.saveSyncProgress(null)
+            val cleanupContext = CleanupContext(
+                skipRemoteVerification = params.skipRemoteVerification,
+                localSnapshot = localSnapshot,
+                remoteCounts = remoteCounts
+            )
+            val cleanupResult = finalizeSearch3Sync(params, cleanupContext, performSurgicalCleanup)
+            return if (cleanupResult.hasVerificationFailures) {
+                LogManager.w("SyncManager: search3 finished with partial cleanup failures; holding sync cursor.")
+                params.onSyncComplete(params.currentTime, 0L)
+                pref.saveSyncProgress(null)
+                SyncOutcome.SYNCED_PARTIAL_CLEANUP
+            } else {
+                params.onSyncComplete(params.currentTime, params.serverLastModified)
+                pref.saveSyncProgress(null)
+                SyncOutcome.SYNCED_FULL
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -123,12 +140,18 @@ internal class Search3SyncExecutor(
 
     private suspend fun finalizeSearch3Sync(
         params: SyncExecutionParams,
-        performSurgicalCleanup: suspend (suspend (String) -> Unit, (suspend (String) -> Unit)?) -> Unit
-    ) {
+        cleanupContext: CleanupContext,
+        performSurgicalCleanup: suspend (
+            CleanupContext,
+            suspend (String) -> Unit,
+            (suspend (String) -> Unit)?
+        ) -> CleanupResult
+    ): CleanupResult {
         val cleanupMsg = "正在清理冗余数据..."
         params.onProgress?.invoke(cleanupMsg)
         pref.saveSyncProgress(cleanupMsg)
-        performSurgicalCleanup(
+        return performSurgicalCleanup(
+            cleanupContext,
             { status ->
                 params.onProgress?.invoke(status)
                 pref.saveSyncProgress(status)
