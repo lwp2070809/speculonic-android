@@ -8,6 +8,13 @@ import androidx.annotation.OptIn as AndroidxOptIn
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.offline.Download
+import androidx.media3.exoplayer.offline.DefaultDownloaderFactory
+import androidx.media3.exoplayer.offline.DefaultDownloadIndex
+import androidx.media3.exoplayer.offline.DownloadRequest
+import androidx.media3.datasource.cache.Cache
+import androidx.media3.datasource.cache.CacheDataSource
+import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import okhttp3.OkHttpClient
 import androidx.media3.exoplayer.offline.DownloadManager
 import androidx.media3.exoplayer.scheduler.Requirements
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -36,7 +43,8 @@ import javax.inject.Singleton
 class DownloadManagerHelper @Inject constructor(
     @ApplicationContext private val context: Context,
     private val preferencesManager: PreferencesManager,
-    private val cacheManager: CacheManager
+    private val cacheManager: CacheManager,
+    private val repository: dagger.Lazy<SubsonicRepository>
 ) {
     @Volatile private var downloadExecutor: ExecutorService? = null
     @Volatile private var deferredHolder = CompletableDeferred<DownloadManager>()
@@ -168,7 +176,7 @@ class DownloadManagerHelper @Inject constructor(
             val initializationContext = currentCoroutineContext()
 
             // 资源获取、构造和发布共享清理使用的锁，避免已取得的缓存先被释放，或新实例尚未发布就被清理遗漏。
-            cacheManager.withDownloadResources { downloadCache, databaseProvider ->
+            cacheManager.withDownloadResources { downloadCache, playbackCache, databaseProvider ->
                 initializationContext.ensureActive()
                 if (!isCurrentInitialization(generation, targetDeferred)) {
                     throw CancellationException("DownloadManagerHelper initialization superseded before construction")
@@ -179,13 +187,14 @@ class DownloadManagerHelper @Inject constructor(
                     LogManager.i(
                         "Initializing DownloadManager for Persistent Track with Cascade Read. mobilePlayAllowed=$mobilePlayAllowed"
                     )
-                    val manager = DownloadManager(
-                        context.applicationContext,
-                        databaseProvider,
-                        downloadCache,
-                        httpDataSourceFactory,
+                    val fallback = DefaultDownloaderFactory(
+                        CacheDataSource.Factory().setCache(downloadCache).setUpstreamDataSourceFactory(httpDataSourceFactory),
                         newExecutor
                     )
+                    val manager = DownloadManager(context.applicationContext, DefaultDownloadIndex(databaseProvider)) { request ->
+                        if (RawAudioDownloader.handles(request)) rawDownloader(request, downloadCache, playbackCache, okHttpClient)
+                        else fallback.createDownloader(request)
+                    }
                     createdManager = manager
                     configureDownloadManager(manager)
                     initializationContext.ensureActive()
@@ -198,6 +207,15 @@ class DownloadManagerHelper @Inject constructor(
                     newExecutor.shutdownNow()
                     throw e
                 }
+            }
+        }
+
+    private fun rawDownloader(request: DownloadRequest, persistent: Cache, playback: Cache, client: OkHttpClient) =
+        RawAudioDownloader(request, persistent, playback, client) {
+            runBlocking {
+                val repo = repository.get()
+                repo.ensureConfigured()
+                repo.getSongRemote(request.id).getOrNull()?.md5
             }
         }
 

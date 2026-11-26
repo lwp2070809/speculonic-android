@@ -15,6 +15,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -29,13 +30,16 @@ import androidx.compose.ui.unit.dp
 import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.network.model.Song
+import de.lwp2070809.speculonic.ui.components.Sha1State
+import de.lwp2070809.speculonic.util.CopyLimit
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.SongAudioMetadataExtractor
 
 @Composable
 fun LocalDbTab(
     songEntity: SongEntity?,
-    sha1: String?,
+    sha1: Sha1State,
+    onCalculate: () -> Unit,
     onAlbumClick: ((String) -> Unit)? = null,
     onArtistClick: ((String) -> Unit)? = null
 ) {
@@ -86,19 +90,22 @@ fun LocalDbTab(
         val displayUri = songEntity.localUri?.let { FormatUtils.getFullPhysicalPath(it) }
             ?: stringResource(R.string.not_available_not_cached)
         DetailItem(stringResource(R.string.physical_path), displayUri)
-        DetailItem(
-            stringResource(R.string.sha_1),
-            sha1 ?: if (songEntity.localUri != null) {
-                stringResource(R.string.calculating)
-            } else {
-                stringResource(R.string.not_available_not_cached)
+        val label = stringResource(R.string.sha_1)
+        if (!songEntity.isFullyCached || songEntity.localUri == null) {
+            DetailItem(label, stringResource(R.string.not_available_not_cached))
+        } else when (sha1) {
+            is Sha1State.Digest -> DetailItem(label, sha1.value)
+            Sha1State.Reading -> DetailItem(label, stringResource(R.string.calculating))
+            Sha1State.Ready, Sha1State.Failed -> {
+                if (sha1 == Sha1State.Failed) DetailItem(label, stringResource(R.string.sha1_failed))
+                TextButton(onClick = onCalculate) { Text(stringResource(R.string.calculate_sha1)) }
             }
-        )
+        }
     }
 }
 
 @Composable
-fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean) {
+fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean, limit: CopyLimit?) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         if (!isCached) {
             Text(
@@ -106,6 +113,10 @@ fun Id3Tab(id3Metadata: Map<String, String>?, isCached: Boolean) {
                 color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodyMedium
             )
+            return@Column
+        }
+        if (limit != null) {
+            Text(stringResource(if (limit == CopyLimit.FILE_SIZE) R.string.id3_copy_limit else R.string.id3_copy_space))
             return@Column
         }
         if (id3Metadata == null) {

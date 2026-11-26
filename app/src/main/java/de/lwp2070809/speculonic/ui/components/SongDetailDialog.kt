@@ -16,6 +16,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -68,18 +69,14 @@ fun SongDetailDialog(
     val pagerState = rememberPagerState(pageCount = { 3 })
     val failedToFetchRemoteMsg = stringResource(R.string.failed_to_fetch_remote)
 
-    LaunchedEffect(song.id) {
-        viewModel.prepareForSong(song.id)
+    val localUri = songEntity?.takeIf { it.id == song.id && it.isFullyCached }?.localUri
+    DisposableEffect(viewModel, song.id, localUri) {
+        viewModel.bindLocalFile(song.id, localUri)
+        onDispose { viewModel.bindLocalFile(song.id, null) }
     }
-
-    LaunchedEffect(song.id, pagerState.currentPage, songEntity?.localUri, songEntity?.isFullyCached) {
-        val uri = songEntity?.localUri
-        if (songEntity?.isFullyCached == true && uri != null) {
-            if (pagerState.currentPage == 0 && (uiState.songId != song.id || uiState.sha1 == null)) {
-                viewModel.loadSha1(song.id, uri)
-            } else if (pagerState.currentPage == 1 && (uiState.songId != song.id || uiState.id3Metadata == null)) {
-                viewModel.loadId3Metadata(song.id, uri, songEntity?.suffix, songEntity?.isTranscoded ?: false)
-            }
+    LaunchedEffect(viewModel, song.id, pagerState.currentPage, localUri) {
+        if (pagerState.currentPage == 1 && localUri != null) {
+            viewModel.loadId3Metadata(song.id, localUri, songEntity?.suffix, songEntity?.isTranscoded == true)
         }
     }
 
@@ -137,11 +134,12 @@ fun SongDetailDialog(
                         when (page) {
                             0 -> LocalDbTab(
                                 songEntity = songEntity,
-                                sha1 = uiState.sha1,
+                                sha1 = if (uiState.localUri == localUri) uiState.sha1 else Sha1State.Ready,
+                                onCalculate = { localUri?.let { viewModel.loadSha1(song.id, it) } },
                                 onAlbumClick = handleNavigateToAlbum,
                                 onArtistClick = handleNavigateToArtist
                             )
-                            1 -> Id3Tab(uiState.id3Metadata, songEntity?.isFullyCached == true)
+                            1 -> Id3Tab(uiState.id3Metadata, localUri != null, uiState.id3Limit)
                             2 -> RemoteTab(songEntity, uiState.remoteSong, uiState.remoteLoading, uiState.remoteError)
                         }
                     }

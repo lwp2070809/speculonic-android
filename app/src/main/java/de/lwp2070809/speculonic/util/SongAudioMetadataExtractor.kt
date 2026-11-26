@@ -2,11 +2,14 @@ package de.lwp2070809.speculonic.util
 
 import android.content.Context
 import android.net.Uri
+import android.provider.OpenableColumns
 import androidx.core.net.toUri
 import dagger.hilt.android.qualifiers.ApplicationContext
 import de.lwp2070809.speculonic.data.PreferencesManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
 import org.jaudiotagger.audio.AudioFile
@@ -15,9 +18,16 @@ import org.jaudiotagger.tag.FieldKey
 import org.jaudiotagger.tag.TagOptionSingleton
 import java.io.File
 import java.io.FileInputStream
+import java.io.IOException
+import java.io.InputStream
+import java.io.OutputStream
 import java.security.MessageDigest
 import javax.inject.Inject
 import javax.inject.Singleton
+
+enum class CopyLimit { FILE_SIZE, FREE_SPACE }
+
+internal class CopyLimitException(val limit: CopyLimit) : IOException(limit.name)
 
 @Singleton
 class SongAudioMetadataExtractor @Inject constructor(
@@ -27,6 +37,9 @@ class SongAudioMetadataExtractor @Inject constructor(
     companion object {
         const val KEY_FORMAT_INFO = "__FORMAT_INFO__"
         const val KEY_LYRICS_PARSED = "Lyrics (Parsed)"
+
+        private const val MAX_TEMP_BYTES = 256L * 1024 * 1024
+        private const val RESERVED_BYTES = 128L * 1024 * 1024
 
         private val TEXT_CLEAN_REGEX = Regex("^Text=\"?|\"?$")
     }
@@ -46,6 +59,7 @@ class SongAudioMetadataExtractor @Inject constructor(
                 val buffer = ByteArray(8192)
                 var n = fis.read(buffer)
                 while (n != -1) {
+                    currentCoroutineContext().ensureActive()
                     digest.update(buffer, 0, n)
                     n = fis.read(buffer)
                 }
@@ -72,6 +86,8 @@ class SongAudioMetadataExtractor @Inject constructor(
             appendAudioHeaderMetadata(audioFile, metadataMap)
             appendAudioTagMetadata(audioFile, metadataMap)
             metadataMap.filterValues { it.isNotEmpty() }
+        } catch (e: CopyLimitException) {
+            throw e
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             emptyMap()
@@ -88,7 +104,11 @@ class SongAudioMetadataExtractor @Inject constructor(
     ): AudioFile? {
         val directFile = File(FormatUtils.getFullPhysicalPath(uriString))
         if (directFile.exists() && directFile.canRead()) {
-            return AudioFileIO.read(directFile)
+            try {
+                return AudioFileIO.read(directFile)
+            } catch (e: Exception) {
+                if (e is CancellationException || !uriString.startsWith("content://")) throw e
+            }
         }
         if (!uriString.startsWith("content://")) return null
 
@@ -96,12 +116,56 @@ class SongAudioMetadataExtractor @Inject constructor(
         // 优先尝试基于文件描述符直读避免大文件整包拷入 cacheDir；若底层拒绝再回退临时文件
         readViaFileDescriptor(uriString, ext)?.let { return it }
 
+        val uri = uriString.toUri()
+        checkCopyBudget(declaredSize(uri) ?: 0L, context.cacheDir.usableSpace)
         val createdTemp = File.createTempFile("temp_tag_parsing", ".$ext", context.cacheDir)
         onTempFileCreated(createdTemp)
-        context.contentResolver.openInputStream(uriString.toUri())?.use { input ->
-            createdTemp.outputStream().use { output -> input.copyTo(output) }
+        val stream = context.contentResolver.openInputStream(uri) ?: return null
+        stream.use { input ->
+            createdTemp.outputStream().use { output ->
+                copyForTags(input, output) { context.cacheDir.usableSpace }
+            }
         }
-        return if (createdTemp.exists() && createdTemp.canRead()) AudioFileIO.read(createdTemp) else null
+        currentCoroutineContext().ensureActive()
+        return AudioFileIO.read(createdTemp)
+    }
+
+    internal suspend fun copyForTags(input: InputStream, output: OutputStream, availableSpace: () -> Long) {
+        val buffer = ByteArray(256 * 1024)
+        var copied = 0L
+        while (true) {
+            currentCoroutineContext().ensureActive()
+            val count = input.read(buffer)
+            if (count < 0) break
+            copied += count
+            checkCopyBudget(copied, availableSpace(), pendingBytes = count.toLong())
+            output.write(buffer, 0, count)
+        }
+    }
+
+    private fun declaredSize(uri: Uri): Long? {
+        val resolver = context.contentResolver
+        val size = try {
+            resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                val column = cursor.getColumnIndex(OpenableColumns.SIZE)
+                if (cursor.moveToFirst() && column >= 0 && !cursor.isNull(column)) cursor.getLong(column) else null
+            }
+        } catch (_: RuntimeException) {
+            null
+        }
+        if (size != null && size >= 0) return size
+        return try {
+            resolver.openAssetFileDescriptor(uri, "r")?.use { it.length.takeIf { length -> length >= 0 } }
+        } catch (_: IOException) {
+            null
+        } catch (_: RuntimeException) {
+            null
+        }
+    }
+
+    internal fun checkCopyBudget(bytes: Long, free: Long, pendingBytes: Long = bytes) {
+        if (bytes > MAX_TEMP_BYTES) throw CopyLimitException(CopyLimit.FILE_SIZE)
+        if (pendingBytes > free - RESERVED_BYTES) throw CopyLimitException(CopyLimit.FREE_SPACE)
     }
 
     private fun appendAudioHeaderMetadata(audioFile: AudioFile, metadataMap: MutableMap<String, String>) {
@@ -182,7 +246,8 @@ class SongAudioMetadataExtractor @Inject constructor(
                     null
                 }
             }
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
             null
         }
     }

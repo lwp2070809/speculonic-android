@@ -462,4 +462,10 @@
     <string name="search_offline_local_tip">离线模式：正在搜索本地已同步曲库</string>
     <string name="search_online_failed_fallback_local">远程搜索失败，已回退显示本地曲库匹配结果</string>
     <string name="search_no_results">未找到匹配结果</string>
+    <string name="cover_sync_progress">正在同步专辑封面（%1$d/%2$d）</string>
+    <string name="cover_sync_quota">封面缓存已达配额的 90%%，已处理 %1$d/%2$d。</string>
+    <string name="calculate_sha1">计算 SHA-1</string>
+    <string name="sha1_failed">读取文件失败，可重新计算。</string>
+    <string name="id3_copy_limit">解析此文件的标签需要超过 256 MiB 的临时副本，已跳过。</string>
+    <string name="id3_copy_space">临时空间不足，解析标签需至少保留 128 MiB 可用空间。</string>
 </resources>

@@ -412,7 +412,6 @@ class StorageCacheViewModel @Inject constructor(
         val workId = CacheSyncWorker.runOnce(
             context,
             forceScan = true,
-            healCovers = false,
             replaceExisting = replaceExisting
         )
         if (replaceExisting) {

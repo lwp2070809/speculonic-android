@@ -1,25 +1,41 @@
 package de.lwp2070809.speculonic.domain.repository
 
 import android.content.Context
+import coil3.ImageLoader
 import coil3.SingletonImageLoader
+import coil3.annotation.ExperimentalCoilApi
+import coil3.decode.BlackholeDecoder
+import coil3.decode.DataSource
 import coil3.request.CachePolicy
 import coil3.request.ErrorResult
 import coil3.request.ImageRequest
+import coil3.request.SuccessResult
 import coil3.request.crossfade
+import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.util.CoverArtKeyUtils
+import de.lwp2070809.speculonic.util.EmbeddedCoverFallback
 import de.lwp2070809.speculonic.util.LogManager
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.job
+import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
-
+import kotlinx.coroutines.withTimeoutOrNull
 
 class CoverArtSyncManager(
     private val context: Context,
     private val baseUrl: String,
     private val musicDao: MusicDao,
-    private val urlBuilder: UrlBuilder
+    private val urlBuilder: UrlBuilder,
+    private val getImageLoader: () -> ImageLoader = { SingletonImageLoader.get(context) }
 ) {
     fun getCoverArtCacheKey(id: String): String {
         return CoverArtKeyUtils.buildStableKey(baseUrl, id)
@@ -56,76 +72,93 @@ class CoverArtSyncManager(
     }
 
     
-    suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null) = withContext(Dispatchers.IO) {
-        val ids = musicDao.getAllUniqueCoverArtIds()
-        if (ids.isEmpty()) return@withContext
+    private val prefetchMutex = Mutex()
 
-        LogManager.i("CoverArtSyncManager: Starting cover art pre-fetch for ${ids.size} unique IDs (Full resolution)")
-        val imageLoader = SingletonImageLoader.get(context)
-        val count = java.util.concurrent.atomic.AtomicInteger(0)
-        val skipCount = java.util.concurrent.atomic.AtomicInteger(0)
-        val failCount = java.util.concurrent.atomic.AtomicInteger(0)
-        val total = ids.size
+    companion object {
+        private val lifecycle = Mutex()
+        private val pending = mutableSetOf<Job>()
 
-        ids.chunked(COVER_PREFETCH_BATCH_SIZE).forEach { chunk ->
-            kotlinx.coroutines.coroutineScope {
-                chunk.map { id ->
-                    async {
-                        val stableKey = getCoverArtCacheKey(id)
-                        val isCached = imageLoader.diskCache?.openSnapshot(stableKey)?.use { true } ?: false
-
-                        if (isCached) {
-                            skipCount.incrementAndGet()
-                        } else {
-                            val url = urlBuilder.buildCoverArtUrl(id)
-                            val request = ImageRequest.Builder(context)
-                                .data(url)
-                                .diskCacheKey(stableKey)
-                                .memoryCacheKey(stableKey)
-                                .diskCachePolicy(CachePolicy.ENABLED)
-                                .networkCachePolicy(CachePolicy.ENABLED)
-                                .build()
-
-                            try {
-                                val result = kotlinx.coroutines.withTimeout(COVER_PREFETCH_TIMEOUT_MS) {
-                                    imageLoader.execute(request)
-                                }
-                                if (result is ErrorResult) {
-                                    failCount.incrementAndGet()
-                                    val errorMessage = result.throwable.message ?: "Unknown error"
-                                    if (errorMessage.contains("unimplemented") || errorMessage.contains("Input contained an error")) {
-                                        LogManager.w(
-                                            "CoverArtSyncManager: Cover art $id could not be decoded " +
-                                                "(likely malformed or unsupported format): $errorMessage"
-                                        )
-                                    } else {
-                                        LogManager.w("CoverArtSyncManager: Failed to pre-fetch cover art $id: $errorMessage")
-                                    }
-                                }
-                            } catch (e: kotlinx.coroutines.TimeoutCancellationException) {
-                                failCount.incrementAndGet()
-                                LogManager.w("CoverArtSyncManager: Timeout while fetching cover art $id. Skipping.", e)
-                            } catch (e: Exception) {
-                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                failCount.incrementAndGet()
-                                LogManager.e("CoverArtSyncManager: Unexpected error while fetching cover art $id", e)
-                            }
-                        }
-
-                        val current = count.incrementAndGet()
-                        onProgress?.invoke("正在同步专辑封面 ($current/$total)")
-                    }
-                }.awaitAll()
-            }
+        internal suspend fun clear(loader: ImageLoader) = lifecycle.withLock {
+            val old = synchronized(pending) { pending.toList() }
+            old.forEach { it.cancel() }
+            old.joinAll()
+            loader.diskCache?.clear()
+            loader.memoryCache?.clear()
         }
-        LogManager.i(
-            "CoverArtSyncManager: Cover art pre-fetch completed " +
-                "(${count.get()}/$total, skipped ${skipCount.get()}, failed ${failCount.get()})"
-        )
     }
 
-    private companion object {
-        const val COVER_PREFETCH_BATCH_SIZE = 20
-        const val COVER_PREFETCH_TIMEOUT_MS = 30_000L
+    // 返回本地化的提前停止原因，供手动同步与后台任务展示。
+    suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null): String? =
+        withContext(Dispatchers.IO) {
+            coroutineScope {
+                val job = currentCoroutineContext().job
+                lifecycle.withLock { synchronized(pending) { pending.add(job) } }
+                try {
+                    prefetchMutex.withLock { sync(onProgress) }
+                } finally {
+                    synchronized(pending) { pending.remove(job) }
+                }
+            }
+        }
+
+    private suspend fun sync(onProgress: (suspend (String) -> Unit)?): String? {
+        val ids = musicDao.getAllUniqueCoverArtIds()
+        val loader = getImageLoader()
+        val diskCache = checkNotNull(loader.diskCache)
+        var processed = 0
+        var failed = 0
+        var embedded = 0
+        for (batch in ids.asSequence().chunked(4)) {
+            if (diskCache.size >= diskCache.maxSize - diskCache.maxSize / 10) {
+                val reason = context.getString(R.string.cover_sync_quota, processed, ids.size)
+                LogManager.i("CoverArtSync: $reason")
+                onProgress?.invoke(reason)
+                return reason
+            }
+            val results = coroutineScope {
+                batch.map { id -> async { prefetch(loader, id) } }.awaitAll()
+            }
+            processed += batch.size
+            failed += results.count { it == PrefetchResult.FAILED }
+            embedded += results.count { it == PrefetchResult.EMBEDDED }
+            onProgress?.invoke(context.getString(R.string.cover_sync_progress, processed, ids.size))
+        }
+        LogManager.i("CoverArtSync: processed=$processed, embedded=$embedded, failed=$failed")
+        return null
+    }
+
+    private enum class PrefetchResult { DISK, EMBEDDED, FAILED }
+
+    @OptIn(ExperimentalCoilApi::class)
+    private suspend fun prefetch(loader: ImageLoader, id: String): PrefetchResult {
+        val key = getCoverArtCacheKey(id)
+        val disk = checkNotNull(loader.diskCache)
+        if (disk.openSnapshot(key)?.use { true } == true) return PrefetchResult.DISK
+        val request = ImageRequest.Builder(context)
+            .data(urlBuilder.buildCoverArtUrl(id))
+            .diskCacheKey(key)
+            .memoryCachePolicy(CachePolicy.DISABLED)
+            .decoderFactory(BlackholeDecoder.Factory())
+            .apply { extras[EmbeddedCoverFallback.prefetchKey] = true }
+            .build()
+        return try {
+            when (val result = withTimeoutOrNull(30_000L) { loader.execute(request) }) {
+                is SuccessResult -> when {
+                    disk.openSnapshot(key)?.use { true } == true -> PrefetchResult.DISK
+                    result.dataSource == DataSource.MEMORY -> PrefetchResult.EMBEDDED
+                    else -> PrefetchResult.FAILED
+                }
+                else -> {
+                    val reason = (result as? ErrorResult)?.throwable?.message ?: "timeout"
+                    LogManager.w("CoverArtSync: failed to fetch $id: $reason")
+                    PrefetchResult.FAILED
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            LogManager.w("CoverArtSync: failed to fetch $id", e)
+            PrefetchResult.FAILED
+        }
     }
 }

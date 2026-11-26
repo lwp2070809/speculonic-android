@@ -408,13 +408,16 @@ class ServerSyncViewModel @Inject constructor(
             preferencesManager.saveIsSyncing(true)
             preferencesManager.saveSyncProgress(context.getString(R.string.sync_cover_art_preparing))
             var lastNotifyTime = 0L
-            repository.syncAllCoverArt(onProgress = { status ->
+            val stopReason = repository.syncAllCoverArt(onProgress = { status ->
                 val now = System.currentTimeMillis()
                 if (now - lastNotifyTime >= COVER_PROGRESS_THROTTLE_MS) {
                     lastNotifyTime = now
                     preferencesManager.saveSyncProgress(status)
                 }
             })
+            if (stopReason != null) withContext(Dispatchers.Main) {
+                Toast.makeText(context, stopReason, Toast.LENGTH_LONG).show()
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

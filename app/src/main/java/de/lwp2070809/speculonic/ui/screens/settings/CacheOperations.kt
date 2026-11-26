@@ -1,6 +1,8 @@
 package de.lwp2070809.speculonic.ui.screens.settings
 
 import android.content.Context
+import coil3.SingletonImageLoader
+import de.lwp2070809.speculonic.domain.repository.CoverArtSyncManager
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
 import androidx.media3.common.util.UnstableApi
@@ -85,13 +87,11 @@ class CacheOperations @javax.inject.Inject constructor(
                 )
             }
 
+            if (clearCoverArt) CoverArtSyncManager.clear(SingletonImageLoader.get(context))
             cacheManager.executeWithCacheReleaseLock(preservePlayback = preserveAccountData) {
                 val requireCleanup = clearAccountTables
                 if (clearPlaybackBuffer) {
                     deleteCacheDirectory(File(context.cacheDir, "media_playback_buffer"), requireCleanup)
-                }
-                if (clearCoverArt) {
-                    deleteCacheDirectory(File(context.cacheDir, "image_cache"), requireCleanup)
                 }
                 if (clearPersistent) {
                     val baseExternalDir = context.getExternalFilesDir(null) ?: context.filesDir
@@ -150,7 +150,7 @@ class CacheOperations @javax.inject.Inject constructor(
 
     suspend fun clearCoverArtCache(): Result<Unit> = withContext(Dispatchers.IO) {
         runCacheOp("CacheOperations: clearCoverArtCache failed") {
-            File(context.cacheDir, "image_cache").deleteRecursively()
+            CoverArtSyncManager.clear(SingletonImageLoader.get(context))
         }
     }
 

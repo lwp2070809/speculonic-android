@@ -295,9 +295,8 @@ class SubsonicRepository(
         return coverArtSyncManager.buildCoverArtRequest(id, size, crossfade, fallbackUri)
     }
 
-    suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null) {
+    suspend fun syncAllCoverArt(onProgress: (suspend (String) -> Unit)? = null): String? =
         coverArtSyncManager.syncAllCoverArt(onProgress)
-    }
 
     suspend fun ping(force: Boolean = false): Boolean {
         if (!isConfigured) return false

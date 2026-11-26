@@ -13,6 +13,7 @@ import coil3.network.okhttp.OkHttpNetworkFetcherFactory
 import coil3.request.crossfade
 import dagger.hilt.android.HiltAndroidApp
 import de.lwp2070809.speculonic.data.AppRuntimeCoordinator
+import de.lwp2070809.speculonic.data.CoverArtSyncWorker
 import de.lwp2070809.speculonic.data.CacheSyncWorker
 import de.lwp2070809.speculonic.data.DownloadManagerHelper
 import de.lwp2070809.speculonic.data.DownloadTracker
@@ -91,6 +92,7 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
         downloadTracker.init()
         appRuntimeCoordinator.start()
         CacheSyncWorker.schedule(this)
+        CoverArtSyncWorker.schedule(this)
         MetadataSyncWorker.schedule(this)
     }
 
@@ -99,10 +101,11 @@ class SpeculonicApp : Application(), SingletonImageLoader.Factory, Configuration
 
         return ImageLoader.Builder(context)
             .components {
-                add(OkHttpNetworkFetcherFactory(callFactory = { NetworkModule.provideOkHttpClient() }))
                 add(SubsonicCoverArtKeyer())
                 add(SubsonicCoverArtStringKeyer())
+                add(de.lwp2070809.speculonic.util.EmbeddedCoverFallback)
                 add(SubsonicCoverArtFetcher.Factory(context, musicDao))
+                add(OkHttpNetworkFetcherFactory(callFactory = { NetworkModule.provideOkHttpClient() }))
             }
             .memoryCache {
                 MemoryCache.Builder()

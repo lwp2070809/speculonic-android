@@ -99,8 +99,8 @@ class CacheManager @Inject constructor(
         getDatabaseProviderLocked()
     }
 
-    internal suspend fun <T> withDownloadResources(block: (Cache, DatabaseProvider) -> T): T = mutex.withLock {
-        block(getDownloadCacheLocked(), getDatabaseProviderLocked())
+    internal suspend fun <T> withDownloadResources(block: (Cache, Cache, DatabaseProvider) -> T): T = mutex.withLock {
+        block(getDownloadCacheLocked(), getPlaybackCacheLocked(), getDatabaseProviderLocked())
     }
 
     fun getPlaybackCacheOrNull(): Cache? = if (isReleasing) null else playbackCache

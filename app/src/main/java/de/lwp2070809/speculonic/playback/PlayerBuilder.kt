@@ -6,7 +6,6 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.datasource.DataSource
-import androidx.media3.datasource.cache.CacheDataSink
 import androidx.media3.datasource.cache.CacheDataSource
 import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.DefaultLoadControl
@@ -18,6 +17,7 @@ import androidx.media3.exoplayer.source.ProgressiveMediaSource
 import androidx.media3.exoplayer.text.TextOutput
 import androidx.media3.exoplayer.video.VideoRendererEventListener
 import androidx.media3.extractor.DefaultExtractorsFactory
+import de.lwp2070809.speculonic.data.PlaybackBuffer
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.di.NetworkModule
 
@@ -47,16 +47,7 @@ class PlayerBuilder(
         
         
 
-        val playbackDataSinkFactory = CacheDataSink.Factory()
-            .setCache(playbackCache)
-            .setFragmentSize(CacheDataSink.DEFAULT_FRAGMENT_SIZE)
-
-        
-        val playbackDataSourceFactory = CacheDataSource.Factory()
-            .setCache(playbackCache)
-            .setUpstreamDataSourceFactory(restrictedHttpDataSourceFactory)
-            .setCacheWriteDataSinkFactory(playbackDataSinkFactory)
-            .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        val playbackDataSourceFactory = PlaybackBuffer.playerFactory(playbackCache, restrictedHttpDataSourceFactory)
 
         
         

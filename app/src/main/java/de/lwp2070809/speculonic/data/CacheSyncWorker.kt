@@ -24,7 +24,6 @@ import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.data.db.entities.SongEntity
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
-import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
 import de.lwp2070809.speculonic.util.MediaFormatUtils
@@ -69,7 +68,6 @@ private data class VerifySongsConfig(
 class CacheSyncWorker @AssistedInject constructor(
     @Assisted context: Context,
     @Assisted params: WorkerParameters,
-    private val repository: SubsonicRepository,
     private val preferencesManager: PreferencesManager,
     private val database: AppDatabase,
     private val cacheManager: CacheManager,
@@ -79,12 +77,9 @@ class CacheSyncWorker @AssistedInject constructor(
 
     override suspend fun doWork(): Result {
         val isForceScan = inputData.getBoolean(KEY_FORCE_SCAN, false)
-        val shouldHealCovers = inputData.getBoolean(KEY_HEAL_COVERS, false)
         if (shouldSkipDueToCooldown(isForceScan)) return Result.success()
 
-        LogManager.i(
-            "CacheSync: Starting binary sync (Force: $isForceScan, HealCovers: $shouldHealCovers)..."
-        )
+        LogManager.i("CacheSync: Starting binary sync (Force: $isForceScan)...")
         val context = applicationContext
         val cacheLocation = preferencesManager.cacheLocation.first()
         val isSafEnabled = cacheLocation.isNotBlank()
@@ -104,7 +99,7 @@ class CacheSyncWorker @AssistedInject constructor(
             return failureResult(error.localizedMessage ?: error.javaClass.simpleName, needsSaf = true)
         }
 
-        verifyAndHeal(context, musicDao, cacheLocation, shouldHealCovers, safEntries, existingSafIds)
+        verifyAndHeal(context, musicDao, cacheLocation, safEntries, existingSafIds)
         migrationOutcome.firstFailure?.let { error ->
             val detail = error.localizedMessage ?: error.javaClass.simpleName
             return failureResult(context.getString(R.string.export_failed, detail))
@@ -134,7 +129,6 @@ class CacheSyncWorker @AssistedInject constructor(
         context: Context,
         musicDao: MusicDao,
         cacheLocation: String,
-        shouldHealCovers: Boolean,
         safEntries: List<SafChildEntry>?,
         existingSafIds: Set<String>
     ) {
@@ -163,7 +157,6 @@ class CacheSyncWorker @AssistedInject constructor(
         if (updatedSafEntries != null) {
             LogManager.d("CacheSync: SAF entries processed (${updatedSafEntries.size}).")
         }
-        healCoversIfRequested(context, shouldHealCovers)
     }
 
     private suspend fun shouldSkipDueToCooldown(isForceScan: Boolean): Boolean {
@@ -360,38 +353,6 @@ class CacheSyncWorker @AssistedInject constructor(
         musicDao.updateSongCacheStatus(songId, entry.uri.toString(), true, isTranscoded)
     }
 
-    private suspend fun healCoversIfRequested(
-        context: Context,
-        shouldHealCovers: Boolean
-    ) {
-        if (!shouldHealCovers) {
-            LogManager.d("CacheSync: Cover art healing skipped for standard scan.")
-            return
-        }
-        try {
-            setProgress(
-                workDataOf(
-                    PROGRESS to HEAL_COVER_PROGRESS,
-                    STATUS to context.getString(R.string.healing_cover_art)
-                )
-            )
-            LogManager.i("CacheSync: Executing cover art healing sync...")
-            repository.syncAllCoverArt(
-                onProgress = { progressStatus ->
-                    setProgress(
-                        workDataOf(
-                            PROGRESS to HEAL_COVER_PROGRESS,
-                            STATUS to progressStatus
-                        )
-                    )
-                }
-            )
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.e("CacheSync: Failed to sync cover art in background healing task", e)
-        }
-    }
-
     private suspend fun migratePrivateCacheToSaf(
         context: Context,
         musicDao: MusicDao
@@ -456,7 +417,7 @@ class CacheSyncWorker @AssistedInject constructor(
         LogManager.d("CacheSync: Cleaning private cache for ${song.title}.")
         try {
             cacheManager.acquireDownloadCache().removeResource(song.id)
-            cacheManager.acquirePlaybackCache().removeResource(song.id)
+            PlaybackBuffer.remove(cacheManager.acquirePlaybackCache(), song.id)
         } catch (e: Exception) {
             if (e is CancellationException) throw e
             LogManager.e(
@@ -488,7 +449,6 @@ class CacheSyncWorker @AssistedInject constructor(
     companion object {
         const val MANUAL_SCAN_WORK_NAME = "CacheSync_Once"
         const val KEY_FORCE_SCAN = "force_scan"
-        const val KEY_HEAL_COVERS = "heal_covers"
         const val PROGRESS = "progress"
         const val STATUS = "status"
         const val KEY_ERROR_NEEDS_SAF = "error_needs_saf"
@@ -501,34 +461,27 @@ class CacheSyncWorker @AssistedInject constructor(
         private const val MIGRATION_PROGRESS_RANGE = 40
         private const val PERCENT_SCALE = 100
         private const val ORPHAN_SCAN_PROGRESS = 95
-        private const val HEAL_COVER_PROGRESS = 98
         private const val COMPLETED_PROGRESS = 100
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder().setRequiresBatteryNotLow(true).build()
-            val data = Data.Builder()
-                .putBoolean(KEY_HEAL_COVERS, true)
-                .build()
             val request = PeriodicWorkRequestBuilder<CacheSyncWorker>(
                 CACHE_SCAN_COOLDOWN_HOURS,
                 TimeUnit.HOURS
             )
                 .setConstraints(constraints)
-                .setInputData(data)
                 .build()
             WorkManager.getInstance(context)
-                .enqueueUniquePeriodicWork("CacheSync", ExistingPeriodicWorkPolicy.KEEP, request)
+                .enqueueUniquePeriodicWork("CacheSync", ExistingPeriodicWorkPolicy.UPDATE, request)
         }
 
         fun runOnce(
             context: Context,
             forceScan: Boolean = false,
-            healCovers: Boolean = false,
             replaceExisting: Boolean = false
         ): UUID {
             val data = Data.Builder()
                 .putBoolean(KEY_FORCE_SCAN, forceScan)
-                .putBoolean(KEY_HEAL_COVERS, healCovers)
                 .build()
             val request = OneTimeWorkRequestBuilder<CacheSyncWorker>()
                 .setInputData(data)

@@ -55,7 +55,7 @@ class CacheCleanupHelper @Inject constructor(
                         activeIds.add(target.id)
                     }
                     runCatching { downloadCache?.removeResource(target.id) }
-                    runCatching { playbackCache?.removeResource(target.id) }
+                    runCatching { playbackCache?.let { PlaybackBuffer.remove(it, target.id) } }
                 }
             }
 

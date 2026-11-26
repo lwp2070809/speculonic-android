@@ -12,9 +12,12 @@ import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.UpdateManager
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.network.SubsonicServiceFactory
+import de.lwp2070809.speculonic.data.OriginalDownloadRequest
+import de.lwp2070809.speculonic.data.RawResourceIdentity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.interceptor.CacheOverrideInterceptor
 import de.lwp2070809.speculonic.network.interceptor.SonicLogInterceptor
+import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
 import de.lwp2070809.speculonic.network.ssl.DynamicSslTrustManager
 import de.lwp2070809.speculonic.util.AppConstants
 import de.lwp2070809.speculonic.util.ConnectivityManagerNetworkMonitor
@@ -205,17 +208,21 @@ object NetworkModule {
             val path = url.encodedPath
             val isMediaRequest = path.contains("rest/stream") || path.contains("rest/download")
 
-            val finalRequest = if (isMediaRequest && url.queryParameter("u") == null) {
+            val verifiedDownload = request.tag(OriginalDownloadRequest::class.java) != null
+            val finalRequest = if (verifiedDownload || (isMediaRequest && url.queryParameter("u") == null)) {
                 val entryPoint = EntryPoints.get(context.applicationContext, RepositoryEntryPoint::class.java)
-                val authParams = entryPoint.subsonicRepository().getMediaAuthParams(url)
+                val repo = entryPoint.subsonicRepository()
+                if (verifiedDownload && !repo.isConfigured) kotlinx.coroutines.runBlocking { repo.ensureConfigured() }
+                val authParams = repo.getMediaAuthParams(url)
+                if (verifiedDownload && authParams == null) throw IOException("Download does not belong to the configured server")
                 if (authParams != null) {
                     val (u, t, s) = authParams
-                    val newUrl = url.newBuilder()
-                        .addQueryParameter("u", u)
-                        .addQueryParameter("t", t)
-                        .addQueryParameter("s", s)
-                        .addQueryParameter("v", AppConstants.SUBSONIC_API_VERSION)
-                        .addQueryParameter("c", AppConstants.SUBSONIC_CLIENT_ID)
+                    val newUrl = url.newBuilder().removeAllQueryParameters("p")
+                        .setQueryParameter("u", u)
+                        .setQueryParameter("t", t)
+                        .setQueryParameter("s", s)
+                        .setQueryParameter("v", AppConstants.SUBSONIC_API_VERSION)
+                        .setQueryParameter("c", AppConstants.SUBSONIC_CLIENT_ID)
                         .build()
                     request.newBuilder().url(newUrl).build()
                 } else {
@@ -234,6 +241,8 @@ object NetworkModule {
                         contentType.contains("xml") ||
                         contentType.contains("text/")
 
+                // The conditional downloader handles this response by restarting with a clean file.
+                if (verifiedDownload && (response.code == 412 || response.code == 416)) return@addInterceptor response
                 if (!isSuccessful || isExplicitTextOrError) {
                     val bodyString = try {
                         response.use { it.peekBody(10240).string() }
@@ -245,10 +254,13 @@ object NetworkModule {
                         "Stream/Download request returned non-audio response: code=${response.code}, " +
                             "contentType=$contentType, detail=$errorMessage"
                     )
+                    if (verifiedDownload && (response.code in 500..599 || response.code == 408 || response.code == 429)) {
+                        throw ServerUnavailableException("Download temporarily unavailable (HTTP ${response.code})")
+                    }
                     throw IOException("Subsonic server returned error (code ${response.code}): $errorMessage")
                 }
             }
-            response
+            RawResourceIdentity.attach(response, finalRequest.url.takeIf { finalRequest !== request })
         }.build()
     }
 

@@ -1,6 +1,12 @@
 package de.lwp2070809.speculonic.util
 
 import android.content.Context
+import android.graphics.ImageDecoder
+import java.nio.ByteBuffer
+import coil3.Extras
+import coil3.intercept.Interceptor
+import coil3.request.ErrorResult
+import coil3.request.ImageResult
 import android.media.MediaMetadataRetriever
 import androidx.core.net.toUri
 import coil3.ImageLoader
@@ -15,6 +21,24 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okio.Buffer
 
+
+internal object EmbeddedCoverFallback : Interceptor {
+    class Attempt(var used: Boolean = false)
+    val attemptKey = Extras.Key<Attempt?>(null)
+    val skipKey = Extras.Key(false)
+    val prefetchKey = Extras.Key(false)
+
+    override suspend fun intercept(chain: Interceptor.Chain): ImageResult {
+        val request = chain.request
+        if (!request.data.toString().contains("/rest/getCoverArt")) return chain.proceed()
+        val attempt = Attempt()
+        val first = request.newBuilder().apply { extras[attemptKey] = attempt }.build()
+        val result = chain.withRequest(first).proceed()
+        if (result !is ErrorResult || !attempt.used) return result
+        val retry = request.newBuilder().apply { extras[skipKey] = true }.build()
+        return chain.withRequest(retry).proceed()
+    }
+}
 
 class SubsonicCoverArtFetcher(
     private val data: String,
@@ -46,7 +70,8 @@ class SubsonicCoverArtFetcher(
 
         
         val localBytes = extractFromId3(id)
-        if (localBytes != null) {
+        if (localBytes != null && (options.extras[EmbeddedCoverFallback.prefetchKey] != true || isDecodable(localBytes))) {
+            options.extras[EmbeddedCoverFallback.attemptKey]?.used = true
             LogManager.d("SubsonicCoverArtFetcher: Successfully extracted cover art from local downloaded track ID3 (ID: $id)")
             val buffer = Buffer().apply { write(localBytes) }
             return SourceFetchResult(
@@ -60,6 +85,19 @@ class SubsonicCoverArtFetcher(
             "SubsonicCoverArtFetcher: Both cache and local ID3 missed, preparing remote cover request (ID: $id)"
         )
         return null
+    }
+
+    private fun isDecodable(bytes: ByteArray): Boolean = try {
+        ImageDecoder.decodeBitmap(ImageDecoder.createSource(ByteBuffer.wrap(bytes))) { decoder, _, _ ->
+            decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE
+            decoder.setTargetSize(1, 1)
+            decoder.setOnPartialImageListener { false }
+        }.recycle()
+        true
+    } catch (_: java.io.IOException) {
+        false
+    } catch (_: IllegalArgumentException) {
+        false
     }
 
     private suspend fun extractFromId3(id: String): ByteArray? = withContext(Dispatchers.IO) {
@@ -88,6 +126,7 @@ class SubsonicCoverArtFetcher(
 
     class Factory(private val context: Context, private val musicDao: MusicDao) : Fetcher.Factory<Any> {
         override fun create(data: Any, options: Options, imageLoader: ImageLoader): Fetcher? {
+            if (options.extras[EmbeddedCoverFallback.skipKey] == true) return null
             val dataString = data.toString()
             return if (dataString.contains("/rest/getCoverArt")) {
                 SubsonicCoverArtFetcher(dataString, options, context, imageLoader, musicDao)

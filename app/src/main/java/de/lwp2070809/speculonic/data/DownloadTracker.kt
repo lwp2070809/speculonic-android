@@ -6,6 +6,7 @@ import android.os.Looper
 import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.core.net.toUri
+import androidx.core.content.edit
 import androidx.documentfile.provider.DocumentFile
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.common.util.Util
@@ -17,8 +18,10 @@ import de.lwp2070809.speculonic.R
 import de.lwp2070809.speculonic.data.db.AppDatabase
 import de.lwp2070809.speculonic.domain.repository.EntityMapper
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
+import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
 import de.lwp2070809.speculonic.util.FormatUtils
 import de.lwp2070809.speculonic.util.LogManager
+import de.lwp2070809.speculonic.util.NetworkMonitor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -44,7 +47,12 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
+import okio.ByteString.Companion.encodeUtf8
+import java.io.EOFException
 import java.io.File
+import java.net.SocketException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.ConcurrentHashMap
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -66,6 +74,7 @@ class DownloadTracker @Inject constructor(
     private val repository: dagger.Lazy<SubsonicRepository>,
     private val cacheExporter: CacheExporter,
     private val cacheManager: CacheManager,
+    private val networkMonitor: NetworkMonitor,
     private val downloadManagerHelper: DownloadManagerHelper
 ) {
     private val _downloadedSongIds = MutableStateFlow<Set<String>>(emptySet())
@@ -83,6 +92,11 @@ class DownloadTracker @Inject constructor(
 
     private val tracking = DownloadTrackingSession(::startTracking)
     private val exportJobs = ConcurrentHashMap<String, Job>()
+    // Media3 persists FAILED but discards the exception that distinguished an outage from a denial.
+    private val pendingRawExports = appContext.getSharedPreferences("pending_raw_exports", Context.MODE_PRIVATE)
+    private fun recoveryKey(download: Download) = download.request.uri.toString().encodeUtf8().sha256().hex()
+    private fun isPendingRawExport(download: Download) =
+        pendingRawExports.getString(download.request.id, null) == recoveryKey(download)
     private val pendingFileDeletionIds = ConcurrentHashMap.newKeySet<String>()
     private val redownloadingIds = ConcurrentHashMap.newKeySet<String>()
     private val visibleDownloadPages = MutableStateFlow(0)
@@ -111,6 +125,7 @@ class DownloadTracker @Inject constructor(
     }
 
     suspend fun discardInconsistentDownload(songId: String) = withContext(Dispatchers.IO) {
+        pendingRawExports.edit { remove(songId) }
         exportJobs.remove(songId)?.cancelAndJoin()
         pendingFileDeletionIds.remove(songId)
         val downloadManager = downloadManagerHelper.getDownloadManagerSuspend()
@@ -118,7 +133,7 @@ class DownloadTracker @Inject constructor(
             downloadManager.currentDownloads.any { it.request.id == songId }
         } || (downloadManager.downloadIndex.getDownload(songId) != null)
 
-        cacheManager.acquirePlaybackCache().removeResource(songId)
+        PlaybackBuffer.remove(cacheManager.acquirePlaybackCache(), songId)
         cacheManager.acquireDownloadCache().removeResource(songId)
         if (hasExistingTask) {
             // The resolver owns file/DB cleanup, for both delete and redownload.
@@ -148,7 +163,7 @@ class DownloadTracker @Inject constructor(
     @Suppress("TooGenericExceptionCaught")
     private suspend fun clearInternalAudioCaches(songId: String) {
         try {
-            cacheManager.acquirePlaybackCache().removeResource(songId)
+            PlaybackBuffer.remove(cacheManager.acquirePlaybackCache(), songId)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -240,6 +255,7 @@ class DownloadTracker @Inject constructor(
             _activeDownloadIds.value = emptySet()
             _allDownloads.value = emptyList()
             if (clearDownloads) {
+                pendingRawExports.edit { clear() }
                 pendingFileDeletionIds.clear()
                 redownloadingIds.clear()
             }
@@ -260,19 +276,20 @@ class DownloadTracker @Inject constructor(
             }
             try {
                 refreshDownloads(downloadManager)
+                launch { observeProgressDemand(downloadManager) }
+                recoverPendingExports(listener, downloadManager)
             } finally {
                 withContext(NonCancellable + Dispatchers.Main.immediate) { changedDuringRestore = null }
             }
-            launch { observeProgressDemand(downloadManager) }
-            recoverPendingExports(listener)
         }
     }
 
-    private suspend fun recoverPendingExports(listener: DownloadManagerListener) {
+    private suspend fun recoverPendingExports(listener: DownloadManagerListener, manager: DownloadManager) {
         val downloadCache = cacheManager.acquireDownloadCache()
         val retained = downloadCache.keys
         val candidates = _allDownloads.value.filter {
-            it.state == Download.STATE_COMPLETED && it.task.request.id in retained
+            (it.state == Download.STATE_COMPLETED && it.task.request.id in retained) ||
+                (it.state == Download.STATE_FAILED && isPendingRawExport(it.task))
         }
         if (candidates.isEmpty()) return
 
@@ -294,10 +311,13 @@ class DownloadTracker @Inject constructor(
                 !songEntity.localUri.isNullOrBlank() &&
                 doesExportedFileExist(songEntity.localUri)
             if (songEntity == null || alreadyExported) {
+                pendingRawExports.edit { remove(songId) }
                 runCatching { downloadCache.removeResource(songId) }.onFailure { err ->
                     if (err is CancellationException) throw err
                     LogManager.w("DownloadTracker: Failed cleaning retained cache for $songId: ${err.message}")
                 }
+            } else if (RawAudioDownloader.handles(info.task.request)) {
+                listener.resumeRawExport(manager, info.task)
             } else {
                 listener.scheduleExport(info.task).join()
             }
@@ -409,6 +429,24 @@ class DownloadTracker @Inject constructor(
     }
 
     private inner class DownloadManagerListener(private val scope: CoroutineScope) : DownloadManager.Listener {
+        fun resumeRawExport(manager: DownloadManager, download: Download, retry: Boolean = false) {
+            scope.launch {
+                if (retry) delay(EXPORT_RETRY_DELAY_MS)
+                combine(networkMonitor.physicalOnline, preferencesManager.offlineModeEnabled) { online, offlineMode ->
+                    online && !offlineMode
+                }.first { it }
+                withContext(Dispatchers.Main.immediate) {
+                    val id = download.request.id
+                    if ((!retry && changedDuringRestore?.contains(id) == true) || exportJobs.containsKey(id) ||
+                        _allDownloads.value.none { it.task === download } ||
+                        (download.state == Download.STATE_FAILED && !isPendingRawExport(download))
+                    ) return@withContext
+                    pendingRawExports.edit { putString(id, recoveryKey(download)) }
+                    manager.addDownload(download.request)
+                }
+            }
+        }
+
         fun scheduleExport(download: Download): Job {
             val id = download.request.id
             val job = scope.launch(start = kotlinx.coroutines.CoroutineStart.LAZY) {
@@ -437,6 +475,7 @@ class DownloadTracker @Inject constructor(
 
             when (download.state) {
                 Download.STATE_COMPLETED -> {
+                    pendingRawExports.edit { remove(download.request.id) }
                     redownloadingIds.remove(download.request.id)
                     _downloadedSongIds.update { it + download.request.id }
                     _activeDownloadIds.update { it - download.request.id }
@@ -455,6 +494,17 @@ class DownloadTracker @Inject constructor(
                 Download.STATE_FAILED, Download.STATE_REMOVING, Download.STATE_STOPPED -> {
                     _activeDownloadIds.update { it - download.request.id }
                     _downloadedSongIds.update { it - download.request.id }
+                    if (download.state == Download.STATE_FAILED && isPendingRawExport(download)) {
+                        val temporary = generateSequence<Throwable>(finalException) { it.cause }.any {
+                            it is ServerUnavailableException || it is SocketException || it is SocketTimeoutException ||
+                                it is UnknownHostException || it is EOFException
+                        }
+                        if (temporary) {
+                            resumeRawExport(downloadManager, download, retry = true)
+                        } else {
+                            pendingRawExports.edit { remove(download.request.id) }
+                        }
+                    }
                 }
                 else -> {
                     _activeDownloadIds.update { it - download.request.id }
@@ -475,6 +525,7 @@ class DownloadTracker @Inject constructor(
         @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             if (!scope.isActive) return
+            pendingRawExports.edit { remove(download.request.id) }
             changedDuringRestore?.add(download.request.id)
             if (redownloadingIds.remove(download.request.id)) {
                 // STATE_REMOVING was published after discard cleared the list. Remove that
@@ -621,7 +672,7 @@ class DownloadTracker @Inject constructor(
                 LogManager.i("DownloadTracker: Cleaning up internal cache for exported song ${download.request.id}")
                 cache.removeResource(download.request.id)
                 try {
-                    cacheManager.acquirePlaybackCache().removeResource(download.request.id)
+                    PlaybackBuffer.remove(cacheManager.acquirePlaybackCache(), download.request.id)
                 } catch (e: CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -646,6 +697,7 @@ class DownloadTracker @Inject constructor(
     }
 
     companion object {
+        private const val EXPORT_RETRY_DELAY_MS = 30_000L
         private const val POLL_INTERVAL_MS = 1000L
 
         @Suppress("TooGenericExceptionCaught")

@@ -469,4 +469,10 @@
     <string name="search_offline_local_tip">Offline mode: searching local synced library</string>
     <string name="search_online_failed_fallback_local">Remote search unavailable; showing local library results</string>
     <string name="search_no_results">No matching results found</string>
+    <string name="cover_sync_progress">Syncing album covers (%1$d/%2$d)</string>
+    <string name="cover_sync_quota">Cover cache reached 90%% of its limit. Processed %1$d of %2$d.</string>
+    <string name="calculate_sha1">Calculate SHA-1</string>
+    <string name="sha1_failed">Could not read the file. Try again.</string>
+    <string name="id3_copy_limit">Reading these tags requires a temporary copy larger than 256 MiB.</string>
+    <string name="id3_copy_space">Reading these tags requires a temporary copy with at least 128 MiB of storage left free.</string>
 </resources>

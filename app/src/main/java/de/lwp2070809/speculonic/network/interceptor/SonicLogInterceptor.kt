@@ -19,6 +19,8 @@ import java.security.cert.CertificateException
 import javax.net.ssl.SSLException
 import javax.net.ssl.SSLHandshakeException
 
+internal class ServerUnavailableException(message: String) : IOException(message)
+
 class SonicLogInterceptor(
     private val allowInsecureProvider: () -> Boolean = { DynamicSslTrustManager.allowInsecureConnections },
     private val trackReachability: Boolean = true
@@ -65,11 +67,11 @@ class SonicLogInterceptor(
             }
             ServerReachableManager.isManualOffline -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: manual offline: $safeUrl")
-                "Offline: Manual offline mode is enabled"
+                throw ServerUnavailableException("Offline: Manual offline mode is enabled")
             }
             !ServerReachableManager.isPhysicallyConnected -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: disconnected: $safeUrl")
-                "Offline: No active network connection available"
+                throw ServerUnavailableException("Offline: No active network connection available")
             }
             !request.url.isHttps && !allowInsecureProvider() -> {
                 LogManager.w(LogTag.NETWORK, "OfflineInterceptor: Insecure connection blocked: $safeUrl")
@@ -103,7 +105,7 @@ class SonicLogInterceptor(
                         "Offline: Server is unreachable and another probe is in progress"
                     }
                 }
-                throw IOException(message)
+                throw ServerUnavailableException(message)
             }
         }
     }
