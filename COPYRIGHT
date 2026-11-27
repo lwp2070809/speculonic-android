@@ -1,14 +1,9 @@
 Copyright (C) 2026 lwp2070809
 
-This source code is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
+This source code, along with the author-created application icon and project logo included in this repository, is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
+Third-party open-source UI assets (such as Google Material Icons and AndroidX components) remain under their respective open-source licenses (e.g., Apache-2.0).
 
-The following assets are NOT covered by the AGPLv3 license and remain the property of their respective copyright holders:
+Trademark & Branding Notice:
+The project name "Speculonic" and associated branding assets represent the identity of this project. Unmodified builds from the official source code (including distributions built and published by F-Droid) may retain the name and icon. If you distribute a modified version of this software, you may not use the "Speculonic" name or official branding assets in a way that suggests official endorsement without prior written permission from the copyright holder.
 
-- Project name: Speculonic
-- Project logo
-- Application icon
-- Branding assets
-- Third-party artwork and illustrations
-- Other assets explicitly marked as proprietary
-
-All rights are reserved for these assets unless otherwise stated.
+Any third-party artwork, illustrations, or optional easter-egg assets not included in this public source repository remain the property of their respective copyright holders with all rights reserved, and are not part of the open-source distribution.

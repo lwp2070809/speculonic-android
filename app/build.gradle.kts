@@ -104,6 +104,11 @@ android {
         buildConfig = true
     }
 
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
+    }
+
     androidResources {
         generateLocaleConfig = true
         localeFilters += listOf("en", "b+zh+Hans", "zh-rCN")
