@@ -13,7 +13,11 @@ plugins {
 
 android {
     namespace = "de.lwp2070809.speculonic"
-    compileSdk = 37
+    compileSdk {
+        version = release(37) {
+            minorApiLevel = 2
+        }
+    }
 
     val supportedAbis = listOf("arm64-v8a", "x86_64")
     val injectedAbi = project.findProperty("android.injected.build.abi")?.toString()
