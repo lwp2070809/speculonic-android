@@ -51,7 +51,6 @@ class DownloadManagerHelper @Inject constructor(
     private var initJob: Job? = null
     private val initGeneration = AtomicLong(0L)
 
-    @Suppress("TooGenericExceptionCaught")
     fun initializeAsync() {
         synchronized(this) {
             val current = deferredHolder
@@ -83,7 +82,6 @@ class DownloadManagerHelper @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     fun getDownloadManager(): DownloadManager {
         val current = deferredHolder
         if (current.isCompleted && !current.isCancelled) {
@@ -150,7 +148,6 @@ class DownloadManagerHelper @Inject constructor(
         return executeFallbackBuild(generation, fresh)
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun executeFallbackBuild(
         generation: Long,
         fresh: CompletableDeferred<DownloadManager>
@@ -164,7 +161,6 @@ class DownloadManagerHelper @Inject constructor(
         throw e
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun buildAndPublishDownloadManager(
         generation: Long,
         targetDeferred: CompletableDeferred<DownloadManager>

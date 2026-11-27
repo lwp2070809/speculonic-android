@@ -20,7 +20,6 @@ class LocalLyricsProvider @Inject constructor(
     private val preferencesManager: PreferencesManager
 ) {
 
-    @Suppress("TooGenericExceptionCaught")
     suspend fun getLyricsFromLrcFile(audioUriString: String): String? = withContext(Dispatchers.IO) {
         try {
             if (audioUriString.startsWith("content://")) {
@@ -67,7 +66,6 @@ class LocalLyricsProvider @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     suspend fun saveLyricsToLrcFile(audioUriString: String, lrcContent: String): Boolean = withContext(Dispatchers.IO) {
         if (lrcContent.isBlank()) return@withContext false
         try {

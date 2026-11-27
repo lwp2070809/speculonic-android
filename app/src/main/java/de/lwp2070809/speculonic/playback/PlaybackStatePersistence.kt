@@ -104,7 +104,6 @@ class PlaybackStatePersistence(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun applyRestoredQueue(
         player: Player,
         mediaItems: List<androidx.media3.common.MediaItem>,

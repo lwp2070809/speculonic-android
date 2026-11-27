@@ -34,7 +34,7 @@ class SubsonicServiceFactory(
         }
 
         try {
-            val service = createUncachedService(sanitizedUrl, okHttpClient, json)
+            val service = buildService(sanitizedUrl, okHttpClient, json)
             cachedService = service
             cachedBaseUrl = sanitizedUrl
             return service
@@ -51,7 +51,7 @@ class SubsonicServiceFactory(
             return cachedService!!
         }
 
-        val service = createUncachedService(fallbackUrl, okHttpClient, json)
+        val service = buildService(fallbackUrl, okHttpClient, json)
         cachedService = service
         cachedBaseUrl = fallbackUrl
         return service
@@ -78,10 +78,16 @@ class SubsonicServiceFactory(
             baseUrl: String,
             okHttpClient: OkHttpClient,
             json: Json
+        ): SubsonicService = buildService(sanitizeBaseUrl(baseUrl), okHttpClient, json)
+
+        private fun buildService(
+            sanitizedUrl: String,
+            okHttpClient: OkHttpClient,
+            json: Json
         ): SubsonicService {
             val contentType = "application/json".toMediaType()
             return Retrofit.Builder()
-                .baseUrl(sanitizeBaseUrl(baseUrl))
+                .baseUrl(sanitizedUrl)
                 .client(okHttpClient)
                 .addConverterFactory(json.asConverterFactory(contentType))
                 .build()

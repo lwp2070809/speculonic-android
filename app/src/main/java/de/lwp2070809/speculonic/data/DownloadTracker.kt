@@ -160,7 +160,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun clearInternalAudioCaches(songId: String) {
         try {
             PlaybackBuffer.remove(cacheManager.acquirePlaybackCache(), songId)
@@ -178,7 +177,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     suspend fun deleteExportedSongAndCache(songId: String) = withContext(Dispatchers.IO) {
         cacheExporter.withSongExport(songId) {
             val dao = database.musicDao()
@@ -188,7 +186,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun deleteExportedFiles(songId: String, uriString: String) {
         LogManager.d("DownloadTracker: Removing exported file: $uriString")
         val uri = uriString.toUri()
@@ -226,7 +223,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun deletePrivateAudioAndCompanionLrc(songId: String, uri: android.net.Uri) {
         try {
             val path = uri.path ?: return
@@ -318,7 +314,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private fun doesExportedFileExist(uriString: String): Boolean {
         val uri = uriString.toUri()
         return if (uriString.startsWith("file:")) {
@@ -334,7 +329,6 @@ class DownloadTracker @Inject constructor(
         }
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend fun getCurrentDownloadsSafe(downloadManager: DownloadManager): List<Download> {
         return withContext(Dispatchers.Main) {
             try {
@@ -517,7 +511,6 @@ class DownloadTracker @Inject constructor(
             }
         }
 
-        @Suppress("TooGenericExceptionCaught")
         override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
             if (!scope.isActive) return
             pendingRawExports.edit { remove(download.request.id) }
@@ -558,7 +551,6 @@ class DownloadTracker @Inject constructor(
             }
         }
 
-        @Suppress("TooGenericExceptionCaught")
         private suspend fun exportDownloadedSong(download: Download) {
             cacheExporter.withSongExport(download.request.id) { exportAndRegisterDownloadedSong(download) }
         }
@@ -617,7 +609,6 @@ class DownloadTracker @Inject constructor(
             handleExportResult(download, song.title, isSafEnabled, isTranscoded, cache, localUriResult)
         }
 
-        @Suppress("TooGenericExceptionCaught")
         private fun parseDownloadFlags(download: Download): Pair<Boolean, String?> {
             return try {
                 if (download.request.data.isNotEmpty()) {
@@ -635,7 +626,6 @@ class DownloadTracker @Inject constructor(
             }
         }
 
-        @Suppress("TooGenericExceptionCaught")
         private suspend fun fetchLyricsForExport(songId: String, artist: String?, title: String?): String? {
             return try {
                 val repo = repository.get()
@@ -652,7 +642,6 @@ class DownloadTracker @Inject constructor(
             }
         }
 
-        @Suppress("TooGenericExceptionCaught")
         private suspend fun handleExportResult(
             download: Download,
             songTitle: String,
@@ -699,7 +688,6 @@ class DownloadTracker @Inject constructor(
         private const val EXPORT_RETRY_DELAY_MS = 30_000L
         private const val POLL_INTERVAL_MS = 1000L
 
-        @Suppress("TooGenericExceptionCaught")
         fun isSilentDownload(download: Download): Boolean {
             return try {
                 if (download.request.data.isNotEmpty()) {

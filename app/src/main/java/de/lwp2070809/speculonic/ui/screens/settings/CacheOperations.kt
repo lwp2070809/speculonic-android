@@ -27,7 +27,6 @@ class CacheOperations @javax.inject.Inject constructor(
     private val downloadTracker: DownloadTracker
 ) {
 
-    @Suppress("TooGenericExceptionCaught")
     private suspend inline fun runCacheOp(
         errorLog: String,
         crossinline block: suspend () -> Unit
@@ -41,7 +40,6 @@ class CacheOperations @javax.inject.Inject constructor(
         Result.failure(e)
     }
 
-    @Suppress("TooGenericExceptionCaught")
     private inline fun <T> runBestEffort(
         errorLog: String,
         defaultValue: T,
