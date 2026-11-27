@@ -1,14 +1,11 @@
 package de.lwp2070809.speculonic.domain.repository
 
-import de.lwp2070809.speculonic.data.PreferencesManager
 import de.lwp2070809.speculonic.data.db.dao.MusicDao
 import de.lwp2070809.speculonic.data.db.entities.ArtistEntity
 import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.model.Album
 import de.lwp2070809.speculonic.network.model.Song
-import de.lwp2070809.speculonic.util.LogManager
-import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
@@ -68,84 +65,12 @@ private class Search3ChannelBuffers {
 internal class Search3SyncExecutor(
     private val api: SubsonicService,
     private val musicDao: MusicDao,
-    private val pref: PreferencesManager,
     private val entityMapper: EntityMapper,
     private val albumListHelper: AlbumListSyncHelper,
     private val json: Json,
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit
 ) {
-    suspend fun execute(
-        authParams: Triple<String, String, String>,
-        params: SyncExecutionParams,
-        verifySafetyGuard: (EntityCountSnapshot, EntityCountSnapshot, Boolean) -> Unit,
-        performSurgicalCleanup: suspend (
-            CleanupContext,
-            suspend (String) -> Unit,
-            (suspend (String) -> Unit)?
-        ) -> CleanupResult
-    ): SyncOutcome {
-        try {
-            val statusMsg = "正在拉取元数据 (search3)..."
-            params.onProgress?.invoke(statusMsg)
-            pref.saveSyncProgress(statusMsg)
-            LogManager.i("SyncManager: Syncing all data via paginated search3Stream(\"\")")
-
-            val localSnapshot = EntityCountSnapshot(
-                artists = musicDao.getArtistsCount(),
-                albums = musicDao.getAlbumsCount(),
-                songs = musicDao.getSongsCount()
-            )
-            musicDao.clearSyncTempIds()
-
-            streamSearch3Pages(authParams)
-
-            val remoteCounts = EntityCountSnapshot(
-                artists = musicDao.getSyncTempIdCountByType("artist"),
-                albums = musicDao.getSyncTempIdCountByType("album"),
-                songs = musicDao.getSyncTempIdCountByType("song")
-            )
-            verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreDropRatioGuard)
-
-            val cleanupContext = CleanupContext(
-                skipRemoteVerification = params.skipRemoteVerification,
-                localSnapshot = localSnapshot,
-                remoteCounts = remoteCounts
-            )
-            val cleanupResult = finalizeSearch3Sync(params, cleanupContext, performSurgicalCleanup)
-            return if (cleanupResult.hasVerificationFailures) SyncOutcome.SYNCED_PARTIAL_CLEANUP else SyncOutcome.SYNCED_FULL
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            if (e !is SafetyGuardException) {
-                LogManager.e("SyncManager: search3 sync failed", e)
-            }
-            throw e
-        }
-    }
-
-    private suspend fun finalizeSearch3Sync(
-        params: SyncExecutionParams,
-        cleanupContext: CleanupContext,
-        performSurgicalCleanup: suspend (
-            CleanupContext,
-            suspend (String) -> Unit,
-            (suspend (String) -> Unit)?
-        ) -> CleanupResult
-    ): CleanupResult {
-        val cleanupMsg = "正在清理冗余数据..."
-        params.onProgress?.invoke(cleanupMsg)
-        pref.saveSyncProgress(cleanupMsg)
-        return performSurgicalCleanup(
-            cleanupContext,
-            { status ->
-                params.onProgress?.invoke(status)
-                pref.saveSyncProgress(status)
-            },
-            params.onProgress
-        )
-    }
-
-    private suspend fun streamSearch3Pages(authParams: Triple<String, String, String>): Unit = coroutineScope {
+    suspend fun execute(authParams: Triple<String, String, String>): Unit = coroutineScope {
         val streamState = Search3StreamState()
         val channels = Search3Channels()
         val writerJob = launchWriterJob(channels)

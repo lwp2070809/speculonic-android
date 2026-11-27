@@ -96,9 +96,11 @@ class CacheValidator(private val context: Context) {
     internal fun isRegularSafFile(uri: Uri): Boolean {
         val column = DocumentsContract.Document.COLUMN_MIME_TYPE
         return queryFile(uri, arrayOf(column))?.use { cursor ->
-            checkFileQuery(cursor)
-            val index = cursor.getColumnIndex(column)
-            cursor.moveToFirst() && index >= 0 && isRegularSafFileType(cursor.getString(index))
+            cursor.requireCompleteSafResult()
+            if (!cursor.moveToFirst()) return@use false
+            val mime = cursor.getString(cursor.getColumnIndexOrThrow(column))
+            if (mime.isNullOrBlank()) throw IOException("Missing document MIME type")
+            isRegularSafFileType(mime)
         } == true
     }
 
@@ -111,7 +113,7 @@ class CacheValidator(private val context: Context) {
             }
         }
         return queryFile(uri, arrayOf(OpenableColumns.SIZE))?.use { cursor ->
-            checkFileQuery(cursor)
+            cursor.requireCompleteSafResult()
             if (!cursor.moveToFirst()) return@use null
             val index = cursor.getColumnIndex(OpenableColumns.SIZE)
             val size = if (index < 0 || cursor.isNull(index)) null else cursor.getLong(index).takeIf { it >= 0 }
@@ -154,11 +156,4 @@ class CacheValidator(private val context: Context) {
     private fun readDirectoryIds(treeUri: Uri): Set<String> =
         SafDirectoryHelper.listChildDocumentIds(context, treeUri)
 
-    private fun checkFileQuery(cursor: Cursor) {
-        val extras = cursor.extras
-        val error = extras?.getString(DocumentsContract.EXTRA_ERROR)
-        if (error != null || extras?.getBoolean(DocumentsContract.EXTRA_LOADING) == true) {
-            throw IOException(error ?: "File details are still loading")
-        }
-    }
 }

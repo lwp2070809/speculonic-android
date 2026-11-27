@@ -20,6 +20,7 @@ import de.lwp2070809.speculonic.domain.repository.SafetyGuardException
 import de.lwp2070809.speculonic.domain.repository.SubsonicRepository
 import de.lwp2070809.speculonic.domain.usecase.SyncAllDataUseCase
 import de.lwp2070809.speculonic.network.model.SubsonicApiException
+import de.lwp2070809.speculonic.network.model.isSubsonicAuthError
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.first
@@ -114,6 +115,7 @@ class MetadataSyncWorker @AssistedInject constructor(
             e is SafetyGuardException -> true
             e is IncompletePaginationException -> true
             e is IllegalArgumentException -> true
+            e.isSubsonicAuthError() -> true
             e is SubsonicApiException && e.code in NON_RETRYABLE_SUBSONIC_CODES -> true
             runAttemptCount >= MAX_RETRY_ATTEMPTS -> true
             else -> false
@@ -125,7 +127,7 @@ class MetadataSyncWorker @AssistedInject constructor(
         private const val MAX_RETRY_ATTEMPTS = 5
         private const val QUICK_SYNC_INTERVAL_HOURS = 12L
         private const val FULL_SYNC_INTERVAL_DAYS = 3L
-        private val NON_RETRYABLE_SUBSONIC_CODES = setOf(10, 20, 30, 40, 41, 50, 60)
+        private val NON_RETRYABLE_SUBSONIC_CODES = setOf(10, 20, 30, 60)
 
         fun schedule(context: Context) {
             val constraints = Constraints.Builder()

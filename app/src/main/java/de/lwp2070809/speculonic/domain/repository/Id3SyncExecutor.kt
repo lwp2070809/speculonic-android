@@ -7,7 +7,7 @@ import de.lwp2070809.speculonic.data.db.entities.SyncTempIdEntity
 import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
 import de.lwp2070809.speculonic.network.model.Album
-import de.lwp2070809.speculonic.network.model.SubsonicApiException
+import de.lwp2070809.speculonic.network.model.isSubsonicAuthError
 import de.lwp2070809.speculonic.network.model.ensureOk
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
@@ -16,7 +16,6 @@ import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
-import retrofit2.HttpException
 import java.io.IOException
 
 internal class Id3SyncExecutor(
@@ -28,72 +27,13 @@ internal class Id3SyncExecutor(
     private val albumListHelper: AlbumListSyncHelper,
     private val runInTransaction: suspend (suspend () -> Unit) -> Unit
 ) {
-    suspend fun execute(
-        params: SyncExecutionParams,
-        verifySafetyGuard: (EntityCountSnapshot, EntityCountSnapshot, Boolean) -> Unit,
-        performSurgicalCleanup: suspend (
-            CleanupContext,
-            suspend (String) -> Unit,
-            (suspend (String) -> Unit)?
-        ) -> CleanupResult
-    ): SyncOutcome {
-        val statusMsg = "正在拉取元数据 (ID3)..."
-        params.onProgress?.invoke(statusMsg)
-        pref.saveSyncProgress(statusMsg)
-        LogManager.i(
-            "SyncManager: Syncing library via Subsonic v1.16.1 ID3 endpoints (getArtists + getAlbumList2 + getAlbum)"
-        )
-
-        val localSnapshot = EntityCountSnapshot(
-            artists = musicDao.getArtistsCount(),
-            albums = musicDao.getAlbumsCount(),
-            songs = musicDao.getSongsCount()
-        )
-        musicDao.clearSyncTempIds()
-
+    suspend fun execute(onProgress: (suspend (String) -> Unit)?) {
         syncAllArtists()
         val albumIds = albumListHelper.syncAllAlbums(recordTempIds = true)
-        val failedAlbums = syncSongsByAlbums(albumIds, params.onProgress)
+        val failedAlbums = syncSongsByAlbums(albumIds, onProgress)
         if (failedAlbums > 0) {
             throw IOException("ID3 sync incomplete: $failedAlbums/${albumIds.size} albums failed")
         }
-
-        val remoteCounts = EntityCountSnapshot(
-            artists = musicDao.getSyncTempIdCountByType("artist"),
-            albums = musicDao.getSyncTempIdCountByType("album"),
-            songs = musicDao.getSyncTempIdCountByType("song")
-        )
-        verifySafetyGuard(localSnapshot, remoteCounts, params.ignoreDropRatioGuard)
-
-        val cleanupContext = CleanupContext(
-            skipRemoteVerification = params.skipRemoteVerification,
-            localSnapshot = localSnapshot,
-            remoteCounts = remoteCounts
-        )
-        return finalizeId3Sync(params, cleanupContext, performSurgicalCleanup)
-    }
-
-    private suspend fun finalizeId3Sync(
-        params: SyncExecutionParams,
-        cleanupContext: CleanupContext,
-        performSurgicalCleanup: suspend (
-            CleanupContext,
-            suspend (String) -> Unit,
-            (suspend (String) -> Unit)?
-        ) -> CleanupResult
-    ): SyncOutcome {
-        val cleanupMsg = "正在清理冗余数据..."
-        params.onProgress?.invoke(cleanupMsg)
-        pref.saveSyncProgress(cleanupMsg)
-        val cleanupResult = performSurgicalCleanup(
-            cleanupContext,
-            { status ->
-                params.onProgress?.invoke(status)
-                pref.saveSyncProgress(status)
-            },
-            params.onProgress
-        )
-        return if (cleanupResult.hasVerificationFailures) SyncOutcome.SYNCED_PARTIAL_CLEANUP else SyncOutcome.SYNCED_FULL
     }
 
     private suspend fun syncAllArtists() {
@@ -174,7 +114,7 @@ internal class Id3SyncExecutor(
             response.response.ensureOk()
             validateFetchedAlbum(albumId, response.response.album)
         } catch (e: Exception) {
-            if (e is CancellationException || isSubsonicAuthFailure(e) || e is ServerUnavailableException) throw e
+            if (e is CancellationException || e.isSubsonicAuthError() || e is ServerUnavailableException) throw e
             LogManager.w("Id3SyncExecutor: getAlbum failed for id=$albumId: ${e.message}")
             null
         }
@@ -221,20 +161,10 @@ internal class Id3SyncExecutor(
         }
     }
 
-    private fun isSubsonicAuthFailure(e: Exception): Boolean {
-        return when (e) {
-            is HttpException -> e.code() in AUTH_HTTP_CODES
-            is SubsonicApiException -> e.code in AUTH_SUBSONIC_ERROR_CODES
-            else -> false
-        }
-    }
-
     private companion object {
         const val BATCH_SIZE = 500
         const val ALBUM_COMMIT_BATCH_SIZE = 32
         const val ALBUM_FETCH_CONCURRENCY = 8
         const val MAX_CONSECUTIVE_ALBUM_FAILURES = 16
-        val AUTH_HTTP_CODES = setOf(401)
-        val AUTH_SUBSONIC_ERROR_CODES = setOf(40, 41, 50)
     }
 }

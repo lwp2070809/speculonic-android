@@ -2,6 +2,9 @@ package de.lwp2070809.speculonic.network.model
 
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import retrofit2.HttpException
+import java.net.HttpURLConnection.HTTP_FORBIDDEN
+import java.net.HttpURLConnection.HTTP_UNAUTHORIZED
 
 @Serializable
 data class SubsonicResponse<T>(
@@ -25,6 +28,14 @@ class SubsonicApiException(
     val code: Int?,
     override val message: String?
 ) : java.io.IOException("Subsonic API error code ${code ?: "unknown"}: ${message ?: "Unknown error"}")
+
+private val SUBSONIC_AUTH_ERROR_CODES = setOf(40, 41, 42, 43, 44, 50)
+
+internal fun Exception.isSubsonicAuthError(): Boolean = when (this) {
+    is HttpException -> code() == HTTP_UNAUTHORIZED || code() == HTTP_FORBIDDEN
+    is SubsonicApiException -> code in SUBSONIC_AUTH_ERROR_CODES
+    else -> false
+}
 
 /**
  * 校验响应状态，若 status 不为 "ok" 则抛出 SubsonicApiException，杜绝空响应被误判为空数据

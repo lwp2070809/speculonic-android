@@ -9,6 +9,7 @@ import de.lwp2070809.speculonic.network.api.SubsonicService
 import de.lwp2070809.speculonic.network.interceptor.ServerUnavailableException
 import de.lwp2070809.speculonic.network.model.SubsonicApiException
 import de.lwp2070809.speculonic.network.model.ensureOk
+import de.lwp2070809.speculonic.network.model.isSubsonicAuthError
 import de.lwp2070809.speculonic.util.LogManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
@@ -40,26 +41,16 @@ data class SyncOptions(
     val keepSyncingState: Boolean = false
 )
 
-internal data class EntityCountSnapshot(
+private data class EntityCountSnapshot(
     val artists: Int,
     val albums: Int,
     val songs: Int
 )
 
-internal data class CleanupContext(
+private data class CleanupContext(
     val skipRemoteVerification: Boolean,
     val localSnapshot: EntityCountSnapshot,
     val remoteCounts: EntityCountSnapshot
-)
-
-internal data class CleanupResult(
-    val hasVerificationFailures: Boolean
-)
-
-internal data class SyncExecutionParams(
-    val ignoreDropRatioGuard: Boolean,
-    val skipRemoteVerification: Boolean,
-    val onProgress: (suspend (String) -> Unit)?
 )
 
 class SyncManager(
@@ -89,7 +80,6 @@ class SyncManager(
     private val search3Executor = Search3SyncExecutor(
         api = api,
         musicDao = musicDao,
-        pref = pref,
         entityMapper = entityMapper,
         albumListHelper = albumListHelper,
         json = json,
@@ -179,16 +169,7 @@ class SyncManager(
                 return SyncOutcome.SKIPPED_UP_TO_DATE
             }
 
-            val executionParams = SyncExecutionParams(
-                ignoreDropRatioGuard = SafetyGuardException.Reason.DROP_RATIO_EXCEEDED in options.confirmedGuards,
-                skipRemoteVerification = SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED in options.confirmedGuards,
-                onProgress = onProgress
-            )
-            val outcome = if (serverCapabilities.isOpenSubsonic) {
-                executeSearch3WithId3Fallback(authParams, executionParams)
-            } else {
-                id3Executor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
-            }
+            val outcome = syncLibrary(serverCapabilities, authParams, options.confirmedGuards, onProgress)
             val partial = outcome == SyncOutcome.SYNCED_PARTIAL_CLEANUP
             if (partial) pref.recordLibrarySync(currentTime, 0L, cleanupPending = true)
             onSyncComplete(outcome)
@@ -211,17 +192,46 @@ class SyncManager(
         }
     }
 
-    private suspend fun executeSearch3WithId3Fallback(
+    private suspend fun syncLibrary(
+        capabilities: ServerCapabilities,
         authParams: Triple<String, String, String>,
-        executionParams: SyncExecutionParams
+        confirmedGuards: Set<SafetyGuardException.Reason>,
+        onProgress: (suspend (String) -> Unit)?
     ): SyncOutcome {
-        return try {
-            search3Executor.execute(authParams, executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
-        } catch (e: Exception) {
-            if (!shouldFallbackFromSearch3(e)) throw e
-            LogManager.w("SyncManager: search3Stream failed (${e.message}), falling back to ID3 sync.")
-            id3Executor.execute(executionParams, ::verifySafetyGuard, ::performSurgicalCleanup)
+        val counts = musicDao.getLibraryCounts()
+        val local = EntityCountSnapshot(counts.artists, counts.albums, counts.songs)
+        suspend fun report(message: String) {
+            onProgress?.invoke(message)
+            pref.saveSyncProgress(message)
         }
+
+        musicDao.clearSyncTempIds()
+        val searchCompleted = if (capabilities.isOpenSubsonic) {
+            report("正在拉取元数据 (search3)...")
+            try {
+                search3Executor.execute(authParams)
+                true
+            } catch (e: Exception) {
+                if (!shouldFallbackFromSearch3(e)) throw e
+                LogManager.w("SyncManager: search3 failed (${e.message}), falling back to ID3 sync.")
+                musicDao.clearSyncTempIds()
+                false
+            }
+        } else false
+        if (!searchCompleted) {
+            report("正在拉取元数据 (ID3)...")
+            id3Executor.execute(onProgress)
+        }
+
+        val remote = EntityCountSnapshot(
+            artists = musicDao.getSyncTempIdCountByType("artist"),
+            albums = musicDao.getSyncTempIdCountByType("album"),
+            songs = musicDao.getSyncTempIdCountByType("song")
+        )
+        verifySafetyGuard(local, remote, SafetyGuardException.Reason.DROP_RATIO_EXCEEDED in confirmedGuards)
+        report("正在清理冗余数据...")
+        val cleanup = CleanupContext(SafetyGuardException.Reason.VERIFY_CANDIDATES_EXCEEDED in confirmedGuards, local, remote)
+        return performSurgicalCleanup(cleanup, ::report)
     }
 
     private fun shouldFallbackFromSearch3(e: Exception): Boolean {
@@ -230,7 +240,7 @@ class SyncManager(
             is SafetyGuardException,
             is ServerUnavailableException -> false
             is HttpException,
-            is SubsonicApiException -> !isAuthError(e)
+            is SubsonicApiException -> !e.isSubsonicAuthError()
             is IncompletePaginationException,
             is SerializationException,
             is IllegalStateException -> true
@@ -251,9 +261,8 @@ class SyncManager(
 
     private suspend fun performSurgicalCleanup(
         cleanupContext: CleanupContext,
-        updateStatsProgress: suspend (String) -> Unit,
-        onProgress: (suspend (String) -> Unit)?
-    ): CleanupResult {
+        report: suspend (String) -> Unit
+    ): SyncOutcome {
         val candidates = musicDao.getUnseenEntities()
         val resolution = if (candidates.isEmpty()) {
             RemovalResolution(emptyList(), hasVerificationFailures = false)
@@ -262,6 +271,7 @@ class SyncManager(
         }
         val removedByType = resolution.removals.groupBy({ it.type }, { it.id })
         val removalTargets = mutableListOf<SongCleanupTarget>()
+        report("正在更新统计信息...")
         runInTransaction {
             removedByType["song"].orEmpty().chunked(SQLITE_IN_CHUNK_SIZE).forEach { ids ->
                 val targets = musicDao.getConfirmedSongCleanupTargets(ids)
@@ -273,11 +283,8 @@ class SyncManager(
             musicDao.clearSyncTempIds()
             musicDao.repairAndCount()
         }
-        if (onProgress != null) {
-            updateStatsProgress("正在更新统计信息...")
-        }
         if (removalTargets.isNotEmpty()) onSongsRemoved(removalTargets)
-        return CleanupResult(hasVerificationFailures = resolution.hasVerificationFailures)
+        return if (resolution.hasVerificationFailures) SyncOutcome.SYNCED_PARTIAL_CLEANUP else SyncOutcome.SYNCED_FULL
     }
 
     private suspend fun resolveRemovals(
@@ -377,19 +384,11 @@ class SyncManager(
                 VerificationOutcome.StillExists
             }
         } catch (e: Exception) {
-            if (e is CancellationException || isAuthError(e) || e is ServerUnavailableException) throw e
+            if (e is CancellationException || e.isSubsonicAuthError() || e is ServerUnavailableException) throw e
             LogManager.w(
                 "SyncManager: Verification failed for ${candidate.type}/${candidate.id}, preserving item: ${e.message}"
             )
             VerificationOutcome.TransientFailure
-        }
-    }
-
-    private fun isAuthError(e: Exception): Boolean {
-        return when (e) {
-            is HttpException -> e.code() in AUTH_HTTP_CODES
-            is SubsonicApiException -> e.code in AUTH_SUBSONIC_ERROR_CODES
-            else -> false
         }
     }
 
@@ -482,7 +481,5 @@ class SyncManager(
         private const val MAX_REMOTE_VERIFY_CANDIDATES = 250
         private const val MAX_CONSECUTIVE_VERIFY_FAILURES = 16
         private const val RESOURCE_NOT_FOUND = 70
-        private val AUTH_HTTP_CODES = setOf(401)
-        private val AUTH_SUBSONIC_ERROR_CODES = setOf(40, 41, 50)
     }
 }

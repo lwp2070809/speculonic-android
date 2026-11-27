@@ -235,10 +235,10 @@ class CacheExporter @Inject constructor(
             val suffix = resolveExtension(song, targetTranscodeFormat, preferencesManager.targetTranscodeFormat.first())
             val resolvedFileName = buildExportFileName(song, suffix)
             val lrcFileName = FormatUtils.replaceExtensionWithLrc(resolvedFileName)
-            val preScanned = SafDirectoryHelper.findChildrenByName(
+            val preScanned = SafDirectoryHelper.findWriteTargets(
                 context = context,
                 treeUri = targetSafUriString.toUri(),
-                targetNames = setOf(resolvedFileName, lrcFileName)
+                names = setOf(resolvedFileName, lrcFileName)
             )
             val targetDocUri = preScanned[resolvedFileName]?.uri ?: run {
                 val createdDoc = resolvedRootDoc.createFile(
@@ -439,7 +439,7 @@ class CacheExporter @Inject constructor(
             val lrcFileName = FormatUtils.replaceExtensionWithLrc(resolvedFileName)
             val treeUri = targetSafUriString.toUri()
             val targetNames = setOf(resolvedFileName, lrcFileName)
-            val preScanned = SafDirectoryHelper.findMigrationTargets(context, treeUri, targetNames)
+            val preScanned = SafDirectoryHelper.findWriteTargets(context, treeUri, targetNames)
             val existing = preScanned[resolvedFileName]
             val matches = existing != null && safFileMatchesSource(existing, sourceFile)
             val mime = FormatUtils.getMimeTypeFromExtension(suffix)
@@ -486,7 +486,7 @@ class CacheExporter @Inject constructor(
     ): Boolean {
         val current = dao.getSongById(songId)
         if (current?.isFullyCached != true || current.localUri != source) return false
-        val targets = SafDirectoryHelper.findMigrationTargets(context, treeUri, names)
+        val targets = SafDirectoryHelper.findWriteTargets(context, treeUri, names)
         names.firstOrNull { scanned[it] != targets[it] }?.let { name ->
             throw IOException(context.getString(R.string.saf_name_conflict, name))
         }
@@ -523,25 +523,24 @@ class CacheExporter @Inject constructor(
         val copiedBytes = openTruncatedOutputStream(context, target, newFile = true)?.use { outputStream ->
             sourceFile.inputStream().use { inputStream -> inputStream.copyTo(outputStream) }
         } ?: throw IOException("Failed to open SAF output stream")
-        if (copiedBytes != sourceFile.length()) {
-            throw IOException("Incomplete SAF audio export: wrote $copiedBytes of ${sourceFile.length()}")
+        if (copiedBytes != sourceFile.length()) throw IOException("Private audio changed during migration")
+        val storedLength = context.contentResolver.openAssetFileDescriptor(target, "r")?.use { it.length }
+        val complete = if (storedLength != null && storedLength >= 0) {
+            storedLength == copiedBytes
+        } else {
+            contentsMatch(target, sourceFile)
         }
+        if (!complete) throw IOException("Incomplete SAF audio export")
     }
 
     private fun safFileMatchesSource(entry: SafChildEntry, sourceFile: File): Boolean {
-        if (entry.size != sourceFile.length()) return false
-        return try {
-            val safStream = context.contentResolver.openInputStream(entry.uri) ?: return false
-            safStream.use { existingStream ->
-                sourceFile.inputStream().use { sourceStream ->
-                    streamsHaveIdenticalContent(existingStream, sourceStream)
-                }
-            }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            LogManager.w("CacheExporter: Failed comparing SAF file with private source (${e.message})")
-            false
-        }
+        if (entry.size >= 0 && entry.size != sourceFile.length()) return false
+        return contentsMatch(entry.uri, sourceFile)
+    }
+
+    private fun contentsMatch(uri: Uri, source: File): Boolean {
+        val stream = context.contentResolver.openInputStream(uri) ?: throw IOException("Cannot read SAF audio")
+        return stream.use { target -> source.inputStream().use { streamsHaveIdenticalContent(target, it) } }
     }
 
     private fun copyOptionalPrivateLrcToSaf(

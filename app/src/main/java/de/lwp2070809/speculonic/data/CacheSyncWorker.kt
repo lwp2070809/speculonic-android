@@ -56,7 +56,7 @@ internal class MigrationOutcome {
 
 @OptIn(UnstableApi::class)
 private data class VerifySongsConfig(
-    val context: Context,
+    val validator: CacheValidator,
     val musicDao: MusicDao,
     val listedUris: Set<String>,
     val downloadCache: Cache,
@@ -135,7 +135,7 @@ class CacheSyncWorker @AssistedInject constructor(
             verifyCachedSongs(
                 cachedSongs = cachedSongs,
                 config = VerifySongsConfig(
-                    context = context,
+                    validator = CacheValidator(context),
                     musicDao = musicDao,
                     listedUris = safEntries.mapTo(HashSet()) { it.uri.toString() },
                     downloadCache = downloadCache,
@@ -199,7 +199,7 @@ class CacheSyncWorker @AssistedInject constructor(
                                 setProgress(
                                     workDataOf(
                                         PROGRESS to progressValue,
-                                        STATUS to config.context.getString(R.string.scanning_local_files, song.title)
+                                        STATUS to applicationContext.getString(R.string.scanning_local_files, song.title)
                                     )
                                 )
                             }
@@ -216,9 +216,9 @@ class CacheSyncWorker @AssistedInject constructor(
     ) {
         val uri = song.localUri
         val physicalExists = if (uri == null) {
-            song.id in config.downloadCache.keys
+            config.downloadCache.getCachedSpans(song.id).isNotEmpty()
         } else {
-            uri in config.listedUris || CacheValidator(config.context).fileExists(uri.toUri())
+            uri in config.listedUris || config.validator.fileExists(uri.toUri())
         }
         if (!physicalExists) {
             unlinkMissingSong(

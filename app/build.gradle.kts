@@ -22,7 +22,7 @@ android {
         applicationId = "de.lwp2070809.speculonic"
         minSdk = 33
         targetSdk = 37
-        versionCode = 2
+        versionCode = 3
         versionName = "0.10.2"
 
         if (!injectedAbi.isNullOrBlank()) {
