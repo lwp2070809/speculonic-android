@@ -35,16 +35,14 @@ fun NetworkSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarStat
             .padding(top = SettingsConstants.PAGE_PADDING, bottom = SettingsConstants.PAGE_PADDING + LocalMiniPlayerBottomInset.current)
     ) {
         ListItem(
-            headlineContent = { Text(stringResource(R.string.mobile_play_allowed)) },
             trailingContent = {
                 Switch(
                     checked = uiState.mobilePlayAllowed,
                     onCheckedChange = { viewModel.updateMobilePlayAllowed(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.mobile_play_allowed)) }
         ListItem(
-            headlineContent = { Text(stringResource(R.string.pref_auto_offline_on_metered_title)) },
             supportingContent = { Text(stringResource(R.string.pref_auto_offline_on_metered_summary)) },
             trailingContent = {
                 Switch(
@@ -52,9 +50,8 @@ fun NetworkSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarStat
                     onCheckedChange = { viewModel.updateAutoOfflineOnMetered(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.pref_auto_offline_on_metered_title)) }
         ListItem(
-            headlineContent = { Text(stringResource(R.string.pref_show_offline_toast_title)) },
             supportingContent = { Text(stringResource(R.string.pref_show_offline_toast_summary)) },
             trailingContent = {
                 Switch(
@@ -62,7 +59,7 @@ fun NetworkSettings(viewModel: GeneralSettingsViewModel, topBarState: TopBarStat
                     onCheckedChange = { viewModel.updateShowOfflineToast(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.pref_show_offline_toast_title)) }
     }
 }
 

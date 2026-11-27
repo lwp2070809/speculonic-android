@@ -166,30 +166,6 @@ fun SongListItem(
                 Color.Transparent
             }
         ),
-        headlineContent = { 
-            Row(
-                modifier = Modifier.alpha(alpha),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = song.title,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f, fill = false),
-                    color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
-                    fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
-                )
-                if (isDownloaded) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        imageVector = Icons.Default.CheckCircle,
-                        contentDescription = strings.cdDownloaded,
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        },
         supportingContent = { 
             Text(
                 text = "${song.artist ?: ""} • ${FormatUtils.formatDuration(song.duration ?: 0)}",
@@ -377,5 +353,28 @@ fun SongListItem(
                     onClick()
                 }
             }
-    )
+    ) {
+        Row(
+            modifier = Modifier.alpha(alpha),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = song.title,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f, fill = false),
+                color = if (isCurrent) MaterialTheme.colorScheme.primary else Color.Unspecified,
+                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal
+            )
+            if (isDownloaded) {
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = strings.cdDownloaded,
+                    modifier = Modifier.size(14.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
 }

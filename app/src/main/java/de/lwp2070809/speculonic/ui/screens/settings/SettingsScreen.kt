@@ -90,8 +90,7 @@ fun SettingsRoot(onNavigate: (AppRoute) -> Unit) {
 @Composable
 fun SettingsCategoryItem(title: String, icon: Painter, onClick: () -> Unit) {
     ListItem(
-        headlineContent = { Text(title) },
         leadingContent = { Icon(icon, contentDescription = null) },
         modifier = Modifier.clickable(onClick = onClick)
-    )
+    ) { Text(title) }
 }

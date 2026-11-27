@@ -113,13 +113,6 @@ fun InconsistencyDialog(
                             contentType = { "inconsistent_item" }
                         ) { item ->
                             ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = item.displayTitle,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
                                 supportingContent = {
                                     val reason = when (item.type) {
                                         InconsistentItem.Type.MISSING_FILE -> stringResource(R.string.inconsistency_reason_missing)
@@ -146,7 +139,13 @@ fun InconsistencyDialog(
                                 leadingContent = {
                                     Icon(Icons.Default.Warning, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                                 }
-                            )
+                            ) {
+                                Text(
+                                    text = item.displayTitle,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                             HorizontalDivider()
                         }
                     }

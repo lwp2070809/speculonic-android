@@ -109,14 +109,6 @@ fun ArtistsList(
                 when (item) {
                     is ArtistListItem.Header -> {
                         ListItem(
-                            headlineContent = { 
-                                Text(
-                                    text = item.char,
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                ) 
-                            },
                             trailingContent = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
@@ -148,7 +140,14 @@ fun ArtistsList(
                                         collapsedGroups + item.char
                                     }
                                 }
-                        )
+                        ) {
+                            Text(
+                                text = item.char,
+                                style = MaterialTheme.typography.titleLarge,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                     is ArtistListItem.ArtistItem -> {
                         val artist = item.artist
@@ -160,13 +159,6 @@ fun ArtistsList(
                                 .clickable { onArtistClick(artist) }
                         ) {
                             ListItem(
-                                headlineContent = {
-                                    Text(
-                                        text = artist.name,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
                                 supportingContent = { 
                                     val albumCount = artist.albumCount ?: 0
                                     Text(
@@ -189,7 +181,13 @@ fun ArtistsList(
                                         contentScale = ContentScale.Crop
                                     )
                                 }
-                            )
+                            ) {
+                                Text(
+                                    text = artist.name,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }

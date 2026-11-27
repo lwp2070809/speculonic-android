@@ -238,7 +238,8 @@ private fun MainContent(
     val navItemColors = remember(primaryColor, unselectedColor) {
         NavigationItemColors(
             selectedIconColor = primaryColor,
-            selectedTextColor = primaryColor,
+            selectedTextColorTopIconPosition = primaryColor,
+            selectedTextColorStartIconPosition = primaryColor,
             selectedIndicatorColor = transparentColor,
             unselectedIconColor = unselectedColor,
             unselectedTextColor = unselectedColor,

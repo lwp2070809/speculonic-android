@@ -320,7 +320,6 @@ fun ArtistSearchItem(artist: Artist, onClick: () -> Unit) {
         coverRequester.buildCoverArtRequest(artist.coverArt, context, preferLocal = true, size = 200)
     }
     ListItem(
-        headlineContent = { Text(artist.name) },
         leadingContent = {
             AsyncImage(
                 model = model,
@@ -330,7 +329,7 @@ fun ArtistSearchItem(artist: Artist, onClick: () -> Unit) {
             )
         },
         modifier = Modifier.clickable { onClick() }
-    )
+    ) { Text(artist.name) }
 }
 
 @Composable
@@ -341,7 +340,6 @@ fun AlbumSearchItem(album: Album, onClick: () -> Unit) {
         coverRequester.buildCoverArtRequest(album.coverArt, context, preferLocal = true, size = 200)
     }
     ListItem(
-        headlineContent = { Text(album.name) },
         supportingContent = { Text(album.artist ?: "") },
         leadingContent = {
             AsyncImage(
@@ -352,5 +350,5 @@ fun AlbumSearchItem(album: Album, onClick: () -> Unit) {
             )
         },
         modifier = Modifier.clickable { onClick() }
-    )
+    ) { Text(album.name) }
 }

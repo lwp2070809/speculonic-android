@@ -66,9 +66,6 @@ fun AddToPlaylistDialog(
                         items(playlists, key = { it.id }) { playlist ->
                             val isProcessing = processingPlaylistId == playlist.id
                             ListItem(
-                                headlineContent = { 
-                                    Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) 
-                                },
                                 supportingContent = { 
                                     Text(pluralStringResource(R.plurals.songs_count, playlist.songCount ?: 0, playlist.songCount ?: 0)) 
                                 },
@@ -85,7 +82,9 @@ fun AddToPlaylistDialog(
                                 modifier = Modifier.clickable(enabled = processingPlaylistId == null) {
                                     viewModel.addSongToPlaylist(playlist, song, onResult, onDismiss)
                                 }
-                            )
+                            ) {
+                                Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            }
                         }
                     }
                 }

@@ -95,14 +95,13 @@ fun SleepTimerOptionsView(
         if (currentMode != SleepTimerMode.OFF) {
             HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
             ListItem(
-                headlineContent = {
-                    Text(
-                        text = stringResource(R.string.cancel_timer),
-                        color = MaterialTheme.colorScheme.error
-                    )
-                },
                 modifier = Modifier.clickable { onCancelTimer() }
-            )
+            ) {
+                Text(
+                    text = stringResource(R.string.cancel_timer),
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
         }
     }
 

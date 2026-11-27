@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.Composable
@@ -103,8 +104,10 @@ private fun PlaybackProgressSlider(
         0f
     }
 
+    val sliderState = remember { SliderState() }
+    sliderState.value = currentSliderValue
     Slider(
-        value = currentSliderValue,
+        state = sliderState,
         onValueChange = onValueChange,
         onValueChangeFinished = onValueChangeFinished,
         colors = SliderDefaults.colors(

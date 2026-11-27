@@ -59,7 +59,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
         )
         
         ListItem(
-            headlineContent = { Text(stringResource(R.string.duck_on_transient)) },
             supportingContent = { Text(stringResource(R.string.duck_on_transient_description)) },
             trailingContent = {
                 Switch(
@@ -67,7 +66,7 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
                     onCheckedChange = { viewModel.updateDuckOnTransientFocusLoss(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.duck_on_transient)) }
 
         Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
@@ -79,7 +78,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
         )
         
         ListItem(
-            headlineContent = { Text(stringResource(R.string.pause_on_loss)) },
             supportingContent = { Text(stringResource(R.string.pause_on_loss_description)) },
             trailingContent = {
                 Switch(
@@ -87,7 +85,7 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
                     onCheckedChange = { viewModel.updatePauseOnAudioFocusLoss(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.pause_on_loss)) }
 
         Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))
 
@@ -99,7 +97,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
         )
 
         ListItem(
-            headlineContent = { Text(stringResource(R.string.pause_on_volume_zero)) },
             supportingContent = { Text(stringResource(R.string.pause_on_volume_zero_description)) },
             trailingContent = {
                 Switch(
@@ -107,10 +104,9 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
                     onCheckedChange = { viewModel.updatePauseOnVolumeZero(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.pause_on_volume_zero)) }
 
         ListItem(
-            headlineContent = { Text(stringResource(R.string.skip_silence)) },
             supportingContent = { Text(stringResource(R.string.skip_silence_description)) },
             trailingContent = {
                 Switch(
@@ -118,7 +114,7 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
                     onCheckedChange = { viewModel.updateSkipSilenceEnabled(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.skip_silence)) }
 
         if (uiState.transcodeIncompatibleFormats) {
             val currentFormatLabel = when (uiState.targetTranscodeFormat.lowercase()) {
@@ -129,10 +125,9 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
             }
 
             ListItem(
-                headlineContent = { Text(stringResource(R.string.target_transcode_format)) },
                 supportingContent = { Text(currentFormatLabel) },
                 modifier = Modifier.clickable { showFormatDialog = true }
-            )
+            ) { Text(stringResource(R.string.target_transcode_format)) }
 
             if (showFormatDialog) {
                 AlertDialog(
@@ -180,7 +175,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
         }
 
         ListItem(
-            headlineContent = { Text(stringResource(R.string.transcode_incompatible_formats)) },
             supportingContent = { Text(stringResource(R.string.transcode_incompatible_formats_description)) },
             trailingContent = {
                 Switch(
@@ -191,6 +185,6 @@ fun PlaybackSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBarS
                     }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.transcode_incompatible_formats)) }
     }
 }

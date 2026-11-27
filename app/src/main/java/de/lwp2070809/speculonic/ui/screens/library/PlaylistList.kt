@@ -148,7 +148,6 @@ fun PlaylistList(
                     .clickable(enabled = isEffectivelyOnline) { showCreateDialog = true }
             ) {
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.create_playlist), modifier = Modifier.alpha(alpha)) },
                     leadingContent = {
                         Box(
                             modifier = Modifier
@@ -164,7 +163,7 @@ fun PlaylistList(
                             )
                         }
                     }
-                )
+                ) { Text(stringResource(R.string.create_playlist), modifier = Modifier.alpha(alpha)) }
             }
         }
 
@@ -178,7 +177,6 @@ fun PlaylistList(
                     .clickable { onPlaylistClick(playlist.id) }
             ) {
                 ListItem(
-                    headlineContent = { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                     supportingContent = { 
                         val songCount = playlist.songCount ?: 0
                         Text(
@@ -225,7 +223,7 @@ fun PlaylistList(
                             }
                         }
                     }
-                )
+                ) { Text(playlist.name, maxLines = 1, overflow = TextOverflow.Ellipsis) }
             }
         }
     }

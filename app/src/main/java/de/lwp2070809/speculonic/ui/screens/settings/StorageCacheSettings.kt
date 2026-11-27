@@ -239,7 +239,6 @@ fun StorageCacheSettings(
             }
 
             ListItem(
-                headlineContent = { Text(stringResource(R.string.clear_internal_cache)) },
                 supportingContent = { Text(stringResource(R.string.used_space, uiState.internalCacheSize)) },
                 trailingContent = {
                     TextButton(
@@ -249,7 +248,7 @@ fun StorageCacheSettings(
                         Text(stringResource(R.string.clear))
                     }
                 }
-            )
+            ) { Text(stringResource(R.string.clear_internal_cache)) }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
 
@@ -265,7 +264,6 @@ fun StorageCacheSettings(
             )
 
             ListItem(
-                headlineContent = { Text(stringResource(R.string.persistent_storage_saf)) },
                 supportingContent = {
                     Text(
                         text = if (uiState.cacheLocation.isEmpty()) {
@@ -293,10 +291,9 @@ fun StorageCacheSettings(
                         }
                     }
                 }
-            )
+            ) { Text(stringResource(R.string.persistent_storage_saf)) }
 
             ListItem(
-                headlineContent = { Text(stringResource(R.string.silent_cache)) },
                 supportingContent = { Text(stringResource(R.string.silent_cache_description)) },
                 trailingContent = {
                     Switch(
@@ -304,7 +301,7 @@ fun StorageCacheSettings(
                         onCheckedChange = { viewModel.updateSilentCacheEnabled(it) }
                     )
                 }
-            )
+            ) { Text(stringResource(R.string.silent_cache)) }
 
             HorizontalDivider(modifier = Modifier.padding(vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM))
 
@@ -321,7 +318,6 @@ fun StorageCacheSettings(
 
             if (uiState.cacheLocation.isNotEmpty()) {
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.scan_local_files)) },
                     supportingContent = { 
                         Column {
                             Text(stringResource(R.string.external_usage, uiState.externalCacheSize))
@@ -352,11 +348,10 @@ fun StorageCacheSettings(
                         }
                     },
                     modifier = Modifier.clickable(enabled = !uiState.isScanning) { viewModel.scanLocalFiles() }
-                )
+                ) { Text(stringResource(R.string.scan_local_files)) }
             }
 
             ListItem(
-                headlineContent = { Text(stringResource(R.string.verify_cache)) },
                 supportingContent = { 
                     Column {
                         Text(stringResource(R.string.verify_description))
@@ -392,7 +387,7 @@ fun StorageCacheSettings(
                 modifier = Modifier
                     .alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
                     .clickable(enabled = !uiState.isInteractiveScanning && isEffectivelyOnline) { viewModel.requestSyncWithServer() }
-            )
+            ) { Text(stringResource(R.string.verify_cache)) }
         }
     }
 

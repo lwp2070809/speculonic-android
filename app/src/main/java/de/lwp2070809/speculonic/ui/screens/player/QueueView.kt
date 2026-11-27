@@ -76,14 +76,6 @@ fun QueueView(
                             androidx.compose.ui.graphics.Color.Transparent
                         }
                     ),
-                    headlineContent = { 
-                        val title = item.mediaMetadata.title?.toString() ?: ""
-                        Text(
-                            text = title.ifEmpty { stringResource(R.string.not_playing) },
-                            fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
-                            color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
-                        ) 
-                    },
                     supportingContent = { 
                         val artist = item.mediaMetadata.artist?.toString() ?: ""
                         Text(artist.ifEmpty { stringResource(R.string.not_playing_artist) })
@@ -109,7 +101,14 @@ fun QueueView(
                     modifier = Modifier
                         .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
                         .clickable { onItemClick(index) }
-                )
+                ) {
+                    val title = item.mediaMetadata.title?.toString() ?: ""
+                    Text(
+                        text = title.ifEmpty { stringResource(R.string.not_playing) },
+                        fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }

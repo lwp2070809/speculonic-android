@@ -32,6 +32,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -182,10 +183,13 @@ class SpeculonicWidgetConfigureActivity : ComponentActivity() {
 
                         Spacer(modifier = Modifier.height(16.dp))
 
+                        val sliderState = remember {
+                            SliderState(value = DEFAULT_WIDGET_ALPHA, trackRange = 0.10f..1.0f)
+                        }
+                        sliderState.value = alpha
                         Slider(
-                            value = alpha,
+                            state = sliderState,
                             onValueChange = { alpha = it },
-                            valueRange = 0.10f..1.0f,
                             modifier = Modifier.fillMaxWidth()
                         )
                     }

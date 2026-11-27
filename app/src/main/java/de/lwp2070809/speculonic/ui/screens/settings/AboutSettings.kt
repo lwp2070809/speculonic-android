@@ -80,7 +80,6 @@ fun AboutSettings(
             de.lwp2070809.speculonic.BuildConfig.FLAVOR == "github" &&
                 de.lwp2070809.speculonic.BuildConfig.UPDATE_CHECK_ENABLED
         ListItem(
-            headlineContent = { Text(stringResource(R.string.version)) },
             supportingContent = { Text(versionName) },
             trailingContent = if (isGithubUpdateEnabled) {
                 {
@@ -101,7 +100,7 @@ fun AboutSettings(
                     }
                 }
             } else null
-        )
+        ) { Text(stringResource(R.string.version)) }
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
         
@@ -157,15 +156,13 @@ fun AboutSettings(
 
         
         ListItem(
-            headlineContent = { Text(stringResource(R.string.license)) },
             supportingContent = { Text("AGPL-3.0") }
-        )
+        ) { Text(stringResource(R.string.license)) }
 
         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp))
 
         
         ListItem(
-            headlineContent = { Text(stringResource(R.string.github_repository)) },
             supportingContent = { Text("https://github.com/lwp2070809/speculonic-android") },
             modifier = Modifier.clickable {
                 try {
@@ -175,7 +172,7 @@ fun AboutSettings(
                     de.lwp2070809.speculonic.util.LogManager.w("AboutSettings: No browser available for repository URL", e)
                 }
             }
-        )
+        ) { Text(stringResource(R.string.github_repository)) }
     }
 
     uiState.manualUpdateResult?.let { result ->

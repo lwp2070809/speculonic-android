@@ -277,7 +277,6 @@ fun ServerSettings(
                 )
 
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.background_sync)) },
                     supportingContent = { Text(stringResource(R.string.background_sync_description)) },
                     trailingContent = {
                         Switch(
@@ -285,10 +284,9 @@ fun ServerSettings(
                             onCheckedChange = { viewModel.updateBackgroundSyncEnabled(it) }
                         )
                     }
-                )
+                ) { Text(stringResource(R.string.background_sync)) }
 
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.force_full_sync)) },
                     supportingContent = { Text(stringResource(R.string.force_full_sync_description)) },
                     trailingContent = {
                         IconButton(
@@ -308,10 +306,9 @@ fun ServerSettings(
                         }
                     },
                     modifier = Modifier.alpha(if (isEffectivelyOnline) 1.0f else 0.38f)
-                )
+                ) { Text(stringResource(R.string.force_full_sync)) }
 
                 ListItem(
-                    headlineContent = { Text(stringResource(R.string.sync_cover_art_option_title)) },
                     supportingContent = { Text(stringResource(R.string.sync_cover_art_option_desc)) },
                     trailingContent = {
                         Switch(
@@ -320,7 +317,7 @@ fun ServerSettings(
                         )
                     },
                     modifier = Modifier.padding(start = SettingsConstants.SUB_ITEM_PADDING)
-                )
+                ) { Text(stringResource(R.string.sync_cover_art_option_title)) }
 
                 if (uiState.isSyncing && uiState.syncProgress != null) {
                     Spacer(modifier = Modifier.height(SettingsConstants.SPACER_HEIGHT_LARGE))

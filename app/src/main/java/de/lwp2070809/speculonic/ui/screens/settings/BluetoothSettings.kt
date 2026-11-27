@@ -90,7 +90,6 @@ fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBar
             modifier = Modifier.padding(horizontal = SettingsConstants.PAGE_PADDING, vertical = SettingsConstants.SPACER_HEIGHT_MEDIUM)
         )
         ListItem(
-            headlineContent = { Text(stringResource(R.string.identify_car_bluetooth)) },
             supportingContent = { Text(stringResource(R.string.identify_car_bluetooth_description)) },
             trailingContent = {
                 Switch(
@@ -98,18 +97,16 @@ fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBar
                     onCheckedChange = { viewModel.updateCarBluetoothEnabled(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.identify_car_bluetooth)) }
         ListItem(
             modifier = Modifier
                 .clickable(enabled = uiState.carBluetoothEnabled) { showBluetoothNamesDialog = true }
                 .alpha(if (uiState.carBluetoothEnabled) 1f else 0.38f),
-            headlineContent = { Text(stringResource(R.string.bluetooth_car_device_names)) },
             supportingContent = { Text(stringResource(R.string.bluetooth_car_device_names_description)) }
-        )
+        ) { Text(stringResource(R.string.bluetooth_car_device_names)) }
         
         ListItem(
             modifier = Modifier.alpha(if (uiState.carBluetoothEnabled) 1f else 0.38f),
-            headlineContent = { Text(stringResource(R.string.sync_playback_state)) },
             supportingContent = { Text(stringResource(R.string.sync_playback_state_description)) },
             trailingContent = {
                 Switch(
@@ -118,10 +115,9 @@ fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBar
                     onCheckedChange = { viewModel.updateSyncPlaybackState(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.sync_playback_state)) }
         ListItem(
             modifier = Modifier.alpha(if (uiState.carBluetoothEnabled) 1f else 0.38f),
-            headlineContent = { Text(stringResource(R.string.bluetooth_lyrics)) },
             supportingContent = { Text(stringResource(R.string.bluetooth_lyrics_description)) },
             trailingContent = {
                 Switch(
@@ -130,14 +126,13 @@ fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBar
                     onCheckedChange = { viewModel.updateBluetoothLyricsEnabled(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.bluetooth_lyrics)) }
         
         val showProgressBarEnabled = uiState.carBluetoothEnabled && uiState.bluetoothLyricsEnabled
         ListItem(
             modifier = Modifier
                 .padding(start = SettingsConstants.SUB_ITEM_PADDING)
                 .alpha(if (showProgressBarEnabled) 1f else 0.38f),
-            headlineContent = { Text(stringResource(R.string.bluetooth_lyrics_hide_progress_bar)) },
             supportingContent = { Text(stringResource(R.string.bluetooth_lyrics_hide_progress_bar_description)) },
             trailingContent = {
                 Switch(
@@ -146,7 +141,7 @@ fun BluetoothSettings(viewModel: PlaybackBluetoothViewModel, topBarState: TopBar
                     onCheckedChange = { viewModel.updateBluetoothLyricsHideProgressBar(it) }
                 )
             }
-        )
+        ) { Text(stringResource(R.string.bluetooth_lyrics_hide_progress_bar)) }
     }
 
     if (showBluetoothNamesDialog) {
