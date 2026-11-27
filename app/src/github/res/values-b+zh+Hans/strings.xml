@@ -1,0 +1,6 @@
+<resources>
+    <string name="update_available_title">发现新版本</string>
+    <string name="update_available_subtitle">Speculonic 的新版本 (%1$s) 已发布。</string>
+    <string name="update_now">立即更新</string>
+    <string name="update_later">稍后</string>
+</resources>

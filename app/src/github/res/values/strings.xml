@@ -1,0 +1,6 @@
+<resources>
+    <string name="update_available_title">Update Available</string>
+    <string name="update_available_subtitle">A new version (%1$s) of Speculonic is available.</string>
+    <string name="update_now">Update Now</string>
+    <string name="update_later">Later</string>
+</resources>

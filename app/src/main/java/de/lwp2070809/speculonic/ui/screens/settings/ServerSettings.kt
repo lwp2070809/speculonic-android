@@ -70,9 +70,9 @@ import de.lwp2070809.speculonic.ui.screens.settings.components.ServerConfigDialo
 
 @Composable
 private fun SpinningSyncIcon(
+    modifier: Modifier = Modifier,
     contentDescription: String? = null,
-    tint: Color = LocalContentColor.current,
-    modifier: Modifier = Modifier
+    tint: Color = LocalContentColor.current
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "sync_rotation")
     val rotation = infiniteTransition.animateFloat(
@@ -342,8 +342,8 @@ fun ServerSettings(
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
                             SpinningSyncIcon(
-                                tint = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(24.dp),
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Text(
                                 text = uiState.syncProgress ?: "",

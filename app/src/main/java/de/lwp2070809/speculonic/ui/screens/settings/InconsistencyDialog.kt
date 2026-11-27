@@ -177,7 +177,9 @@ fun InconsistencyDialog(
         AlertDialog(
             onDismissRequest = { confirmDeleteAll = false },
             title = { Text(stringResource(R.string.cache_delete_all)) },
-            text = { Text(stringResource(R.string.cache_confirm_delete_all, deletableCount)) },
+            text = {
+                Text(pluralStringResource(R.plurals.cache_confirm_delete_all, deletableCount, deletableCount))
+            },
             confirmButton = {
                 TextButton(onClick = {
                     confirmDeleteAll = false

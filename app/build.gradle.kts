@@ -140,11 +140,6 @@ androidComponents {
     }
 }
 
-tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
-    compilerOptions.freeCompilerArgs.add("-Xannotation-default-target=param-property")
-}
-
-
 ksp {
     arg("room.schemaLocation", "$projectDir/schemas")
 }

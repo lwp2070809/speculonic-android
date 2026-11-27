@@ -387,6 +387,10 @@ class DownloadTracker @Inject constructor(
                     active.add(id)
                 }
             }
+            Download.STATE_FAILED,
+            Download.STATE_REMOVING,
+            Download.STATE_RESTARTING,
+            Download.STATE_STOPPED -> Unit
         }
     }
 

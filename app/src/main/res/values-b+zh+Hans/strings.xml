@@ -283,14 +283,15 @@
     <string name="redownload">重新下载</string>
     <string name="cache_delete_all">一键删除</string>
     <string name="cache_redownload_all">一键重新下载</string>
-    <string name="cache_confirm_delete_all">确定删除列表中全部 %1$d 项异常对应的本地文件和缓存记录吗？所选文件夹中列出的孤立文件也会被删除。</string>
+    <plurals name="cache_confirm_delete_all">
+        <item quantity="other">确定删除列表中全部 %1$d 项异常对应的本地文件和缓存记录吗？所选文件夹中列出的孤立文件也会被删除。</item>
+    </plurals>
     <string name="cache_resolving">正在处理 %1$d/%2$d…</string>
     <string name="cache_requeued_count">已加入重新下载队列：%1$d 项</string>
     <string name="cache_deleted_count">已删除：%1$d 项</string>
     <string name="cache_resolution_failed">%1$s；失败：%2$d 项。%3$s</string>
     <string name="cache_changed">缓存已发生变化，请重新校验。</string>
     <string name="cache_delete_failed">未能删除文件。</string>
-    <string name="redownload_queued">已加入重新下载队列：%1$s</string>
 
     
     <string name="about">关于</string>
@@ -303,10 +304,6 @@
     <string name="update_check_daily">每日</string>
     <string name="update_check_weekly">每周</string>
     <string name="update_check_disabled">禁用</string>
-    <string name="update_available_title">发现新版本</string>
-    <string name="update_available_subtitle">Speculonic 的新版本 (%1$s) 已发布。</string>
-    <string name="update_now">立即更新</string>
-    <string name="update_later">稍后</string>
     <string name="update_already_latest">已是最新版本</string>
     <string name="update_check_failed">检查更新失败：%1$s</string>
     <string name="update_not_configured">未配置更新仓库</string>
@@ -372,7 +369,6 @@
     <string name="log_level_all">全部级别</string>
     <string name="logs_copied_to_clipboard">日志已复制到剪贴板</string>
     <string name="content_description_copy_all">复制全部</string>
-    <string name="healing_cover_art">正在补全专辑封面…</string>
     <string name="exporting_historical_cache">正在导出历史缓存 (%1$d/%2$d): %3$s</string>
     <string name="export_failed">导出失败: %1$s</string>
     <string name="saf_name_conflict">目标目录中存在名称冲突：%1$s</string>

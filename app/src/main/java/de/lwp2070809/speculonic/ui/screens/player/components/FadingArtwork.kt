@@ -61,7 +61,7 @@ fun ArtworkView(
             maxAlpha = 1f,
             animateTransitions = true,
             contentScale = ContentScale.Fit,
-            containerModifier = Modifier
+            modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.surfaceVariant)
         )
@@ -128,8 +128,8 @@ fun PlayerBlurBackground(
         maxAlpha = 0.5f,
         animateTransitions = isAppVisible,
         contentScale = ContentScale.Crop,
-        imageModifier = Modifier.blur(50.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded),
-        containerModifier = modifier.fillMaxSize()
+        modifier = modifier.fillMaxSize(),
+        imageModifier = Modifier.blur(50.dp, edgeTreatment = BlurredEdgeTreatment.Unbounded)
     )
 }
 
@@ -212,7 +212,7 @@ private fun DualSlotCrossfadeImage(
     maxAlpha: Float,
     animateTransitions: Boolean,
     contentScale: ContentScale,
-    containerModifier: Modifier = Modifier,
+    modifier: Modifier = Modifier,
     imageModifier: Modifier = Modifier
 ) {
     var state by remember { mutableStateOf(ArtworkCrossfadeState()) }
@@ -244,13 +244,13 @@ private fun DualSlotCrossfadeImage(
         label = "crossfadeAlpha1"
     )
 
-    Box(modifier = containerModifier) {
+    Box(modifier = modifier) {
         ArtworkSlotImage(
             model = state.slot0Model,
             attempt = state.slot0Attempt,
             alpha = alpha0,
             contentScale = contentScale,
-            imageModifier = imageModifier,
+            modifier = imageModifier,
             onResult = { model, success -> state = state.onSlotResult(0, model, success) }
         )
         ArtworkSlotImage(
@@ -258,7 +258,7 @@ private fun DualSlotCrossfadeImage(
             attempt = state.slot1Attempt,
             alpha = alpha1,
             contentScale = contentScale,
-            imageModifier = imageModifier,
+            modifier = imageModifier,
             onResult = { model, success -> state = state.onSlotResult(1, model, success) }
         )
     }
@@ -270,7 +270,7 @@ private fun ArtworkSlotImage(
     attempt: Int,
     alpha: androidx.compose.runtime.State<Float>,
     contentScale: ContentScale,
-    imageModifier: Modifier,
+    modifier: Modifier,
     onResult: (model: Any, success: Boolean) -> Unit
 ) {
     if (model == null) return
@@ -283,7 +283,7 @@ private fun ArtworkSlotImage(
             modifier = Modifier
                 .fillMaxSize()
                 .graphicsLayer { this.alpha = alpha.value }
-                .then(imageModifier),
+                .then(modifier),
             contentScale = contentScale
         )
     }

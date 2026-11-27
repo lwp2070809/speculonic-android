@@ -4,8 +4,8 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
-import android.net.Uri
 import android.util.LruCache
+import androidx.core.net.toUri
 import coil3.BitmapImage
 import coil3.SingletonImageLoader
 import coil3.request.ImageRequest
@@ -108,7 +108,7 @@ object WidgetCoverLoader {
                 WidgetEntryPoint::class.java
             ).appDatabase()
             val song = db.musicDao().getSongByIdSync(songId)
-            val localUri = song?.localUri?.let { Uri.parse(it) } ?: return null
+            val localUri = song?.localUri?.toUri() ?: return null
 
             val density = context.resources.displayMetrics.density
             val targetPx = (targetDp * density).toInt().coerceIn(120, 360)
@@ -149,7 +149,7 @@ object WidgetCoverLoader {
 
     private suspend fun loadFromCoil(context: Context, uriString: String, targetPx: Int): Bitmap? {
         return try {
-            val uri = Uri.parse(uriString)
+            val uri = uriString.toUri()
             val loader = SingletonImageLoader.get(context)
 
             val requestBuilder = ImageRequest.Builder(context)

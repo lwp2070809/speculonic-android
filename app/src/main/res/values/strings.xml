@@ -289,14 +289,16 @@
     <string name="redownload">Redownload</string>
     <string name="cache_delete_all">Delete all</string>
     <string name="cache_redownload_all">Redownload all</string>
-    <string name="cache_confirm_delete_all">Delete the local files and cache records for all %1$d listed issues? This also deletes listed orphan files from the selected folder.</string>
+    <plurals name="cache_confirm_delete_all">
+        <item quantity="one">Delete the local files and cache records for %1$d listed issue? This also deletes listed orphan files from the selected folder.</item>
+        <item quantity="other">Delete the local files and cache records for all %1$d listed issues? This also deletes listed orphan files from the selected folder.</item>
+    </plurals>
     <string name="cache_resolving">Processing %1$d of %2$d…</string>
     <string name="cache_requeued_count">Queued for redownload: %1$d</string>
     <string name="cache_deleted_count">Deleted: %1$d</string>
     <string name="cache_resolution_failed">%1$s. Failed: %2$d. %3$s</string>
     <string name="cache_changed">The cache has changed. Run verification again.</string>
     <string name="cache_delete_failed">Could not delete the file.</string>
-    <string name="redownload_queued">Queued for redownload: %1$s</string>
 
     <!-- About -->
     <string name="about">About</string>
@@ -309,10 +311,6 @@
     <string name="update_check_daily">Daily</string>
     <string name="update_check_weekly">Weekly</string>
     <string name="update_check_disabled">Disabled</string>
-    <string name="update_available_title">Update Available</string>
-    <string name="update_available_subtitle">A new version (%1$s) of Speculonic is available.</string>
-    <string name="update_now">Update Now</string>
-    <string name="update_later">Later</string>
     <string name="update_already_latest">Already the latest version</string>
     <string name="update_check_failed">Failed to check for updates: %1$s</string>
     <string name="update_not_configured">Update repository not configured</string>
@@ -378,7 +376,6 @@
     <string name="log_level_all">All Levels</string>
     <string name="logs_copied_to_clipboard">Logs copied to clipboard</string>
     <string name="content_description_copy_all">Copy All</string>
-    <string name="healing_cover_art">Healing album covers…</string>
     <string name="exporting_historical_cache">Exporting historical cache (%1$d/%2$d): %3$s</string>
     <string name="export_failed">Export failed: %1$s</string>
     <string name="saf_name_conflict">Name conflict in the destination folder: %1$s</string>
